@@ -1,0 +1,100 @@
+services:
+  # Main application service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: album-conceptualizer
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import album_conceptualizer"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Development service with hot reload
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: album-conceptualizer-dev
+    ports:
+      - "7860:7860"
+    volumes:
+      - .:/app
+      - /app/__pycache__
+      - /app/.ruff_cache
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOG_LEVEL=DEBUG
+    command: python -m album_conceptualizer.cli ui --host 0.0.0.0 --reload
+    profiles:
+      - dev
+
+  # Test runner service
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: album-conceptualizer-test
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    environment:
+      - PYTHONPATH=/app
+    command: pytest -v --cov=album_conceptualizer --cov-report=term-missing
+    profiles:
+      - test
+
+  # Linting service
+  lint:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: album-conceptualizer-lint
+    volumes:
+      - .:/app
+    command: ruff check album_conceptualizer/ tests/
+    profiles:
+      - lint
+
+  # Vector database for RAG (optional)
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: album-conceptualizer-chromadb
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    profiles:
+      - full
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  chroma_data:
+
+networks:
+  default:
+    name: album-conceptualizer-network

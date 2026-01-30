@@ -44,25 +44,68 @@ This is the first tool of its kind—while AI lyric generators and chord progres
 
 ### Prerequisites
 
-- Python 3.10 or higher
-- pip package manager
+- Python 3.11 or higher
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
 
-### Quick Start
+### Quick Start with uv (Recommended)
 
 ```bash
 # Clone the repository
 git clone https://github.com/gr8monk3ys/album-conceptualizer.git
 cd album-conceptualizer
 
-# Create virtual environment (recommended)
+# Install with uv
+uv pip install --system -e .
+
+# For development dependencies
+uv pip install --system -e ".[dev]"
+
+# For full installation (all optional features)
+uv pip install --system -e ".[full]"
+```
+
+### Quick Start with pip
+
+```bash
+# Clone the repository
+git clone https://github.com/gr8monk3ys/album-conceptualizer.git
+cd album-conceptualizer
+
+# Create virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install the package
 pip install -e .
+```
 
-# For development dependencies
-pip install -e ".[dev]"
+### Docker Installation
+
+```bash
+# Build and run with Docker Compose
+docker compose up -d app
+
+# Or build manually
+docker build -t album-conceptualizer .
+docker run -p 7860:7860 album-conceptualizer
+```
+
+### Optional Dependencies
+
+Install specific feature sets as needed:
+
+```bash
+# AI/ML features (CrewAI, LangChain)
+uv pip install --system -e ".[ai]"
+
+# RAG features (ChromaDB, Sentence Transformers)
+uv pip install --system -e ".[rag]"
+
+# Music processing (music21, MIDI)
+uv pip install --system -e ".[music]"
+
+# Web UI (Gradio)
+uv pip install --system -e ".[ui]"
 ```
 
 ### API Keys
@@ -209,6 +252,28 @@ The system can integrate with:
 
 ## Development
 
+### Using Make Commands
+
+```bash
+# See all available commands
+make help
+
+# Install dev dependencies
+make install-dev
+
+# Run linter
+make lint
+
+# Format code
+make format
+
+# Run tests
+make test
+
+# Run tests with coverage
+make test-cov
+```
+
 ### Running Tests
 
 ```bash
@@ -216,30 +281,49 @@ The system can integrate with:
 pytest
 
 # Run with coverage
-pytest --cov=album_conceptualizer
+pytest --cov=album_conceptualizer --cov-report=html
 
 # Run specific test file
 pytest tests/test_models.py
+
+# Run fast (stop on first failure)
+make test-fast
 ```
 
 ### Code Quality
 
 ```bash
-# Format code
-black src tests
+# Lint with ruff
+ruff check album_conceptualizer/ tests/
 
-# Lint
-ruff check src tests
+# Format with ruff
+ruff format album_conceptualizer/ tests/
 
-# Type checking
-mypy src
+# Type check
+mypy album_conceptualizer/
+
+# Pre-commit hooks
+pre-commit run --all-files
+```
+
+### Docker Development
+
+```bash
+# Run development container with hot reload
+docker compose --profile dev up
+
+# Run tests in container
+docker compose --profile test up
+
+# Start with full stack (including ChromaDB)
+docker compose --profile full up
 ```
 
 ## Project Structure
 
 ```
 album-conceptualizer/
-├── src/album_conceptualizer/
+├── album_conceptualizer/
 │   ├── models/           # Data models (Album, Song, AlbumBible, etc.)
 │   ├── rag/              # RAG system (embeddings, vector store, retrievers)
 │   ├── agents/           # CrewAI agents and crews
@@ -248,7 +332,11 @@ album-conceptualizer/
 │   ├── config.py         # Configuration management
 │   └── cli.py            # Command-line interface
 ├── tests/                # Test suite
-├── pyproject.toml        # Project configuration
+├── .github/workflows/    # CI/CD pipelines
+├── Dockerfile            # Container definition
+├── docker-compose.yml    # Container orchestration
+├── Makefile              # Development commands
+├── pyproject.toml        # Project configuration (uv/hatch)
 └── README.md
 ```
 

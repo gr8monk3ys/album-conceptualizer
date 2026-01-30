@@ -1,16 +1,23 @@
 """Tests for export functionality."""
 
-import pytest
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
-from album_conceptualizer.models.album import Song, Section, SectionType
-from album_conceptualizer.models.music_theory import Chord, ChordProgression, ChordQuality
+import pytest
+
 from album_conceptualizer.export.chordpro import ChordProExporter, format_chordpro, parse_chordpro
+from album_conceptualizer.models.album import Section, SectionType, Song
+from album_conceptualizer.models.music_theory import Chord, ChordQuality
+
 
 # Optional MIDI imports
 try:
-    from album_conceptualizer.export.midi import MidiExporter, chord_to_midi_notes, create_chord_midi
+    from album_conceptualizer.export.midi import (
+        MidiExporter,
+        chord_to_midi_notes,
+        create_chord_midi,
+    )
+
     MIDI_AVAILABLE = True
 except ImportError:
     MIDI_AVAILABLE = False
@@ -139,12 +146,14 @@ class TestChordProExport:
     def test_chordpro_exporter_song(self):
         """Test exporting a full song to ChordPro."""
         song = Song(title="Test Song", track_number=1, key="G", tempo=120)
-        song.add_section(Section(
-            section_type=SectionType.VERSE,
-            order=1,
-            lyrics="First verse lyrics",
-            chord_progression=["G", "D", "Em", "C"],
-        ))
+        song.add_section(
+            Section(
+                section_type=SectionType.VERSE,
+                order=1,
+                lyrics="First verse lyrics",
+                chord_progression=["G", "D", "Em", "C"],
+            )
+        )
 
         exporter = ChordProExporter()
         with tempfile.TemporaryDirectory() as tmpdir:

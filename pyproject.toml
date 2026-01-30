@@ -1,17 +1,11 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "album-conceptualizer"
 version = "0.1.0"
 description = "A RAG-powered concept album ideation system with multi-agent orchestration"
 readme = "README.md"
-license = {text = "GPL-3.0"}
-requires-python = ">=3.10"
-authors = [
-    {name = "Lorenzo", email = "lorenzosca7@protonmail.ch"}
-]
+license = { text = "GPL-3.0" }
+requires-python = ">=3.11"
+authors = [{ name = "Lorenzo", email = "lorenzosca7@protonmail.ch" }]
 keywords = ["music", "ai", "rag", "concept-album", "crewai", "langchain"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -19,62 +13,72 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Sound/Audio",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 dependencies = [
-    # Core AI/ML
-    "langchain>=0.1.0",
-    "langchain-community>=0.0.10",
-    "langchain-anthropic>=0.1.0",
-    "langchain-openai>=0.0.5",
-
-    # RAG & Vector Store
-    "chromadb>=0.4.22",
-    "sentence-transformers>=2.2.2",
-
-    # Multi-Agent Framework
-    "crewai>=0.28.0",
-    "crewai-tools>=0.1.0",
-
-    # Music Theory & Processing
-    "music21>=9.1.0",
-    "pretty-midi>=0.2.10",
-    "midiutil>=1.2.1",
-
-    # Data Processing
-    "pandas>=2.0.0",
-    "numpy>=1.24.0",
     "pydantic>=2.0.0",
-    "pyyaml>=6.0",
-
-    # UI
-    "gradio>=4.0.0",
-
-    # Utilities
+    "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
     "httpx>=0.25.0",
     "tenacity>=8.2.0",
     "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.5.0",
+# AI/ML dependencies
+ai = [
+    "langchain>=0.1.0",
+    "langchain-community>=0.0.10",
+    "langchain-anthropic>=0.1.0",
+    "langchain-openai>=0.0.5",
+    "crewai>=0.28.0",
+    "crewai-tools>=0.1.0",
 ]
+
+# RAG dependencies
+rag = [
+    "chromadb>=0.4.22",
+    "sentence-transformers>=2.2.2",
+]
+
+# Music processing
+music = [
+    "music21>=9.1.0",
+    "pretty-midi>=0.2.10",
+    "midiutil>=1.2.1",
+]
+
+# Data processing
+data = [
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+]
+
+# UI
+ui = ["gradio>=4.0.0"]
+
+# Full installation (all optional deps)
 full = [
+    "album-conceptualizer[ai,rag,music,data,ui]",
     "weaviate-client>=4.0.0",
     "python-osc>=1.8.0",
     "musicbrainzngs>=0.7.1",
+]
+
+# Development dependencies
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+    "pre-commit>=3.7.0",
 ]
 
 [project.scripts]
@@ -84,25 +88,125 @@ album-conceptualizer = "album_conceptualizer.cli:main"
 Homepage = "https://github.com/gr8monk3ys/album-conceptualizer"
 Repository = "https://github.com/gr8monk3ys/album-conceptualizer"
 Issues = "https://github.com/gr8monk3ys/album-conceptualizer/issues"
+Documentation = "https://github.com/gr8monk3ys/album-conceptualizer#readme"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.black]
-line-length = 100
-target-version = ["py310", "py311", "py312"]
+[tool.hatch.build.targets.wheel]
+packages = ["album_conceptualizer"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "/album_conceptualizer",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+]
+
+# Ruff configuration (replaces black, isort, flake8, pylint)
 [tool.ruff]
+target-version = "py311"
 line-length = 100
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "*.egg-info",
+    ".mypy_cache",
+    ".pytest_cache",
+]
 
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented out code)
+    "PL",     # pylint
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "E741",    # ambiguous variable name
+    "PLR0913", # too many arguments
+    "PLR2004", # magic value comparison
+    "PLR0911", # too many return statements
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "PLW0603", # global statement (used for singleton settings)
+    "PLW2901", # loop variable overwritten (intentional)
+    "ARG001",  # unused function argument (common in base classes)
+    "ARG002",  # unused method argument
+    "PLC0415", # import not at top level (used for lazy imports)
+    "RUF012",  # mutable class attributes (used in pydantic/crewai)
+    "TC001",   # move import into type-checking block
+    "TC002",   # move import into type-checking block
+    "TC003",   # move import into type-checking block
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004", "ARG"]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["album_conceptualizer"]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# Pytest configuration
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
 
+# Coverage configuration
+[tool.coverage.run]
+source = ["album_conceptualizer"]
+branch = true
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+# MyPy configuration
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+strict_optional = true
+disallow_untyped_defs = false
+check_untyped_defs = true

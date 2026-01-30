@@ -1,22 +1,17 @@
 """Tests for data models."""
 
-import pytest
-
-from album_conceptualizer.models.album import Album, Song, Section, SectionType
+from album_conceptualizer.models.album import Album, Section, SectionType, Song
 from album_conceptualizer.models.album_bible import (
     AlbumBible,
-    Theme,
-    Motif,
     Character,
-    NarrativeArc,
-    StyleProfile,
+    Theme,
 )
 from album_conceptualizer.models.music_theory import (
     Chord,
     ChordProgression,
+    ChordQuality,
     Key,
     Scale,
-    ChordQuality,
     ScaleType,
 )
 
@@ -136,16 +131,20 @@ class TestSong:
     def test_get_full_lyrics(self):
         """Test getting concatenated lyrics."""
         song = Song(title="Test Song", track_number=1)
-        song.add_section(Section(
-            section_type=SectionType.VERSE,
-            order=1,
-            lyrics="Verse lyrics",
-        ))
-        song.add_section(Section(
-            section_type=SectionType.CHORUS,
-            order=2,
-            lyrics="Chorus lyrics",
-        ))
+        song.add_section(
+            Section(
+                section_type=SectionType.VERSE,
+                order=1,
+                lyrics="Verse lyrics",
+            )
+        )
+        song.add_section(
+            Section(
+                section_type=SectionType.CHORUS,
+                order=2,
+                lyrics="Chorus lyrics",
+            )
+        )
 
         full_lyrics = song.get_full_lyrics()
         assert "Verse lyrics" in full_lyrics

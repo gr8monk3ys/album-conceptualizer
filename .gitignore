@@ -93,3 +93,20 @@ chroma/
 .env.*.local
 secrets.yaml
 credentials.json
+.secrets.baseline
+
+# Ruff
+.ruff_cache/
+
+# MyPy
+.mypy_cache/
+
+# uv
+.python-version
+uv.lock
+
+# Docker
+.docker/
+
+# Pre-commit
+.pre-commit-cache/

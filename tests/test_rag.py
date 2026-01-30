@@ -1,7 +1,8 @@
 """Tests for RAG system components."""
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 from album_conceptualizer.rag.embeddings import Document, SentenceTransformerEmbedding
 
@@ -33,7 +34,7 @@ class TestDocument:
 
     def test_document_hierarchical(self):
         """Test document with hierarchical relationships."""
-        parent_doc = Document(
+        Document(
             id="album-1",
             content="Album content",
             doc_type="lyrics",
@@ -88,11 +89,10 @@ class TestRetriever:
 
     def test_query_classification(self):
         """Test automatic query classification."""
-        from album_conceptualizer.rag.retriever import UnifiedRetriever
 
         # Create mock retriever
-        mock_store = MagicMock()
-        mock_embedding = MagicMock()
+        MagicMock()
+        MagicMock()
 
         # Test classification logic (without actually creating the retriever)
         music_keywords = ["chord", "progression", "key", "scale"]
@@ -116,4 +116,6 @@ class TestRetriever:
             else:
                 classified = "lyrics"
 
-            assert classified == expected, f"Query '{query}' classified as {classified}, expected {expected}"
+            assert classified == expected, (
+                f"Query '{query}' classified as {classified}, expected {expected}"
+            )
