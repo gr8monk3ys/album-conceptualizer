@@ -84,7 +84,7 @@ def create_app(
     return app
 
 
-def _create_agents_tab():
+def _create_agents_tab() -> None:
     """Create the AI Agents tab content."""
     gr.Markdown(
         """
@@ -185,7 +185,13 @@ def _create_agents_tab():
                 )
 
             # Event handlers
-            def run_workflow(workflow, concept, references, themes, tracks):
+            def run_workflow(
+                workflow: str,
+                concept: str,
+                references: str,
+                themes: str,
+                tracks: int,
+            ) -> tuple[str, str]:
                 """Run the selected agent workflow."""
                 if not concept:
                     return "Please provide an album concept.", "Error"

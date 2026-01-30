@@ -166,7 +166,7 @@ async def export_progression_midi(data: ProgressionExportRequest):
         raise HTTPException(
             status_code=501,
             detail="MIDI export not available. Install with: pip install -e '.[music]'",
-        )
+        ) from None
 
     # Parse chords
     chords = [Chord.from_symbol(c) for c in data.chords]
@@ -207,7 +207,7 @@ async def export_progression_musicxml(data: ProgressionExportRequest):
         raise HTTPException(
             status_code=501,
             detail="MusicXML export not available. Install with: pip install -e '.[music]'",
-        )
+        ) from None
 
     # Create progression
     progression = ChordProgression(
