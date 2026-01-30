@@ -1,15 +1,32 @@
 """Tests for export functionality."""
 
-import pytest
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
-from album_conceptualizer.models.album import Song, Section, SectionType
-from album_conceptualizer.models.music_theory import Chord, ChordProgression, ChordQuality
-from album_conceptualizer.export.midi import MidiExporter, chord_to_midi_notes, create_chord_midi
+import pytest
+
 from album_conceptualizer.export.chordpro import ChordProExporter, format_chordpro, parse_chordpro
+from album_conceptualizer.models.album import Section, SectionType, Song
+from album_conceptualizer.models.music_theory import Chord, ChordQuality
 
 
+# Optional MIDI imports
+try:
+    from album_conceptualizer.export.midi import (
+        MidiExporter,
+        chord_to_midi_notes,
+        create_chord_midi,
+    )
+
+    MIDI_AVAILABLE = True
+except ImportError:
+    MIDI_AVAILABLE = False
+    chord_to_midi_notes = None
+    create_chord_midi = None
+    MidiExporter = None
+
+
+@pytest.mark.skipif(not MIDI_AVAILABLE, reason="MIDI dependencies not installed")
 class TestMidiExport:
     """Tests for MIDI export functionality."""
 
@@ -129,12 +146,14 @@ class TestChordProExport:
     def test_chordpro_exporter_song(self):
         """Test exporting a full song to ChordPro."""
         song = Song(title="Test Song", track_number=1, key="G", tempo=120)
-        song.add_section(Section(
-            section_type=SectionType.VERSE,
-            order=1,
-            lyrics="First verse lyrics",
-            chord_progression=["G", "D", "Em", "C"],
-        ))
+        song.add_section(
+            Section(
+                section_type=SectionType.VERSE,
+                order=1,
+                lyrics="First verse lyrics",
+                chord_progression=["G", "D", "Em", "C"],
+            )
+        )
 
         exporter = ChordProExporter()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -151,7 +170,11 @@ class TestExportFormats:
 
     def test_sanitize_filename(self):
         """Test filename sanitization."""
-        from album_conceptualizer.export.formats import AlbumExporter
+        try:
+            from album_conceptualizer.export.formats import AlbumExporter
+        except ImportError:
+            pytest.skip("Export formats dependencies not installed")
+            return
 
         assert AlbumExporter._sanitize_filename("Normal Name") == "Normal Name"
         assert AlbumExporter._sanitize_filename("Bad/Name") == "Bad_Name"
