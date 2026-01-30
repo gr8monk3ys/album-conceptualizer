@@ -114,7 +114,7 @@ class TelemetryClient:
         """Log event to local file."""
         try:
             self._log_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._log_path, "a") as f:
+            with self._log_path.open("a") as f:
                 f.write(event.model_dump_json() + "\n")
         except (OSError, PermissionError):
             pass  # Silently fail if we can't write

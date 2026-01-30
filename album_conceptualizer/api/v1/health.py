@@ -62,9 +62,8 @@ async def readiness_check(request: Request) -> ReadinessResponse:
 
     # Check LLM configuration
     settings = getattr(request.app.state, "settings", None)
-    if settings:
-        if settings.anthropic_api_key or settings.openai_api_key:
-            checks["llm"] = True
+    if settings and (settings.anthropic_api_key or settings.openai_api_key):
+        checks["llm"] = True
 
     return ReadinessResponse(
         ready=all(checks.values()),
