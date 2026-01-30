@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SectionType(str, Enum):
@@ -21,6 +21,7 @@ class SectionType(str, Enum):
     INTERLUDE = "interlude"
     OUTRO = "outro"
     TAG = "tag"
+    OTHER = "other"
 
 
 class Section(BaseModel):
@@ -30,8 +31,9 @@ class Section(BaseModel):
     section_type: SectionType
     order: int = Field(ge=0, description="Position in the song")
     lyrics: str | None = None
-    chord_progression: list[str] | None = None
+    chord_progression: list[str] = Field(default_factory=list)
     notes: str | None = None
+    duration_bars: int | None = Field(default=None, ge=1, description="Length in bars")
 
     # Narrative elements
     narrative_function: str | None = Field(
@@ -48,8 +50,7 @@ class Section(BaseModel):
     )
     dynamics: str | None = Field(default=None, description="Dynamic marking (e.g., 'building')")
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class Song(BaseModel):
@@ -62,9 +63,10 @@ class Song(BaseModel):
 
     # Metadata
     duration_estimate: str | None = None  # e.g., "4:30"
+    duration_seconds: int | None = Field(default=None, ge=1, description="Duration in seconds")
     key: str | None = None
     tempo: int | None = Field(default=None, gt=0)
-    time_signature: str | None = None
+    time_signature: str | None = "4/4"
 
     # Narrative elements
     narrative_position: str | None = Field(
@@ -129,10 +131,11 @@ class Album(BaseModel):
 
     # Album-level style
     primary_genre: str | None = None
-    subgenres: list[str] = Field(default_factory=list)
+    secondary_genres: list[str] = Field(default_factory=list)
     era_influence: str | None = Field(
         default=None, description="Time period influence (e.g., '1970s prog rock')"
     )
+    release_year: int | None = Field(default=None, ge=1900, le=2100)
 
     # Thematic elements (album-wide)
     central_themes: list[str] = Field(default_factory=list)

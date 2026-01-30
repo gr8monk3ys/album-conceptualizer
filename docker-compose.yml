@@ -1,11 +1,35 @@
 services:
-  # Main application service
+  # REST API service (FastAPI)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: album-conceptualizer-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Gradio UI service
   app:
     build:
       context: .
       dockerfile: Dockerfile
-      target: production
-    container_name: album-conceptualizer
+      target: ui
+    container_name: album-conceptualizer-ui
     ports:
       - "7860:7860"
     volumes:
@@ -78,7 +102,7 @@ services:
     image: chromadb/chroma:latest
     container_name: album-conceptualizer-chromadb
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - chroma_data:/chroma/chroma
     environment:

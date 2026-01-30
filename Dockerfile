@@ -47,14 +47,36 @@ RUN mkdir -p /app/data /app/output && chown -R appuser:appuser /app
 # Switch to non-root user
 USER appuser
 
-# Expose port for Gradio UI
-EXPOSE 7860
+# Expose ports for Gradio UI and FastAPI
+EXPOSE 7860 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/health || python -c "import album_conceptualizer" || exit 1
+
+# Default command - FastAPI server
+CMD ["uvicorn", "album_conceptualizer.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# API stage (optimized for FastAPI only)
+FROM production as api
+
+# Only expose API port
+EXPOSE 8000
+
+# API-specific health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/live || exit 1
+
+CMD ["uvicorn", "album_conceptualizer.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# UI stage (Gradio)
+FROM production as ui
+
+EXPOSE 7860
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import album_conceptualizer; print('healthy')" || exit 1
 
-# Default command
 CMD ["python", "-m", "album_conceptualizer.cli", "ui", "--host", "0.0.0.0"]
 
 # Development stage

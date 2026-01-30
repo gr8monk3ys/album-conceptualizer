@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class LLMConfig(BaseModel):
@@ -66,10 +66,11 @@ class Settings(BaseSettings):
     agents: AgentConfig = Field(default_factory=AgentConfig)
     export: ExportConfig = Field(default_factory=ExportConfig)
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     def ensure_directories(self) -> None:
         """Create necessary directories if they don't exist."""

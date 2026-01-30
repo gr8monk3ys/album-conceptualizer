@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test test-cov clean build docker docker-up docker-down ui
+.PHONY: help install install-dev lint format test test-cov clean build docker docker-up docker-down ui api docs
 
 # Default target
 help:
@@ -17,12 +17,19 @@ help:
 	@echo "  make type-check    Run type checker (mypy)"
 	@echo ""
 	@echo "Application:"
+	@echo "  make api           Start FastAPI server"
+	@echo "  make api-dev       Start FastAPI with hot reload"
 	@echo "  make ui            Launch Gradio UI"
 	@echo "  make cli           Show CLI help"
 	@echo ""
+	@echo "Documentation:"
+	@echo "  make docs          Build documentation"
+	@echo "  make docs-serve    Serve documentation locally"
+	@echo ""
 	@echo "Docker:"
 	@echo "  make docker        Build Docker image"
-	@echo "  make docker-up     Start containers"
+	@echo "  make docker-api    Start API container"
+	@echo "  make docker-up     Start UI container"
 	@echo "  make docker-down   Stop containers"
 	@echo "  make docker-dev    Start development container"
 	@echo "  make docker-test   Run tests in container"
@@ -87,11 +94,30 @@ pre-commit-install:
 # Application
 # =============================================================================
 
+api:
+	uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000
+
+api-dev:
+	uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000 --reload
+
 ui:
 	python -m album_conceptualizer.cli ui
 
 cli:
 	python -m album_conceptualizer.cli --help
+
+# =============================================================================
+# Documentation
+# =============================================================================
+
+docs:
+	mkdocs build
+
+docs-serve:
+	mkdocs serve
+
+docs-deploy:
+	mkdocs gh-deploy --force
 
 # =============================================================================
 # Docker
@@ -100,11 +126,17 @@ cli:
 docker:
 	docker build -t album-conceptualizer:latest --target production .
 
+docker-api:
+	docker build -t album-conceptualizer:api --target api .
+
 docker-dev:
 	docker build -t album-conceptualizer:dev --target development .
 
 docker-up:
 	docker compose up -d app
+
+docker-api-up:
+	docker compose up -d api
 
 docker-down:
 	docker compose down
