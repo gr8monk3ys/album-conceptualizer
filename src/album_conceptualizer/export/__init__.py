@@ -1,21 +1,37 @@
 """Export formats for Album Conceptualizer."""
 
-from album_conceptualizer.export.midi import MidiExporter, create_chord_midi
+# ChordPro is pure Python, always available
 from album_conceptualizer.export.chordpro import ChordProExporter, format_chordpro
-from album_conceptualizer.export.musicxml import MusicXMLExporter
-from album_conceptualizer.export.formats import (
-    ExportFormat,
-    ExportResult,
-    AlbumExporter,
-)
 
 __all__ = [
-    "MidiExporter",
-    "create_chord_midi",
     "ChordProExporter",
     "format_chordpro",
-    "MusicXMLExporter",
-    "ExportFormat",
-    "ExportResult",
-    "AlbumExporter",
 ]
+
+# Optional: MIDI export (requires pretty_midi)
+try:
+    from album_conceptualizer.export.midi import MidiExporter, create_chord_midi
+    __all__.extend(["MidiExporter", "create_chord_midi"])
+except ImportError:
+    MidiExporter = None
+    create_chord_midi = None
+
+# Optional: MusicXML export (requires music21)
+try:
+    from album_conceptualizer.export.musicxml import MusicXMLExporter
+    __all__.append("MusicXMLExporter")
+except ImportError:
+    MusicXMLExporter = None
+
+# Optional: Full export formats (requires multiple deps)
+try:
+    from album_conceptualizer.export.formats import (
+        ExportFormat,
+        ExportResult,
+        AlbumExporter,
+    )
+    __all__.extend(["ExportFormat", "ExportResult", "AlbumExporter"])
+except ImportError:
+    ExportFormat = None
+    ExportResult = None
+    AlbumExporter = None

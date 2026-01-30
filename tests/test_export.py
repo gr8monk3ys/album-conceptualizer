@@ -6,10 +6,20 @@ import tempfile
 
 from album_conceptualizer.models.album import Song, Section, SectionType
 from album_conceptualizer.models.music_theory import Chord, ChordProgression, ChordQuality
-from album_conceptualizer.export.midi import MidiExporter, chord_to_midi_notes, create_chord_midi
 from album_conceptualizer.export.chordpro import ChordProExporter, format_chordpro, parse_chordpro
 
+# Optional MIDI imports
+try:
+    from album_conceptualizer.export.midi import MidiExporter, chord_to_midi_notes, create_chord_midi
+    MIDI_AVAILABLE = True
+except ImportError:
+    MIDI_AVAILABLE = False
+    chord_to_midi_notes = None
+    create_chord_midi = None
+    MidiExporter = None
 
+
+@pytest.mark.skipif(not MIDI_AVAILABLE, reason="MIDI dependencies not installed")
 class TestMidiExport:
     """Tests for MIDI export functionality."""
 
@@ -151,7 +161,11 @@ class TestExportFormats:
 
     def test_sanitize_filename(self):
         """Test filename sanitization."""
-        from album_conceptualizer.export.formats import AlbumExporter
+        try:
+            from album_conceptualizer.export.formats import AlbumExporter
+        except ImportError:
+            pytest.skip("Export formats dependencies not installed")
+            return
 
         assert AlbumExporter._sanitize_filename("Normal Name") == "Normal Name"
         assert AlbumExporter._sanitize_filename("Bad/Name") == "Bad_Name"
