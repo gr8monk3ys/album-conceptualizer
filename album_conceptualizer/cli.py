@@ -12,7 +12,7 @@ from rich.table import Table
 console = Console()
 
 
-def main():
+def main() -> None:
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
         description="Album Conceptualizer - RAG-powered concept album ideation",
@@ -82,7 +82,7 @@ For more information, visit: https://github.com/gr8monk3ys/album-conceptualizer
         parser.print_help()
 
 
-def show_welcome():
+def show_welcome() -> None:
     """Display welcome message."""
     console.print(
         Panel.fit(
@@ -94,7 +94,7 @@ def show_welcome():
     console.print()
 
 
-def cmd_ui(args):
+def cmd_ui(args: argparse.Namespace) -> None:
     """Launch the web UI."""
     console.print("[bold]Launching Album Conceptualizer UI...[/bold]")
     console.print(f"Server will be available at: http://127.0.0.1:{args.port}")
@@ -116,7 +116,7 @@ def cmd_ui(args):
         sys.exit(1)
 
 
-def cmd_new(args):
+def cmd_new(args: argparse.Namespace) -> None:
     """Create a new album project."""
     from album_conceptualizer.models.album import Album
     from album_conceptualizer.models.album_bible import AlbumBible
@@ -155,7 +155,7 @@ def cmd_new(args):
     console.print(f"  - {bible_path.name}")
 
 
-def cmd_export(args):
+def cmd_export(args: argparse.Namespace) -> None:
     """Export an album to various formats."""
     from album_conceptualizer.export.formats import AlbumExporter, ExportFormat
     from album_conceptualizer.models.album import Album
@@ -208,7 +208,7 @@ def cmd_export(args):
     console.print(f"\n[green]Export complete: {output_dir}[/green]")
 
 
-def cmd_index(args):
+def cmd_index(args: argparse.Namespace) -> None:
     """Index data for RAG."""
     console.print(f"[bold]Indexing {args.source} data...[/bold]")
 
