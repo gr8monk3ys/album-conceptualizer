@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     data_dir: Path = Field(default=Path("./data"))
     cache_dir: Path = Field(default=Path("./cache"))
     output_dir: Path = Field(default=Path("./output"))
+    chroma_persist_directory: Path | None = Field(
+        default=None, description="ChromaDB persistence directory (optional)"
+    )
 
     # Sub-configurations
     llm: LLMConfig = Field(default_factory=LLMConfig)
