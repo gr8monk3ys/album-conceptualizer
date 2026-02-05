@@ -1,9 +1,9 @@
 """Album Bible management endpoints."""
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, Request
 from pydantic import BaseModel, Field
 
-from album_conceptualizer.api.v1.albums import get_albums_db
+from album_conceptualizer.api.v1.albums import get_album_store
 from album_conceptualizer.models.album_bible import (
     AlbumBible,
     Character,
@@ -14,9 +14,6 @@ from album_conceptualizer.models.album_bible import (
 
 
 router = APIRouter()
-
-# In-memory storage for album bibles
-_bibles_db: dict[str, AlbumBible] = {}
 
 
 class ThemeCreate(BaseModel):
@@ -128,22 +125,29 @@ class BibleResponse(BaseModel):
     summary: str
 
 
-def _get_or_create_bible(album_id: str) -> AlbumBible:
+def _get_or_create_bible(request: Request, album_id: str) -> AlbumBible:
     """Get existing bible or create new one."""
-    albums_db = get_albums_db()
-    album = albums_db.get(album_id)
+    store = get_album_store(request)
+    album = store.get(album_id)
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
-    if album_id not in _bibles_db:
-        _bibles_db[album_id] = AlbumBible(
-            album_title=album.title,
-            logline="",
-            synopsis="",
-        )
+    bible_store = request.app.state.bible_store
+    existing = bible_store.get(album_id)
+    if existing:
+        return existing
 
-    return _bibles_db[album_id]
+    bible = AlbumBible(
+        album_title=album.title,
+        logline="",
+        synopsis="",
+    )
+    bible_store.save(album_id, bible)
+    return bible
 
+
+def _save_bible(request: Request, album_id: str, bible: AlbumBible) -> None:
+    request.app.state.bible_store.save(album_id, bible)
 
 def _bible_to_response(album_id: str, bible: AlbumBible) -> BibleResponse:
     """Convert AlbumBible to response."""
@@ -190,18 +194,19 @@ def _bible_to_response(album_id: str, bible: AlbumBible) -> BibleResponse:
 
 
 @router.get("", response_model=BibleResponse)
-async def get_bible(album_id: str = Path(...)) -> BibleResponse:
+async def get_bible(request: Request, album_id: str = Path(...)) -> BibleResponse:
     """
     Get the album bible for an album.
 
     Creates an empty bible if one doesn't exist.
     """
-    bible = _get_or_create_bible(album_id)
+    bible = _get_or_create_bible(request, album_id)
     return _bible_to_response(album_id, bible)
 
 
 @router.put("", response_model=BibleResponse)
 async def update_bible(
+    request: Request,
     album_id: str = Path(...),
     data: BibleCreate = ...,
 ) -> BibleResponse:
@@ -210,49 +215,45 @@ async def update_bible(
 
     This sets the logline, synopsis, and setting.
     """
-    albums_db = get_albums_db()
-    album = albums_db.get(album_id)
+    store = get_album_store(request)
+    album = store.get(album_id)
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
-    if album_id in _bibles_db:
-        bible = _bibles_db[album_id]
-        bible.logline = data.logline
-        bible.synopsis = data.synopsis
-        bible.setting = data.setting
-    else:
-        bible = AlbumBible(
-            album_title=album.title,
-            logline=data.logline,
-            synopsis=data.synopsis,
-            setting=data.setting,
-        )
-        _bibles_db[album_id] = bible
+    bible = _get_or_create_bible(request, album_id)
+    bible.logline = data.logline
+    bible.synopsis = data.synopsis
+    bible.setting = data.setting
+    _save_bible(request, album_id, bible)
 
     return _bible_to_response(album_id, bible)
 
 
 @router.patch("", response_model=BibleResponse)
 async def patch_bible(
+    request: Request,
     album_id: str = Path(...),
     data: BibleUpdate = ...,
 ) -> BibleResponse:
     """Partially update the album bible."""
-    bible = _get_or_create_bible(album_id)
+    bible = _get_or_create_bible(request, album_id)
 
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         if value is not None:
             setattr(bible, field, value)
 
+    _save_bible(request, album_id, bible)
     return _bible_to_response(album_id, bible)
 
 
 # Theme endpoints
 @router.post("/themes", response_model=ThemeResponse, status_code=201)
-async def add_theme(album_id: str = Path(...), data: ThemeCreate = ...) -> ThemeResponse:
+async def add_theme(
+    request: Request, album_id: str = Path(...), data: ThemeCreate = ...
+) -> ThemeResponse:
     """Add a theme to the album bible."""
-    bible = _get_or_create_bible(album_id)
+    bible = _get_or_create_bible(request, album_id)
 
     theme = Theme(
         name=data.name,
@@ -263,6 +264,7 @@ async def add_theme(album_id: str = Path(...), data: ThemeCreate = ...) -> Theme
     )
     bible.add_theme(theme)
 
+    _save_bible(request, album_id, bible)
     return ThemeResponse(
         id=str(theme.id),
         name=theme.name,
@@ -273,13 +275,16 @@ async def add_theme(album_id: str = Path(...), data: ThemeCreate = ...) -> Theme
 
 
 @router.delete("/themes/{theme_id}", status_code=204)
-async def remove_theme(album_id: str = Path(...), theme_id: str = Path(...)) -> None:
+async def remove_theme(
+    request: Request, album_id: str = Path(...), theme_id: str = Path(...)
+) -> None:
     """Remove a theme from the album bible."""
-    bible = _get_or_create_bible(album_id)
+    bible = _get_or_create_bible(request, album_id)
 
     for i, theme in enumerate(bible.themes):
         if str(theme.id) == theme_id:
             bible.themes.pop(i)
+            _save_bible(request, album_id, bible)
             return
 
     raise HTTPException(status_code=404, detail="Theme not found")
@@ -288,10 +293,10 @@ async def remove_theme(album_id: str = Path(...), theme_id: str = Path(...)) -> 
 # Character endpoints
 @router.post("/characters", response_model=CharacterResponse, status_code=201)
 async def add_character(
-    album_id: str = Path(...), data: CharacterCreate = ...
+    request: Request, album_id: str = Path(...), data: CharacterCreate = ...
 ) -> CharacterResponse:
     """Add a character to the album bible."""
-    bible = _get_or_create_bible(album_id)
+    bible = _get_or_create_bible(request, album_id)
 
     character = Character(
         name=data.name,
@@ -303,6 +308,7 @@ async def add_character(
     )
     bible.add_character(character)
 
+    _save_bible(request, album_id, bible)
     return CharacterResponse(
         id=str(character.id),
         name=character.name,
@@ -314,13 +320,16 @@ async def add_character(
 
 
 @router.delete("/characters/{character_id}", status_code=204)
-async def remove_character(album_id: str = Path(...), character_id: str = Path(...)) -> None:
+async def remove_character(
+    request: Request, album_id: str = Path(...), character_id: str = Path(...)
+) -> None:
     """Remove a character from the album bible."""
-    bible = _get_or_create_bible(album_id)
+    bible = _get_or_create_bible(request, album_id)
 
     for i, char in enumerate(bible.characters):
         if str(char.id) == character_id:
             bible.characters.pop(i)
+            _save_bible(request, album_id, bible)
             return
 
     raise HTTPException(status_code=404, detail="Character not found")
@@ -328,9 +337,11 @@ async def remove_character(album_id: str = Path(...), character_id: str = Path(.
 
 # Motif endpoints
 @router.post("/motifs", response_model=MotifResponse, status_code=201)
-async def add_motif(album_id: str = Path(...), data: MotifCreate = ...) -> MotifResponse:
+async def add_motif(
+    request: Request, album_id: str = Path(...), data: MotifCreate = ...
+) -> MotifResponse:
     """Add a motif to the album bible."""
-    bible = _get_or_create_bible(album_id)
+    bible = _get_or_create_bible(request, album_id)
 
     motif = Motif(
         name=data.name,
@@ -343,6 +354,7 @@ async def add_motif(album_id: str = Path(...), data: MotifCreate = ...) -> Motif
     )
     bible.add_motif(motif)
 
+    _save_bible(request, album_id, bible)
     return MotifResponse(
         id=str(motif.id),
         name=motif.name,
@@ -354,13 +366,16 @@ async def add_motif(album_id: str = Path(...), data: MotifCreate = ...) -> Motif
 
 
 @router.delete("/motifs/{motif_id}", status_code=204)
-async def remove_motif(album_id: str = Path(...), motif_id: str = Path(...)) -> None:
+async def remove_motif(
+    request: Request, album_id: str = Path(...), motif_id: str = Path(...)
+) -> None:
     """Remove a motif from the album bible."""
-    bible = _get_or_create_bible(album_id)
+    bible = _get_or_create_bible(request, album_id)
 
     for i, motif in enumerate(bible.motifs):
         if str(motif.id) == motif_id:
             bible.motifs.pop(i)
+            _save_bible(request, album_id, bible)
             return
 
     raise HTTPException(status_code=404, detail="Motif not found")
@@ -368,9 +383,11 @@ async def remove_motif(album_id: str = Path(...), motif_id: str = Path(...)) -> 
 
 # Style profile endpoint
 @router.put("/style", response_model=dict)
-async def set_style_profile(album_id: str = Path(...), data: StyleProfileCreate = ...) -> dict:
+async def set_style_profile(
+    request: Request, album_id: str = Path(...), data: StyleProfileCreate = ...
+) -> dict:
     """Set the style profile for the album."""
-    bible = _get_or_create_bible(album_id)
+    bible = _get_or_create_bible(request, album_id)
 
     style = StyleProfile(
         primary_genre=data.primary_genre,
@@ -384,5 +401,6 @@ async def set_style_profile(album_id: str = Path(...), data: StyleProfileCreate 
         vocal_approach=data.vocal_approach,
     )
     bible.style_profile = style
+    _save_bible(request, album_id, bible)
 
     return style.model_dump()

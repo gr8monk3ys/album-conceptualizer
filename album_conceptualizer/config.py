@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -54,6 +54,65 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     hooktheory_api_key: str | None = Field(default=None, alias="HOOKTHEORY_API_KEY")
+    api_key: str | None = Field(default=None, alias="ALBUM_CONCEPTUALIZER_API_KEY")
+    api_keys: list[str] = Field(
+        default_factory=list,
+        alias="ALBUM_CONCEPTUALIZER_API_KEYS",
+    )
+
+    # Rate limiting
+    rate_limit_enabled: bool = Field(
+        default=False,
+        alias="ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED",
+    )
+    rate_limit_backend: str = Field(
+        default="memory",
+        alias="ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND",
+    )
+    rate_limit_per_minute: int = Field(
+        default=120,
+        gt=0,
+        alias="ALBUM_CONCEPTUALIZER_RATE_LIMIT_PER_MINUTE",
+    )
+
+    # Quotas (basic usage caps)
+    quota_enabled: bool = Field(
+        default=False,
+        alias="ALBUM_CONCEPTUALIZER_QUOTA_ENABLED",
+    )
+    quota_backend: str = Field(
+        default="memory",
+        alias="ALBUM_CONCEPTUALIZER_QUOTA_BACKEND",
+    )
+    quota_daily_limit: int = Field(
+        default=1000,
+        gt=0,
+        alias="ALBUM_CONCEPTUALIZER_QUOTA_DAILY_LIMIT",
+    )
+
+    redis_url: str | None = Field(
+        default=None,
+        alias="ALBUM_CONCEPTUALIZER_REDIS_URL",
+    )
+
+    # Logging
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+
+    # Storage
+    storage_backend: str = Field(
+        default="memory",
+        alias="ALBUM_CONCEPTUALIZER_STORAGE_BACKEND",
+    )
+    storage_db_path: Path = Field(
+        default=Path("./data/album_conceptualizer.db"),
+        alias="ALBUM_CONCEPTUALIZER_STORAGE_DB",
+    )
+
+    # CORS
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["*"],
+        alias="ALBUM_CONCEPTUALIZER_CORS_ORIGINS",
+    )
 
     # Paths
     data_dir: Path = Field(default=Path("./data"))
@@ -81,6 +140,30 @@ class Settings(BaseSettings):
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, value: object) -> list[str]:
+        if value is None:
+            return ["*"]
+        if isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            cleaned = [item.strip() for item in value.split(",") if item.strip()]
+            return cleaned or ["*"]
+        return ["*"]
+
+    @field_validator("api_keys", mode="before")
+    @classmethod
+    def _parse_api_keys(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, str) and item.strip()]
+        if isinstance(value, str):
+            cleaned = [item.strip() for item in value.split(",") if item.strip()]
+            return cleaned
+        return []
+
 
 # Global settings instance
 _settings: Settings | None = None
@@ -101,3 +184,9 @@ def configure(**kwargs) -> Settings:
     _settings = Settings(**kwargs)
     _settings.ensure_directories()
     return _settings
+
+
+def reset_settings() -> None:
+    """Reset cached settings to force reloading from environment."""
+    global _settings
+    _settings = None

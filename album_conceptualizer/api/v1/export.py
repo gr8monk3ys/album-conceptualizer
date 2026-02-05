@@ -3,11 +3,11 @@
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
-from album_conceptualizer.api.v1.albums import get_albums_db
+from album_conceptualizer.api.v1.albums import get_album_store
 from album_conceptualizer.export.chordpro import ChordProExporter, format_chordpro
 
 
@@ -76,6 +76,7 @@ async def generate_chordpro(data: ChordProRequest) -> str:
 
 @router.get("/album/{album_id}/chordpro", response_class=PlainTextResponse)
 async def export_album_chordpro(
+    request: Request,
     album_id: str,
     song_id: str | None = Query(None, description="Export specific song"),
 ) -> str:
@@ -85,8 +86,7 @@ async def export_album_chordpro(
     If song_id is provided, exports only that song.
     Otherwise exports all songs concatenated.
     """
-    albums_db = get_albums_db()
-    album = albums_db.get(album_id)
+    album = get_album_store(request).get(album_id)
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
@@ -123,14 +123,13 @@ async def export_album_chordpro(
 
 
 @router.get("/album/{album_id}/json")
-async def export_album_json(album_id: str) -> dict:
+async def export_album_json(request: Request, album_id: str) -> dict:
     """
     Export album as JSON.
 
     Returns the full album data structure.
     """
-    albums_db = get_albums_db()
-    album = albums_db.get(album_id)
+    album = get_album_store(request).get(album_id)
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
@@ -138,14 +137,13 @@ async def export_album_json(album_id: str) -> dict:
 
 
 @router.get("/album/{album_id}/tracklist", response_class=PlainTextResponse)
-async def export_tracklist(album_id: str) -> str:
+async def export_tracklist(request: Request, album_id: str) -> str:
     """
     Export album tracklist as plain text.
 
     Returns formatted tracklist with song titles.
     """
-    albums_db = get_albums_db()
-    album = albums_db.get(album_id)
+    album = get_album_store(request).get(album_id)
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 

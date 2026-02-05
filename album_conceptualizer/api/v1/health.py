@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 
 
@@ -75,3 +75,30 @@ async def readiness_check(request: Request) -> ReadinessResponse:
 async def liveness_check() -> dict:
     """Simple liveness probe for container orchestration."""
     return {"status": "alive"}
+
+
+@router.get("/metrics", response_model=None)
+async def metrics(request: Request, format: str | None = None):
+    """Basic metrics snapshot for monitoring."""
+    registry = getattr(request.app.state, "metrics", None)
+    if not registry:
+        return {"detail": "Metrics unavailable"}
+    if format and format.lower() in {"prometheus", "text"}:
+        snapshot = registry.to_dict()
+        lines = [
+            "# TYPE album_conceptualizer_requests_total counter",
+            f"album_conceptualizer_requests_total {snapshot['request_count']}",
+            "# TYPE album_conceptualizer_errors_total counter",
+            f"album_conceptualizer_errors_total {snapshot['error_count']}",
+        ]
+        for status, count in snapshot["status_counts"].items():
+            lines.append(
+                f'album_conceptualizer_status_total{{status="{status}"}} {count}'
+            )
+        for path, count in snapshot["path_counts"].items():
+            lines.append(
+                f'album_conceptualizer_path_total{{path="{path}"}} {count}'
+            )
+        body = "\n".join(lines) + "\n"
+        return Response(content=body, media_type="text/plain; version=0.0.4")
+    return registry.to_dict()

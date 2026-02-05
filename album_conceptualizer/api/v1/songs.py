@@ -1,9 +1,9 @@
 """Song management endpoints."""
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, Request
 from pydantic import BaseModel, Field
 
-from album_conceptualizer.api.v1.albums import get_albums_db
+from album_conceptualizer.api.v1.albums import get_album_store
 from album_conceptualizer.models.album import Section, SectionType, Song
 
 
@@ -126,23 +126,23 @@ def _song_to_response(song: Song) -> SongResponse:
     )
 
 
-def _get_album(album_id: str):
+def _get_album(request: Request, album_id: str):
     """Get album or raise 404."""
-    albums_db = get_albums_db()
-    album = albums_db.get(album_id)
+    store = get_album_store(request)
+    album = store.get(album_id)
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
     return album
 
 
 @router.get("", response_model=SongListResponse)
-async def list_songs(album_id: str = Path(...)) -> SongListResponse:
+async def list_songs(request: Request, album_id: str = Path(...)) -> SongListResponse:
     """
     List all songs in an album.
 
     Songs are returned in track order.
     """
-    album = _get_album(album_id)
+    album = _get_album(request, album_id)
     songs = sorted(album.songs, key=lambda s: s.track_number)
 
     return SongListResponse(
@@ -152,13 +152,15 @@ async def list_songs(album_id: str = Path(...)) -> SongListResponse:
 
 
 @router.post("", response_model=SongResponse, status_code=201)
-async def create_song(album_id: str = Path(...), data: SongCreate = ...) -> SongResponse:
+async def create_song(
+    request: Request, album_id: str = Path(...), data: SongCreate = ...
+) -> SongResponse:
     """
     Add a new song to an album.
 
     The song will be added with the specified track number.
     """
-    album = _get_album(album_id)
+    album = _get_album(request, album_id)
 
     # Create song
     song = Song(
@@ -193,17 +195,20 @@ async def create_song(album_id: str = Path(...), data: SongCreate = ...) -> Song
         song.add_section(section)
 
     album.add_song(song)
+    get_album_store(request).save(album)
     return _song_to_response(song)
 
 
 @router.get("/{song_id}", response_model=SongResponse)
-async def get_song(album_id: str = Path(...), song_id: str = Path(...)) -> SongResponse:
+async def get_song(
+    request: Request, album_id: str = Path(...), song_id: str = Path(...)
+) -> SongResponse:
     """
     Get a specific song by ID.
 
     Raises 404 if song not found in the album.
     """
-    album = _get_album(album_id)
+    album = _get_album(request, album_id)
 
     for song in album.songs:
         if str(song.id) == song_id:
@@ -214,6 +219,7 @@ async def get_song(album_id: str = Path(...), song_id: str = Path(...)) -> SongR
 
 @router.patch("/{song_id}", response_model=SongResponse)
 async def update_song(
+    request: Request,
     album_id: str = Path(...),
     song_id: str = Path(...),
     data: SongUpdate = ...,
@@ -223,7 +229,7 @@ async def update_song(
 
     Only provided fields will be updated.
     """
-    album = _get_album(album_id)
+    album = _get_album(request, album_id)
 
     for song in album.songs:
         if str(song.id) == song_id:
@@ -231,19 +237,21 @@ async def update_song(
             for field, value in update_data.items():
                 if value is not None:
                     setattr(song, field, value)
-            return _song_to_response(song)
+    get_album_store(request).save(album)
+    return _song_to_response(song)
 
     raise HTTPException(status_code=404, detail="Song not found")
 
 
 @router.delete("/{song_id}", status_code=204)
-async def delete_song(album_id: str = Path(...), song_id: str = Path(...)) -> None:
+async def delete_song(request: Request, album_id: str = Path(...), song_id: str = Path(...)) -> None:
     """Delete a song from an album."""
-    album = _get_album(album_id)
+    album = _get_album(request, album_id)
 
     for i, song in enumerate(album.songs):
         if str(song.id) == song_id:
             album.songs.pop(i)
+            get_album_store(request).save(album)
             return
 
     raise HTTPException(status_code=404, detail="Song not found")

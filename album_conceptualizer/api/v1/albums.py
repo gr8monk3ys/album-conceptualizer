@@ -1,15 +1,13 @@
 """Album management endpoints."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from album_conceptualizer.models.album import Album
+from album_conceptualizer.storage import AlbumStore
 
 
 router = APIRouter()
-
-# In-memory storage for demo (replace with database in production)
-_albums_db: dict[str, Album] = {}
 
 
 class AlbumCreate(BaseModel):
@@ -76,8 +74,13 @@ def _album_to_response(album: Album) -> AlbumResponse:
     )
 
 
+def _get_store(request: Request) -> AlbumStore:
+    return request.app.state.album_store
+
+
 @router.get("", response_model=AlbumListResponse)
 async def list_albums(
+    request: Request,
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     search: str | None = Query(None, description="Search in title/artist"),
@@ -87,7 +90,8 @@ async def list_albums(
 
     Optionally filter by search term.
     """
-    albums = list(_albums_db.values())
+    store = _get_store(request)
+    albums = store.list()
 
     # Filter by search term
     if search:
@@ -116,7 +120,7 @@ async def list_albums(
 
 
 @router.post("", response_model=AlbumResponse, status_code=201)
-async def create_album(data: AlbumCreate) -> AlbumResponse:
+async def create_album(request: Request, data: AlbumCreate) -> AlbumResponse:
     """
     Create a new album.
 
@@ -132,18 +136,18 @@ async def create_album(data: AlbumCreate) -> AlbumResponse:
         central_themes=data.central_themes,
     )
 
-    _albums_db[str(album.id)] = album
+    _get_store(request).save(album)
     return _album_to_response(album)
 
 
 @router.get("/{album_id}", response_model=AlbumResponse)
-async def get_album(album_id: str) -> AlbumResponse:
+async def get_album(request: Request, album_id: str) -> AlbumResponse:
     """
     Get a specific album by ID.
 
     Raises 404 if album not found.
     """
-    album = _albums_db.get(album_id)
+    album = _get_store(request).get(album_id)
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
@@ -151,13 +155,14 @@ async def get_album(album_id: str) -> AlbumResponse:
 
 
 @router.patch("/{album_id}", response_model=AlbumResponse)
-async def update_album(album_id: str, data: AlbumUpdate) -> AlbumResponse:
+async def update_album(request: Request, album_id: str, data: AlbumUpdate) -> AlbumResponse:
     """
     Update an album's metadata.
 
     Only provided fields will be updated.
     """
-    album = _albums_db.get(album_id)
+    store = _get_store(request)
+    album = store.get(album_id)
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
@@ -167,30 +172,35 @@ async def update_album(album_id: str, data: AlbumUpdate) -> AlbumResponse:
         if value is not None:
             setattr(album, field, value)
 
+    store.save(album)
     return _album_to_response(album)
 
 
 @router.delete("/{album_id}", status_code=204)
-async def delete_album(album_id: str) -> None:
+async def delete_album(request: Request, album_id: str) -> None:
     """
     Delete an album.
 
     This also deletes all songs in the album.
     """
-    if album_id not in _albums_db:
+    store = _get_store(request)
+    if not store.get(album_id):
         raise HTTPException(status_code=404, detail="Album not found")
 
-    del _albums_db[album_id]
+    store.delete(album_id)
 
 
 @router.post("/{album_id}/duplicate", response_model=AlbumResponse, status_code=201)
-async def duplicate_album(album_id: str, new_title: str | None = None) -> AlbumResponse:
+async def duplicate_album(
+    request: Request, album_id: str, new_title: str | None = None
+) -> AlbumResponse:
     """
     Create a copy of an album.
 
     Optionally provide a new title for the duplicate.
     """
-    original = _albums_db.get(album_id)
+    store = _get_store(request)
+    original = store.get(album_id)
     if not original:
         raise HTTPException(status_code=404, detail="Album not found")
 
@@ -209,11 +219,11 @@ async def duplicate_album(album_id: str, new_title: str | None = None) -> AlbumR
     for song in original.songs:
         duplicate.add_song(song.model_copy(deep=True))
 
-    _albums_db[str(duplicate.id)] = duplicate
+    store.save(duplicate)
     return _album_to_response(duplicate)
 
 
-# Export the database for use by other routers
-def get_albums_db() -> dict[str, Album]:
-    """Get the albums database."""
-    return _albums_db
+# Export the store getter for use by other routers
+def get_album_store(request: Request) -> AlbumStore:
+    """Get the album store."""
+    return _get_store(request)
