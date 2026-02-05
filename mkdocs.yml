@@ -89,6 +89,7 @@ nav:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quickstart.md
       - Configuration: getting-started/configuration.md
+      - Production: getting-started/production.md
   - User Guide:
       - Creating Albums: guides/creating-albums.md
       - Album Bible: guides/album-bible.md
