@@ -1,0 +1,19 @@
+groups:
+  - name: album-conceptualizer
+    rules:
+      - alert: AlbumConceptualizerErrors
+        expr: increase(album_conceptualizer_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Album Conceptualizer errors observed"
+          description: "Errors recorded by /api/v1/metrics in the last 5 minutes."
+      - alert: AlbumConceptualizerNoTraffic
+        expr: increase(album_conceptualizer_requests_total[15m]) == 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "No API traffic in 15 minutes"
+          description: "No requests recorded by /api/v1/metrics."

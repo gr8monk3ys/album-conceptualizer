@@ -1,0 +1,92 @@
+services:
+  caddy:
+    image: caddy:2
+    container_name: album-conceptualizer-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - ALBUM_CONCEPTUALIZER_DOMAIN=${ALBUM_CONCEPTUALIZER_DOMAIN:-localhost}
+    depends_on:
+      - api
+      - app
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: album-conceptualizer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: album-conceptualizer-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ALBUM_CONCEPTUALIZER_API_KEY=${ALBUM_CONCEPTUALIZER_API_KEY:-}
+      - ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=${ALBUM_CONCEPTUALIZER_STORAGE_BACKEND:-file}
+      - ALBUM_CONCEPTUALIZER_CORS_ORIGINS=${ALBUM_CONCEPTUALIZER_CORS_ORIGINS:-*}
+      - ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=${ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED:-true}
+      - ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND=${ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND:-memory}
+      - ALBUM_CONCEPTUALIZER_RATE_LIMIT_PER_MINUTE=${ALBUM_CONCEPTUALIZER_RATE_LIMIT_PER_MINUTE:-120}
+      - ALBUM_CONCEPTUALIZER_QUOTA_ENABLED=${ALBUM_CONCEPTUALIZER_QUOTA_ENABLED:-true}
+      - ALBUM_CONCEPTUALIZER_QUOTA_BACKEND=${ALBUM_CONCEPTUALIZER_QUOTA_BACKEND:-memory}
+      - ALBUM_CONCEPTUALIZER_QUOTA_DAILY_LIMIT=${ALBUM_CONCEPTUALIZER_QUOTA_DAILY_LIMIT:-1000}
+      - ALBUM_CONCEPTUALIZER_REDIS_URL=${ALBUM_CONCEPTUALIZER_REDIS_URL:-redis://redis:6379/0}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ui
+    container_name: album-conceptualizer-ui
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import album_conceptualizer"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  default:
+    name: album-conceptualizer-network
+
+volumes:
+  caddy_data:
+  caddy_config:
+  redis_data:

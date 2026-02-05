@@ -1,0 +1,19 @@
+{$ALBUM_CONCEPTUALIZER_DOMAIN}
+
+route {
+    handle_path /api/* {
+        reverse_proxy localhost:8000
+    }
+    handle /docs* {
+        reverse_proxy localhost:8000
+    }
+    handle /redoc* {
+        reverse_proxy localhost:8000
+    }
+    handle /openapi.json {
+        reverse_proxy localhost:8000
+    }
+    handle {
+        reverse_proxy localhost:7860
+    }
+}

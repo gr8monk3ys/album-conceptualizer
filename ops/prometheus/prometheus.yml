@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 30s
+
+scrape_configs:
+  - job_name: album-conceptualizer
+    metrics_path: /api/v1/metrics
+    params:
+      format: [prometheus]
+    static_configs:
+      - targets: ["api:8000"]
