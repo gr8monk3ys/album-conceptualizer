@@ -75,8 +75,8 @@ def create_album_canvas() -> dict:
                 components["tracklist_display"] = gr.Dataframe(
                     headers=["#", "Title", "Key", "Tempo", "Narrative Position"],
                     datatype=["number", "str", "str", "number", "str"],
-                    row_count=(10, "dynamic"),
-                    col_count=(5, "fixed"),
+                    row_count=10,
+                    column_count=5,
                     interactive=True,
                     label="Songs",
                 )
@@ -103,7 +103,7 @@ def create_album_canvas() -> dict:
                 components["themes_list"] = gr.Dataframe(
                     headers=["Theme", "Description"],
                     datatype=["str", "str"],
-                    row_count=(5, "dynamic"),
+                    row_count=5,
                     interactive=True,
                 )
 
@@ -112,7 +112,7 @@ def create_album_canvas() -> dict:
                 components["motifs_list"] = gr.Dataframe(
                     headers=["Motif", "Type", "Appearances"],
                     datatype=["str", "str", "number"],
-                    row_count=(5, "dynamic"),
+                    row_count=5,
                     interactive=True,
                 )
 
@@ -300,7 +300,7 @@ def create_song_editor() -> dict:
                 components["structure_editor"] = gr.Dataframe(
                     headers=["Order", "Section", "Duration (bars)", "Notes"],
                     datatype=["number", "str", "number", "str"],
-                    row_count=(8, "dynamic"),
+                    row_count=8,
                     interactive=True,
                 )
 
@@ -400,7 +400,7 @@ def create_album_bible_editor() -> dict:
                 components["characters_table"] = gr.Dataframe(
                     headers=["Name", "Role", "Description", "Arc"],
                     datatype=["str", "str", "str", "str"],
-                    row_count=(4, "dynamic"),
+                    row_count=4,
                     interactive=True,
                 )
 
@@ -410,7 +410,7 @@ def create_album_bible_editor() -> dict:
                 components["themes_table"] = gr.Dataframe(
                     headers=["Theme", "Description", "Primary Songs"],
                     datatype=["str", "str", "str"],
-                    row_count=(4, "dynamic"),
+                    row_count=4,
                     interactive=True,
                 )
 
@@ -464,7 +464,7 @@ def create_album_bible_editor() -> dict:
         components["motifs_table"] = gr.Dataframe(
             headers=["Name", "Type", "Description", "First Appearance", "Evolution"],
             datatype=["str", "str", "str", "str", "str"],
-            row_count=(5, "dynamic"),
+            row_count=5,
             interactive=True,
         )
 

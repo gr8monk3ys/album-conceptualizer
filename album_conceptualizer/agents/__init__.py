@@ -3,6 +3,7 @@
 from album_conceptualizer.agents.crew import (
     AlbumCrewManager,
     create_album_ideation_crew,
+    create_coherence_review_crew,
     create_song_development_crew,
 )
 from album_conceptualizer.agents.director import create_director_agent
@@ -15,6 +16,7 @@ from album_conceptualizer.agents.style_matcher import create_style_matcher_agent
 __all__ = [
     "AlbumCrewManager",
     "create_album_ideation_crew",
+    "create_coherence_review_crew",
     "create_director_agent",
     "create_lyricist_agent",
     "create_music_theorist_agent",

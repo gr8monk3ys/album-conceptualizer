@@ -30,6 +30,7 @@ class AlbumCrewManager:
         retriever: UnifiedRetriever | None = None,
         llm: str | None = None,
         verbose: bool = True,
+        seed: int | None = None,
     ):
         """
         Initialize the crew manager.
@@ -42,6 +43,7 @@ class AlbumCrewManager:
         self.retriever = retriever
         self.llm = llm
         self.verbose = verbose
+        self.seed = seed
 
         # Create tools if retriever provided
         self.tools = create_agent_tools(retriever) if retriever else {}
@@ -127,6 +129,7 @@ class AlbumCrewManager:
             process=Process.sequential,
             verbose=self.verbose,
             memory=True,
+            seed=self.seed,
         )
 
     def create_song_development_crew(
@@ -227,6 +230,7 @@ class AlbumCrewManager:
             process=Process.sequential,
             verbose=self.verbose,
             memory=True,
+            seed=self.seed,
         )
 
     def create_coherence_review_crew(
@@ -308,6 +312,7 @@ class AlbumCrewManager:
             process=Process.sequential,
             verbose=self.verbose,
             memory=True,
+            seed=self.seed,
         )
 
 
@@ -316,6 +321,7 @@ def create_album_ideation_crew(
     references: str,
     retriever: UnifiedRetriever | None = None,
     llm: str | None = None,
+    seed: int | None = None,
     **kwargs,
 ) -> Crew:
     """
@@ -331,7 +337,7 @@ def create_album_ideation_crew(
     Returns:
         Configured Crew for album ideation
     """
-    manager = AlbumCrewManager(retriever=retriever, llm=llm)
+    manager = AlbumCrewManager(retriever=retriever, llm=llm, seed=seed)
     return manager.create_vision_crew(concept=concept, references=references, **kwargs)
 
 
@@ -341,6 +347,7 @@ def create_song_development_crew(
     album_bible: AlbumBible,
     retriever: UnifiedRetriever | None = None,
     llm: str | None = None,
+    seed: int | None = None,
     **kwargs,
 ) -> Crew:
     """
@@ -357,10 +364,29 @@ def create_song_development_crew(
     Returns:
         Configured Crew for song development
     """
-    manager = AlbumCrewManager(retriever=retriever, llm=llm)
+    manager = AlbumCrewManager(retriever=retriever, llm=llm, seed=seed)
     return manager.create_song_development_crew(
         song_title=song_title,
         track_number=track_number,
         album_bible=album_bible,
+        **kwargs,
+    )
+
+
+def create_coherence_review_crew(
+    album_bible: AlbumBible,
+    album_content: str,
+    retriever: UnifiedRetriever | None = None,
+    llm: str | None = None,
+    seed: int | None = None,
+    **kwargs,
+) -> Crew:
+    """
+    Convenience function to create a coherence review crew.
+    """
+    manager = AlbumCrewManager(retriever=retriever, llm=llm, seed=seed)
+    return manager.create_coherence_review_crew(
+        album_bible=album_bible,
+        album_content=album_content,
         **kwargs,
     )

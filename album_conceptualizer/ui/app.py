@@ -1,7 +1,24 @@
 """Main Gradio application for Album Conceptualizer."""
 
+import json
+import shutil
+from datetime import datetime
+from pathlib import Path
+
 import gradio as gr
 
+from album_conceptualizer.telemetry import Events, disable_telemetry, enable_telemetry, track
+from album_conceptualizer.models.album import Album, Section, SectionType, Song
+from album_conceptualizer.models.album_bible import (
+    AlbumBible,
+    Character,
+    Motif,
+    NarrativeArc,
+    StyleProfile,
+    Theme,
+)
+from album_conceptualizer.export.formats import AlbumExporter, ExportFormat
+from album_conceptualizer.ui import helpers
 from album_conceptualizer.ui.components import (
     create_album_bible_editor,
     create_album_canvas,
@@ -29,11 +46,6 @@ def create_app(
 
     with gr.Blocks(
         title="Album Conceptualizer",
-        theme=gr.themes.Soft(
-            primary_hue="purple",
-            secondary_hue="blue",
-        ),
-        css=_get_custom_css(),
     ) as app:
         # Header
         gr.Markdown(
@@ -47,18 +59,25 @@ def create_app(
         )
 
         # Main tabs
+        album_state = gr.State(value="")
+        bible_state = gr.State(value="")
+
         with gr.Tabs():
+            # Tab 0: Quick Start
+            with gr.Tab("Quick Start", id="quickstart"):
+                quickstart_components = _create_quickstart_tab()
+
             # Tab 1: Album Canvas (Overview)
             with gr.Tab("Album Canvas", id="canvas"):
-                create_album_canvas()
+                album_components = create_album_canvas()
 
             # Tab 2: Album Bible
             with gr.Tab("Album Bible", id="bible"):
-                create_album_bible_editor()
+                bible_components = create_album_bible_editor()
 
             # Tab 3: Song Editor
             with gr.Tab("Song Editor", id="editor"):
-                create_song_editor()
+                song_components = create_song_editor()
 
             # Tab 4: Chord Tools
             with gr.Tab("Chord Tools", id="chords"):
@@ -66,11 +85,11 @@ def create_app(
 
             # Tab 5: Export
             with gr.Tab("Export", id="export"):
-                create_export_panel()
+                export_components = create_export_panel()
 
             # Tab 6: AI Agents
             with gr.Tab("AI Agents", id="agents"):
-                _create_agents_tab()
+                agent_components = _create_agents_tab()
 
         # Footer
         gr.Markdown(
@@ -81,11 +100,23 @@ def create_app(
             """
         )
 
+        _bind_quickstart_actions(
+            quickstart_components,
+            album_components,
+            song_components,
+            bible_components,
+            export_components,
+            agent_components,
+            album_state,
+            bible_state,
+        )
+
     return app
 
 
-def _create_agents_tab() -> None:
+def _create_agents_tab() -> dict:
     """Create the AI Agents tab content."""
+    components: dict[str, gr.Component] = {}
     gr.Markdown(
         """
         ## AI-Powered Album Creation
@@ -168,8 +199,14 @@ def _create_agents_tab() -> None:
                         step=1,
                         label="Target Track Count",
                     )
+                    components["seed_input"] = gr.Number(
+                        label="Seed (optional)",
+                        value=None,
+                        precision=0,
+                    )
 
                 run_button = gr.Button("Run Workflow", variant="primary")
+                retry_button = gr.Button("Retry", variant="secondary")
 
                 output_area = gr.Textbox(
                     label="Agent Output",
@@ -184,6 +221,8 @@ def _create_agents_tab() -> None:
                     interactive=False,
                 )
 
+                retry_state = gr.State(value={})
+
             # Event handlers
             def run_workflow(
                 workflow: str,
@@ -191,15 +230,30 @@ def _create_agents_tab() -> None:
                 references: str,
                 themes: str,
                 tracks: int,
-            ) -> tuple[str, str]:
+                seed: int | float | None,
+            ) -> tuple[str, str, dict]:
                 """Run the selected agent workflow."""
                 if not concept:
-                    return "Please provide an album concept.", "Error"
+                    return "Please provide an album concept.", "Error", {}
 
-                # For now, return a placeholder response
-                # In production, this would call the actual CrewAI agents
-                return (
-                    f"""
+                seed_value = None
+                if seed is not None:
+                    try:
+                        seed_value = int(seed)
+                    except (TypeError, ValueError):
+                        seed_value = None
+                try:
+                    from album_conceptualizer.agents.crew import create_album_ideation_crew
+
+                    crew = create_album_ideation_crew(
+                        concept=concept,
+                        references=references,
+                        themes=themes or "Not specified",
+                        track_count=tracks,
+                        seed=seed_value,
+                    )
+                    result = crew.kickoff()
+                    output_text = f"""
 ## Workflow: {workflow}
 
 ### Input Analysis
@@ -207,27 +261,2048 @@ def _create_agents_tab() -> None:
 - **References:** {references}
 - **Themes:** {themes}
 - **Target Tracks:** {tracks}
+- **Seed:** {seed_value if seed_value is not None else "None"}
 
-### Agent Processing
-[This would show real-time agent output in production]
+### Agent Output
+{result}
 
-The AI agents would now:
-1. Analyze the concept and references
-2. Develop narrative structure
-3. Define style parameters
-4. Create initial song outlines
+*Note: This run used the album ideation crew as the default workflow.*
+"""
+                    status = "Complete"
+                except Exception as exc:  # noqa: BLE001
+                    output_text = f"""
+## Workflow: {workflow}
 
-**Note:** Connect your API keys in settings to enable AI processing.
-""",
-                    "Complete",
+### Input Analysis
+- **Concept:** {concept}
+- **References:** {references}
+- **Themes:** {themes}
+- **Target Tracks:** {tracks}
+- **Seed:** {seed_value if seed_value is not None else "None"}
+
+### Agent Output
+AI workflow failed to run: {exc}
+
+**Tip:** Ensure AI dependencies and API keys are configured.
+"""
+                    status = "Error"
+
+                return (
+                    output_text,
+                    status,
+                    {
+                        "workflow": workflow,
+                        "concept": concept,
+                        "references": references,
+                        "themes": themes,
+                        "tracks": tracks,
+                        "seed": seed_value,
+                    },
                 )
 
             run_button.click(
                 fn=run_workflow,
-                inputs=[workflow_type, concept_input, references_input, themes_input, track_count],
-                outputs=[output_area, progress],
+                inputs=[
+                    workflow_type,
+                    concept_input,
+                    references_input,
+                    themes_input,
+                    track_count,
+                    components["seed_input"],
+                ],
+                outputs=[output_area, progress, retry_state],
             )
 
+            def retry_workflow(state: dict) -> tuple[str, str, dict]:
+                if not state:
+                    return "Nothing to retry yet.", "Idle", {}
+                return run_workflow(
+                    state.get("workflow", ""),
+                    state.get("concept", ""),
+                    state.get("references", ""),
+                    state.get("themes", ""),
+                    state.get("tracks", 10),
+                    state.get("seed"),
+                )
+
+            retry_button.click(
+                fn=retry_workflow,
+                inputs=[retry_state],
+                outputs=[output_area, progress, retry_state],
+            )
+
+    return components
+
+
+def _create_quickstart_tab() -> dict:
+    """Create a guided quick-start flow for generating a starter album JSON."""
+    components: dict[str, gr.Component] = {}
+    gr.Markdown(
+        """
+        ## Quick Start
+
+        Generate a starter album JSON in a few steps. This creates a clean, editable project
+        you can open in the CLI or use as a baseline for exports.
+        """
+    )
+
+    with gr.Row():
+        with gr.Column(scale=1), gr.Group():
+            components["album_title"] = gr.Textbox(
+                label="Album Title",
+                placeholder="e.g., The Last Summer",
+            )
+            components["artist"] = gr.Textbox(
+                label="Artist",
+                placeholder="e.g., The Storytellers",
+            )
+            components["concept"] = gr.Textbox(
+                label="Concept Summary",
+                placeholder="One or two sentences about the album concept...",
+                lines=4,
+            )
+            components["track_count"] = gr.Slider(
+                minimum=4,
+                maximum=20,
+                value=10,
+                step=1,
+                label="Track Count",
+            )
+            components["track_names"] = gr.Textbox(
+                label="Track Names (optional)",
+                placeholder="One per line or comma-separated",
+                lines=6,
+            )
+
+            components["generate_btn"] = gr.Button("Generate album.json", variant="primary")
+
+            with gr.Group():
+                gr.Markdown("### Project Settings")
+                components["project_dir"] = gr.Textbox(
+                    label="Project Folder",
+                    placeholder="output/projects/album_title",
+                )
+                components["seed"] = gr.Number(
+                    label="Seed",
+                    value=42,
+                    precision=0,
+                )
+                components["telemetry_enabled"] = gr.Checkbox(
+                    label="Enable telemetry (opt-in)",
+                    value=False,
+                )
+                components["autosave_enabled"] = gr.Checkbox(
+                    label="Autosave on edit",
+                    value=True,
+                )
+                with gr.Row():
+                    components["save_project_btn"] = gr.Button("Save Project")
+                    components["save_version_btn"] = gr.Button("Save Version")
+                components["load_file"] = gr.File(
+                    label="Load album.json",
+                    file_count="single",
+                    file_types=[".json"],
+                )
+                components["load_btn"] = gr.Button("Load Project")
+
+            components["status"] = gr.Textbox(
+                label="Status",
+                interactive=False,
+            )
+
+        with gr.Column(scale=1), gr.Group():
+            gr.Markdown("### Generated Output")
+            components["output_file"] = gr.File(
+                label="album.json",
+                visible=True,
+            )
+            components["preview"] = gr.Textbox(
+                label="Preview",
+                lines=18,
+                interactive=False,
+            )
+    return components
+
+
+def _parse_track_names(raw_names: str) -> list[str]:
+    return helpers.parse_track_names(raw_names)
+
+
+def _track_event(event_type: str, properties: dict[str, object] | None = None) -> None:
+    try:
+        track(event_type, properties or {})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _status_with_time(message: str) -> str:
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    return f"{message} ({timestamp})"
+
+
+def _section_type_to_label(section_type: str) -> str:
+    return helpers.section_type_to_label(section_type)
+
+
+def _section_label_to_type(section_label: str) -> SectionType:
+    return helpers.section_label_to_type(section_label)
+
+
+def _build_tracklist_rows(album: Album) -> list[list[object]]:
+    return helpers.build_tracklist_rows(album)
+
+
+def _slugify(value: str) -> str:
+    if not value:
+        return "untitled_album"
+    normalized = value.strip().lower().replace(" ", "_")
+    return "".join(char for char in normalized if char.isalnum() or char == "_")
+
+
+def _ensure_project_dir(project_dir: str, album_title: str) -> Path:
+    base_dir = Path(project_dir) if project_dir else Path("output/projects")
+    if base_dir.suffix:
+        base_dir = base_dir.parent
+    if base_dir.name == "projects":
+        base_dir = base_dir / _slugify(album_title)
+    base_dir.mkdir(parents=True, exist_ok=True)
+    return base_dir
+
+
+def _suggest_project_dir(title: str, current_dir: str) -> str:
+    if current_dir:
+        return current_dir
+    return str(Path("output/projects") / _slugify(title))
+
+
+def _set_telemetry_enabled(enabled: bool) -> str:
+    if enabled:
+        enable_telemetry()
+        return _status_with_time("Telemetry enabled (opt-in).")
+    disable_telemetry()
+    return _status_with_time("Telemetry disabled.")
+
+
+def _build_album_from_inputs(
+    album_title: str,
+    artist_name: str,
+    concept_summary: str,
+    tracklist_rows: list[list[object]] | None,
+    song_title: str,
+    track_number: int,
+    song_key: str,
+    song_tempo: int,
+    time_signature: str,
+    narrative_position: str,
+    narrative_summary: str,
+    section_label: str,
+    lyrics: str,
+) -> Album:
+    songs: list[Song] = []
+    if tracklist_rows:
+        for row in tracklist_rows:
+            if not row or len(row) < 2:
+                continue
+            title = str(row[1]).strip() if row[1] is not None else ""
+            if not title:
+                continue
+            try:
+                track_no = int(row[0]) if row[0] not in (None, "") else len(songs) + 1
+            except (TypeError, ValueError):
+                track_no = len(songs) + 1
+            track_no = max(1, track_no)
+            track_no = max(1, track_no)
+            key = str(row[2]).strip() if len(row) > 2 and row[2] else None
+            tempo = None
+            if len(row) > 3 and row[3] not in (None, ""):
+                try:
+                    tempo = int(row[3])
+                except (TypeError, ValueError):
+                    tempo = None
+            if tempo is not None and tempo <= 0:
+                tempo = None
+            if tempo is not None and tempo <= 0:
+                tempo = None
+            narrative = str(row[4]).strip() if len(row) > 4 and row[4] else None
+            songs.append(
+                Song(
+                    title=title,
+                    track_number=track_no,
+                    key=key,
+                    tempo=tempo,
+                    narrative_position=narrative,
+                )
+            )
+
+    if not songs and song_title:
+        songs.append(
+            Song(
+                title=song_title,
+                track_number=track_number or 1,
+                key=song_key or None,
+                tempo=song_tempo or None,
+                time_signature=time_signature or "4/4",
+                narrative_position=narrative_position or None,
+                narrative_summary=narrative_summary or None,
+            )
+        )
+
+    if song_title and songs:
+        selected = next((song for song in songs if song.title == song_title), songs[0])
+        if track_number and track_number > 0:
+            selected.track_number = track_number
+        selected.key = song_key or selected.key
+        if song_tempo and song_tempo > 0:
+            selected.tempo = song_tempo
+        selected.time_signature = time_signature or selected.time_signature
+        selected.narrative_position = narrative_position or selected.narrative_position
+        selected.narrative_summary = narrative_summary or selected.narrative_summary
+        if lyrics:
+            selected.sections = [
+                Section(
+                    section_type=_section_label_to_type(section_label),
+                    order=1,
+                    lyrics=lyrics,
+                )
+            ]
+
+    return Album(
+        title=album_title or "Untitled Album",
+        artist=artist_name or None,
+        concept_summary=concept_summary or None,
+        songs=songs,
+    )
+
+
+def _parse_list_items(value: str | None) -> list[str]:
+    if not value:
+        return []
+    normalized = value.replace(",", "\n")
+    return [item.strip() for item in normalized.splitlines() if item.strip()]
+
+
+def _parse_int_list(value: str | None) -> list[int]:
+    items = _parse_list_items(value)
+    results: list[int] = []
+    for item in items:
+        try:
+            results.append(int(item))
+        except (TypeError, ValueError):
+            continue
+    return results
+
+
+def _build_album_bible_from_inputs(
+    album_title: str,
+    artist_name: str,
+    logline: str,
+    synopsis: str,
+    setting: str,
+    characters_rows: list[list[object]] | None,
+    themes_rows: list[list[object]] | None,
+    structure_type: str,
+    structure_beats: str,
+    style_genre: str,
+    style_references: str,
+    lyrical_voice: str,
+    motifs_rows: list[list[object]] | None,
+) -> AlbumBible:
+    themes: list[Theme] = []
+    if themes_rows:
+        for row in themes_rows:
+            if not row or not row[0]:
+                continue
+            name = str(row[0]).strip()
+            description = str(row[1]).strip() if len(row) > 1 and row[1] else ""
+            primary_songs = _parse_int_list(str(row[2])) if len(row) > 2 and row[2] else []
+            primary_songs = [num for num in primary_songs if num > 0]
+            themes.append(
+                Theme(
+                    name=name,
+                    description=description or "Theme description",
+                    primary_songs=primary_songs,
+                )
+            )
+
+    characters: list[Character] = []
+    if characters_rows:
+        for row in characters_rows:
+            if not row or not row[0]:
+                continue
+            name = str(row[0]).strip()
+            role = str(row[1]).strip() if len(row) > 1 and row[1] else "role"
+            description = str(row[2]).strip() if len(row) > 2 and row[2] else ""
+            arc = str(row[3]).strip() if len(row) > 3 and row[3] else None
+            characters.append(
+                Character(
+                    name=name,
+                    role=role,
+                    description=description or "Character description",
+                    arc_summary=arc,
+                )
+            )
+
+    motifs: list[Motif] = []
+    if motifs_rows:
+        for row in motifs_rows:
+            if not row or not row[0]:
+                continue
+            name = str(row[0]).strip()
+            motif_type = str(row[1]).strip() if len(row) > 1 and row[1] else "lyrical"
+            description = str(row[2]).strip() if len(row) > 2 and row[2] else ""
+            first_appearance = None
+            if len(row) > 3 and row[3]:
+                try:
+                    first_appearance = int(row[3])
+                except (TypeError, ValueError):
+                    first_appearance = None
+            if first_appearance is not None and first_appearance <= 0:
+                first_appearance = None
+            evolution = str(row[4]).strip() if len(row) > 4 and row[4] else None
+            appearances = []
+            if first_appearance:
+                appearances.append({"track_number": first_appearance})
+            motifs.append(
+                Motif(
+                    name=name,
+                    motif_type=motif_type,
+                    description=description or "Motif description",
+                    appearances=appearances,
+                    evolution_notes=evolution,
+                )
+            )
+
+    narrative_arc = None
+    if structure_type or structure_beats:
+        structure_map = {
+            "Hero's Journey": "heros_journey",
+            "Three-Act Structure": "three_act",
+            "Circular Narrative": "circular",
+            "Non-Linear/Fragmented": "non_linear",
+            "Episodic": "episodic",
+            "Custom": "custom",
+        }
+        beats = []
+        for beat in _parse_list_items(structure_beats):
+            beats.append({"name": beat, "description": ""})
+        narrative_arc = NarrativeArc(
+            structure_type=structure_map.get(structure_type, "custom"),
+            description=structure_beats or structure_type or "User-defined structure",
+            beats=beats,
+        )
+
+    style_profile = None
+    if style_genre or style_references or lyrical_voice:
+        style_profile = StyleProfile(
+            primary_genre=style_genre or "Unknown",
+            reference_artists=_parse_list_items(style_references),
+            lyrical_tone=lyrical_voice or None,
+        )
+
+    return AlbumBible(
+        album_title=album_title or "Untitled Album",
+        artist=artist_name or None,
+        logline=logline.strip() or "Add logline",
+        synopsis=synopsis.strip() or "Add synopsis",
+        setting=setting.strip() or None,
+        themes=themes,
+        motifs=motifs,
+        characters=characters,
+        narrative_arc=narrative_arc,
+        style_profile=style_profile,
+    )
+
+
+def _save_album_bible(
+    bible: AlbumBible,
+    project_dir: str,
+) -> tuple[str, str]:
+    target_dir = _ensure_project_dir(project_dir, bible.album_title)
+    bible_path = target_dir / "album_bible.json"
+    payload = bible.model_dump_json(indent=2)
+    bible_path.write_text(payload)
+    return str(bible_path), f"Saved album bible to {target_dir}"
+
+
+def _album_bible_to_markdown(bible: AlbumBible) -> str:
+    lines = [
+        f"# {bible.album_title} — Album Bible",
+        "",
+        "## Logline",
+        bible.logline,
+        "",
+        "## Synopsis",
+        bible.synopsis,
+    ]
+    if bible.setting:
+        lines += ["", "## Setting", bible.setting]
+    if bible.themes:
+        lines.append("")
+        lines.append("## Themes")
+        for theme in bible.themes:
+            lines.append(f"- {theme.name}: {theme.description}")
+    if bible.motifs:
+        lines.append("")
+        lines.append("## Motifs")
+        for motif in bible.motifs:
+            lines.append(f"- {motif.name} ({motif.motif_type}): {motif.description}")
+    if bible.characters:
+        lines.append("")
+        lines.append("## Characters")
+        for character in bible.characters:
+            lines.append(f"- {character.name} ({character.role}): {character.description}")
+    if bible.narrative_arc:
+        lines.append("")
+        lines.append("## Narrative Structure")
+        lines.append(f"{bible.narrative_arc.structure_type}")
+        for beat in bible.narrative_arc.beats:
+            lines.append(f"- {beat.get('name', '')}")
+    if bible.style_profile:
+        lines.append("")
+        lines.append("## Style Profile")
+        lines.append(f"- Genre: {bible.style_profile.primary_genre}")
+        if bible.style_profile.reference_artists:
+            lines.append(f"- References: {', '.join(bible.style_profile.reference_artists)}")
+        if bible.style_profile.lyrical_tone:
+            lines.append(f"- Lyrical Voice: {bible.style_profile.lyrical_tone}")
+    return "\n".join(lines)
+
+
+def _generate_review_pass(album: Album) -> tuple[list[str], list[str]]:
+    return helpers.generate_review_pass(album)
+
+
+def _write_review_pass(
+    album: Album,
+    project_dir: str,
+) -> Path:
+    review_lines, review_warnings = _generate_review_pass(album)
+    content = ["# Review Pass", ""]
+    if review_lines:
+        content.append("## Summary")
+        content.extend(review_lines)
+    if review_warnings:
+        content.append("")
+        content.append("## Warnings")
+        content.extend(f"- {warning}" for warning in review_warnings)
+    export_dir = _resolve_export_dir(project_dir, album.title)
+    review_path = export_dir / "review_pass.txt"
+    review_path.write_text("\n".join(content))
+    return review_path
+
+
+def _resolve_export_dir(project_dir: str, album_title: str) -> Path:
+    base_dir = _ensure_project_dir(project_dir, album_title)
+    export_dir = base_dir / "exports"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    return export_dir
+
+
+def _selected_export_formats(
+    format_midi: bool,
+    format_chordpro: bool,
+    format_musicxml: bool,
+    format_json: bool,
+    format_text: bool,
+) -> list[ExportFormat]:
+    formats: list[ExportFormat] = []
+    if format_midi:
+        formats.append(ExportFormat.MIDI)
+    if format_chordpro:
+        formats.append(ExportFormat.CHORDPRO)
+    if format_musicxml:
+        formats.append(ExportFormat.MUSICXML)
+    if format_json:
+        formats.append(ExportFormat.JSON)
+    if format_text:
+        formats.append(ExportFormat.TEXT)
+    return formats
+
+
+def _build_export_preview(
+    album_json: str,
+    project_dir: str,
+    format_midi: bool,
+    format_chordpro: bool,
+    format_musicxml: bool,
+    format_json: bool,
+    format_text: bool,
+) -> tuple[str, str]:
+    if not album_json:
+        return (
+            "No album loaded. Generate or load a project first.",
+            _status_with_time("Missing album.json"),
+        )
+
+    try:
+        album = Album.model_validate_json(album_json)
+    except Exception as exc:  # noqa: BLE001
+        _track_event(
+            Events.ERROR_OCCURRED,
+            {"feature": "export_preview", "error": str(exc)},
+        )
+        return (
+            "Album data is invalid. Regenerate or reload the project.",
+            _status_with_time("Invalid album data"),
+        )
+    review_lines, review_warnings = _generate_review_pass(album)
+    export_dir = _resolve_export_dir(project_dir, album.title)
+    album_dir = export_dir / AlbumExporter._sanitize_filename(album.title)
+    formats = _selected_export_formats(
+        format_midi, format_chordpro, format_musicxml, format_json, format_text
+    )
+    if not formats:
+        return "Select at least one export format.", _status_with_time("No formats selected")
+
+    lines = [f"Export folder: {album_dir}"]
+    warnings: list[str] = []
+    for song in album.songs:
+        song_name = AlbumExporter._sanitize_filename(song.title)
+        if ExportFormat.MIDI in formats:
+            lines.append(f"- midi/{song_name}.mid")
+        if ExportFormat.CHORDPRO in formats:
+            lines.append(f"- chordpro/{song_name}.cho")
+        if ExportFormat.MUSICXML in formats:
+            lines.append(f"- musicxml/{song_name}.musicxml")
+        if ExportFormat.JSON in formats:
+            lines.append(f"- json/{song_name}.json")
+        if ExportFormat.TEXT in formats:
+            lines.append(f"- lyrics/{song_name}.txt")
+
+        if not song.sections:
+            warnings.append(f"{song.title}: no sections defined")
+        else:
+            if not any(section.lyrics for section in song.sections):
+                warnings.append(f"{song.title}: missing lyrics")
+            if not any(section.chord_progression for section in song.sections):
+                warnings.append(f"{song.title}: missing chord progressions")
+
+    if ExportFormat.JSON in formats:
+        lines.append("- album.json")
+    if ExportFormat.TEXT in formats:
+        lines.append("- tracklist.txt")
+
+    if warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        for warning in warnings:
+            lines.append(f"- {warning}")
+
+    if review_warnings:
+        lines.append("")
+        lines.append("Review Pass:")
+        lines.extend(review_lines)
+
+    if warnings or review_warnings:
+        return "\n".join(lines), _status_with_time("Preview ready (with warnings)")
+
+    return "\n".join(lines), _status_with_time("Preview ready")
+
+
+def _export_album_files(
+    album_json: str,
+    project_dir: str,
+    format_midi: bool,
+    format_chordpro: bool,
+    format_musicxml: bool,
+    format_json: bool,
+    format_text: bool,
+) -> tuple[gr.File, str]:
+    if not album_json:
+        return gr.update(), _status_with_time("No album loaded. Generate or load a project first.")
+
+    try:
+        album = Album.model_validate_json(album_json)
+    except Exception as exc:  # noqa: BLE001
+        _track_event(
+            Events.ERROR_OCCURRED,
+            {"feature": "export", "error": str(exc)},
+        )
+        return gr.update(), _status_with_time("Invalid album data. Reload the project.")
+
+    export_dir = _resolve_export_dir(project_dir, album.title)
+    formats = _selected_export_formats(
+        format_midi, format_chordpro, format_musicxml, format_json, format_text
+    )
+    if not formats:
+        return gr.update(), _status_with_time("Select at least one export format.")
+
+    try:
+        exporter = AlbumExporter(output_dir=export_dir, artist_name=album.artist)
+        exporter.export_album(album, formats)
+        review_path = _write_review_pass(album, project_dir)
+
+        album_dir = export_dir / AlbumExporter._sanitize_filename(album.title)
+        archive_base = export_dir / f"{AlbumExporter._sanitize_filename(album.title)}_export"
+        archive_path = shutil.make_archive(str(archive_base), "zip", root_dir=album_dir)
+        _track_event(
+            Events.EXPORT_GENERATED,
+            {
+                "formats": [fmt.value for fmt in formats],
+                "track_count": len(album.songs),
+            },
+        )
+        return (
+            gr.update(value=archive_path, visible=True),
+            _status_with_time(f"Exported to {album_dir} (review: {review_path.name})"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _track_event(
+            Events.ERROR_OCCURRED,
+            {
+                "feature": "export",
+                "error": str(exc),
+            },
+        )
+        return gr.update(), _status_with_time(f"Export failed: {exc}")
+
+
+def _load_album_bible(
+    project_dir: str,
+) -> tuple[
+    str,
+    str,
+    str,
+    list[list[object]],
+    list[list[object]],
+    str,
+    str,
+    str,
+    str,
+    str,
+    list[list[object]],
+    str,
+    str,
+]:
+    target_dir = _ensure_project_dir(project_dir, "album_bible")
+    bible_path = target_dir / "album_bible.json"
+    if not bible_path.exists():
+        _track_event(
+            Events.ERROR_OCCURRED,
+            {"feature": "load_bible", "error": f"Missing album_bible.json in {target_dir}"},
+        )
+        return (
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            f"No album_bible.json found in {target_dir}",
+            gr.update(),
+        )
+
+    try:
+        payload = bible_path.read_text()
+        bible = AlbumBible.model_validate_json(payload)
+    except Exception as exc:  # noqa: BLE001
+        _track_event(
+            Events.ERROR_OCCURRED,
+            {"feature": "load_bible", "error": str(exc)},
+        )
+        return (
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            f"Failed to load album_bible.json: {exc}",
+            gr.update(),
+        )
+
+    characters_rows = [
+        [char.name, char.role, char.description, char.arc_summary or ""]
+        for char in bible.characters
+    ]
+    themes_rows = [
+        [
+            theme.name,
+            theme.description,
+            ", ".join(str(num) for num in theme.primary_songs),
+        ]
+        for theme in bible.themes
+    ]
+    motifs_rows = [
+        [
+            motif.name,
+            motif.motif_type,
+            motif.description,
+            motif.appearances[0].get("track_number") if motif.appearances else "",
+            motif.evolution_notes or "",
+        ]
+        for motif in bible.motifs
+    ]
+
+    structure_label_map = {
+        "heros_journey": "Hero's Journey",
+        "three_act": "Three-Act Structure",
+        "circular": "Circular Narrative",
+        "non_linear": "Non-Linear/Fragmented",
+        "episodic": "Episodic",
+        "custom": "Custom",
+    }
+    structure_label = ""
+    structure_beats = ""
+    if bible.narrative_arc:
+        structure_label = structure_label_map.get(bible.narrative_arc.structure_type, "Custom")
+        structure_beats = "\n".join(
+            beat.get("name", "") for beat in bible.narrative_arc.beats if beat.get("name")
+        )
+
+    style_genre = ""
+    style_refs = ""
+    lyrical_voice = ""
+    if bible.style_profile:
+        style_genre = bible.style_profile.primary_genre or ""
+        style_refs = ", ".join(bible.style_profile.reference_artists)
+        lyrical_voice = bible.style_profile.lyrical_tone or ""
+
+    status = f"Loaded album bible from {target_dir}"
+
+    return (
+        bible.logline,
+        bible.synopsis,
+        bible.setting or "",
+        characters_rows,
+        themes_rows,
+        structure_label,
+        structure_beats,
+        style_genre,
+        style_refs,
+        lyrical_voice,
+        motifs_rows,
+        status,
+        payload,
+    )
+
+def _save_album(
+    album: Album,
+    project_dir: str,
+    create_version: bool = False,
+) -> tuple[str, str]:
+    target_dir = _ensure_project_dir(project_dir, album.title)
+    album_path = target_dir / "album.json"
+    payload = album.model_dump_json(indent=2)
+    album_path.write_text(payload)
+
+    if create_version:
+        versions_dir = target_dir / "versions"
+        versions_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = album.updated_at.strftime("%Y%m%d_%H%M%S")
+        version_path = versions_dir / f"album_{timestamp}.json"
+        version_path.write_text(payload)
+        status = f"Saved project and version to {target_dir}"
+    else:
+        status = f"Saved project to {target_dir}"
+
+    return str(album_path), status
+
+
+def _save_project_config(
+    project_dir: str,
+    album_title: str,
+    seed_value: int | float | None,
+) -> None:
+    target_dir = _ensure_project_dir(project_dir, album_title)
+    config_path = target_dir / "project.json"
+    seed_int: int | None = None
+    if seed_value is not None:
+        try:
+            seed_int = int(seed_value)
+        except (TypeError, ValueError):
+            seed_int = None
+    payload = {
+        "seed": seed_int,
+    }
+    config_path.write_text(json.dumps(payload, indent=2))
+
+
+def _load_project_config(project_dir: str, album_title: str) -> dict:
+    target_dir = _ensure_project_dir(project_dir, album_title)
+    config_path = target_dir / "project.json"
+    if not config_path.exists():
+        return {}
+    try:
+        return json.loads(config_path.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+
+def _load_song_from_state(
+    album_json: str,
+    song_title: str | None,
+) -> tuple[str, int, str, int, str, str, str, str, str]:
+    if not album_json or not song_title:
+        return "", 1, "", 120, "4/4", "", "", "", ""
+
+    album = Album.model_validate_json(album_json)
+    song = album.get_song_by_title(song_title)
+    if not song:
+        return "", 1, "", 120, "4/4", "", "", "", ""
+
+    first_section = song.sections[0] if song.sections else None
+    section_label = "Verse 1"
+    if first_section:
+        section_label = _section_type_to_label(first_section.section_type)
+
+    return (
+        song.title,
+        song.track_number,
+        song.key or "",
+        song.tempo or 120,
+        song.time_signature or "4/4",
+        song.narrative_position or "",
+        song.narrative_summary or "",
+        section_label,
+        first_section.lyrics if first_section and first_section.lyrics else "",
+    )
+
+
+def _merge_album_with_tracklist(
+    album_json: str,
+    album_title: str,
+    artist_name: str,
+    concept_summary: str,
+    tracklist_rows: list[list[object]] | None,
+) -> Album:
+    return helpers.merge_album_with_tracklist(
+        album_json=album_json,
+        album_title=album_title,
+        artist_name=artist_name,
+        concept_summary=concept_summary,
+        tracklist_rows=tracklist_rows,
+    )
+
+
+def _update_album_from_tracklist(
+    album_json: str,
+    album_title: str,
+    artist_name: str,
+    concept_summary: str,
+    tracklist_rows: list[list[object]] | None,
+) -> tuple[str, gr.Dropdown]:
+    album = _merge_album_with_tracklist(
+        album_json=album_json,
+        album_title=album_title,
+        artist_name=artist_name,
+        concept_summary=concept_summary,
+        tracklist_rows=tracklist_rows,
+    )
+    payload = album.model_dump_json(indent=2)
+    song_titles = [song.title for song in album.songs]
+    return (
+        payload,
+        gr.Dropdown.update(choices=song_titles, value=song_titles[0] if song_titles else None),
+    )
+
+
+def _update_album_from_song_editor(
+    album_json: str,
+    selected_title: str | None,
+    song_title: str,
+    track_number: int,
+    song_key: str,
+    song_tempo: int,
+    time_signature: str,
+    narrative_position: str,
+    narrative_summary: str,
+    section_label: str,
+    lyrics: str,
+) -> tuple[str, gr.Dropdown, list[list[object]]]:
+    updated_json, updated_rows, song_titles = helpers.update_album_from_song_editor(
+        album_json=album_json,
+        selected_title=selected_title,
+        song_title=song_title,
+        track_number=track_number,
+        song_key=song_key,
+        song_tempo=song_tempo,
+        time_signature=time_signature,
+        narrative_position=narrative_position,
+        narrative_summary=narrative_summary,
+        section_label=section_label,
+        lyrics=lyrics,
+    )
+    selected_value = None
+    if selected_title and selected_title in song_titles:
+        selected_value = selected_title
+    elif song_title and song_title in song_titles:
+        selected_value = song_title
+    elif song_titles:
+        selected_value = song_titles[0]
+
+    return (
+        updated_json,
+        gr.Dropdown.update(choices=song_titles, value=selected_value),
+        updated_rows,
+    )
+
+
+def _apply_song_editor_to_album(
+    album_json: str,
+    selected_title: str | None,
+    song_title: str,
+    track_number: int,
+    song_key: str,
+    song_tempo: int,
+    time_signature: str,
+    narrative_position: str,
+    narrative_summary: str,
+    section_label: str,
+    lyrics: str,
+) -> str:
+    updated_json, _, _ = _update_album_from_song_editor(
+        album_json=album_json,
+        selected_title=selected_title,
+        song_title=song_title,
+        track_number=track_number,
+        song_key=song_key,
+        song_tempo=song_tempo,
+        time_signature=time_signature,
+        narrative_position=narrative_position,
+        narrative_summary=narrative_summary,
+        section_label=section_label,
+        lyrics=lyrics,
+    )
+    return updated_json
+
+
+def _generate_album_payload(
+    title: str,
+    artist_name: str,
+    concept_summary: str,
+    tracks: int,
+    raw_track_names: str,
+) -> tuple[Album | None, str]:
+    if not title:
+        return None, "Album title is required."
+
+    names = _parse_track_names(raw_track_names)
+    tracks = max(1, tracks)
+    songs: list[Song] = []
+    for index in range(tracks):
+        song_title = names[index] if index < len(names) else f"Track {index + 1}"
+        songs.append(
+            Song(
+                title=song_title,
+                track_number=index + 1,
+                sections=[
+                    Section(
+                        section_type=SectionType.VERSE,
+                        order=1,
+                        lyrics="[Add lyrics here]",
+                    )
+                ],
+            )
+        )
+
+    album = Album(
+        title=title,
+        artist=artist_name or None,
+        concept_summary=concept_summary or None,
+        songs=songs,
+    )
+
+    return album, f"Created album with {len(songs)} tracks."
+
+
+def _extract_file_path(file_value: object | None) -> str | None:
+    if file_value is None:
+        return None
+    if isinstance(file_value, str):
+        return file_value
+    if isinstance(file_value, dict) and "name" in file_value:
+        return str(file_value["name"])
+    return getattr(file_value, "name", None)
+
+
+def _load_album_json(
+    file_value: object | None,
+    project_dir: str,
+) -> tuple[
+    str | None,
+    str,
+    str,
+    str,
+    str,
+    str,
+    list[list[object]],
+    gr.Dropdown,
+    str,
+    int,
+    str,
+    int,
+    str,
+    str,
+    str,
+    str,
+    str,
+    str,
+    int | float | None,
+    str,
+    str,
+    str,
+    list[list[object]],
+    list[list[object]],
+    str,
+    str,
+    str,
+    str,
+    str,
+    list[list[object]],
+    str,
+    int | float | None,
+]:
+    def _error_response(message: str) -> tuple:
+        _track_event(
+            Events.ERROR_OCCURRED,
+            {"feature": "load_album", "error": message},
+        )
+        return (
+            gr.update(),
+            message,
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.Dropdown.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+        )
+
+    file_path = _extract_file_path(file_value)
+    if not file_path:
+        return _error_response("Please select an album.json file.")
+
+    try:
+        payload = Path(file_path).read_text()
+        album = Album.model_validate_json(payload)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(f"Failed to load album.json: {exc}")
+    project_path = Path(file_path).parent
+    project_dir = str(project_path) if project_dir == "" else project_dir
+    output_path, status = _save_album(album, project_dir)
+    config = _load_project_config(project_dir, album.title)
+    seed_value = config.get("seed")
+    _track_event(
+        Events.UI_FEATURE_USED,
+        {
+            "feature": "load_album",
+            "project_dir": str(Path(project_dir)),
+        },
+    )
+    bible_values = _load_album_bible(project_dir)
+    bible_fields = (*bible_values[:11], bible_values[12])
+
+    tracklist = _build_tracklist_rows(album)
+    song_titles = [song.title for song in album.songs]
+    first_song = album.songs[0] if album.songs else None
+    first_section = first_song.sections[0] if first_song and first_song.sections else None
+    section_label = "Verse 1"
+    if first_section:
+        section_label = _section_type_to_label(first_section.section_type)
+
+    return (
+        output_path,
+        _status_with_time(status),
+        payload,
+        album.title,
+        album.artist or "",
+        album.concept_summary or "",
+        tracklist,
+        gr.Dropdown.update(choices=song_titles, value=song_titles[0] if song_titles else None),
+        first_song.title if first_song else "",
+        first_song.track_number if first_song else 1,
+        first_song.key if first_song and first_song.key else "",
+        first_song.tempo if first_song and first_song.tempo else 120,
+        first_song.time_signature if first_song and first_song.time_signature else "4/4",
+        first_song.narrative_position if first_song and first_song.narrative_position else "",
+        first_song.narrative_summary if first_song and first_song.narrative_summary else "",
+        section_label,
+        first_section.lyrics if first_section and first_section.lyrics else "",
+        payload,
+        seed_value,
+        *bible_fields,
+        seed_value,
+    )
+
+
+def _generate_album_json(
+    title: str,
+    artist_name: str,
+    concept_summary: str,
+    tracks: int,
+    raw_track_names: str,
+    project_dir: str,
+    seed_value: int | float | None,
+) -> tuple[
+    str | None,
+    str,
+    str,
+    str,
+    str,
+    str,
+    list[list[object]],
+    gr.Dropdown,
+    str,
+    int,
+    str,
+    int,
+    str,
+    str,
+    str,
+    str,
+    str,
+    str,
+    int | float | None,
+    int | float | None,
+]:
+    try:
+        tracks = int(tracks)
+    except (TypeError, ValueError):
+        tracks = 10
+
+    album, status_message = _generate_album_payload(
+        title,
+        artist_name,
+        concept_summary,
+        tracks,
+        raw_track_names,
+    )
+    if album is None:
+        return (
+            None,
+            status_message,
+            "",
+            "",
+            "",
+            "",
+            [],
+            gr.Dropdown.update(choices=[], value=None),
+            "",
+            1,
+            "",
+            120,
+            "4/4",
+            "",
+            "",
+            "",
+            "",
+            "",
+            seed_value,
+            seed_value,
+        )
+
+    output_path, status_message = _save_album(album, project_dir)
+    _save_project_config(project_dir, album.title, seed_value)
+    _track_event(
+        Events.ALBUM_CREATED,
+        {
+            "track_count": len(album.songs),
+            "project_dir": str(Path(project_dir)) if project_dir else "",
+        },
+    )
+    payload = Path(output_path).read_text()
+
+    tracklist = _build_tracklist_rows(album)
+    song_titles = [song.title for song in album.songs]
+    first_song = album.songs[0] if album.songs else None
+    first_section = first_song.sections[0] if first_song and first_song.sections else None
+    section_label = "Verse 1"
+    if first_section:
+        section_label = _section_type_to_label(first_section.section_type)
+
+    return (
+        str(output_path),
+        _status_with_time(status_message),
+        payload,
+        album.title,
+        album.artist or "",
+        album.concept_summary or "",
+        tracklist,
+        gr.Dropdown.update(choices=song_titles, value=song_titles[0] if song_titles else None),
+        first_song.title if first_song else "",
+        first_song.track_number if first_song else 1,
+        first_song.key if first_song and first_song.key else "",
+        first_song.tempo if first_song and first_song.tempo else 120,
+        first_song.time_signature if first_song and first_song.time_signature else "4/4",
+        first_song.narrative_position if first_song and first_song.narrative_position else "",
+        first_song.narrative_summary if first_song and first_song.narrative_summary else "",
+        section_label,
+        first_section.lyrics if first_section and first_section.lyrics else "",
+        payload,
+        seed_value,
+        seed_value,
+    )
+
+
+def _bind_quickstart_actions(
+    quickstart_components: dict,
+    album_components: dict,
+    song_components: dict,
+    bible_components: dict,
+    export_components: dict,
+    agent_components: dict,
+    album_state: gr.State,
+    bible_state: gr.State,
+) -> None:
+    def _update_project_dir(title: str, current_dir: str) -> str:
+        return _suggest_project_dir(title, current_dir)
+
+    quickstart_components["album_title"].change(
+        fn=_update_project_dir,
+        inputs=[quickstart_components["album_title"], quickstart_components["project_dir"]],
+        outputs=[quickstart_components["project_dir"]],
+    )
+
+    if agent_components.get("seed_input") is not None:
+        quickstart_components["seed"].change(
+            fn=lambda seed_value: seed_value,
+            inputs=[quickstart_components["seed"]],
+            outputs=[agent_components["seed_input"]],
+        )
+
+    quickstart_components["telemetry_enabled"].change(
+        fn=_set_telemetry_enabled,
+        inputs=[quickstart_components["telemetry_enabled"]],
+        outputs=[quickstart_components["status"]],
+    )
+
+    album_components["album_title"].change(
+        fn=_update_project_dir,
+        inputs=[album_components["album_title"], quickstart_components["project_dir"]],
+        outputs=[quickstart_components["project_dir"]],
+    )
+
+    quickstart_components["generate_btn"].click(
+        fn=_generate_album_json,
+        inputs=[
+            quickstart_components["album_title"],
+            quickstart_components["artist"],
+            quickstart_components["concept"],
+            quickstart_components["track_count"],
+            quickstart_components["track_names"],
+            quickstart_components["project_dir"],
+            quickstart_components["seed"],
+        ],
+        outputs=[
+            quickstart_components["output_file"],
+            quickstart_components["status"],
+            quickstart_components["preview"],
+            album_components["album_title"],
+            album_components["artist_name"],
+            album_components["concept_summary"],
+            album_components["tracklist_display"],
+            song_components["song_selector"],
+            song_components["song_title_edit"],
+            song_components["track_number"],
+            song_components["song_key"],
+            song_components["song_tempo"],
+            song_components["time_signature"],
+            song_components["narrative_position"],
+            song_components["narrative_summary"],
+            song_components["section_selector"],
+            song_components["lyrics_editor"],
+            album_state,
+            quickstart_components["seed"],
+            agent_components["seed_input"],
+        ],
+    )
+
+    quickstart_components["load_btn"].click(
+        fn=_load_album_json,
+        inputs=[
+            quickstart_components["load_file"],
+            quickstart_components["project_dir"],
+        ],
+        outputs=[
+            quickstart_components["output_file"],
+            quickstart_components["status"],
+            quickstart_components["preview"],
+            album_components["album_title"],
+            album_components["artist_name"],
+            album_components["concept_summary"],
+            album_components["tracklist_display"],
+            song_components["song_selector"],
+            song_components["song_title_edit"],
+            song_components["track_number"],
+            song_components["song_key"],
+            song_components["song_tempo"],
+            song_components["time_signature"],
+            song_components["narrative_position"],
+            song_components["narrative_summary"],
+            song_components["section_selector"],
+            song_components["lyrics_editor"],
+            album_state,
+            quickstart_components["seed"],
+            bible_components["logline"],
+            bible_components["synopsis"],
+            bible_components["setting"],
+            bible_components["characters_table"],
+            bible_components["themes_table"],
+            bible_components["structure_type"],
+            bible_components["structure_beats"],
+            bible_components["style_genre"],
+            bible_components["style_references"],
+            bible_components["lyrical_voice"],
+            bible_components["motifs_table"],
+            bible_state,
+            agent_components["seed_input"],
+        ],
+    )
+
+    def _autosave_project(
+        album_json: str,
+        album_title: str,
+        artist_name: str,
+        concept_summary: str,
+        tracklist_rows: list[list[object]] | None,
+        selected_title: str | None,
+        song_title: str,
+        track_number: int,
+        song_key: str,
+        song_tempo: int,
+        time_signature: str,
+        narrative_position: str,
+        narrative_summary: str,
+        section_label: str,
+        lyrics: str,
+        seed_value: int | float | None,
+        project_dir: str,
+        autosave_enabled: bool,
+    ) -> tuple[str | None, str, str, str]:
+        if not autosave_enabled:
+            return None, "", "Autosave disabled.", album_json
+
+        merged = _merge_album_with_tracklist(
+            album_json=album_json,
+            album_title=album_title,
+            artist_name=artist_name,
+            concept_summary=concept_summary,
+            tracklist_rows=tracklist_rows,
+        )
+        merged_json = merged.model_dump_json(indent=2)
+        updated_json = _apply_song_editor_to_album(
+            album_json=merged_json,
+            selected_title=selected_title,
+            song_title=song_title,
+            track_number=track_number,
+            song_key=song_key,
+            song_tempo=song_tempo,
+            time_signature=time_signature,
+            narrative_position=narrative_position,
+            narrative_summary=narrative_summary,
+            section_label=section_label,
+            lyrics=lyrics,
+        )
+        album = Album.model_validate_json(updated_json)
+        output_path, status = _save_album(album, project_dir)
+        _save_project_config(project_dir, album.title, seed_value)
+        payload = Path(output_path).read_text()
+        _track_event(
+            Events.UI_FEATURE_USED,
+            {
+                "feature": "autosave_project",
+                "project_dir": str(Path(project_dir)),
+            },
+        )
+        return output_path, payload, _status_with_time(status), payload
+
+    autosave_inputs = [
+        album_state,
+        album_components["album_title"],
+        album_components["artist_name"],
+        album_components["concept_summary"],
+        album_components["tracklist_display"],
+        song_components["song_selector"],
+        song_components["song_title_edit"],
+        song_components["track_number"],
+        song_components["song_key"],
+        song_components["song_tempo"],
+        song_components["time_signature"],
+        song_components["narrative_position"],
+        song_components["narrative_summary"],
+        song_components["section_selector"],
+        song_components["lyrics_editor"],
+        quickstart_components["seed"],
+        quickstart_components["project_dir"],
+        quickstart_components["autosave_enabled"],
+    ]
+
+    autosave_outputs = [
+        quickstart_components["output_file"],
+        quickstart_components["preview"],
+        quickstart_components["status"],
+        album_state,
+    ]
+
+    for component in [
+        album_components["album_title"],
+        album_components["artist_name"],
+        album_components["concept_summary"],
+        album_components["tracklist_display"],
+        song_components["song_title_edit"],
+        song_components["track_number"],
+        song_components["song_key"],
+        song_components["song_tempo"],
+        song_components["time_signature"],
+        song_components["narrative_position"],
+        song_components["narrative_summary"],
+        song_components["section_selector"],
+        song_components["lyrics_editor"],
+    ]:
+        component.change(
+            fn=_autosave_project,
+            inputs=autosave_inputs,
+            outputs=autosave_outputs,
+        )
+
+    def _save_project_clicked(
+        album_json: str,
+        album_title: str,
+        artist_name: str,
+        concept_summary: str,
+        tracklist_rows: list[list[object]] | None,
+        selected_title: str | None,
+        song_title: str,
+        track_number: int,
+        song_key: str,
+        song_tempo: int,
+        time_signature: str,
+        narrative_position: str,
+        narrative_summary: str,
+        section_label: str,
+        lyrics: str,
+        seed_value: int | float | None,
+        project_dir: str,
+    ) -> tuple[str | None, str, str, str]:
+        merged = _merge_album_with_tracklist(
+            album_json=album_json,
+            album_title=album_title,
+            artist_name=artist_name,
+            concept_summary=concept_summary,
+            tracklist_rows=tracklist_rows,
+        )
+        merged_json = merged.model_dump_json(indent=2)
+        updated_json = _apply_song_editor_to_album(
+            album_json=merged_json,
+            selected_title=selected_title,
+            song_title=song_title,
+            track_number=track_number,
+            song_key=song_key,
+            song_tempo=song_tempo,
+            time_signature=time_signature,
+            narrative_position=narrative_position,
+            narrative_summary=narrative_summary,
+            section_label=section_label,
+            lyrics=lyrics,
+        )
+        album = Album.model_validate_json(updated_json)
+        output_path, status = _save_album(album, project_dir)
+        _save_project_config(project_dir, album.title, seed_value)
+        payload = Path(output_path).read_text()
+        _track_event(
+            Events.UI_FEATURE_USED,
+            {
+                "feature": "save_project",
+                "project_dir": str(Path(project_dir)),
+            },
+        )
+        return output_path, payload, _status_with_time(status), payload
+
+    quickstart_components["save_project_btn"].click(
+        fn=_save_project_clicked,
+        inputs=autosave_inputs[:-1],
+        outputs=autosave_outputs,
+    )
+
+    def _save_version_clicked(
+        album_json: str,
+        album_title: str,
+        artist_name: str,
+        concept_summary: str,
+        tracklist_rows: list[list[object]] | None,
+        selected_title: str | None,
+        song_title: str,
+        track_number: int,
+        song_key: str,
+        song_tempo: int,
+        time_signature: str,
+        narrative_position: str,
+        narrative_summary: str,
+        section_label: str,
+        lyrics: str,
+        seed_value: int | float | None,
+        project_dir: str,
+    ) -> tuple[str | None, str, str, str]:
+        merged = _merge_album_with_tracklist(
+            album_json=album_json,
+            album_title=album_title,
+            artist_name=artist_name,
+            concept_summary=concept_summary,
+            tracklist_rows=tracklist_rows,
+        )
+        merged_json = merged.model_dump_json(indent=2)
+        updated_json = _apply_song_editor_to_album(
+            album_json=merged_json,
+            selected_title=selected_title,
+            song_title=song_title,
+            track_number=track_number,
+            song_key=song_key,
+            song_tempo=song_tempo,
+            time_signature=time_signature,
+            narrative_position=narrative_position,
+            narrative_summary=narrative_summary,
+            section_label=section_label,
+            lyrics=lyrics,
+        )
+        album = Album.model_validate_json(updated_json)
+        output_path, status = _save_album(album, project_dir, create_version=True)
+        _save_project_config(project_dir, album.title, seed_value)
+        payload = Path(output_path).read_text()
+        _track_event(
+            Events.UI_FEATURE_USED,
+            {
+                "feature": "save_version",
+                "project_dir": str(Path(project_dir)),
+            },
+        )
+        return output_path, payload, _status_with_time(status), payload
+
+    quickstart_components["save_version_btn"].click(
+        fn=_save_version_clicked,
+        inputs=autosave_inputs[:-1],
+        outputs=autosave_outputs,
+    )
+
+    def _sync_tracklist_to_state(
+        album_json: str,
+        album_title: str,
+        artist_name: str,
+        concept_summary: str,
+        tracklist_rows: list[list[object]] | None,
+    ) -> tuple[str, gr.Dropdown]:
+        return _update_album_from_tracklist(
+            album_json=album_json,
+            album_title=album_title,
+            artist_name=artist_name,
+            concept_summary=concept_summary,
+            tracklist_rows=tracklist_rows,
+        )
+
+    album_components["tracklist_display"].change(
+        fn=_sync_tracklist_to_state,
+        inputs=[
+            album_state,
+            album_components["album_title"],
+            album_components["artist_name"],
+            album_components["concept_summary"],
+            album_components["tracklist_display"],
+        ],
+        outputs=[
+            album_state,
+            song_components["song_selector"],
+        ],
+    )
+
+    for component in [
+        album_components["album_title"],
+        album_components["artist_name"],
+        album_components["concept_summary"],
+    ]:
+        component.change(
+            fn=_sync_tracklist_to_state,
+            inputs=[
+                album_state,
+                album_components["album_title"],
+                album_components["artist_name"],
+                album_components["concept_summary"],
+                album_components["tracklist_display"],
+            ],
+            outputs=[
+                album_state,
+                song_components["song_selector"],
+            ],
+        )
+
+    def _sync_song_editor_to_state(
+        album_json: str,
+        selected_title: str | None,
+        song_title: str,
+        track_number: int,
+        song_key: str,
+        song_tempo: int,
+        time_signature: str,
+        narrative_position: str,
+        narrative_summary: str,
+        section_label: str,
+        lyrics: str,
+    ) -> tuple[str, gr.Dropdown, list[list[object]]]:
+        return _update_album_from_song_editor(
+            album_json=album_json,
+            selected_title=selected_title,
+            song_title=song_title,
+            track_number=track_number,
+            song_key=song_key,
+            song_tempo=song_tempo,
+            time_signature=time_signature,
+            narrative_position=narrative_position,
+            narrative_summary=narrative_summary,
+            section_label=section_label,
+            lyrics=lyrics,
+        )
+
+    for component in [
+        song_components["song_title_edit"],
+        song_components["track_number"],
+        song_components["song_key"],
+        song_components["song_tempo"],
+        song_components["time_signature"],
+        song_components["narrative_position"],
+        song_components["narrative_summary"],
+        song_components["section_selector"],
+        song_components["lyrics_editor"],
+    ]:
+        component.change(
+            fn=_sync_song_editor_to_state,
+            inputs=[
+                album_state,
+                song_components["song_selector"],
+                song_components["song_title_edit"],
+                song_components["track_number"],
+                song_components["song_key"],
+                song_components["song_tempo"],
+                song_components["time_signature"],
+                song_components["narrative_position"],
+                song_components["narrative_summary"],
+                song_components["section_selector"],
+                song_components["lyrics_editor"],
+            ],
+            outputs=[
+                album_state,
+                song_components["song_selector"],
+                album_components["tracklist_display"],
+            ],
+        )
+
+    song_components["song_selector"].change(
+        fn=_load_song_from_state,
+        inputs=[album_state, song_components["song_selector"]],
+        outputs=[
+            song_components["song_title_edit"],
+            song_components["track_number"],
+            song_components["song_key"],
+            song_components["song_tempo"],
+            song_components["time_signature"],
+            song_components["narrative_position"],
+            song_components["narrative_summary"],
+            song_components["section_selector"],
+            song_components["lyrics_editor"],
+        ],
+    )
+
+    def _save_bible_clicked(
+        album_title: str,
+        artist_name: str,
+        logline: str,
+        synopsis: str,
+        setting: str,
+        characters_rows: list[list[object]] | None,
+        themes_rows: list[list[object]] | None,
+        structure_type: str,
+        structure_beats: str,
+        style_genre: str,
+        style_references: str,
+        lyrical_voice: str,
+        motifs_rows: list[list[object]] | None,
+        project_dir: str,
+    ) -> tuple[str, str]:
+        bible = _build_album_bible_from_inputs(
+            album_title=album_title,
+            artist_name=artist_name,
+            logline=logline,
+            synopsis=synopsis,
+            setting=setting,
+            characters_rows=characters_rows,
+            themes_rows=themes_rows,
+            structure_type=structure_type,
+            structure_beats=structure_beats,
+            style_genre=style_genre,
+            style_references=style_references,
+            lyrical_voice=lyrical_voice,
+            motifs_rows=motifs_rows,
+        )
+        _, status = _save_album_bible(bible, project_dir)
+        _track_event(
+            Events.UI_FEATURE_USED,
+            {
+                "feature": "save_bible",
+                "project_dir": str(Path(project_dir)),
+            },
+        )
+        return _status_with_time(status), bible.model_dump_json(indent=2)
+
+    bible_inputs = [
+        album_components["album_title"],
+        album_components["artist_name"],
+        bible_components["logline"],
+        bible_components["synopsis"],
+        bible_components["setting"],
+        bible_components["characters_table"],
+        bible_components["themes_table"],
+        bible_components["structure_type"],
+        bible_components["structure_beats"],
+        bible_components["style_genre"],
+        bible_components["style_references"],
+        bible_components["lyrical_voice"],
+        bible_components["motifs_table"],
+        quickstart_components["project_dir"],
+    ]
+
+    bible_outputs = [
+        quickstart_components["status"],
+        bible_state,
+    ]
+
+    bible_components["save_bible_btn"].click(
+        fn=_save_bible_clicked,
+        inputs=bible_inputs,
+        outputs=bible_outputs,
+    )
+
+    def _autosave_bible(
+        album_title: str,
+        artist_name: str,
+        logline: str,
+        synopsis: str,
+        setting: str,
+        characters_rows: list[list[object]] | None,
+        themes_rows: list[list[object]] | None,
+        structure_type: str,
+        structure_beats: str,
+        style_genre: str,
+        style_references: str,
+        lyrical_voice: str,
+        motifs_rows: list[list[object]] | None,
+        project_dir: str,
+        current_state: str,
+        autosave_enabled: bool,
+    ) -> tuple[str, str]:
+        if not autosave_enabled:
+            return "Autosave disabled.", current_state
+
+        bible = _build_album_bible_from_inputs(
+            album_title=album_title,
+            artist_name=artist_name,
+            logline=logline,
+            synopsis=synopsis,
+            setting=setting,
+            characters_rows=characters_rows,
+            themes_rows=themes_rows,
+            structure_type=structure_type,
+            structure_beats=structure_beats,
+            style_genre=style_genre,
+            style_references=style_references,
+            lyrical_voice=lyrical_voice,
+            motifs_rows=motifs_rows,
+        )
+        _, status = _save_album_bible(bible, project_dir)
+        _track_event(
+            Events.UI_FEATURE_USED,
+            {
+                "feature": "autosave_bible",
+                "project_dir": str(Path(project_dir)),
+            },
+        )
+        return _status_with_time(status), bible.model_dump_json(indent=2)
+
+    bible_autosave_inputs = (
+        bible_inputs + [bible_state, quickstart_components["autosave_enabled"]]
+    )
+    for component in [
+        bible_components["logline"],
+        bible_components["synopsis"],
+        bible_components["setting"],
+        bible_components["characters_table"],
+        bible_components["themes_table"],
+        bible_components["structure_type"],
+        bible_components["structure_beats"],
+        bible_components["style_genre"],
+        bible_components["style_references"],
+        bible_components["lyrical_voice"],
+        bible_components["motifs_table"],
+    ]:
+        component.change(
+            fn=_autosave_bible,
+            inputs=bible_autosave_inputs,
+            outputs=bible_outputs,
+        )
+
+    def _load_bible_clicked(
+        project_dir: str,
+    ) -> tuple[
+        str,
+        str,
+        str,
+        list[list[object]],
+        list[list[object]],
+        str,
+        str,
+        str,
+        str,
+        str,
+        list[list[object]],
+        str,
+        str,
+    ]:
+        result = _load_album_bible(project_dir)
+        _track_event(
+            Events.UI_FEATURE_USED,
+            {
+                "feature": "load_bible",
+                "project_dir": str(Path(project_dir)),
+            },
+        )
+        return result
+
+    bible_load_outputs = [
+        bible_components["logline"],
+        bible_components["synopsis"],
+        bible_components["setting"],
+        bible_components["characters_table"],
+        bible_components["themes_table"],
+        bible_components["structure_type"],
+        bible_components["structure_beats"],
+        bible_components["style_genre"],
+        bible_components["style_references"],
+        bible_components["lyrical_voice"],
+        bible_components["motifs_table"],
+        quickstart_components["status"],
+        bible_state,
+    ]
+
+    bible_components["load_bible_btn"].click(
+        fn=_load_bible_clicked,
+        inputs=[quickstart_components["project_dir"]],
+        outputs=bible_load_outputs,
+    )
+
+    def _export_bible_clicked(
+        album_title: str,
+        artist_name: str,
+        logline: str,
+        synopsis: str,
+        setting: str,
+        characters_rows: list[list[object]] | None,
+        themes_rows: list[list[object]] | None,
+        structure_type: str,
+        structure_beats: str,
+        style_genre: str,
+        style_references: str,
+        lyrical_voice: str,
+        motifs_rows: list[list[object]] | None,
+        project_dir: str,
+    ) -> str:
+        bible = _build_album_bible_from_inputs(
+            album_title=album_title,
+            artist_name=artist_name,
+            logline=logline,
+            synopsis=synopsis,
+            setting=setting,
+            characters_rows=characters_rows,
+            themes_rows=themes_rows,
+            structure_type=structure_type,
+            structure_beats=structure_beats,
+            style_genre=style_genre,
+            style_references=style_references,
+            lyrical_voice=lyrical_voice,
+            motifs_rows=motifs_rows,
+        )
+        target_dir = _ensure_project_dir(project_dir, bible.album_title)
+        markdown = _album_bible_to_markdown(bible)
+        markdown_path = target_dir / "album_bible.md"
+        markdown_path.write_text(markdown)
+        _track_event(
+            Events.UI_FEATURE_USED,
+            {
+                "feature": "export_bible",
+                "project_dir": str(target_dir),
+            },
+        )
+        return _status_with_time(f"Exported album bible to {markdown_path}")
+
+    bible_components["export_bible_btn"].click(
+        fn=_export_bible_clicked,
+        inputs=bible_inputs,
+        outputs=[quickstart_components["status"]],
+    )
+
+    export_components["preview_btn"].click(
+        fn=_build_export_preview,
+        inputs=[
+            album_state,
+            quickstart_components["project_dir"],
+            export_components["format_midi"],
+            export_components["format_chordpro"],
+            export_components["format_musicxml"],
+            export_components["format_json"],
+            export_components["format_text"],
+        ],
+        outputs=[
+            export_components["preview_output"],
+            export_components["status_output"],
+        ],
+    )
+
+    export_components["export_btn"].click(
+        fn=_export_album_files,
+        inputs=[
+            album_state,
+            quickstart_components["project_dir"],
+            export_components["format_midi"],
+            export_components["format_chordpro"],
+            export_components["format_musicxml"],
+            export_components["format_json"],
+            export_components["format_text"],
+        ],
+        outputs=[
+            export_components["download_output"],
+            export_components["status_output"],
+        ],
+    )
 
 def _get_custom_css() -> str:
     """Get custom CSS for the application."""
@@ -305,6 +2380,11 @@ def launch_app(
         debug=debug,
         server_port=server_port,
         server_name=server_name,
+        theme=gr.themes.Soft(
+            primary_hue="purple",
+            secondary_hue="blue",
+        ),
+        css=_get_custom_css(),
     )
 
 
