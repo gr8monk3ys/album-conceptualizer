@@ -3,7 +3,7 @@
 A RAG-powered concept album ideation system with multi-agent orchestration.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
 ## Overview
 
@@ -107,6 +107,13 @@ uv pip install --system -e ".[music]"
 # Web UI (Gradio)
 uv pip install --system -e ".[ui]"
 ```
+
+#### Compatibility Note (CrewAI vs LangChain OpenAI)
+
+CrewAI currently pins the OpenAI SDK to a narrower range than `langchain-openai`.
+That means installing the `ai` extra together with `langchain-openai` in the same
+environment will fail dependency resolution. If you need `langchain-openai`, install
+it in a separate environment, or omit the `ai` extra and use LangChain directly.
 
 ### API Keys
 

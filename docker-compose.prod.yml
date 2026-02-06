@@ -19,8 +19,6 @@ services:
   redis:
     image: redis:7
     container_name: album-conceptualizer-redis
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     command: ["redis-server", "--appendonly", "yes"]
@@ -32,8 +30,6 @@ services:
       dockerfile: Dockerfile
       target: api
     container_name: album-conceptualizer-api
-    ports:
-      - "8000:8000"
     volumes:
       - ./data:/app/data
       - ./output:/app/output
@@ -42,7 +38,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ALBUM_CONCEPTUALIZER_API_KEY=${ALBUM_CONCEPTUALIZER_API_KEY:-}
       - ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=${ALBUM_CONCEPTUALIZER_STORAGE_BACKEND:-file}
-      - ALBUM_CONCEPTUALIZER_CORS_ORIGINS=${ALBUM_CONCEPTUALIZER_CORS_ORIGINS:-*}
+      - ALBUM_CONCEPTUALIZER_CORS_ORIGINS=${ALBUM_CONCEPTUALIZER_CORS_ORIGINS:-["*"]}
       - ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=${ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED:-true}
       - ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND=${ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND:-memory}
       - ALBUM_CONCEPTUALIZER_RATE_LIMIT_PER_MINUTE=${ALBUM_CONCEPTUALIZER_RATE_LIMIT_PER_MINUTE:-120}
@@ -53,7 +49,13 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/live"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/live').status==200 else 1)",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -65,8 +67,6 @@ services:
       dockerfile: Dockerfile
       target: ui
     container_name: album-conceptualizer-ui
-    ports:
-      - "7860:7860"
     volumes:
       - ./data:/app/data
       - ./output:/app/output

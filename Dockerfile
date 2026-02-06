@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build stage
-FROM python:3.14-slim as builder
+FROM python:3.12-slim as builder
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -13,15 +13,16 @@ ENV UV_SYSTEM_PYTHON=1 \
 
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml ./
+# Copy dependency files and package source
+COPY pyproject.toml README.md LICENSE ./
+COPY album_conceptualizer/ ./album_conceptualizer/
 
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system -e .
 
 # Production stage
-FROM python:3.14-slim as production
+FROM python:3.12-slim as production
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash appuser
@@ -34,7 +35,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
@@ -52,7 +53,7 @@ EXPOSE 7860 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health || python -c "import album_conceptualizer" || exit 1
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health').status==200 else 1)" || python -c "import album_conceptualizer" || exit 1
 
 # Default command - FastAPI server
 CMD ["uvicorn", "album_conceptualizer.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
@@ -65,7 +66,7 @@ EXPOSE 8000
 
 # API-specific health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/live || exit 1
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/live').status==200 else 1)" || exit 1
 
 CMD ["uvicorn", "album_conceptualizer.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
 

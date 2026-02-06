@@ -32,6 +32,11 @@ For more information, visit: https://github.com/gr8monk3ys/album-conceptualizer
     # UI command
     ui_parser = subparsers.add_parser("ui", help="Launch the web interface")
     ui_parser.add_argument("--port", type=int, default=7860, help="Port to run the server on")
+    ui_parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host/interface to bind (use 0.0.0.0 for containers)",
+    )
     ui_parser.add_argument("--share", action="store_true", help="Create a public share link")
     ui_parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
@@ -97,7 +102,7 @@ def show_welcome() -> None:
 def cmd_ui(args: argparse.Namespace) -> None:
     """Launch the web UI."""
     console.print("[bold]Launching Album Conceptualizer UI...[/bold]")
-    console.print(f"Server will be available at: http://127.0.0.1:{args.port}")
+    console.print(f"Server will be available at: http://{args.host}:{args.port}")
 
     if args.share:
         console.print("[yellow]Creating public share link...[/yellow]")
@@ -107,6 +112,7 @@ def cmd_ui(args: argparse.Namespace) -> None:
 
         launch_app(
             server_port=args.port,
+            server_name=args.host,
             share=args.share,
             debug=args.debug,
         )
