@@ -46,7 +46,7 @@ ai = [
 
 # RAG dependencies
 rag = [
-    "chromadb>=1.1.0,<1.2.0",
+    "chromadb>=1.1.0,<1.6.0",
     "sentence-transformers>=5.2.2",
 ]
 
