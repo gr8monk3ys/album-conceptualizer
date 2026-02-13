@@ -1,5 +1,7 @@
 """Tests for RAG system components."""
 
+import sys
+from types import ModuleType
 from unittest.mock import MagicMock
 
 import pytest
@@ -51,23 +53,49 @@ class TestDocument:
 class TestEmbeddings:
     """Tests for embedding models."""
 
-    @pytest.mark.skip(reason="Requires sentence-transformers installation")
-    def test_sentence_transformer_initialization(self):
-        """Test initializing sentence transformer embedding."""
-        model = SentenceTransformerEmbedding(model_name="all-MiniLM-L6-v2")
-        assert model.dimension == 384
+    @staticmethod
+    def _install_fake_sentence_transformers(monkeypatch: pytest.MonkeyPatch) -> None:
+        fake_module = ModuleType("sentence_transformers")
 
-    @pytest.mark.skip(reason="Requires sentence-transformers installation")
-    def test_embed_text(self):
+        class _FakeArray:
+            def __init__(self, values):
+                self._values = values
+
+            def tolist(self):
+                return self._values
+
+        class _FakeSentenceTransformer:
+            def __init__(self, model_name: str):
+                self.model_name = model_name
+
+            def get_sentence_embedding_dimension(self) -> int:
+                return 3
+
+            def encode(self, inputs, convert_to_numpy: bool = True):
+                if isinstance(inputs, list):
+                    return _FakeArray([[float(len(item)), 1.0, 2.0] for item in inputs])
+                return _FakeArray([float(len(inputs)), 1.0, 2.0])
+
+        fake_module.SentenceTransformer = _FakeSentenceTransformer
+        monkeypatch.setitem(sys.modules, "sentence_transformers", fake_module)
+
+    def test_sentence_transformer_initialization(self, monkeypatch):
+        """Test initializing sentence transformer embedding."""
+        self._install_fake_sentence_transformers(monkeypatch)
+        model = SentenceTransformerEmbedding(model_name="all-MiniLM-L6-v2")
+        assert model.dimension == 3
+
+    def test_embed_text(self, monkeypatch):
         """Test embedding a single text."""
+        self._install_fake_sentence_transformers(monkeypatch)
         model = SentenceTransformerEmbedding()
         embedding = model.embed_text("Hello world")
         assert len(embedding) == model.dimension
         assert all(isinstance(x, float) for x in embedding)
 
-    @pytest.mark.skip(reason="Requires sentence-transformers installation")
-    def test_embed_texts_batch(self):
+    def test_embed_texts_batch(self, monkeypatch):
         """Test embedding multiple texts."""
+        self._install_fake_sentence_transformers(monkeypatch)
         model = SentenceTransformerEmbedding()
         embeddings = model.embed_texts(["Hello", "World"])
         assert len(embeddings) == 2

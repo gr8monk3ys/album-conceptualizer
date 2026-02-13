@@ -1,12 +1,12 @@
 """Music theory data models."""
 
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
 
-class ChordQuality(str, Enum):
+class ChordQuality(StrEnum):
     """Common chord qualities."""
 
     MAJOR = "major"
@@ -24,7 +24,7 @@ class ChordQuality(str, Enum):
     POWER = "power"
 
 
-class ScaleType(str, Enum):
+class ScaleType(StrEnum):
     """Common scale types."""
 
     MAJOR = "major"

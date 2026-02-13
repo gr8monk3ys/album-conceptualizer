@@ -1,5 +1,6 @@
 """MIDI export functionality."""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import pretty_midi
@@ -68,7 +69,7 @@ def chord_to_midi_notes(chord: Chord, octave: int = 4) -> list[int]:
 
 
 def create_chord_midi(
-    chords: list[Chord | str],
+    chords: Sequence[Chord | str],
     tempo: int = 120,
     chord_duration: float = 2.0,
     velocity: int = 100,

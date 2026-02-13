@@ -1,5 +1,7 @@
 """Album Bible management endpoints."""
 
+from typing import Any, cast
+
 from fastapi import APIRouter, HTTPException, Path, Request
 from pydantic import BaseModel, Field
 
@@ -11,6 +13,7 @@ from album_conceptualizer.models.album_bible import (
     StyleProfile,
     Theme,
 )
+from album_conceptualizer.storage import BibleStore
 
 
 router = APIRouter()
@@ -21,9 +24,12 @@ class ThemeCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100)
     description: str
-    importance: str = "primary"
+    keywords: list[str] = Field(default_factory=list)
+    valence: float | None = Field(default=None, ge=-1.0, le=1.0)
+    arousal: float | None = Field(default=None, ge=-1.0, le=1.0)
     primary_songs: list[int] = Field(default_factory=list)
-    related_motifs: list[str] = Field(default_factory=list)
+    secondary_songs: list[int] = Field(default_factory=list)
+    arc_description: str | None = None
 
 
 class CharacterCreate(BaseModel):
@@ -32,9 +38,13 @@ class CharacterCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     role: str
     description: str
+    traits: list[str] = Field(default_factory=list)
     arc_summary: str | None = None
-    appears_in_songs: list[int] = Field(default_factory=list)
-    relationships: dict[str, str] = Field(default_factory=dict)
+    associated_key: str | None = None
+    associated_motif: str | None = None
+    vocal_style_notes: str | None = None
+    appears_in: list[int] = Field(default_factory=list)
+    perspective_songs: list[int] = Field(default_factory=list)
 
 
 class MotifCreate(BaseModel):
@@ -43,9 +53,12 @@ class MotifCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     motif_type: str = "lyrical"
     description: str
+    chord_pattern: list[str] | None = None
+    melodic_contour: str | None = None
+    rhythm_pattern: str | None = None
     key_phrases: list[str] = Field(default_factory=list)
-    musical_elements: list[str] = Field(default_factory=list)
-    appears_in_songs: list[int] = Field(default_factory=list)
+    imagery: list[str] = Field(default_factory=list)
+    appearances: list[dict[str, Any]] = Field(default_factory=list)
     evolution_notes: str | None = None
 
 
@@ -54,13 +67,19 @@ class StyleProfileCreate(BaseModel):
 
     primary_genre: str
     subgenres: list[str] = Field(default_factory=list)
-    era_influences: list[str] = Field(default_factory=list)
+    genre_blend_notes: str | None = None
+    era_influence: str | None = None
     reference_artists: list[str] = Field(default_factory=list)
     reference_albums: list[str] = Field(default_factory=list)
-    sonic_palette: list[str] = Field(default_factory=list)
+    typical_tempo_range: tuple[int, int] | None = None
+    typical_keys: list[str] = Field(default_factory=list)
+    harmonic_tendencies: str | None = None
+    instrumentation_core: list[str] = Field(default_factory=list)
+    instrumentation_accents: list[str] = Field(default_factory=list)
     production_notes: str | None = None
-    lyrical_style: str | None = None
-    vocal_approach: str | None = None
+    lyrical_tone: str | None = None
+    lyrical_devices: list[str] = Field(default_factory=list)
+    vocabulary_notes: str | None = None
 
 
 class BibleCreate(BaseModel):
@@ -85,8 +104,12 @@ class ThemeResponse(BaseModel):
     id: str
     name: str
     description: str
-    importance: str
+    keywords: list[str]
+    valence: float | None
+    arousal: float | None
     primary_songs: list[int]
+    secondary_songs: list[int]
+    arc_description: str | None
 
 
 class CharacterResponse(BaseModel):
@@ -96,8 +119,13 @@ class CharacterResponse(BaseModel):
     name: str
     role: str
     description: str
+    traits: list[str]
     arc_summary: str | None
-    appears_in_songs: list[int]
+    associated_key: str | None
+    associated_motif: str | None
+    vocal_style_notes: str | None
+    appears_in: list[int]
+    perspective_songs: list[int]
 
 
 class MotifResponse(BaseModel):
@@ -108,7 +136,8 @@ class MotifResponse(BaseModel):
     motif_type: str
     description: str
     key_phrases: list[str]
-    appears_in_songs: list[int]
+    imagery: list[str]
+    appearances: list[dict[str, Any]]
 
 
 class BibleResponse(BaseModel):
@@ -132,7 +161,7 @@ def _get_or_create_bible(request: Request, album_id: str) -> AlbumBible:
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
-    bible_store = request.app.state.bible_store
+    bible_store = cast("BibleStore", request.app.state.bible_store)
     existing = bible_store.get(album_id)
     if existing:
         return existing
@@ -149,6 +178,7 @@ def _get_or_create_bible(request: Request, album_id: str) -> AlbumBible:
 def _save_bible(request: Request, album_id: str, bible: AlbumBible) -> None:
     request.app.state.bible_store.save(album_id, bible)
 
+
 def _bible_to_response(album_id: str, bible: AlbumBible) -> BibleResponse:
     """Convert AlbumBible to response."""
     return BibleResponse(
@@ -162,8 +192,12 @@ def _bible_to_response(album_id: str, bible: AlbumBible) -> BibleResponse:
                 id=str(t.id),
                 name=t.name,
                 description=t.description,
-                importance=t.importance,
+                keywords=t.keywords,
+                valence=t.valence,
+                arousal=t.arousal,
                 primary_songs=t.primary_songs,
+                secondary_songs=t.secondary_songs,
+                arc_description=t.arc_description,
             )
             for t in bible.themes
         ],
@@ -173,8 +207,13 @@ def _bible_to_response(album_id: str, bible: AlbumBible) -> BibleResponse:
                 name=c.name,
                 role=c.role,
                 description=c.description,
+                traits=c.traits,
                 arc_summary=c.arc_summary,
-                appears_in_songs=c.appears_in_songs,
+                associated_key=c.associated_key,
+                associated_motif=c.associated_motif,
+                vocal_style_notes=c.vocal_style_notes,
+                appears_in=c.appears_in,
+                perspective_songs=c.perspective_songs,
             )
             for c in bible.characters
         ],
@@ -185,7 +224,8 @@ def _bible_to_response(album_id: str, bible: AlbumBible) -> BibleResponse:
                 motif_type=m.motif_type,
                 description=m.description,
                 key_phrases=m.key_phrases,
-                appears_in_songs=m.appears_in_songs,
+                imagery=m.imagery,
+                appearances=m.appearances,
             )
             for m in bible.motifs
         ],
@@ -208,7 +248,8 @@ async def get_bible(request: Request, album_id: str = Path(...)) -> BibleRespons
 async def update_bible(
     request: Request,
     album_id: str = Path(...),
-    data: BibleCreate = ...,
+    *,
+    data: BibleCreate,
 ) -> BibleResponse:
     """
     Create or update the album bible core content.
@@ -233,7 +274,8 @@ async def update_bible(
 async def patch_bible(
     request: Request,
     album_id: str = Path(...),
-    data: BibleUpdate = ...,
+    *,
+    data: BibleUpdate,
 ) -> BibleResponse:
     """Partially update the album bible."""
     bible = _get_or_create_bible(request, album_id)
@@ -250,7 +292,10 @@ async def patch_bible(
 # Theme endpoints
 @router.post("/themes", response_model=ThemeResponse, status_code=201)
 async def add_theme(
-    request: Request, album_id: str = Path(...), data: ThemeCreate = ...
+    request: Request,
+    album_id: str = Path(...),
+    *,
+    data: ThemeCreate,
 ) -> ThemeResponse:
     """Add a theme to the album bible."""
     bible = _get_or_create_bible(request, album_id)
@@ -258,9 +303,12 @@ async def add_theme(
     theme = Theme(
         name=data.name,
         description=data.description,
-        importance=data.importance,
+        keywords=data.keywords,
+        valence=data.valence,
+        arousal=data.arousal,
         primary_songs=data.primary_songs,
-        related_motifs=data.related_motifs,
+        secondary_songs=data.secondary_songs,
+        arc_description=data.arc_description,
     )
     bible.add_theme(theme)
 
@@ -269,8 +317,12 @@ async def add_theme(
         id=str(theme.id),
         name=theme.name,
         description=theme.description,
-        importance=theme.importance,
+        keywords=theme.keywords,
+        valence=theme.valence,
+        arousal=theme.arousal,
         primary_songs=theme.primary_songs,
+        secondary_songs=theme.secondary_songs,
+        arc_description=theme.arc_description,
     )
 
 
@@ -293,7 +345,10 @@ async def remove_theme(
 # Character endpoints
 @router.post("/characters", response_model=CharacterResponse, status_code=201)
 async def add_character(
-    request: Request, album_id: str = Path(...), data: CharacterCreate = ...
+    request: Request,
+    album_id: str = Path(...),
+    *,
+    data: CharacterCreate,
 ) -> CharacterResponse:
     """Add a character to the album bible."""
     bible = _get_or_create_bible(request, album_id)
@@ -302,9 +357,13 @@ async def add_character(
         name=data.name,
         role=data.role,
         description=data.description,
+        traits=data.traits,
         arc_summary=data.arc_summary,
-        appears_in_songs=data.appears_in_songs,
-        relationships=data.relationships,
+        associated_key=data.associated_key,
+        associated_motif=data.associated_motif,
+        vocal_style_notes=data.vocal_style_notes,
+        appears_in=data.appears_in,
+        perspective_songs=data.perspective_songs,
     )
     bible.add_character(character)
 
@@ -314,8 +373,13 @@ async def add_character(
         name=character.name,
         role=character.role,
         description=character.description,
+        traits=character.traits,
         arc_summary=character.arc_summary,
-        appears_in_songs=character.appears_in_songs,
+        associated_key=character.associated_key,
+        associated_motif=character.associated_motif,
+        vocal_style_notes=character.vocal_style_notes,
+        appears_in=character.appears_in,
+        perspective_songs=character.perspective_songs,
     )
 
 
@@ -338,7 +402,10 @@ async def remove_character(
 # Motif endpoints
 @router.post("/motifs", response_model=MotifResponse, status_code=201)
 async def add_motif(
-    request: Request, album_id: str = Path(...), data: MotifCreate = ...
+    request: Request,
+    album_id: str = Path(...),
+    *,
+    data: MotifCreate,
 ) -> MotifResponse:
     """Add a motif to the album bible."""
     bible = _get_or_create_bible(request, album_id)
@@ -347,9 +414,12 @@ async def add_motif(
         name=data.name,
         motif_type=data.motif_type,
         description=data.description,
+        chord_pattern=data.chord_pattern,
+        melodic_contour=data.melodic_contour,
+        rhythm_pattern=data.rhythm_pattern,
         key_phrases=data.key_phrases,
-        musical_elements=data.musical_elements,
-        appears_in_songs=data.appears_in_songs,
+        imagery=data.imagery,
+        appearances=data.appearances,
         evolution_notes=data.evolution_notes,
     )
     bible.add_motif(motif)
@@ -361,7 +431,8 @@ async def add_motif(
         motif_type=motif.motif_type,
         description=motif.description,
         key_phrases=motif.key_phrases,
-        appears_in_songs=motif.appears_in_songs,
+        imagery=motif.imagery,
+        appearances=motif.appearances,
     )
 
 
@@ -384,21 +455,30 @@ async def remove_motif(
 # Style profile endpoint
 @router.put("/style", response_model=dict)
 async def set_style_profile(
-    request: Request, album_id: str = Path(...), data: StyleProfileCreate = ...
-) -> dict:
+    request: Request,
+    album_id: str = Path(...),
+    *,
+    data: StyleProfileCreate,
+) -> dict[str, Any]:
     """Set the style profile for the album."""
     bible = _get_or_create_bible(request, album_id)
 
     style = StyleProfile(
         primary_genre=data.primary_genre,
         subgenres=data.subgenres,
-        era_influences=data.era_influences,
+        genre_blend_notes=data.genre_blend_notes,
+        era_influence=data.era_influence,
         reference_artists=data.reference_artists,
         reference_albums=data.reference_albums,
-        sonic_palette=data.sonic_palette,
+        typical_tempo_range=data.typical_tempo_range,
+        typical_keys=data.typical_keys,
+        harmonic_tendencies=data.harmonic_tendencies,
+        instrumentation_core=data.instrumentation_core,
+        instrumentation_accents=data.instrumentation_accents,
         production_notes=data.production_notes,
-        lyrical_style=data.lyrical_style,
-        vocal_approach=data.vocal_approach,
+        lyrical_tone=data.lyrical_tone,
+        lyrical_devices=data.lyrical_devices,
+        vocabulary_notes=data.vocabulary_notes,
     )
     bible.style_profile = style
     _save_bible(request, album_id, bible)

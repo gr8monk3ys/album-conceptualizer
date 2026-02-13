@@ -34,9 +34,9 @@ class TelemetryEvent(BaseModel):
     session_id: str
     properties: dict[str, Any] = Field(default_factory=dict)
     app_version: str = "0.1.0"
-    python_version: str = Field(default_factory=lambda: platform.python_version())
-    os_name: str = Field(default_factory=lambda: platform.system())
-    os_version: str = Field(default_factory=lambda: platform.release())
+    python_version: str = Field(default_factory=platform.python_version)
+    os_name: str = Field(default_factory=platform.system)
+    os_version: str = Field(default_factory=platform.release)
 
 
 class TelemetryClient:

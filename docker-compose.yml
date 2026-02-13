@@ -17,7 +17,13 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/live"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/live').status==200 else 1)",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -64,7 +70,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - LOG_LEVEL=DEBUG
-    command: python -m album_conceptualizer.cli ui --host 0.0.0.0 --reload
+    command: python -m album_conceptualizer.cli ui --host 0.0.0.0 --debug
     profiles:
       - dev
 

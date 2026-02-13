@@ -1,13 +1,14 @@
 """Album and song data models."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
+from typing import cast
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class SectionType(str, Enum):
+class SectionType(StrEnum):
     """Types of song sections."""
 
     INTRO = "intro"
@@ -169,7 +170,7 @@ class Album(BaseModel):
         """Get songs in narrative chronological order."""
         songs_with_order = [s for s in self.songs if s.chronological_order is not None]
         songs_without_order = [s for s in self.songs if s.chronological_order is None]
-        sorted_songs = sorted(songs_with_order, key=lambda s: s.chronological_order)
+        sorted_songs = sorted(songs_with_order, key=lambda s: cast("int", s.chronological_order))
         return sorted_songs + songs_without_order
 
     def get_theme_connections(self, theme: str) -> list[Song]:

@@ -1,3 +1,5 @@
+import pytest
+
 from album_conceptualizer.models.album import Album, Section, SectionType, Song
 from album_conceptualizer.ui import helpers
 
@@ -68,6 +70,26 @@ def test_update_album_from_song_editor_sets_lyrics():
 
 def test_generate_review_pass_warnings():
     album = Album(title="Empty", songs=[Song(title="S1", track_number=1)])
-    lines, warnings = helpers.generate_review_pass(album)
+    _lines, warnings = helpers.generate_review_pass(album)
     assert warnings
     assert "missing" in " ".join(warnings).lower()
+
+
+def test_merge_album_accepts_dataframe_rows():
+    pd = pytest.importorskip("pandas")
+
+    song = Song(title="Intro", track_number=1, key="C")
+    album = Album(title="Test", songs=[song])
+    album_json = album.model_dump_json()
+    frame = pd.DataFrame([[1, "Intro", "D", 120, "Opening/Exposition"]])
+
+    merged = helpers.merge_album_with_tracklist(
+        album_json=album_json,
+        album_title="Test",
+        artist_name="",
+        concept_summary="",
+        tracklist_rows=frame,
+    )
+
+    assert merged.songs[0].title == "Intro"
+    assert merged.songs[0].key == "D"

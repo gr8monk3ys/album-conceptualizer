@@ -1,10 +1,10 @@
 """Song management endpoints."""
 
-from fastapi import APIRouter, HTTPException, Path, Request
+from fastapi import APIRouter, HTTPException, Path, Query, Request
 from pydantic import BaseModel, Field
 
 from album_conceptualizer.api.v1.albums import get_album_store
-from album_conceptualizer.models.album import Section, SectionType, Song
+from album_conceptualizer.models.album import Album, Section, SectionType, Song
 
 
 router = APIRouter()
@@ -115,7 +115,7 @@ def _song_to_response(song: Song) -> SongResponse:
         track_number=song.track_number,
         key=song.key,
         tempo=song.tempo,
-        time_signature=song.time_signature,
+        time_signature=song.time_signature or "4/4",
         duration_seconds=song.duration_seconds,
         narrative_position=song.narrative_position,
         narrative_summary=song.narrative_summary,
@@ -126,7 +126,7 @@ def _song_to_response(song: Song) -> SongResponse:
     )
 
 
-def _get_album(request: Request, album_id: str):
+def _get_album(request: Request, album_id: str) -> Album:
     """Get album or raise 404."""
     store = get_album_store(request)
     album = store.get(album_id)
@@ -153,7 +153,10 @@ async def list_songs(request: Request, album_id: str = Path(...)) -> SongListRes
 
 @router.post("", response_model=SongResponse, status_code=201)
 async def create_song(
-    request: Request, album_id: str = Path(...), data: SongCreate = ...
+    request: Request,
+    album_id: str = Path(...),
+    *,
+    data: SongCreate,
 ) -> SongResponse:
     """
     Add a new song to an album.
@@ -222,7 +225,8 @@ async def update_song(
     request: Request,
     album_id: str = Path(...),
     song_id: str = Path(...),
-    data: SongUpdate = ...,
+    *,
+    data: SongUpdate,
 ) -> SongResponse:
     """
     Update a song's metadata.
@@ -237,8 +241,8 @@ async def update_song(
             for field, value in update_data.items():
                 if value is not None:
                     setattr(song, field, value)
-    get_album_store(request).save(album)
-    return _song_to_response(song)
+            get_album_store(request).save(album)
+            return _song_to_response(song)
 
     raise HTTPException(status_code=404, detail="Song not found")
 
@@ -259,12 +263,14 @@ async def delete_song(request: Request, album_id: str = Path(...), song_id: str 
 
 @router.post("/{song_id}/sections", response_model=SectionResponse, status_code=201)
 async def add_section(
+    request: Request,
     album_id: str = Path(...),
     song_id: str = Path(...),
-    data: SectionCreate = ...,
+    *,
+    data: SectionCreate,
 ) -> SectionResponse:
     """Add a section to a song."""
-    album = _get_album(album_id)
+    album = _get_album(request, album_id)
 
     for song in album.songs:
         if str(song.id) == song_id:
@@ -283,6 +289,7 @@ async def add_section(
                 emotional_arc=data.emotional_arc,
             )
             song.add_section(section)
+            get_album_store(request).save(album)
             return _section_to_response(section)
 
     raise HTTPException(status_code=404, detail="Song not found")
@@ -290,16 +297,17 @@ async def add_section(
 
 @router.put("/{song_id}/reorder", response_model=SongResponse)
 async def reorder_song(
+    request: Request,
     album_id: str = Path(...),
     song_id: str = Path(...),
-    new_track_number: int = ...,
+    new_track_number: int = Query(..., ge=1),
 ) -> SongResponse:
     """
     Change a song's track number.
 
     Other songs will be reordered accordingly.
     """
-    album = _get_album(album_id)
+    album = _get_album(request, album_id)
 
     target_song = None
     for song in album.songs:
@@ -324,4 +332,6 @@ async def reorder_song(
             elif new_track_number <= song.track_number < old_number:
                 song.track_number += 1
 
+    album.songs.sort(key=lambda s: s.track_number)
+    get_album_store(request).save(album)
     return _song_to_response(target_song)

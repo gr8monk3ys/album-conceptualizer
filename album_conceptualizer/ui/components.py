@@ -1,16 +1,18 @@
 """Gradio UI components for Album Conceptualizer."""
 
+from typing import Any
+
 import gradio as gr
 
 
-def create_album_canvas() -> dict:
+def create_album_canvas() -> dict[str, Any]:
     """
     Create the Album Canvas component.
 
     The Album Canvas provides a high-level overview of the album,
     including tracklist, themes, and narrative arc visualization.
     """
-    components = {}
+    components: dict[str, Any] = {}
 
     with gr.Row():
         # Left sidebar - Album info
@@ -127,14 +129,14 @@ def create_album_canvas() -> dict:
     return components
 
 
-def create_song_editor() -> dict:
+def create_song_editor() -> dict[str, Any]:
     """
     Create the Song Editor component.
 
     The Song Editor provides detailed editing for individual songs,
     including lyrics, chord progressions, and section management.
     """
-    components = {}
+    components: dict[str, Any] = {}
 
     with gr.Row():
         # Song selector sidebar
@@ -214,6 +216,7 @@ def create_song_editor() -> dict:
                         "Epilogue",
                     ],
                     label="Position in Story",
+                    allow_custom_value=True,
                 )
                 components["narrative_summary"] = gr.Textbox(
                     label="What happens",
@@ -361,14 +364,14 @@ def create_song_editor() -> dict:
     return components
 
 
-def create_album_bible_editor() -> dict:
+def create_album_bible_editor() -> dict[str, Any]:
     """
     Create the Album Bible editor component.
 
     The Album Bible is the central reference document containing
     all thematic, stylistic, and narrative guidelines.
     """
-    components = {}
+    components: dict[str, Any] = {}
 
     with gr.Row():
         # Core concept column
@@ -478,14 +481,14 @@ def create_album_bible_editor() -> dict:
     return components
 
 
-def create_chord_palette() -> dict:
+def create_chord_palette() -> dict[str, Any]:
     """
     Create the Chord Tools component.
 
     Provides chord progression suggestions, analysis, and
     common progression templates.
     """
-    components = {}
+    components: dict[str, Any] = {}
 
     with gr.Row():
         # Chord palette
@@ -599,13 +602,13 @@ def create_chord_palette() -> dict:
     return components
 
 
-def create_export_panel() -> dict:
+def create_export_panel() -> dict[str, Any]:
     """
     Create the Export panel component.
 
     Provides options for exporting the album in various formats.
     """
-    components = {}
+    components: dict[str, Any] = {}
 
     gr.Markdown(
         """
@@ -699,5 +702,185 @@ def create_export_panel() -> dict:
                 label="Status",
                 interactive=False,
             )
+
+    return components
+
+
+def create_experience_panel() -> dict[str, Any]:
+    """
+    Create the Experience Toolkit panel.
+
+    Surface lightweight creative workflows directly in the UI so users
+    can quickly iterate on jam mode, progress coaching, and release copy.
+    """
+    components: dict[str, Any] = {}
+
+    gr.Markdown(
+        """
+        ## Experience Toolkit
+
+        Fast creative utilities for album development:
+        - Jam prompts by challenge pack
+        - Progress coaching with actionable next steps
+        - Release kit copy for launch preparation
+        - Remix battle ideation and voting
+        - DAW handoff pack generation
+        - Realtime collaboration websocket setup
+        """
+    )
+
+    with gr.Row():
+        with gr.Column(scale=1):
+            with gr.Group():
+                components["pack_id"] = gr.Dropdown(
+                    choices=[
+                        "cinematic-arc",
+                        "midnight-mixtape",
+                        "parallel-lives",
+                        "festival-ready",
+                        "lofi-diary",
+                        "mythic-revival",
+                    ],
+                    value="cinematic-arc",
+                    label="Challenge Pack",
+                )
+                components["jam_focus"] = gr.Textbox(
+                    label="Jam Focus",
+                    placeholder="e.g., hook-first choruses with narrative payoff",
+                    lines=2,
+                )
+                components["jam_btn"] = gr.Button("Generate Jam Plan", variant="primary")
+                components["progress_btn"] = gr.Button("Run Progress Coach")
+                components["release_btn"] = gr.Button("Generate Release Kit")
+
+            with gr.Accordion("Remix Battles", open=False):
+                components["remix_battle_id"] = gr.Dropdown(
+                    choices=[],
+                    label="Battle",
+                    allow_custom_value=False,
+                )
+                components["remix_alias"] = gr.Textbox(label="Host Alias", value="host")
+                components["remix_title"] = gr.Textbox(
+                    label="Battle Title",
+                    placeholder="e.g., Neon Club Flipdown",
+                )
+                components["remix_prompt"] = gr.Textbox(
+                    label="Prompt",
+                    lines=3,
+                    placeholder="Describe the remix challenge and constraints.",
+                )
+                components["remix_create_btn"] = gr.Button("Create Remix Battle")
+                components["remix_public_btn"] = gr.Button("View Public Share Summary")
+                components["remix_close_alias"] = gr.Textbox(label="Close As Alias", value="host")
+                components["remix_close_btn"] = gr.Button("Close Battle")
+
+                gr.Markdown("#### Submission")
+                components["remix_submission_alias"] = gr.Textbox(
+                    label="Submission Alias",
+                    value="guest1",
+                )
+                components["remix_submission_title"] = gr.Textbox(
+                    label="Submission Title",
+                    placeholder="e.g., Pulse Runner",
+                )
+                components["remix_submission_concept"] = gr.Textbox(
+                    label="Submission Concept",
+                    lines=3,
+                    placeholder="Explain arrangement/production idea.",
+                )
+                components["remix_preview_hook"] = gr.Textbox(
+                    label="Preview Hook (optional)",
+                    placeholder="e.g., I run on neon static.",
+                )
+                components["remix_submit_btn"] = gr.Button("Submit / Update Entry")
+
+                gr.Markdown("#### Voting")
+                components["remix_submission_id"] = gr.Dropdown(
+                    choices=[],
+                    label="Submission",
+                    allow_custom_value=False,
+                )
+                components["remix_vote_alias"] = gr.Textbox(label="Vote Alias", value="host")
+                components["remix_vote_score"] = gr.Slider(
+                    minimum=1,
+                    maximum=5,
+                    step=1,
+                    value=5,
+                    label="Score",
+                )
+                components["remix_vote_btn"] = gr.Button("Vote Submission")
+
+            with gr.Accordion("DAW Handoff Packs", open=False):
+                components["daw_targets"] = gr.CheckboxGroup(
+                    choices=["ableton", "logic"],
+                    value=["ableton", "logic"],
+                    label="DAW Targets",
+                )
+                components["daw_bpm_strategy"] = gr.Dropdown(
+                    choices=["median", "fixed"],
+                    value="median",
+                    label="BPM Strategy",
+                )
+                components["daw_fixed_bpm"] = gr.Number(
+                    label="Fixed BPM (required for fixed strategy)",
+                    value=120,
+                    precision=0,
+                )
+                components["daw_include_midi_guides"] = gr.Checkbox(
+                    label="Include MIDI guides",
+                    value=True,
+                )
+                components["daw_package_name"] = gr.Textbox(
+                    label="Package Name (optional)",
+                    placeholder="e.g., neon_city_handoff",
+                )
+                components["daw_generate_btn"] = gr.Button("Generate DAW Handoff Pack")
+
+            with gr.Accordion("Realtime Collaboration Guide", open=False):
+                components["realtime_api_base"] = gr.Textbox(
+                    label="API Base URL",
+                    value="http://127.0.0.1:8000",
+                )
+                components["realtime_room_id"] = gr.Textbox(
+                    label="Room ID",
+                    placeholder="room_abc123 (from API room creation)",
+                )
+                components["realtime_alias"] = gr.Textbox(label="Alias", value="host")
+                components["realtime_target"] = gr.Textbox(
+                    label="Edit Target",
+                    value="track:1:chorus",
+                )
+                components["realtime_force"] = gr.Checkbox(label="Force lock takeover", value=False)
+                components["realtime_build_btn"] = gr.Button("Build Websocket Playbook")
+
+        with gr.Column(scale=2):
+            with gr.Group():
+                components["output"] = gr.Textbox(
+                    label="Experience Output",
+                    lines=12,
+                    interactive=False,
+                )
+            with gr.Group():
+                components["remix_output"] = gr.Textbox(
+                    label="Remix Battles",
+                    lines=10,
+                    interactive=False,
+                )
+            with gr.Group():
+                components["daw_output"] = gr.Textbox(
+                    label="DAW Handoff",
+                    lines=10,
+                    interactive=False,
+                )
+                components["daw_download"] = gr.File(
+                    label="DAW Bundle (.zip)",
+                    visible=True,
+                )
+            with gr.Group():
+                components["realtime_output"] = gr.Textbox(
+                    label="Realtime Collaboration Playbook",
+                    lines=12,
+                    interactive=False,
+                )
 
     return components

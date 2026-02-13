@@ -1,6 +1,7 @@
 """MusicXML export functionality using music21."""
 
 from pathlib import Path
+from typing import Any
 
 from album_conceptualizer.models.album import Song
 from album_conceptualizer.models.music_theory import Chord, ChordProgression, ChordQuality
@@ -28,7 +29,7 @@ class MusicXMLExporter:
             self._music21 = music21
         return self._music21
 
-    def chord_to_music21(self, chord: Chord) -> "music21.chord.Chord":
+    def chord_to_music21(self, chord: Chord) -> Any:
         """Convert our Chord model to a music21 Chord."""
         m21 = self.music21
 
@@ -248,7 +249,7 @@ class MusicXMLExporter:
         return output_path
 
 
-def analyze_with_music21(chord_symbols: list[str], key: str | None = None) -> dict:
+def analyze_with_music21(chord_symbols: list[str], key: str | None = None) -> dict[str, Any]:
     """
     Analyze chord progression using music21.
 
@@ -262,7 +263,7 @@ def analyze_with_music21(chord_symbols: list[str], key: str | None = None) -> di
     import music21 as m21
 
     # Create a stream with the chords
-    s = m21.stream.Stream()
+    s: Any = m21.stream.Stream()
 
     if key:
         key_parts = key.split()
@@ -276,11 +277,13 @@ def analyze_with_music21(chord_symbols: list[str], key: str | None = None) -> di
         s.append(cs)
 
     # Analyze
-    result = {
+    roman_numerals: list[str] = []
+    analysis_notes: list[str] = []
+    result: dict[str, Any] = {
         "chord_symbols": chord_symbols,
         "key": key,
-        "roman_numerals": [],
-        "analysis_notes": [],
+        "roman_numerals": roman_numerals,
+        "analysis_notes": analysis_notes,
     }
 
     # Get Roman numeral analysis if key is provided
@@ -288,9 +291,9 @@ def analyze_with_music21(chord_symbols: list[str], key: str | None = None) -> di
         for cs in s.recurse().getElementsByClass("ChordSymbol"):
             try:
                 rn = m21.roman.romanNumeralFromChord(cs, ks)
-                result["roman_numerals"].append(str(rn.figure))
+                roman_numerals.append(str(rn.figure))
             except Exception:
-                result["roman_numerals"].append("?")
+                roman_numerals.append("?")
 
     # Detect key if not provided
     if not key:
@@ -299,6 +302,6 @@ def analyze_with_music21(chord_symbols: list[str], key: str | None = None) -> di
             result["detected_key"] = f"{analysis.tonic.name} {analysis.mode}"
             result["key_correlation"] = analysis.correlationCoefficient
         except Exception:
-            pass
+            analysis_notes.append("Unable to detect key")
 
     return result

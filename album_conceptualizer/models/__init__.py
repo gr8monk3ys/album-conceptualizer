@@ -9,6 +9,16 @@ from album_conceptualizer.models.album_bible import (
     StyleProfile,
     Theme,
 )
+from album_conceptualizer.models.identity import (
+    Account,
+    EmailChallenge,
+    IdentityChallengeIntent,
+    Workspace,
+    WorkspaceInvite,
+    WorkspaceMember,
+    WorkspaceRole,
+    WorkspaceSession,
+)
 from album_conceptualizer.models.music_theory import (
     Chord,
     ChordProgression,
@@ -17,18 +27,25 @@ from album_conceptualizer.models.music_theory import (
     Scale,
     TimeSignature,
 )
+from album_conceptualizer.models.subscription import (
+    AccountSubscription,
+    BillingPlan,
+    SubscriptionStatus,
+)
 
 
 __all__ = [
-    # Album models
+    "Account",
+    "AccountSubscription",
     "Album",
-    # Album Bible models
     "AlbumBible",
+    "BillingPlan",
     "Character",
-    # Music theory models
     "Chord",
     "ChordProgression",
+    "EmailChallenge",
     "EmotionMapping",
+    "IdentityChallengeIntent",
     "Key",
     "Motif",
     "NarrativeArc",
@@ -37,6 +54,12 @@ __all__ = [
     "SectionType",
     "Song",
     "StyleProfile",
+    "SubscriptionStatus",
     "Theme",
     "TimeSignature",
+    "Workspace",
+    "WorkspaceInvite",
+    "WorkspaceMember",
+    "WorkspaceRole",
+    "WorkspaceSession",
 ]

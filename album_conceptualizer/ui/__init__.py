@@ -2,21 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:  # pragma: no cover - import for type checkers only
-    from album_conceptualizer.ui.app import create_app as create_app
-    from album_conceptualizer.ui.app import launch_app as launch_app
-
-
-def create_app(*args, **kwargs):  # type: ignore[override]
+def create_app(*args, **kwargs):
     """Lazily import and create the Gradio app."""
     from album_conceptualizer.ui.app import create_app as _create_app
 
     return _create_app(*args, **kwargs)
 
 
-def launch_app(*args, **kwargs):  # type: ignore[override]
+def launch_app(*args, **kwargs):
     """Lazily import and launch the Gradio app."""
     from album_conceptualizer.ui.app import launch_app as _launch_app
 

@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from album_conceptualizer.rag.embeddings import Document, EmbeddingModel
@@ -20,7 +21,7 @@ class VectorStore(ABC):
         self,
         query_embedding: list[float],
         top_k: int = 5,
-        filter_dict: dict | None = None,
+        filter_dict: dict[str, Any] | None = None,
     ) -> list[tuple[Document, float]]:
         """Search for similar documents."""
         pass
@@ -122,7 +123,7 @@ class ChromaVectorStore(VectorStore):
         self,
         query_embedding: list[float],
         top_k: int = 5,
-        filter_dict: dict | None = None,
+        filter_dict: dict[str, Any] | None = None,
     ) -> list[tuple[Document, float]]:
         """Search for similar documents."""
         results = self.collection.query(
@@ -132,7 +133,7 @@ class ChromaVectorStore(VectorStore):
             include=["documents", "metadatas", "distances"],
         )
 
-        documents_with_scores = []
+        documents_with_scores: list[tuple[Document, float]] = []
         if results["ids"] and results["ids"][0]:
             for i, doc_id in enumerate(results["ids"][0]):
                 doc = Document(
@@ -145,7 +146,7 @@ class ChromaVectorStore(VectorStore):
                 )
                 # ChromaDB returns distance, convert to similarity score
                 distance = results["distances"][0][i] if results["distances"] else 0
-                similarity = 1 - distance  # For cosine distance
+                similarity = float(1 - distance)  # For cosine distance
                 documents_with_scores.append((doc, similarity))
 
         return documents_with_scores
@@ -180,7 +181,7 @@ class ChromaVectorStore(VectorStore):
         self,
         query: str,
         top_k: int = 5,
-        filter_dict: dict | None = None,
+        filter_dict: dict[str, Any] | None = None,
     ) -> list[tuple[Document, float]]:
         """
         Perform keyword-based search (BM25-style).
@@ -195,7 +196,7 @@ class ChromaVectorStore(VectorStore):
             include=["documents", "metadatas", "distances"],
         )
 
-        documents_with_scores = []
+        documents_with_scores: list[tuple[Document, float]] = []
         if results["ids"] and results["ids"][0]:
             for i, doc_id in enumerate(results["ids"][0]):
                 doc = Document(
@@ -207,14 +208,14 @@ class ChromaVectorStore(VectorStore):
                     else "general",
                 )
                 distance = results["distances"][0][i] if results["distances"] else 0
-                similarity = 1 - distance
+                similarity = float(1 - distance)
                 documents_with_scores.append((doc, similarity))
 
         return documents_with_scores
 
     def count(self) -> int:
         """Get the number of documents in the collection."""
-        return self.collection.count()
+        return int(self.collection.count())
 
 
 class MultiIndexStore:

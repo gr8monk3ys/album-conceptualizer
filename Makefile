@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test test-cov clean build docker docker-up docker-down ui api docs
+.PHONY: help install install-dev lint format test test-cov clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke
 
 # Default target
 help:
@@ -21,6 +21,12 @@ help:
 	@echo "  make api-dev       Start FastAPI with hot reload"
 	@echo "  make ui            Launch Gradio UI"
 	@echo "  make cli           Show CLI help"
+	@echo "  make billing-smoke Run billing/subscription smoke test"
+	@echo "  make billing-lifecycle-smoke Run simulated subscription lifecycle smoke"
+	@echo "  make staging-e2e   Run end-to-end API staging smoke flow"
+	@echo "  make ui-playwright-smoke  Run Playwright UI smoke check"
+	@echo "  make ui-e2e        Run Playwright UI E2E assertions"
+	@echo "  make email-smoke   Send onboarding email smoke test"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  make docs          Build documentation"
@@ -179,6 +185,24 @@ clean:
 # =============================================================================
 # Utilities
 # =============================================================================
+
+billing-smoke:
+	python scripts/stripe-billing-smoke.py
+
+billing-lifecycle-smoke:
+	python scripts/stripe-billing-smoke.py --simulate-lifecycle --skip-checkout
+
+staging-e2e:
+	python scripts/staging-e2e.py
+
+ui-playwright-smoke:
+	bash scripts/ui-playwright-smoke.sh
+
+ui-e2e:
+	bash scripts/ui-e2e-playwright.sh
+
+email-smoke:
+	.venv/bin/python scripts/email-smoke.py
 
 # Update dependencies
 update:

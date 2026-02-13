@@ -110,3 +110,9 @@ uv.lock
 
 # Pre-commit
 .pre-commit-cache/
+
+# MkDocs build output
+site/
+
+# Playwright CLI artifacts
+.playwright-cli/

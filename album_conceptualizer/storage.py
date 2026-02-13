@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-import sqlite3
 
 from album_conceptualizer.models.album import Album
 from album_conceptualizer.models.album_bible import AlbumBible
+from album_conceptualizer.models.subscription import AccountSubscription
 
 
 class AlbumStore:
@@ -36,6 +37,22 @@ class BibleStore:
         raise NotImplementedError
 
     def delete(self, album_id: str) -> None:
+        raise NotImplementedError
+
+
+class SubscriptionStore:
+    """Abstract subscription storage interface."""
+
+    def list(self) -> list[AccountSubscription]:
+        raise NotImplementedError
+
+    def get(self, api_key_hash: str) -> AccountSubscription | None:
+        raise NotImplementedError
+
+    def save(self, subscription: AccountSubscription) -> None:
+        raise NotImplementedError
+
+    def delete(self, api_key_hash: str) -> None:
         raise NotImplementedError
 
 
@@ -74,6 +91,26 @@ class InMemoryBibleStore(BibleStore):
     def delete(self, album_id: str) -> None:
         if album_id in self._bibles:
             del self._bibles[album_id]
+
+
+class InMemorySubscriptionStore(SubscriptionStore):
+    """In-memory subscription store."""
+
+    def __init__(self) -> None:
+        self._subscriptions: dict[str, AccountSubscription] = {}
+
+    def list(self) -> list[AccountSubscription]:
+        return list(self._subscriptions.values())
+
+    def get(self, api_key_hash: str) -> AccountSubscription | None:
+        return self._subscriptions.get(api_key_hash)
+
+    def save(self, subscription: AccountSubscription) -> None:
+        self._subscriptions[subscription.api_key_hash] = subscription
+
+    def delete(self, api_key_hash: str) -> None:
+        if api_key_hash in self._subscriptions:
+            del self._subscriptions[api_key_hash]
 
 
 @dataclass
@@ -137,6 +174,43 @@ class FileBibleStore(BibleStore):
 
     def delete(self, album_id: str) -> None:
         path = self._path_for(album_id)
+        if path.exists():
+            path.unlink()
+
+
+@dataclass
+class FileSubscriptionStore(SubscriptionStore):
+    """File-backed subscription store (JSON per API key hash)."""
+
+    root: Path
+
+    def __post_init__(self) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def _path_for(self, api_key_hash: str) -> Path:
+        return self.root / f"{api_key_hash}.json"
+
+    def list(self) -> list[AccountSubscription]:
+        items: list[AccountSubscription] = []
+        for path in self.root.glob("*.json"):
+            try:
+                items.append(AccountSubscription.model_validate_json(path.read_text()))
+            except Exception:
+                continue
+        return items
+
+    def get(self, api_key_hash: str) -> AccountSubscription | None:
+        path = self._path_for(api_key_hash)
+        if not path.exists():
+            return None
+        return AccountSubscription.model_validate_json(path.read_text())
+
+    def save(self, subscription: AccountSubscription) -> None:
+        path = self._path_for(subscription.api_key_hash)
+        path.write_text(subscription.model_dump_json(indent=2))
+
+    def delete(self, api_key_hash: str) -> None:
+        path = self._path_for(api_key_hash)
         if path.exists():
             path.unlink()
 
@@ -223,4 +297,54 @@ class SQLiteBibleStore(BibleStore):
     def delete(self, album_id: str) -> None:
         with sqlite3.connect(self.path) as conn:
             conn.execute("DELETE FROM bibles WHERE album_id = ?", (album_id,))
+            conn.commit()
+
+
+@dataclass
+class SQLiteSubscriptionStore(SubscriptionStore):
+    """SQLite-backed subscription store (JSON payloads)."""
+
+    path: Path
+
+    def __post_init__(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(self.path) as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS subscriptions ("
+                "api_key_hash TEXT PRIMARY KEY, payload TEXT NOT NULL)"
+            )
+
+    def list(self) -> list[AccountSubscription]:
+        with sqlite3.connect(self.path) as conn:
+            rows = conn.execute("SELECT payload FROM subscriptions").fetchall()
+        items: list[AccountSubscription] = []
+        for (payload,) in rows:
+            try:
+                items.append(AccountSubscription.model_validate_json(payload))
+            except Exception:
+                continue
+        return items
+
+    def get(self, api_key_hash: str) -> AccountSubscription | None:
+        with sqlite3.connect(self.path) as conn:
+            row = conn.execute(
+                "SELECT payload FROM subscriptions WHERE api_key_hash = ?",
+                (api_key_hash,),
+            ).fetchone()
+        if not row:
+            return None
+        return AccountSubscription.model_validate_json(row[0])
+
+    def save(self, subscription: AccountSubscription) -> None:
+        payload = subscription.model_dump_json(indent=2)
+        with sqlite3.connect(self.path) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO subscriptions (api_key_hash, payload) VALUES (?, ?)",
+                (subscription.api_key_hash, payload),
+            )
+            conn.commit()
+
+    def delete(self, api_key_hash: str) -> None:
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("DELETE FROM subscriptions WHERE api_key_hash = ?", (api_key_hash,))
             conn.commit()

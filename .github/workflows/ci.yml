@@ -63,7 +63,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/ -v --tb=short --cov=album_conceptualizer --cov-report=xml
+          pytest tests/ -v --tb=short --cov=album_conceptualizer --cov-report=xml --cov-fail-under=50
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
@@ -93,12 +93,95 @@ jobs:
 
       - name: Run mypy
         run: mypy album_conceptualizer/ --ignore-missing-imports
-        continue-on-error: true
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+          uv pip install --system pip-audit
+
+      - name: Run pip-audit
+        run: pip-audit
+
+  optional-stack:
+    name: Optional Stack Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install optional dependencies
+        run: |
+          uv pip install --system -e ".[dev,music,rag]"
+
+      - name: Run optional dependency smoke tests
+        run: |
+          pytest \
+            tests/test_export.py::TestMidiExport \
+            tests/test_export_integration.py \
+            tests/test_rag.py::TestEmbeddings \
+            -v --tb=short
+
+  ui-e2e:
+    name: UI E2E (Playwright CLI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install UI E2E dependencies
+        run: |
+          uv pip install --system -e ".[dev,ui,music]"
+
+      - name: Run Playwright CLI UI E2E
+        run: |
+          bash scripts/ui-e2e-playwright.sh
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-ui-e2e
+          path: |
+            output/playwright/
+            .playwright-cli/
 
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, type-check, security, optional-stack, ui-e2e]
     steps:
       - uses: actions/checkout@v6
 
@@ -122,7 +205,7 @@ jobs:
   docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, type-check, security, optional-stack, ui-e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v6

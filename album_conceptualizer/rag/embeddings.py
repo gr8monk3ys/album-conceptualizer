@@ -1,6 +1,7 @@
 """Embedding models for the RAG system."""
 
 from abc import ABC, abstractmethod
+from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -43,17 +44,17 @@ class SentenceTransformerEmbedding(EmbeddingModel):
 
         self.model_name = model_name
         self._model = SentenceTransformer(model_name)
-        self._dimension = self._model.get_sentence_embedding_dimension()
+        self._dimension = int(self._model.get_sentence_embedding_dimension())
 
     def embed_text(self, text: str) -> list[float]:
         """Embed a single text."""
         embedding = self._model.encode(text, convert_to_numpy=True)
-        return embedding.tolist()
+        return cast("list[float]", embedding.tolist())
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple texts."""
         embeddings = self._model.encode(texts, convert_to_numpy=True)
-        return embeddings.tolist()
+        return cast("list[list[float]]", embeddings.tolist())
 
     @property
     def dimension(self) -> int:
@@ -98,7 +99,7 @@ class OpenAIEmbedding(EmbeddingModel):
             input=text,
             model=self.model_name,
         )
-        return response.data[0].embedding
+        return cast("list[float]", response.data[0].embedding)
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple texts."""
@@ -106,7 +107,7 @@ class OpenAIEmbedding(EmbeddingModel):
             input=texts,
             model=self.model_name,
         )
-        return [item.embedding for item in response.data]
+        return cast("list[list[float]]", [item.embedding for item in response.data])
 
     @property
     def dimension(self) -> int:
@@ -119,7 +120,7 @@ class Document(BaseModel):
 
     id: str
     content: str
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     embedding: list[float] | None = None
 
     # Hierarchical structure support

@@ -2,13 +2,13 @@ groups:
   - name: album-conceptualizer
     rules:
       - alert: AlbumConceptualizerErrors
-        expr: increase(album_conceptualizer_errors_total[5m]) > 0
-        for: 5m
+        expr: increase(album_conceptualizer_errors_total[5m]) > 10
+        for: 3m
         labels:
-          severity: warning
+          severity: page
         annotations:
-          summary: "Album Conceptualizer errors observed"
-          description: "Errors recorded by /api/v1/metrics in the last 5 minutes."
+          summary: "Album Conceptualizer error burst"
+          description: "More than 10 API errors recorded in 5 minutes."
       - alert: AlbumConceptualizerNoTraffic
         expr: increase(album_conceptualizer_requests_total[15m]) == 0
         for: 15m
@@ -17,3 +17,11 @@ groups:
         annotations:
           summary: "No API traffic in 15 minutes"
           description: "No requests recorded by /api/v1/metrics."
+      - alert: AlbumConceptualizerHighLatency
+        expr: album_conceptualizer_request_duration_ms_avg > 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Average API latency is elevated"
+          description: "Average request duration has been above 500ms for 10 minutes."

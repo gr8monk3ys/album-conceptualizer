@@ -1,5 +1,7 @@
 """Album management endpoints."""
 
+from typing import cast
+
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
@@ -75,7 +77,7 @@ def _album_to_response(album: Album) -> AlbumResponse:
 
 
 def _get_store(request: Request) -> AlbumStore:
-    return request.app.state.album_store
+    return cast("AlbumStore", request.app.state.album_store)
 
 
 @router.get("", response_model=AlbumListResponse)

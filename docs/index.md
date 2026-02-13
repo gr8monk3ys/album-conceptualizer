@@ -20,7 +20,7 @@ A RAG-powered concept album ideation system with multi-agent orchestration.
     Leverage specialized AI agents (Lyricist, Music Theorist, Narrative
     Specialist) working together via CrewAI.
 
-    [:octicons-arrow-right-24: AI Agents Guide](guides/ai-agents.md)
+    [:octicons-arrow-right-24: Production Setup](getting-started/production.md)
 
 - :material-music-note: **Music Theory Tools**
 
@@ -29,7 +29,7 @@ A RAG-powered concept album ideation system with multi-agent orchestration.
     Analyze chords, generate scales, and get progression suggestions
     with built-in music theory utilities.
 
-    [:octicons-arrow-right-24: Music Theory](guides/music-theory.md)
+    [:octicons-arrow-right-24: Music Theory API](api/rest-api.md#music-theory)
 
 - :material-export: **Export Anywhere**
 
@@ -38,7 +38,7 @@ A RAG-powered concept album ideation system with multi-agent orchestration.
     Export to MIDI, ChordPro, MusicXML, and more for use in your
     favorite DAW or notation software.
 
-    [:octicons-arrow-right-24: Exporting](guides/exporting.md)
+    [:octicons-arrow-right-24: Export API](api/rest-api.md#export)
 
 </div>
 

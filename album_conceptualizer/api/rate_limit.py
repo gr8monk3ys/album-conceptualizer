@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Deque
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -25,7 +24,18 @@ class InMemoryRateLimiter(BaseHTTPMiddleware):
     def __init__(self, app, config: RateLimitConfig):
         super().__init__(app)
         self.config = config
-        self._requests: dict[str, Deque[float]] = defaultdict(deque)
+        self._requests: dict[str, deque[float]] = defaultdict(deque)
+
+    def _get_key(self, request: Request) -> str:
+        api_key = request.headers.get("x-api-key")
+        if not api_key:
+            auth = request.headers.get("authorization")
+            if auth and auth.lower().startswith("bearer "):
+                api_key = auth.split()[1]
+        if api_key:
+            return f"api:{api_key}"
+        client_ip = request.client.host if request.client else "unknown"
+        return f"ip:{client_ip}"
 
     def _allowed(self, key: str) -> bool:
         now = time.time()
@@ -48,8 +58,8 @@ class InMemoryRateLimiter(BaseHTTPMiddleware):
         ) or request.url.path.startswith("/api/v1/live"):
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
-        if not self._allowed(client_ip):
+        key = self._get_key(request)
+        if not self._allowed(key):
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded"},
@@ -78,6 +88,17 @@ class RedisRateLimiter(BaseHTTPMiddleware):
         self.config = config
         self._redis = redis.from_url(redis_url, decode_responses=True)
 
+    def _get_key(self, request: Request) -> str:
+        api_key = request.headers.get("x-api-key")
+        if not api_key:
+            auth = request.headers.get("authorization")
+            if auth and auth.lower().startswith("bearer "):
+                api_key = auth.split()[1]
+        if api_key:
+            return f"api:{api_key}"
+        client_ip = request.client.host if request.client else "unknown"
+        return f"ip:{client_ip}"
+
     def _allowed(self, key: str) -> bool:
         now = time.time()
         window_start = now - 60
@@ -105,8 +126,8 @@ class RedisRateLimiter(BaseHTTPMiddleware):
         ) or request.url.path.startswith("/api/v1/live"):
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
-        if not self._allowed(client_ip):
+        key = self._get_key(request)
+        if not self._allowed(key):
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded"},

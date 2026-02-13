@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
@@ -12,6 +12,10 @@ from album_conceptualizer.export.chordpro import ChordProExporter, format_chordp
 
 
 router = APIRouter()
+
+
+def _cleanup_temp_file(path: str) -> None:
+    Path(path).unlink(missing_ok=True)
 
 
 class ChordProRequest(BaseModel):
@@ -103,9 +107,14 @@ async def export_album_chordpro(
         # Build sections for exporter
         sections = []
         for section in song.sections:
+            section_type = (
+                section.section_type.value
+                if hasattr(section.section_type, "value")
+                else str(section.section_type)
+            )
             sections.append(
                 (
-                    section.section_type.value.title(),
+                    section_type.replace("_", " ").title(),
                     section.lyrics or "",
                     section.chord_progression,
                 )
@@ -151,7 +160,10 @@ async def export_tracklist(request: Request, album_id: str) -> str:
 
 
 @router.post("/progression/midi")
-async def export_progression_midi(data: ProgressionExportRequest):
+async def export_progression_midi(
+    data: ProgressionExportRequest,
+    background_tasks: BackgroundTasks,
+) -> FileResponse:
     """
     Export chord progression as MIDI file.
 
@@ -184,15 +196,21 @@ async def export_progression_midi(data: ProgressionExportRequest):
     filename = data.title or "progression"
     filename = filename.replace(" ", "_").lower()
 
-    return FileResponse(
+    background_tasks.add_task(_cleanup_temp_file, temp_path)
+    response = FileResponse(
         path=temp_path,
         filename=f"{filename}.mid",
         media_type="audio/midi",
     )
+    response.background = background_tasks
+    return response
 
 
 @router.post("/progression/musicxml")
-async def export_progression_musicxml(data: ProgressionExportRequest):
+async def export_progression_musicxml(
+    data: ProgressionExportRequest,
+    background_tasks: BackgroundTasks,
+) -> FileResponse:
     """
     Export chord progression as MusicXML file.
 
@@ -224,11 +242,14 @@ async def export_progression_musicxml(data: ProgressionExportRequest):
     filename = data.title or "progression"
     filename = filename.replace(" ", "_").lower()
 
-    return FileResponse(
+    background_tasks.add_task(_cleanup_temp_file, str(temp_path))
+    response = FileResponse(
         path=str(temp_path),
         filename=f"{filename}.musicxml",
         media_type="application/vnd.recordare.musicxml+xml",
     )
+    response.background = background_tasks
+    return response
 
 
 @router.get("/formats")

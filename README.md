@@ -266,6 +266,11 @@ The system can integrate with:
 - For rotation, use `ALBUM_CONCEPTUALIZER_API_KEYS=key1,key2`.
 - Use `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=sqlite` or `file` for persistence.
 - For shared/clustered deployments, plan for Redis-backed rate limits and quotas.
+- For websocket collaboration across multiple app instances, set
+  `ALBUM_CONCEPTUALIZER_COLLAB_REALTIME_BACKEND=redis` and configure
+  `ALBUM_CONCEPTUALIZER_REDIS_URL`.
+- Tune collaboration presence/lock TTL with
+  `ALBUM_CONCEPTUALIZER_COLLAB_REALTIME_TTL_SECONDS` (default `90`).
 - Enable rate limiting (`ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=true`).
 - Enable quotas (`ALBUM_CONCEPTUALIZER_QUOTA_ENABLED=true`).
 - Set `LOG_LEVEL=INFO` (or `DEBUG`) and monitor logs.
