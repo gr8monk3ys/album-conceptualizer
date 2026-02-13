@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Literal
 
 
 LOG_LEVELS: dict[str, int] = {
@@ -18,7 +17,8 @@ LOG_LEVELS: dict[str, int] = {
 
 def configure_logging(level: str | None = None) -> None:
     """Configure application-wide logging."""
-    effective_level = (level or os.getenv("LOG_LEVEL", "INFO")).upper()
+    raw_level = level if isinstance(level, str) else os.getenv("LOG_LEVEL", "INFO")
+    effective_level = raw_level.upper() if isinstance(raw_level, str) else "INFO"
     logging.basicConfig(
         level=LOG_LEVELS.get(effective_level, logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",

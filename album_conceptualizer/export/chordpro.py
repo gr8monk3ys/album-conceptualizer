@@ -229,6 +229,7 @@ class ChordProExporter:
         title: str,
         sections: list[tuple[str, str, list[str]]],
         key: str | None = None,
+        tempo: int | None = None,
     ) -> str:
         """
         Create a simple ChordPro formatted string.
@@ -244,6 +245,8 @@ class ChordProExporter:
         lines = [f"{{title: {title}}}"]
         if key:
             lines.append(f"{{key: {key}}}")
+        if tempo:
+            lines.append(f"{{tempo: {tempo}}}")
         lines.append("")
 
         for section_name, lyrics, chords in sections:
@@ -276,7 +279,7 @@ def parse_chordpro(content: str) -> dict:
     Returns:
         Dictionary with metadata and sections
     """
-    result = {
+    result: dict[str, object] = {
         "title": "",
         "artist": "",
         "key": "",
@@ -284,7 +287,8 @@ def parse_chordpro(content: str) -> dict:
         "sections": [],
     }
 
-    current_section = {"name": "", "content": []}
+    sections: list[dict[str, object]] = []
+    current_section: dict[str, object] = {"name": "", "content": []}
 
     for line in content.split("\n"):
         line = line.strip()
@@ -308,14 +312,20 @@ def parse_chordpro(content: str) -> dict:
                         result["tempo"] = int(value)
                 elif key in {"comment", "c"}:
                     # Start new section
-                    if current_section["content"]:
-                        result["sections"].append(current_section)
+                    current_content = current_section.get("content")
+                    if isinstance(current_content, list) and current_content:
+                        sections.append(current_section)
                     current_section = {"name": value, "content": []}
         elif line:
-            current_section["content"].append(line)
+            current_content = current_section.get("content")
+            if isinstance(current_content, list):
+                current_content.append(line)
 
     # Add final section
-    if current_section["content"]:
-        result["sections"].append(current_section)
+    current_content = current_section.get("content")
+    if isinstance(current_content, list) and current_content:
+        sections.append(current_section)
+
+    result["sections"] = sections
 
     return result

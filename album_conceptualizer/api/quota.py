@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -93,7 +93,7 @@ class RedisQuota(BaseHTTPMiddleware):
         return f"ip:{client_ip}"
 
     def _seconds_until_tomorrow(self) -> int:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         return int((tomorrow - now).total_seconds())
 

@@ -7,40 +7,74 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from album_conceptualizer.api.v1 import router as v1_router
+from album_conceptualizer.api.metrics import MetricsRegistry
+from album_conceptualizer.api.middleware import MetricsMiddleware, RequestLoggingMiddleware
+from album_conceptualizer.api.quota import InMemoryQuota, QuotaConfig, RedisQuota
 from album_conceptualizer.api.rate_limit import (
     InMemoryRateLimiter,
     RateLimitConfig,
     RedisRateLimiter,
 )
-from album_conceptualizer.api.middleware import MetricsMiddleware, RequestLoggingMiddleware
-from album_conceptualizer.api.quota import InMemoryQuota, QuotaConfig, RedisQuota
-from album_conceptualizer.api.metrics import MetricsRegistry
+from album_conceptualizer.api.v1 import router as v1_router
 from album_conceptualizer.config import get_settings
+from album_conceptualizer.emailing import create_email_sender
+from album_conceptualizer.experience_state import (
+    FileExperienceStateStore,
+    InMemoryExperienceStateStore,
+    SQLiteExperienceStateStore,
+)
+from album_conceptualizer.identity_state import (
+    FileIdentityStateStore,
+    InMemoryIdentityStateStore,
+    SQLiteIdentityStateStore,
+)
 from album_conceptualizer.logging import configure_logging
 from album_conceptualizer.storage import (
     FileAlbumStore,
     FileBibleStore,
+    FileSubscriptionStore,
     InMemoryAlbumStore,
     InMemoryBibleStore,
+    InMemorySubscriptionStore,
     SQLiteAlbumStore,
     SQLiteBibleStore,
+    SQLiteSubscriptionStore,
 )
+
+
+def _validate_strict_production(settings) -> None:
+    if not settings.strict_production:
+        return
+    issues = settings.production_issues()
+    if not issues:
+        return
+    bullet_list = "\n".join(f"- {issue}" for issue in issues)
+    raise RuntimeError(f"Strict production validation failed:\n{bullet_list}")
 
 
 def _initialize_state(app: FastAPI) -> None:
     settings = get_settings()
     app.state.settings = settings
     app.state.metrics = MetricsRegistry()
+    app.state.email_sender = create_email_sender(settings)
     if settings.storage_backend == "file":
         app.state.album_store = FileAlbumStore(settings.output_dir / "api_albums")
         app.state.bible_store = FileBibleStore(settings.output_dir / "api_bibles")
+        app.state.subscription_store = FileSubscriptionStore(settings.output_dir / "api_subscriptions")
+        app.state.experience_store = FileExperienceStateStore(settings.output_dir / "api_experience")
+        app.state.identity_store = FileIdentityStateStore(settings.output_dir / "api_identity")
     elif settings.storage_backend == "sqlite":
         app.state.album_store = SQLiteAlbumStore(settings.storage_db_path)
         app.state.bible_store = SQLiteBibleStore(settings.storage_db_path)
+        app.state.subscription_store = SQLiteSubscriptionStore(settings.storage_db_path)
+        app.state.experience_store = SQLiteExperienceStateStore(settings.storage_db_path)
+        app.state.identity_store = SQLiteIdentityStateStore(settings.storage_db_path)
     else:
         app.state.album_store = InMemoryAlbumStore()
         app.state.bible_store = InMemoryBibleStore()
+        app.state.subscription_store = InMemorySubscriptionStore()
+        app.state.experience_store = InMemoryExperienceStateStore()
+        app.state.identity_store = InMemoryIdentityStateStore()
 
 
 @asynccontextmanager
@@ -53,12 +87,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize RAG system if configured
     if settings.chroma_persist_directory:
         try:
+            from album_conceptualizer.rag.embeddings import get_embedding_model
             from album_conceptualizer.rag.vector_store import ChromaVectorStore
 
+            embedding_model = get_embedding_model(
+                model_type="sentence_transformer",
+                model_name=settings.rag.embedding_model,
+            )
             app.state.vector_store = ChromaVectorStore(
+                collection_name="album_conceptualizer",
+                embedding_model=embedding_model,
                 persist_directory=settings.chroma_persist_directory,
             )
-        except ImportError:
+        except Exception:
             app.state.vector_store = None
 
     yield
@@ -84,6 +125,7 @@ def create_app(
         Configured FastAPI application
     """
     settings = get_settings()
+    _validate_strict_production(settings)
     configure_logging(settings.log_level)
     app = FastAPI(
         title=title,
@@ -99,10 +141,12 @@ def create_app(
         - **Export**: Generate MIDI, ChordPro, and MusicXML files
         - **AI Agents**: Run multi-agent workflows for ideation
 
-        ## Authentication
+        ## Authentication and Billing
 
-        Currently, the API does not require authentication. For production use,
-        implement OAuth2 or API key authentication.
+        API-key authentication is supported and can be enforced with
+        `ALBUM_CONCEPTUALIZER_API_KEY` or `ALBUM_CONCEPTUALIZER_API_KEYS`.
+        Subscription gating can be enabled with
+        `ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED=true`.
         """,
         version=version,
         debug=debug,
@@ -116,6 +160,8 @@ def create_app(
             {"name": "bible", "description": "Album Bible management"},
             {"name": "theory", "description": "Music theory utilities"},
             {"name": "export", "description": "Export to various formats"},
+            {"name": "identity", "description": "Accounts, workspaces, and workspace tokens"},
+            {"name": "experience", "description": "Creative workflow and launch readiness tools"},
             {"name": "agents", "description": "AI agent workflows"},
             {"name": "health", "description": "Health check endpoints"},
         ],
@@ -134,7 +180,7 @@ def create_app(
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(MetricsMiddleware)
 
-    # Quotas (optional)
+    # Apply quota middleware.
     quota_config = QuotaConfig(daily_limit=settings.quota_daily_limit)
     if settings.quota_backend == "redis":
         app.add_middleware(

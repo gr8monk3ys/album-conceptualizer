@@ -1,6 +1,7 @@
 """Retriever implementations for different query types."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 
 from album_conceptualizer.rag.embeddings import Document, EmbeddingModel
 from album_conceptualizer.rag.vector_store import ChromaVectorStore, MultiIndexStore
@@ -51,8 +52,9 @@ class HybridRetriever(BaseRetriever):
         self,
         query: str,
         top_k: int = 5,
-        filter_dict: dict | None = None,
+        filter_dict: Mapping[str, object] | None = None,
         alpha: float | None = None,
+        **kwargs,
     ) -> list[tuple[Document, float]]:
         """
         Retrieve documents using hybrid search.
@@ -70,14 +72,14 @@ class HybridRetriever(BaseRetriever):
         semantic_results = self.vector_store.search(
             query_embedding=query_embedding,
             top_k=top_k * 2,  # Get more to merge
-            filter_dict=filter_dict,
+            filter_dict=dict(filter_dict) if filter_dict else None,
         )
 
         # Get keyword results
         keyword_results = self.vector_store.keyword_search(
             query=query,
             top_k=top_k * 2,
-            filter_dict=filter_dict,
+            filter_dict=dict(filter_dict) if filter_dict else None,
         )
 
         # Merge results using reciprocal rank fusion

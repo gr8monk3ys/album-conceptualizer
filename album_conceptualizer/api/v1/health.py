@@ -54,6 +54,7 @@ async def readiness_check(request: Request) -> ReadinessResponse:
         "api": True,
         "vector_store": False,
         "llm": False,
+        "production_guardrails": True,
     }
 
     # Check vector store
@@ -64,6 +65,11 @@ async def readiness_check(request: Request) -> ReadinessResponse:
     settings = getattr(request.app.state, "settings", None)
     if settings and (settings.anthropic_api_key or settings.openai_api_key):
         checks["llm"] = True
+    if settings:
+        checks["production_guardrails"] = (
+            not settings.strict_production
+            or not settings.production_issues()
+        )
 
     return ReadinessResponse(
         ready=all(checks.values()),
@@ -90,6 +96,12 @@ async def metrics(request: Request, format: str | None = None):
             f"album_conceptualizer_requests_total {snapshot['request_count']}",
             "# TYPE album_conceptualizer_errors_total counter",
             f"album_conceptualizer_errors_total {snapshot['error_count']}",
+            "# TYPE album_conceptualizer_request_duration_ms_sum counter",
+            f"album_conceptualizer_request_duration_ms_sum {snapshot['total_duration_ms']}",
+            "# TYPE album_conceptualizer_request_duration_ms_count counter",
+            f"album_conceptualizer_request_duration_ms_count {snapshot['request_count']}",
+            "# TYPE album_conceptualizer_request_duration_ms_avg gauge",
+            f"album_conceptualizer_request_duration_ms_avg {snapshot['avg_duration_ms']}",
         ]
         for status, count in snapshot["status_counts"].items():
             lines.append(
@@ -98,6 +110,10 @@ async def metrics(request: Request, format: str | None = None):
         for path, count in snapshot["path_counts"].items():
             lines.append(
                 f'album_conceptualizer_path_total{{path="{path}"}} {count}'
+            )
+        for path, duration_ms in snapshot["path_duration_ms"].items():
+            lines.append(
+                f'album_conceptualizer_path_duration_ms_sum{{path="{path}"}} {duration_ms}'
             )
         body = "\n".join(lines) + "\n"
         return Response(content=body, media_type="text/plain; version=0.0.4")

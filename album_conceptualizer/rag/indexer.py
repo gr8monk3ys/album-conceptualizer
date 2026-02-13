@@ -1,5 +1,6 @@
 """Document indexing for the RAG system."""
 
+from typing import Any, cast
 from uuid import uuid4
 
 from album_conceptualizer.models.album import Album, Song
@@ -82,7 +83,7 @@ class LyricsIndexer(DocumentIndexer):
 
         Returns dict mapping granularity to list of document IDs.
         """
-        result = {"album": [], "song": [], "section": [], "line": []}
+        result: dict[str, list[str]] = {"album": [], "song": [], "section": [], "line": []}
 
         # Album-level document
         album_summary = self._create_album_summary(album)
@@ -115,7 +116,7 @@ class LyricsIndexer(DocumentIndexer):
         album_title: str | None = None,
     ) -> dict[str, list[str]]:
         """Index a single song at multiple granularities."""
-        result = {"song": [], "section": [], "line": []}
+        result: dict[str, list[str]] = {"song": [], "section": [], "line": []}
 
         # Song-level document
         full_lyrics = song.get_full_lyrics()
@@ -448,7 +449,7 @@ Story Beats:
 
     def index_default_structures(self) -> list[str]:
         """Index common narrative structure templates."""
-        structures = [
+        structures: list[dict[str, Any]] = [
             {
                 "name": "Hero's Journey",
                 "description": "Joseph Campbell's monomyth structure, commonly used in epic concept albums.",
@@ -541,9 +542,9 @@ Story Beats:
         ids = []
         for structure in structures:
             doc_id = self.index_structure_template(
-                structure["name"],
-                structure["description"],
-                structure["beats"],
+                cast("str", structure["name"]),
+                cast("str", structure["description"]),
+                cast("list[dict[str, Any]]", structure["beats"]),
             )
             ids.append(doc_id)
 

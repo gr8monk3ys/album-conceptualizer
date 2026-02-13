@@ -1,7 +1,7 @@
 """Unified export interface for all formats."""
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 from album_conceptualizer.export.chordpro import ChordProExporter
@@ -11,7 +11,7 @@ from album_conceptualizer.models.album import Album, Song
 from album_conceptualizer.models.music_theory import ChordProgression
 
 
-class ExportFormat(str, Enum):
+class ExportFormat(StrEnum):
     """Supported export formats."""
 
     MIDI = "midi"
