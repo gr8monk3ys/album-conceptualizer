@@ -12,12 +12,27 @@ This guide covers the recommended production run modes for Album Conceptualizer.
   - `OPENAI_API_KEY=...`
   - `ANTHROPIC_API_KEY=...`
   - `ALBUM_CONCEPTUALIZER_API_KEY=...` (optional, enables API auth)
+  - `ALBUM_CONCEPTUALIZER_API_KEYS=key1,key2` (optional, multi-key auth)
+  - `ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED=true` (optional, enforce active subscriptions)
   - `ALBUM_CONCEPTUALIZER_CORS_ORIGINS=https://yourdomain.com` (optional)
   - `ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=true` (optional)
   - `ALBUM_CONCEPTUALIZER_RATE_LIMIT_PER_MINUTE=120` (optional)
   - `ALBUM_CONCEPTUALIZER_QUOTA_ENABLED=true` (optional)
   - `ALBUM_CONCEPTUALIZER_QUOTA_DAILY_LIMIT=1000` (optional)
   - `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=file` (optional)
+  - `ALBUM_CONCEPTUALIZER_STRICT_PRODUCTION=true` (optional, fail fast on insecure config)
+  - `STRIPE_SECRET_KEY=...` (optional, required for checkout sessions)
+  - `STRIPE_WEBHOOK_SECRET=...` (optional, required for Stripe webhooks)
+  - `ALBUM_CONCEPTUALIZER_BILLING_SUCCESS_URL=https://yourdomain.com/billing/success`
+  - `ALBUM_CONCEPTUALIZER_BILLING_CANCEL_URL=https://yourdomain.com/billing/cancel`
+  - `ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER=smtp` (recommended for magic links/invites)
+  - `ALBUM_CONCEPTUALIZER_EMAIL_FROM=noreply@yourdomain.com` (required for SMTP)
+  - `ALBUM_CONCEPTUALIZER_SMTP_HOST=smtp.yourprovider.com` (required for SMTP)
+  - `ALBUM_CONCEPTUALIZER_SMTP_PORT=587` (optional)
+  - `ALBUM_CONCEPTUALIZER_SMTP_USERNAME=...` (optional)
+  - `ALBUM_CONCEPTUALIZER_SMTP_PASSWORD=...` (optional)
+  - `ALBUM_CONCEPTUALIZER_SMTP_USE_TLS=true` (optional)
+  - `ALBUM_CONCEPTUALIZER_SMTP_USE_SSL=false` (optional)
   - `ALBUM_CONCEPTUALIZER_TELEMETRY=true` (optional, opt‑in)
   - `LOG_LEVEL=INFO` (optional)
 - Project data is stored under `output/projects/` by default.
@@ -90,6 +105,91 @@ Routes:
 - For rotation, set multiple keys:
   - `ALBUM_CONCEPTUALIZER_API_KEYS=key1,key2,key3`
 
+## Billing and Subscriptions
+- Enable subscription enforcement:
+  - `ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED=true`
+- Use billing endpoints:
+  - `GET /api/v1/billing/subscription`
+  - `POST /api/v1/billing/checkout-session`
+  - `POST /api/v1/billing/webhook`
+- Stripe requires:
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_WEBHOOK_SECRET`
+
+## Identity Email Delivery
+- Magic-link and invite flows send through the configured email provider.
+- Providers:
+  - `ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER=outbox` writes to `output/identity_outbox.log`
+  - `ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER=noop` logs send attempts only
+  - `ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER=smtp` sends via SMTP
+- A concrete Resend SMTP profile is provided in `.env.production.example`.
+- For local testing where you need tokens in API responses:
+  - `ALBUM_CONCEPTUALIZER_IDENTITY_DEBUG_TOKENS=true`
+- Preflight email verification:
+```bash
+ALBUM_CONCEPTUALIZER_SMOKE_TO=you@example.com python scripts/email-smoke.py
+```
+
+### Stripe Staging Smoke Test
+- Use `scripts/stripe-billing-smoke.py` to validate checkout + subscription sync.
+- Required env vars:
+  - `ALBUM_CONCEPTUALIZER_BASE_URL=https://staging.yourdomain.com`
+  - `ALBUM_CONCEPTUALIZER_API_KEY=<staging-api-key>`
+  - `STRIPE_PRICE_ID=<price id for selected plan>`
+- Optional webhook simulation:
+  - `STRIPE_WEBHOOK_SECRET=<webhook signing secret>`
+- Run:
+```bash
+python scripts/stripe-billing-smoke.py --plan pro --simulate-webhook
+```
+- For webhook-only validation in a non-billable environment:
+```bash
+python scripts/stripe-billing-smoke.py --simulate-webhook --skip-checkout
+```
+- For full lifecycle validation (active -> past_due -> canceled):
+```bash
+python scripts/stripe-billing-smoke.py --simulate-lifecycle --skip-checkout
+```
+
+## Full Staging E2E Smoke
+- Use `scripts/staging-e2e.py` for a full API path:
+  - health
+  - album/song/bible CRUD
+  - experience toolkit endpoints
+  - collab room, challenge mode, template apply, release campaign, and audio preview endpoints
+  - export endpoint
+  - billing subscription status
+- Required env vars:
+  - `ALBUM_CONCEPTUALIZER_BASE_URL=https://staging.yourdomain.com`
+  - `ALBUM_CONCEPTUALIZER_API_KEY=<staging-api-key>`
+- Run:
+```bash
+python scripts/staging-e2e.py
+```
+
+## Browser UI Smoke (Playwright CLI)
+- Use `scripts/ui-playwright-smoke.sh` to validate the UI loads and is snapshot-capable.
+- Requires `npx` on PATH.
+- Optional env var:
+  - `ALBUM_CONCEPTUALIZER_UI_BASE_URL=https://staging.yourdomain.com`
+- Run:
+```bash
+bash scripts/ui-playwright-smoke.sh
+```
+
+## Browser UI E2E Assertions (Playwright CLI)
+- Use `scripts/ui-e2e-playwright.sh` for asserted UI flows:
+  - create album
+  - edit song content
+  - preview/export
+  - experience tab actions
+  - API docs experience endpoint visibility
+- Artifacts are saved to `output/playwright/` (logs + screenshots).
+- Run:
+```bash
+bash scripts/ui-e2e-playwright.sh
+```
+
 ## Rate Limiting
 - Enable with `ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=true`.
 - Configure throughput with `ALBUM_CONCEPTUALIZER_RATE_LIMIT_PER_MINUTE`.
@@ -105,6 +205,17 @@ Routes:
 - Set `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=file` to persist albums/bibles to disk under `output/api_*`.
 - Set `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=sqlite` for a single SQLite database.
 - Configure the SQLite path with `ALBUM_CONCEPTUALIZER_STORAGE_DB` (default `./data/album_conceptualizer.db`).
+- Experience toolkit state (collab rooms and challenge profiles) is persisted by the selected storage backend.
+
+## Strict Production Guardrails
+- Enable `ALBUM_CONCEPTUALIZER_STRICT_PRODUCTION=true` to fail startup when unsafe defaults are detected.
+- Current strict checks:
+  - CORS cannot include `*`
+  - API auth must be configured (`ALBUM_CONCEPTUALIZER_API_KEY` or `ALBUM_CONCEPTUALIZER_API_KEYS`)
+  - storage backend cannot be `memory`
+  - if `ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED=true`, Stripe secrets must be configured
+  - `ALBUM_CONCEPTUALIZER_IDENTITY_DEBUG_TOKENS` must be `false`
+  - when `ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER=smtp`, SMTP host/from and TLS/SSL config must be valid
 
 ## Externalized Persistence (Scale Option)
 - For multi‑instance deployments, prefer a shared database or object store.
@@ -172,3 +283,25 @@ scrape_configs:
 ```
 
 Alert rules and a minimal Prometheus config are in `ops/prometheus/`.
+
+## Rollback Playbook
+Use this rollback path for failed deploys or severe incident responses.
+
+1. Stop traffic to the affected release (reverse proxy route flip or container stop).
+2. Restore the previous known-good image/commit:
+   - Compose: `docker compose down && git checkout <known-good-tag> && docker compose up -d`
+3. Restore data snapshot when needed:
+   - `RESTORE_ROOT=./restore-test ./scripts/restore-backup.sh ./backups/<archive>.tar.gz`
+4. Verify:
+   - `GET /api/v1/health`, `GET /api/v1/ready`, `GET /api/v1/metrics?format=prometheus`
+   - `python scripts/staging-e2e.py --base-url <url> --api-key <key>`
+   - `python scripts/stripe-billing-smoke.py --base-url <url> --api-key <key> --simulate-lifecycle --skip-checkout`
+5. Resume traffic only after smoke + metrics checks pass.
+
+## Alert Threshold Suggestions
+- Error budget:
+  - Trigger page on `increase(album_conceptualizer_errors_total[5m]) > 10`
+- Traffic anomaly:
+  - Trigger warning on `increase(album_conceptualizer_requests_total[15m]) == 0` during expected active windows
+- Latency anomaly:
+  - Track p95/p99 request duration from logs and alert if >2x baseline for 10m

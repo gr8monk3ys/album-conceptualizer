@@ -121,7 +121,18 @@ EOF
 | `ANTHROPIC_API_KEY` | Anthropic API key for Claude | None |
 | `OPENAI_API_KEY` | OpenAI API key | None |
 | `LOG_LEVEL` | Logging level | INFO |
-| `CHROMA_PERSIST_DIR` | ChromaDB storage path | ./data/chroma |
+| `CHROMA_PERSIST_DIRECTORY` | ChromaDB storage path | ./data/chroma |
+| `ALBUM_CONCEPTUALIZER_API_KEY` | API key auth (single key) | None |
+| `ALBUM_CONCEPTUALIZER_API_KEYS` | API key auth (multiple keys) | [] |
+| `ALBUM_CONCEPTUALIZER_STRICT_PRODUCTION` | Fail startup on insecure production config | false |
+| `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND` | API persistence backend (`memory`, `file`, `sqlite`) | memory |
+| `ALBUM_CONCEPTUALIZER_STORAGE_DB` | SQLite DB path (when storage backend is `sqlite`) | ./data/album_conceptualizer.db |
+| `ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED` | Require active subscriptions | false |
+| `STRIPE_SECRET_KEY` | Stripe secret key (for checkout) | None |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret | None |
+| `ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER` | Onboarding email provider (`outbox`, `noop`, `smtp`) | outbox |
+| `ALBUM_CONCEPTUALIZER_EMAIL_FROM` | Sender identity for SMTP mode | None |
+| `ALBUM_CONCEPTUALIZER_SMTP_HOST` | SMTP host for `smtp` provider | None |
 | `ALBUM_CONCEPTUALIZER_TELEMETRY` | Enable telemetry | false |
 
 ## Verify Installation
@@ -169,6 +180,5 @@ uv pip install --system chromadb --force-reinstall
 
 ## Next Steps
 
-- [Quick Start Guide](quickstart.md) - Create your first album
-- [Configuration](configuration.md) - Customize settings
-- [REST API](../api/rest-api.md) - API documentation
+- [Production Guide](production.md) - Deployment and operational hardening
+- [REST API](../api/rest-api.md) - API usage and endpoint reference
