@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from album_conceptualizer.models.album import Album, Section, SectionType, Song
 
 
@@ -62,26 +64,53 @@ def build_tracklist_rows(album: Album) -> list[list[object]]:
     return rows
 
 
+def normalize_tracklist_rows(tracklist_rows: object | None) -> list[list[object]]:
+    """Normalize Gradio tracklist payloads (lists or pandas DataFrames) to row lists."""
+    if tracklist_rows is None:
+        return []
+
+    if hasattr(tracklist_rows, "values") and hasattr(tracklist_rows.values, "tolist"):
+        rows = tracklist_rows.values.tolist()
+    elif isinstance(tracklist_rows, list):
+        rows = tracklist_rows
+    elif isinstance(tracklist_rows, Iterable) and not isinstance(tracklist_rows, (str, bytes)):
+        rows = list(tracklist_rows)
+    else:
+        return []
+
+    normalized: list[list[object]] = []
+    for row in rows:
+        if isinstance(row, list):
+            normalized.append(row)
+        elif isinstance(row, tuple):
+            normalized.append(list(row))
+        else:
+            normalized.append([row])
+    return normalized
+
+
 def merge_album_with_tracklist(
     album_json: str,
     album_title: str,
     artist_name: str,
     concept_summary: str,
-    tracklist_rows: list[list[object]] | None,
+    tracklist_rows: object | None,
 ) -> Album:
     existing = Album.model_validate_json(album_json) if album_json else Album(title=album_title)
     songs_by_title = {song.title: song for song in existing.songs}
     songs: list[Song] = []
 
-    if tracklist_rows:
-        for row in tracklist_rows:
+    rows = normalize_tracklist_rows(tracklist_rows)
+    if rows:
+        for row in rows:
             if not row or len(row) < 2:
                 continue
             title = str(row[1]).strip() if row[1] is not None else ""
             if not title:
                 continue
             try:
-                track_no = int(row[0]) if row[0] not in (None, "") else len(songs) + 1
+                raw_track = row[0]
+                track_no = int(str(raw_track)) if raw_track not in (None, "") else len(songs) + 1
             except (TypeError, ValueError):
                 track_no = len(songs) + 1
             track_no = max(1, track_no)
@@ -89,7 +118,7 @@ def merge_album_with_tracklist(
             tempo = None
             if len(row) > 3 and row[3] not in (None, ""):
                 try:
-                    tempo = int(row[3])
+                    tempo = int(str(row[3]))
                 except (TypeError, ValueError):
                     tempo = None
             if tempo is not None and tempo <= 0:
