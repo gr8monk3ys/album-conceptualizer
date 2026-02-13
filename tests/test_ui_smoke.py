@@ -1,8 +1,9 @@
 import pytest
 
-gr = pytest.importorskip("gradio")
-
 from album_conceptualizer.ui import create_app
+
+
+gr = pytest.importorskip("gradio")
 
 
 def test_create_app_smoke():

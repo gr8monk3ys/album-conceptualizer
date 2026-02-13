@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+
 pytest.importorskip("pretty_midi")
 
 from album_conceptualizer.export.formats import AlbumExporter, ExportFormat

@@ -1,7 +1,10 @@
 """Tests for export functionality."""
 
+import importlib
+import sys
 import tempfile
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -59,7 +62,6 @@ class TestMidiExport:
         # Should have bass note in lower octave
         assert len(notes) == 4  # Bass + triad
 
-    @pytest.mark.skip(reason="Requires pretty_midi installation")
     def test_create_chord_midi(self):
         """Test creating MIDI from chords."""
         chords = [
@@ -72,7 +74,6 @@ class TestMidiExport:
         assert midi is not None
         assert len(midi.instruments) == 1
 
-    @pytest.mark.skip(reason="Requires pretty_midi installation")
     def test_midi_exporter_from_symbols(self):
         """Test MIDI export from chord symbols."""
         exporter = MidiExporter()
@@ -142,7 +143,6 @@ class TestChordProExport:
         assert "Verse" in result
         assert "Chorus" in result
 
-    @pytest.mark.skip(reason="Requires file system access")
     def test_chordpro_exporter_song(self):
         """Test exporting a full song to ChordPro."""
         song = Song(title="Test Song", track_number=1, key="G", tempo=120)
@@ -168,13 +168,20 @@ class TestChordProExport:
 class TestExportFormats:
     """Tests for the unified export interface."""
 
-    def test_sanitize_filename(self):
+    def test_sanitize_filename(self, monkeypatch):
         """Test filename sanitization."""
-        try:
-            from album_conceptualizer.export.formats import AlbumExporter
-        except ImportError:
-            pytest.skip("Export formats dependencies not installed")
-            return
+        fake_pretty_midi = ModuleType("pretty_midi")
+        fake_pretty_midi.PrettyMIDI = object
+        fake_pretty_midi.Instrument = object
+        fake_pretty_midi.Note = object
+        monkeypatch.setitem(sys.modules, "pretty_midi", fake_pretty_midi)
+
+        sys.modules.pop("album_conceptualizer.export.midi", None)
+        sys.modules.pop("album_conceptualizer.export.formats", None)
+
+        formats_module = importlib.import_module("album_conceptualizer.export.formats")
+        importlib.reload(formats_module)
+        AlbumExporter = formats_module.AlbumExporter
 
         assert AlbumExporter._sanitize_filename("Normal Name") == "Normal Name"
         assert AlbumExporter._sanitize_filename("Bad/Name") == "Bad_Name"

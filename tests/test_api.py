@@ -4,13 +4,20 @@ import pytest
 from fastapi.testclient import TestClient
 
 from album_conceptualizer.api.app import create_app
+from album_conceptualizer.config import reset_settings
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
     """Create a test client."""
+    monkeypatch.delenv("ALBUM_CONCEPTUALIZER_API_KEY", raising=False)
+    monkeypatch.delenv("ALBUM_CONCEPTUALIZER_API_KEYS", raising=False)
+    monkeypatch.delenv("ALBUM_CONCEPTUALIZER_STRICT_PRODUCTION", raising=False)
+    reset_settings()
     app = create_app()
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
+    reset_settings()
 
 
 class TestHealthEndpoints:
@@ -38,6 +45,26 @@ class TestHealthEndpoints:
         data = response.json()
         assert "ready" in data
         assert "checks" in data
+
+    def test_metrics_snapshot_contains_duration_fields(self, client):
+        """Test /api/v1/metrics JSON includes latency aggregates."""
+        client.get("/api/v1/health")
+        response = client.get("/api/v1/metrics")
+        assert response.status_code == 200
+        payload = response.json()
+        assert "request_count" in payload
+        assert "total_duration_ms" in payload
+        assert "avg_duration_ms" in payload
+        assert "path_duration_ms" in payload
+
+    def test_metrics_prometheus_contains_duration_series(self, client):
+        """Test Prometheus text output includes duration counters."""
+        client.get("/api/v1/health")
+        response = client.get("/api/v1/metrics", params={"format": "prometheus"})
+        assert response.status_code == 200
+        body = response.text
+        assert "album_conceptualizer_request_duration_ms_sum" in body
+        assert "album_conceptualizer_request_duration_ms_avg" in body
 
 
 class TestAlbumEndpoints:
@@ -197,6 +224,54 @@ class TestSongEndpoints:
         data = response.json()
         assert len(data["sections"]) == 2
 
+    def test_update_song_not_found(self, client, album_id):
+        """Updating a missing song should return 404."""
+        response = client.patch(
+            f"/api/v1/albums/{album_id}/songs/does-not-exist",
+            json={"title": "Updated"},
+        )
+        assert response.status_code == 404
+
+    def test_add_section_endpoint(self, client, album_id):
+        """Test adding a section to an existing song."""
+        song_resp = client.post(
+            f"/api/v1/albums/{album_id}/songs",
+            json={"title": "Section Song", "track_number": 1},
+        )
+        song_id = song_resp.json()["id"]
+
+        response = client.post(
+            f"/api/v1/albums/{album_id}/songs/{song_id}/sections",
+            json={
+                "section_type": "verse",
+                "order": 1,
+                "lyrics": "Line 1",
+                "chord_progression": ["C", "G", "Am", "F"],
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["section_type"] == "verse"
+        assert data["order"] == 1
+
+    def test_reorder_song_endpoint(self, client, album_id):
+        """Test changing track order for a song."""
+        song_1 = client.post(
+            f"/api/v1/albums/{album_id}/songs",
+            json={"title": "Song 1", "track_number": 1},
+        ).json()
+        client.post(
+            f"/api/v1/albums/{album_id}/songs",
+            json={"title": "Song 2", "track_number": 2},
+        )
+
+        response = client.put(
+            f"/api/v1/albums/{album_id}/songs/{song_1['id']}/reorder",
+            params={"new_track_number": 2},
+        )
+        assert response.status_code == 200
+        assert response.json()["track_number"] == 2
+
 
 class TestTheoryEndpoints:
     """Tests for music theory endpoints."""
@@ -265,3 +340,81 @@ class TestExportEndpoints:
         assert response.status_code == 200
         assert "{title: Test Song}" in response.text
         assert "{key: G}" in response.text
+
+    def test_export_album_chordpro(self, client):
+        """Test exporting album songs as ChordPro."""
+        album = client.post(
+            "/api/v1/albums",
+            json={"title": "Export Album", "artist": "Band"},
+        ).json()
+        album_id = album["id"]
+        client.post(
+            f"/api/v1/albums/{album_id}/songs",
+            json={
+                "title": "Export Song",
+                "track_number": 1,
+                "sections": [
+                    {
+                        "section_type": "verse",
+                        "order": 1,
+                        "lyrics": "Hello world",
+                        "chord_progression": ["C", "G", "Am", "F"],
+                    }
+                ],
+            },
+        )
+
+        response = client.get(f"/api/v1/export/album/{album_id}/chordpro")
+        assert response.status_code == 200
+        assert "{title: Export Song}" in response.text
+        assert "Hello world" in response.text
+
+
+class TestBibleEndpoints:
+    """Tests for bible subresource endpoints."""
+
+    @pytest.fixture
+    def album_id(self, client):
+        response = client.post(
+            "/api/v1/albums",
+            json={"title": "Bible Album", "artist": "Artist"},
+        )
+        return response.json()["id"]
+
+    def test_add_theme(self, client, album_id):
+        response = client.post(
+            f"/api/v1/albums/{album_id}/bible/themes",
+            json={
+                "name": "Identity",
+                "description": "Who we become",
+                "primary_songs": [1],
+            },
+        )
+        assert response.status_code == 201
+        assert response.json()["name"] == "Identity"
+
+    def test_add_character(self, client, album_id):
+        response = client.post(
+            f"/api/v1/albums/{album_id}/bible/characters",
+            json={
+                "name": "Narrator",
+                "role": "protagonist",
+                "description": "Main voice",
+                "appears_in": [1, 2],
+            },
+        )
+        assert response.status_code == 201
+        assert response.json()["name"] == "Narrator"
+
+    def test_add_motif(self, client, album_id):
+        response = client.post(
+            f"/api/v1/albums/{album_id}/bible/motifs",
+            json={
+                "name": "Clock",
+                "motif_type": "lyrical",
+                "description": "Passage of time",
+                "appearances": [{"track_number": 1}],
+            },
+        )
+        assert response.status_code == 201
+        assert response.json()["name"] == "Clock"
