@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getStripe } from "@/server/stripe";
+import { getAuthSession } from "@/server/auth";
+import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 type CheckoutBody = {
   plan?: "free" | "pro" | "team";
@@ -13,6 +15,12 @@ const PLAN_TO_PRICE_ENV: Record<NonNullable<CheckoutBody["plan"]>, string> = {
 };
 
 export async function POST(request: Request) {
+  const authSession = await getAuthSession();
+  const userId = authSession?.user?.id;
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
   const payload = (await request.json().catch(() => ({}))) as CheckoutBody;
   const plan = payload.plan ?? "pro";
   const priceEnv = PLAN_TO_PRICE_ENV[plan];
@@ -28,6 +36,8 @@ export async function POST(request: Request) {
   const successUrl = `${appUrl}/app/settings/billing?success=1&session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${appUrl}/app/settings/billing?canceled=1`;
 
+  const workspace = await getActiveWorkspaceForUser(userId);
+
   let stripe;
   try {
     stripe = getStripe();
@@ -36,16 +46,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  const session = await stripe.checkout.sessions.create({
+  const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: successUrl,
     cancel_url: cancelUrl,
+    allow_promotion_codes: true,
+    client_reference_id: workspace.id,
+    customer_email: authSession.user?.email ?? undefined,
     metadata: {
       plan,
-      // TODO: attach workspaceId/userId after auth wiring.
+      workspaceId: workspace.id,
+      userId,
+    },
+    subscription_data: {
+      metadata: {
+        workspaceId: workspace.id,
+        userId,
+        plan,
+      },
     },
   });
 
-  return NextResponse.json({ url: session.url, sessionId: session.id });
+  return NextResponse.json({ url: checkoutSession.url, sessionId: checkoutSession.id });
 }
