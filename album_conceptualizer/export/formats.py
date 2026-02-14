@@ -167,15 +167,25 @@ class AlbumExporter:
                     song=song,
                     output_dir=output_dir / "midi",
                 )
-                for section_name, path in midi_results.items():
+                if not midi_results:
                     results[ExportFormat.MIDI.value].append(
                         ExportResult(
                             format=ExportFormat.MIDI,
-                            path=path,
-                            success=True,
-                            message=f"MIDI exported: {section_name}",
+                            path=output_dir / "midi" / f"{song_name}.mid",
+                            success=False,
+                            message="MIDI export skipped: no chord progressions found.",
                         )
                     )
+                else:
+                    for section_name, path in midi_results.items():
+                        results[ExportFormat.MIDI.value].append(
+                            ExportResult(
+                                format=ExportFormat.MIDI,
+                                path=path,
+                                success=True,
+                                message=f"MIDI exported: {section_name}",
+                            )
+                        )
             except Exception as e:
                 results[ExportFormat.MIDI.value].append(
                     ExportResult(
