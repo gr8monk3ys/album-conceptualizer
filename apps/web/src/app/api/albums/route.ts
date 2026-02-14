@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
 
 import { getPrisma } from "@/server/db";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
 import { AlbumJsonSchema } from "@/server/album-json";
+import { buildAlbumMutationData } from "@/server/album-sync";
 
 const BodySchema = z.object({
   album: AlbumJsonSchema,
@@ -48,37 +48,12 @@ export async function POST(request: Request) {
   }
 
   const album = payload.data.album;
-  const trackCount = album.songs.length;
+  const mutation = buildAlbumMutationData(album);
 
   const created = await prisma.album.create({
     data: {
       workspaceId: workspace.id,
-      title: album.title,
-      artist: album.artist ?? null,
-      conceptSummary: album.concept_summary ?? null,
-      primaryGenre: album.primary_genre ?? null,
-      centralThemes: album.central_themes ?? undefined,
-      trackCount,
-      data: album as Prisma.InputJsonValue,
-      songs: {
-        create: album.songs.map((song) => ({
-          trackNumber: song.track_number,
-          title: song.title,
-          key: song.key ?? null,
-          tempo: song.tempo ?? null,
-          narrativeSummary: song.narrative_summary ?? null,
-          sections: song.sections?.length
-            ? {
-                create: song.sections.map((section) => ({
-                  sectionType: section.section_type,
-                  order: section.order,
-                  lyrics: section.lyrics ?? null,
-                  chordProgression: section.chord_progression ?? [],
-                })),
-              }
-            : undefined,
-        })),
-      },
+      ...mutation,
     },
     select: { id: true },
   });
