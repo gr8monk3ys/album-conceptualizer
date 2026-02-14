@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AlbumDangerZone } from "@/components/album-danger-zone";
 import { getAlbum } from "@/server/albums";
+import { analyzeAlbumCoherence } from "@/server/coherence";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
@@ -37,6 +38,7 @@ export default async function AlbumDetailPage({
   if (!album) notFound();
 
   const songs = getSongsFromAlbumData(album.data);
+  const coherence = analyzeAlbumCoherence(album.data);
 
   return (
     <div className="flex flex-col gap-6">
@@ -114,6 +116,26 @@ export default async function AlbumDetailPage({
         </section>
 
         <aside className="space-y-3">
+          <Link
+            href={`/app/albums/${album.id}/coherence`}
+            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-[var(--muted2)]">Coherence</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  {coherence.score}/100
+                </div>
+              </div>
+              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
+                View report
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-[var(--muted2)]">
+              {coherence.issues[0]?.title ?? "No issues detected."}
+            </div>
+          </Link>
+
           <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
             <div className="text-xs text-[var(--muted2)]">Status</div>
             <div className="mt-1 text-sm font-semibold text-[var(--text)]">{album.status}</div>

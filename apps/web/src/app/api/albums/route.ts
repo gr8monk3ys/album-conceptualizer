@@ -1,38 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 
 import { getPrisma } from "@/server/db";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
-
-const SectionSchema = z.object({
-  id: z.string().optional(),
-  section_type: z.string().min(1),
-  order: z.number().int().min(0),
-  lyrics: z.string().optional().nullable(),
-  chord_progression: z.array(z.string()).optional(),
-});
-
-const SongSchema = z.object({
-  id: z.string().optional(),
-  title: z.string().min(1).max(200),
-  track_number: z.number().int().min(1),
-  key: z.string().optional().nullable(),
-  tempo: z.number().int().optional().nullable(),
-  narrative_summary: z.string().optional().nullable(),
-  sections: z.array(SectionSchema).optional(),
-});
-
-const AlbumJsonSchema = z.object({
-  id: z.string().optional(),
-  title: z.string().min(1).max(200),
-  artist: z.string().optional().nullable(),
-  concept_summary: z.string().optional().nullable(),
-  primary_genre: z.string().optional().nullable(),
-  central_themes: z.array(z.string()).optional(),
-  songs: z.array(SongSchema),
-});
+import { AlbumJsonSchema } from "@/server/album-json";
 
 const BodySchema = z.object({
   album: AlbumJsonSchema,
@@ -85,7 +59,7 @@ export async function POST(request: Request) {
       primaryGenre: album.primary_genre ?? null,
       centralThemes: album.central_themes ?? undefined,
       trackCount,
-      data: album,
+      data: album as Prisma.InputJsonValue,
       songs: {
         create: album.songs.map((song) => ({
           trackNumber: song.track_number,
