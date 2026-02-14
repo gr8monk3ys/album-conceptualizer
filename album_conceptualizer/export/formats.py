@@ -5,8 +5,6 @@ from enum import StrEnum
 from pathlib import Path
 
 from album_conceptualizer.export.chordpro import ChordProExporter
-from album_conceptualizer.export.midi import MidiExporter
-from album_conceptualizer.export.musicxml import MusicXMLExporter
 from album_conceptualizer.models.album import Album, Song
 from album_conceptualizer.models.music_theory import ChordProgression
 
@@ -55,9 +53,23 @@ class AlbumExporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.midi_exporter = MidiExporter(default_tempo=default_tempo)
+        self.midi_exporter = None
+        try:
+            from album_conceptualizer.export.midi import MidiExporter
+
+            self.midi_exporter = MidiExporter(default_tempo=default_tempo)
+        except ImportError:
+            self.midi_exporter = None
+
         self.chordpro_exporter = ChordProExporter(default_artist=artist_name)
-        self.musicxml_exporter = MusicXMLExporter()
+
+        self.musicxml_exporter = None
+        try:
+            from album_conceptualizer.export.musicxml import MusicXMLExporter
+
+            self.musicxml_exporter = MusicXMLExporter()
+        except ImportError:
+            self.musicxml_exporter = None
 
     def export_album(
         self,
@@ -147,6 +159,10 @@ class AlbumExporter:
         # MIDI export
         if ExportFormat.MIDI in formats:
             try:
+                if not self.midi_exporter:
+                    raise RuntimeError(
+                        "MIDI export not available. Install with: pip install -e '.[music]'"
+                    )
                 midi_results = self.midi_exporter.export_song(
                     song=song,
                     output_dir=output_dir / "midi",
@@ -201,6 +217,10 @@ class AlbumExporter:
         # MusicXML export
         if ExportFormat.MUSICXML in formats:
             try:
+                if not self.musicxml_exporter:
+                    raise RuntimeError(
+                        "MusicXML export not available. Install with: pip install -e '.[music]'"
+                    )
                 xml_path = output_dir / "musicxml" / f"{song_name}.musicxml"
                 xml_path.parent.mkdir(parents=True, exist_ok=True)
                 self.musicxml_exporter.export_song(
