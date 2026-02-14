@@ -28,9 +28,9 @@ function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; tit
 export default async function AlbumDetailPage({
   params,
 }: {
-  params: { albumId: string };
+  params: Promise<{ albumId: string }>;
 }) {
-  const { albumId } = params;
+  const { albumId } = await params;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);

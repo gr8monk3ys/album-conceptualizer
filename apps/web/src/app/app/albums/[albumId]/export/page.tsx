@@ -11,9 +11,9 @@ export const dynamic = "force-dynamic";
 export default async function AlbumExportPage({
   params,
 }: {
-  params: { albumId: string };
+  params: Promise<{ albumId: string }>;
 }) {
-  const { albumId } = params;
+  const { albumId } = await params;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
@@ -38,4 +38,3 @@ export default async function AlbumExportPage({
     </div>
   );
 }
-
