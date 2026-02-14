@@ -4,6 +4,7 @@ import { getAuthSession } from "@/server/auth";
 import { getPrisma } from "@/server/db";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { getStripe } from "@/server/stripe";
+import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,14 @@ export async function POST() {
   const authSession = await getAuthSession();
   const userId = authSession?.user?.id;
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  const rate = await checkRateLimit("stripe", `user:${userId}`);
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Too many billing attempts. Please wait a bit and try again." },
+      { status: 429, headers: getRateLimitHeaders(rate) },
+    );
+  }
 
   const workspace = await getActiveWorkspaceForUser(userId);
   const prisma = getPrisma();
@@ -41,4 +50,3 @@ export async function POST() {
 
   return NextResponse.json({ url: portal.url });
 }
-

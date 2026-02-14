@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getPrisma } from "@/server/db";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
 
 const SectionSchema = z.object({
   id: z.string().optional(),
@@ -43,6 +44,15 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
+
+  const rate = await checkRateLimit("albums_create", `user:${userId}`);
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Too many project creations. Please wait a bit and try again." },
+      { status: 429, headers: getRateLimitHeaders(rate) },
+    );
+  }
+
   const payload = BodySchema.safeParse(await request.json().catch(() => null));
   if (!payload.success) {
     return NextResponse.json({ error: "Invalid album payload." }, { status: 400 });

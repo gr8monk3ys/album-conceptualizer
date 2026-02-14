@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/server/stripe";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
 
 type CheckoutBody = {
   plan?: "free" | "pro" | "team";
@@ -19,6 +20,14 @@ export async function POST(request: Request) {
   const userId = authSession?.user?.id;
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const rate = await checkRateLimit("stripe", `user:${userId}`);
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Too many billing attempts. Please wait a bit and try again." },
+      { status: 429, headers: getRateLimitHeaders(rate) },
+    );
   }
 
   const payload = (await request.json().catch(() => ({}))) as CheckoutBody;

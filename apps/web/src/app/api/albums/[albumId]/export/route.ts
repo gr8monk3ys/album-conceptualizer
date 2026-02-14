@@ -5,6 +5,7 @@ import { getPrisma } from "@/server/db";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { engineFetch } from "@/server/engine";
+import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,14 @@ export async function GET(
   const session = await getAuthSession();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+
+  const rate = await checkRateLimit("export_zip", `user:${userId}`);
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Too many exports. Please wait a bit and try again." },
+      { status: 429, headers: getRateLimitHeaders(rate) },
+    );
+  }
 
   const { albumId } = await params;
   const workspace = await getActiveWorkspaceForUser(userId);
