@@ -10,6 +10,13 @@ function splitTrackNames(raw: string): string[] {
     .filter(Boolean);
 }
 
+const COMMON_PROGRESSIONS: Array<{ key: string; chords: string[] }> = [
+  { key: "C", chords: ["C", "G", "Am", "F"] }, // I–V–vi–IV
+  { key: "A minor", chords: ["Am", "F", "C", "G"] }, // vi–IV–I–V
+  { key: "G", chords: ["G", "D", "Em", "C"] }, // I–V–vi–IV
+  { key: "D minor", chords: ["Dm", "Bb", "F", "C"] }, // i–VI–III–VII
+];
+
 function buildAlbumJson(input: {
   title: string;
   artist: string;
@@ -23,17 +30,27 @@ function buildAlbumJson(input: {
   const songs = Array.from({ length: input.trackCount }, (_, i) => {
     const trackNumber = i + 1;
     const title = trackNames[i] || `Track ${trackNumber}`;
+    const progression = COMMON_PROGRESSIONS[i % COMMON_PROGRESSIONS.length] ?? COMMON_PROGRESSIONS[0];
     return {
       id: crypto.randomUUID(),
       title,
       track_number: trackNumber,
+      key: progression.key,
+      tempo: 120,
       sections: [
         {
           id: crypto.randomUUID(),
           section_type: "verse",
           order: 1,
-          lyrics: "[Add lyrics here]",
-          chord_progression: [],
+          lyrics: "[Verse line 1]\n[Verse line 2]\n[Verse line 3]\n[Verse line 4]",
+          chord_progression: progression.chords,
+        },
+        {
+          id: crypto.randomUUID(),
+          section_type: "chorus",
+          order: 2,
+          lyrics: "[Chorus line 1]\n[Chorus line 2]\n[Chorus line 3]\n[Chorus line 4]",
+          chord_progression: progression.chords,
         },
       ],
       time_signature: "4/4",
