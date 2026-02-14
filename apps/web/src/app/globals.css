@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0b0b10;
+  --bg2: #0e1020;
+  --panel: rgba(255, 255, 255, 0.05);
+  --panel2: rgba(255, 255, 255, 0.035);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.62);
+  --muted2: rgba(255, 255, 255, 0.45);
+  --accent: #ff3ea5;
+  --accent2: #6d5efc;
+  --ok: #32d583;
+  --warn: #f79009;
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background:
+    radial-gradient(1200px 520px at 18% -10%, rgba(109, 94, 252, 0.35), transparent 55%),
+    radial-gradient(900px 520px at 70% 0%, rgba(255, 62, 165, 0.24), transparent 58%),
+    radial-gradient(700px 500px at 82% 65%, rgba(30, 200, 255, 0.08), transparent 62%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+  color: var(--text);
+}
+
+::selection {
+  background: rgba(255, 62, 165, 0.35);
+}
+
+/* Subtle scrollbar, Suno-style */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}

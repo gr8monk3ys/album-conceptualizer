@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String?
+  email     String?   @unique
+  image     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  accounts  Account[]
+  sessions  Session[]
+  workspacesOwned Workspace[] @relation("WorkspaceOwner")
+  memberships WorkspaceMember[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner     User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members   WorkspaceMember[]
+  albums    Album[]
+  subscription Subscription?
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String   @default("member")
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model Album {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  title         String
+  artist        String?
+  conceptSummary String?
+  primaryGenre  String?
+  centralThemes Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  songs     Song[]
+}
+
+model Song {
+  id          String   @id @default(cuid())
+  albumId     String
+  trackNumber Int
+  title       String
+  key         String?
+  tempo       Int?
+  narrativeSummary String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  album    Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  sections Section[]
+
+  @@unique([albumId, trackNumber])
+}
+
+model Section {
+  id              String   @id @default(cuid())
+  songId          String
+  sectionType     String
+  order           Int
+  lyrics          String?
+  chordProgression Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@unique([songId, sectionType, order])
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  workspaceId           String   @unique
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  plan                 String   @default("free")
+  status               String   @default("inactive")
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
