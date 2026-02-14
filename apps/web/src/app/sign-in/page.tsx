@@ -1,8 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { signIn } from "next-auth/react";
 
 export default function SignInPage() {
+  const enableDevLogin = process.env.NEXT_PUBLIC_ENABLE_DEV_LOGIN === "1";
+  const [devEmail, setDevEmail] = useState("dev@example.com");
+  const [devName, setDevName] = useState("Dev User");
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(109,94,252,0.25),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(255,62,165,0.22),transparent_45%),radial-gradient(circle_at_40%_90%,rgba(50,213,131,0.12),transparent_55%),var(--bg)]">
       <div className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:48px_48px]" />
@@ -38,6 +43,44 @@ export default function SignInPage() {
                 More options
               </button>
             </div>
+
+            {enableDevLogin ? (
+              <div className="mt-5 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.25)] p-4">
+                <div className="text-xs font-semibold text-[var(--text)]">Dev login</div>
+                <div className="mt-1 text-xs text-[var(--muted2)]">
+                  Enabled because `NEXT_PUBLIC_ENABLE_DEV_LOGIN=1`. Do not use this in production.
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <input
+                    value={devEmail}
+                    onChange={(e) => setDevEmail(e.target.value)}
+                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    placeholder="email"
+                    autoComplete="off"
+                  />
+                  <input
+                    value={devName}
+                    onChange={(e) => setDevName(e.target.value)}
+                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    placeholder="name"
+                    autoComplete="off"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    signIn("credentials", {
+                      email: devEmail,
+                      name: devName,
+                      callbackUrl: "/app",
+                    })
+                  }
+                  className="mt-3 w-full rounded-2xl bg-[rgba(255,255,255,0.10)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.14)]"
+                >
+                  Continue (dev)
+                </button>
+              </div>
+            ) : null}
 
             <div className="mt-6 text-xs text-[var(--muted2)]">
               By continuing you agree to the Terms. Subscriptions are handled by Stripe.
@@ -88,4 +131,3 @@ export default function SignInPage() {
     </div>
   );
 }
-
