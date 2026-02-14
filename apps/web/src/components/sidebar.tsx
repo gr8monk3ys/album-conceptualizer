@@ -34,7 +34,29 @@ const nav: NavItem[] = [
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar({ className }: { className?: string }) {
+function computeCredits(plan: string | null | undefined) {
+  // Placeholder until we implement true credit accounting.
+  if (plan === "team") return { remaining: 500, total: 500 };
+  if (plan === "pro") return { remaining: 200, total: 200 };
+  return { remaining: 50, total: 50 };
+}
+
+export function Sidebar({
+  className,
+  workspaceName,
+  userName,
+  plan,
+}: {
+  className?: string;
+  workspaceName: string;
+  userName?: string | null;
+  plan?: string | null;
+}) {
+  const credits = computeCredits(plan);
+  const ratio = credits.total ? Math.min(1, credits.remaining / credits.total) : 0;
+  const planLabel = plan ? `${plan} plan` : "free plan";
+  const showUpgrade = plan !== "pro" && plan !== "team";
+
   return (
     <aside
       className={cn(
@@ -53,7 +75,7 @@ export function Sidebar({ className }: { className?: string }) {
             <div className="text-sm font-semibold tracking-tight text-[var(--text)]">
               Album Conceptualizer
             </div>
-            <div className="text-xs text-[var(--muted2)]">workspace: My Studio</div>
+            <div className="text-xs text-[var(--muted2)]">workspace: {workspaceName}</div>
           </div>
         </Link>
         <button
@@ -69,11 +91,14 @@ export function Sidebar({ className }: { className?: string }) {
         <div className="flex items-center justify-between">
           <div className="text-xs text-[var(--muted2)]">Credits</div>
           <div className="rounded-full bg-[rgba(50,213,131,0.14)] px-2 py-0.5 text-xs font-medium text-[var(--ok)]">
-            100
+            {credits.remaining}
           </div>
         </div>
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
-          <div className="h-full w-[62%] rounded-full bg-[linear-gradient(90deg,var(--accent2),var(--accent))]" />
+          <div
+            className="h-full rounded-full bg-[linear-gradient(90deg,var(--accent2),var(--accent))]"
+            style={{ width: `${Math.round(ratio * 100)}%` }}
+          />
         </div>
         <div className="mt-2 text-xs text-[var(--muted2)]">
           Earn more with daily challenges.
@@ -104,15 +129,17 @@ export function Sidebar({ className }: { className?: string }) {
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.35),rgba(255,255,255,0.08))]" />
           <div className="flex-1 leading-tight">
-            <div className="text-sm font-medium text-[var(--text)]">you</div>
-            <div className="text-xs text-[var(--muted2)]">pro plan</div>
+            <div className="text-sm font-medium text-[var(--text)]">{userName || "you"}</div>
+            <div className="text-xs text-[var(--muted2)]">{planLabel}</div>
           </div>
-          <Link
-            href="/app/settings/billing"
-            className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-white/90"
-          >
-            Upgrade
-          </Link>
+          {showUpgrade ? (
+            <Link
+              href="/app/settings/billing"
+              className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-white/90"
+            >
+              Upgrade
+            </Link>
+          ) : null}
         </div>
       </div>
     </aside>

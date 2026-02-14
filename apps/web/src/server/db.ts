@@ -1,14 +1,12 @@
 import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import ws from "ws";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createPrismaClient() {
-  // Neon serverless driver uses WebSockets for low-latency queries in serverless envs.
-  neonConfig.webSocketConstructor = ws;
-
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     // Don't fail module evaluation (e.g. during Next build); fail only when the DB is actually used.
@@ -17,7 +15,24 @@ function createPrismaClient() {
     );
   }
 
-  const adapter = new PrismaNeon({ connectionString });
+  const adapterName =
+    process.env.PRISMA_ADAPTER ?? (connectionString.includes(".neon.tech") ? "neon" : "pg");
+
+  const adapter =
+    adapterName === "pg"
+      ? new PrismaPg({ connectionString })
+      : adapterName === "neon"
+        ? (() => {
+            // Neon serverless driver uses WebSockets for low-latency queries in serverless envs.
+            neonConfig.webSocketConstructor = ws;
+            return new PrismaNeon({ connectionString });
+          })()
+        : null;
+
+  if (!adapter) {
+    throw new Error(`Unsupported PRISMA_ADAPTER: ${adapterName}`);
+  }
+
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],

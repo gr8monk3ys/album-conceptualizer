@@ -1,13 +1,21 @@
 import { Filter, Search, SlidersHorizontal } from "lucide-react";
+import Link from "next/link";
 
 import { cn } from "@/lib/utils";
+import { UserMenu } from "@/components/user-menu";
 
 export function Topbar({
   title,
   className,
+  user,
 }: {
   title?: string;
   className?: string;
+  user?: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
 }) {
   return (
     <div className={cn("flex items-center justify-between gap-3", className)}>
@@ -44,14 +52,14 @@ export function Topbar({
           <SlidersHorizontal className="h-4 w-4 text-[var(--muted2)]" />
           Filters
         </button>
-        <button
-          type="button"
+        <Link
+          href="/app/create"
           className="rounded-full bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-4 py-2 text-xs font-semibold text-black shadow-[0_14px_40px_rgba(255,62,165,0.18)] hover:brightness-110"
         >
           Create
-        </button>
+        </Link>
+        {user ? <UserMenu name={user.name} email={user.email} imageUrl={user.image} /> : null}
       </div>
     </div>
   );
 }
-
