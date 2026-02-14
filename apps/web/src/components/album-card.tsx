@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Heart, MoreHorizontal, Play } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -15,17 +16,14 @@ export type AlbumListItem = {
 export function AlbumCard({
   album,
   className,
+  href,
 }: {
   album: AlbumListItem;
   className?: string;
+  href?: string;
 }) {
-  return (
-    <div
-      className={cn(
-        "group flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)] hover:bg-[rgba(255,255,255,0.05)]",
-        className,
-      )}
-    >
+  const content = (
+    <>
       <div className="relative h-16 w-16 flex-none overflow-hidden rounded-xl bg-[rgba(255,255,255,0.06)]">
         {album.cover ? (
           <Image
@@ -73,6 +71,7 @@ export function AlbumCard({
           type="button"
           className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)]"
           aria-label="Like"
+          onClick={(event) => event.preventDefault()}
         >
           <Heart className="h-4 w-4" />
         </button>
@@ -80,11 +79,24 @@ export function AlbumCard({
           type="button"
           className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)]"
           aria-label="More"
+          onClick={(event) => event.preventDefault()}
         >
           <MoreHorizontal className="h-4 w-4" />
         </button>
       </div>
-    </div>
+    </>
+  );
+
+  const wrapperClassName = cn(
+    "group flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)] hover:bg-[rgba(255,255,255,0.05)]",
+    className,
+  );
+
+  return href ? (
+    <Link href={href} className={wrapperClassName}>
+      {content}
+    </Link>
+  ) : (
+    <div className={wrapperClassName}>{content}</div>
   );
 }
-

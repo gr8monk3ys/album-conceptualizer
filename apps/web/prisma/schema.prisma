@@ -90,6 +90,12 @@ model Album {
   conceptSummary String?
   primaryGenre  String?
   centralThemes Json?
+  trackCount    Int      @default(0)
+  coverUrl      String?
+  status        String   @default("draft")
+  // Full album JSON compatible with the Python `Album` pydantic model.
+  // This is the source of truth for exports + future editors.
+  data          Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

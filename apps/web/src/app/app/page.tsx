@@ -1,29 +1,40 @@
 import { AlbumCard, type AlbumListItem } from "@/components/album-card";
+import Link from "next/link";
 
-const demo: AlbumListItem[] = [
-  {
-    id: "a1",
-    title: "Untitled",
-    subtitle: "Hypnagogic pop / synth noir / city-night arc",
-    tag: "v1 preview",
-    duration: "1:00",
-  },
-  {
-    id: "a2",
-    title: "After Midnight",
-    subtitle: "Indie pop concept draft | 10 tracks | rewrite pass pending",
-    duration: "0:32",
-  },
-  {
-    id: "a3",
-    title: "Signal Return",
-    subtitle: "Alt-pop bible + release kit exported",
-    tag: "release kit",
-    duration: "3:09",
-  },
-];
+import { listAlbums } from "@/server/albums";
+import { requireUser } from "@/server/identity";
+import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
-export default function AppHomePage() {
+export const dynamic = "force-dynamic";
+
+function buildSubtitle(input: {
+  primaryGenre: string | null;
+  trackCount: number;
+  conceptSummary: string | null;
+}) {
+  const genre = input.primaryGenre || "Concept";
+  const tracks = `${input.trackCount} track${input.trackCount === 1 ? "" : "s"}`;
+  const summary = input.conceptSummary ? ` | ${input.conceptSummary}` : "";
+  return `${genre} | ${tracks}${summary}`;
+}
+
+export default async function AppHomePage() {
+  const { userId } = await requireUser();
+  const workspace = await getActiveWorkspaceForUser(userId);
+  const albums = await listAlbums(workspace.id);
+
+  const items: AlbumListItem[] = albums.map((album) => ({
+    id: album.id,
+    title: album.title,
+    subtitle: buildSubtitle({
+      primaryGenre: album.primaryGenre,
+      trackCount: album.trackCount,
+      conceptSummary: album.conceptSummary,
+    }),
+    tag: album.status === "draft" ? "draft" : undefined,
+    cover: album.coverUrl ?? undefined,
+  }));
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -31,18 +42,46 @@ export default function AppHomePage() {
         <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
           Recent projects
         </div>
-        <div className="max-w-[64ch] text-sm text-[var(--muted)]">
-          Pick up where you left off. This dashboard will soon sync to Neon (Postgres) and your
-          Stripe plan, Suno-style.
-        </div>
+        {items.length ? (
+          <div className="max-w-[64ch] text-sm text-[var(--muted)]">
+            Pick up where you left off. Projects are synced to Neon (Postgres) and your Stripe
+            plan.
+          </div>
+        ) : (
+          <div className="max-w-[64ch] text-sm text-[var(--muted)]">
+            Your library is empty. Create your first concept album and export it to your DAW.
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
-        {demo.map((album) => (
-          <AlbumCard key={album.id} album={album} />
-        ))}
-      </div>
+      {items.length ? (
+        <div className="grid grid-cols-1 gap-3">
+          {items.map((album) => (
+            <AlbumCard key={album.id} album={album} href={`/app/albums/${album.id}`} />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-6">
+          <div className="text-sm font-semibold text-[var(--text)]">Start here</div>
+          <div className="mt-1 text-sm text-[var(--muted)]">
+            Generate an `album.json` scaffold, save it, then iterate track by track.
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Link
+              href="/app/create"
+              className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-5 py-3 text-sm font-semibold text-black hover:brightness-110"
+            >
+              Create album
+            </Link>
+            <Link
+              href="/app/settings/billing"
+              className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+            >
+              View plans
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

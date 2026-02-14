@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 function splitTrackNames(raw: string): string[] {
   return raw
@@ -26,7 +27,15 @@ function buildAlbumJson(input: {
       id: crypto.randomUUID(),
       title,
       track_number: trackNumber,
-      sections: [],
+      sections: [
+        {
+          id: crypto.randomUUID(),
+          section_type: "verse",
+          order: 1,
+          lyrics: "[Add lyrics here]",
+          chord_progression: [],
+        },
+      ],
       time_signature: "4/4",
       themes: [],
       motifs: [],
@@ -59,6 +68,7 @@ function buildAlbumJson(input: {
 }
 
 export function QuickStartComposer() {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [conceptSummary, setConceptSummary] = useState("");
@@ -66,6 +76,7 @@ export function QuickStartComposer() {
   const [trackNamesRaw, setTrackNamesRaw] = useState("");
   const [albumJson, setAlbumJson] = useState<Record<string, unknown> | null>(null);
   const [status, setStatus] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const jsonText = useMemo(() => {
     if (!albumJson) return "";
@@ -208,6 +219,39 @@ export function QuickStartComposer() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={async () => {
+                if (!albumJson) return;
+                setIsSaving(true);
+                try {
+                  const response = await fetch("/api/albums", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ album: albumJson }),
+                  });
+                  if (!response.ok) {
+                    const body = (await response.json().catch(() => null)) as
+                      | { error?: string }
+                      | null;
+                    throw new Error(body?.error || "Failed to save project.");
+                  }
+                  const saved = (await response.json()) as { id: string };
+                  setStatus("Saved to workspace.");
+                  router.push(`/app/albums/${saved.id}`);
+                } catch (err) {
+                  const message = err instanceof Error ? err.message : "Failed to save project.";
+                  setStatus(message);
+                  window.setTimeout(() => setStatus(""), 2500);
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+              disabled={!albumJson || isSaving}
+              className="rounded-full bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-3 py-2 text-xs font-semibold text-black hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isSaving ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
               onClick={copyToClipboard}
               disabled={!albumJson}
               className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs text-[var(--muted)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-40"
@@ -234,4 +278,3 @@ export function QuickStartComposer() {
     </div>
   );
 }
-
