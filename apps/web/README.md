@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Album Conceptualizer Web Dashboard (Next.js)
 
-## Getting Started
+This is the production web dashboard for Album Conceptualizer.
 
-First, run the development server:
+Tech stack:
+
+- Next.js (App Router)
+- NextAuth (GitHub OAuth; plus a DEV-only credentials provider for local E2E)
+- Prisma (Neon Postgres in prod; local Postgres in Docker for dev)
+- Stripe (subscriptions + billing portal)
+
+This app persists album projects in Postgres and calls the Python engine for exports.
+
+## Local Development
+
+Prereqs:
+
+- Node.js + npm
+- Docker (for local Postgres/Redis)
+- Python engine running from the repo root (FastAPI)
+
+### 1) Start local Postgres (and Redis)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+docker compose -f docker-compose.local.yml up -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Local Postgres is exposed on `localhost:5433`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2) Configure env vars
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy the example file and edit as needed:
 
-## Learn More
+```bash
+cp .env.example .env.local
+```
 
-To learn more about Next.js, take a look at the following resources:
+Minimum for local E2E:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `DATABASE_URL=postgresql://postgres:postgres@localhost:5433/album_conceptualizer?schema=public`
+- `PRISMA_ADAPTER=pg`
+- `NEXTAUTH_SECRET=dev-secret`
+- `NEXTAUTH_URL=http://localhost:3002`
+- `NEXT_PUBLIC_APP_URL=http://localhost:3002`
+- `ENABLE_DEV_LOGIN=1`
+- `NEXT_PUBLIC_ENABLE_DEV_LOGIN=1`
+- `ENGINE_API_URL=http://127.0.0.1:8000/api/v1`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3) Install deps + migrate DB
 
-## Deploy on Vercel
+```bash
+npm install
+npm run prisma:migrate:dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 4) Run the Python engine (in repo root)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+In another terminal:
+
+```bash
+make api-dev
+```
+
+### 5) Run the dashboard
+
+```bash
+npm run dev -- -p 3002
+```
+
+Then open:
+
+- `http://localhost:3002` (marketing home)
+- `http://localhost:3002/sign-in` (use Dev Login when enabled)
+
+## Deploy (Vercel + Neon)
+
+High level:
+
+1. Create a Neon Postgres database and set `DATABASE_URL` in Vercel.
+2. Configure NextAuth (GitHub OAuth) and set `GITHUB_ID`, `GITHUB_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`.
+3. Configure Stripe and set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and price ids.
+4. Deploy the Python engine somewhere reachable from Vercel (or move long-running tasks to a job system).
