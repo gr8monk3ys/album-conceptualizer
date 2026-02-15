@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AlbumDangerZone } from "@/components/album-danger-zone";
+import { PublishAlbumButton } from "@/components/publish-album-button";
 import { ShareAlbumButton } from "@/components/share-album-button";
 import { getAlbum } from "@/server/albums";
 import { analyzeAlbumCoherence } from "@/server/coherence";
@@ -72,6 +73,7 @@ export default async function AlbumDetailPage({
           >
             Studio
           </Link>
+          <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
           <ShareAlbumButton albumId={album.id} />
           <Link
             href={`/app/albums/${album.id}/versions`}

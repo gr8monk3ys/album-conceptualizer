@@ -34,10 +34,11 @@ export async function getAlbum(workspaceId: string, albumId: string) {
       trackCount: true,
       coverUrl: true,
       status: true,
+      isPublic: true,
+      publishedAt: true,
       data: true,
       updatedAt: true,
       createdAt: true,
     },
   });
 }
-
