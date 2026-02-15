@@ -66,6 +66,12 @@ export default async function AlbumDetailPage({
           >
             Export
           </Link>
+          <Link
+            href={`/app/albums/${album.id}/studio`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            Studio
+          </Link>
           <ShareAlbumButton albumId={album.id} />
           <Link
             href={`/app/albums/${album.id}/versions`}
