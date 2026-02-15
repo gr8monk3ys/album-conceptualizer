@@ -5,16 +5,27 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
 
 import type { AlbumJson } from "@/server/album-json";
+import { SectionComments } from "@/components/section-comments";
 
 type SelectionInput = {
   song?: string;
   section?: string;
+  sid?: string;
   q?: string;
 };
 
 function clampIndex(value: number, max: number) {
   if (max <= 0) return 0;
   return Math.min(max - 1, Math.max(0, value));
+}
+
+function newId() {
+  // crypto.randomUUID is supported in modern browsers. Keep a safe fallback for tests.
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `id_${Math.random().toString(36).slice(2)}`;
+  }
 }
 
 function parseChordProgression(raw: string): string[] {
@@ -41,7 +52,7 @@ function parseCentralThemes(raw: string): string[] {
 
 function buildNewSection(order: number) {
   return {
-    id: crypto.randomUUID(),
+    id: newId(),
     section_type: "verse",
     order,
     lyrics: "",
@@ -52,7 +63,7 @@ function buildNewSection(order: number) {
 
 function buildNewSong(trackNumber: number) {
   return {
-    id: crypto.randomUUID(),
+    id: newId(),
     title: `Track ${trackNumber}`,
     track_number: trackNumber,
     key: null,
@@ -86,8 +97,9 @@ export function AlbumStudio({
   initialAlbum: unknown;
   initialSelection?: SelectionInput;
 }) {
-  const initialParsed = useMemo<AlbumJson>(() => {
+  const initialParsed = useMemo((): { album: AlbumJson; idsWereMissing: boolean } => {
     const fallback: AlbumJson = {
+      id: newId(),
       title: "Untitled",
       artist: null,
       concept_summary: null,
@@ -104,32 +116,100 @@ export function AlbumStudio({
       updated_at: new Date().toISOString(),
     };
 
-    if (!initialAlbum || typeof initialAlbum !== "object") return fallback;
+    if (!initialAlbum || typeof initialAlbum !== "object") {
+      return { album: fallback, idsWereMissing: false };
+    }
 
     const obj = initialAlbum as Partial<AlbumJson>;
-    const songs = Array.isArray(obj.songs) ? obj.songs : [];
+    const rawSongs = Array.isArray(obj.songs) ? obj.songs : [];
+    let idsWereMissing = false;
+
+    const songs = rawSongs
+      .map((song, songIndex) => {
+        const sectionsRaw = Array.isArray(song?.sections) ? song.sections : [];
+        const songId =
+          typeof song?.id === "string" && song.id.trim().length > 0
+            ? song.id
+            : (() => {
+                return newId();
+              })();
+
+        const sections = normalizeOrders(
+          sectionsRaw
+            .map((section, sectionIndex) => {
+              const sectionId =
+                typeof section?.id === "string" && section.id.trim().length > 0
+                  ? section.id
+                  : (() => {
+                    idsWereMissing = true;
+                    return newId();
+                  })();
+
+              const chordProgression = Array.isArray(section?.chord_progression)
+                ? section.chord_progression
+                : [];
+
+              return {
+                ...section,
+                id: sectionId,
+                order: typeof section?.order === "number" ? section.order : sectionIndex,
+                chord_progression: chordProgression,
+              };
+            })
+            .sort((a, b) => a.order - b.order),
+        );
+
+        return {
+          ...song,
+          id: songId,
+          track_number:
+            typeof song?.track_number === "number" ? song.track_number : songIndex + 1,
+          themes: Array.isArray(song?.themes) ? song.themes : [],
+          motifs: Array.isArray(song?.motifs) ? song.motifs : [],
+          characters: Array.isArray(song?.characters) ? song.characters : [],
+          genre_tags: Array.isArray(song?.genre_tags) ? song.genre_tags : [],
+          mood_tags: Array.isArray(song?.mood_tags) ? song.mood_tags : [],
+          reference_tracks: Array.isArray(song?.reference_tracks) ? song.reference_tracks : [],
+          instrumentation: Array.isArray(song?.instrumentation) ? song.instrumentation : [],
+          sections,
+        };
+      })
+      .sort((a, b) => a.track_number - b.track_number);
+
+    const albumIdFromJson =
+      typeof obj.id === "string" && obj.id.trim().length > 0
+        ? obj.id
+        : (() => {
+            return newId();
+          })();
+
     return {
+      idsWereMissing,
+      album: {
       ...fallback,
       ...obj,
-      songs,
+      id: albumIdFromJson,
+      songs: normalizeTrackNumbers(songs),
       central_themes: Array.isArray(obj.central_themes) ? obj.central_themes : [],
       secondary_genres: Array.isArray(obj.secondary_genres) ? obj.secondary_genres : [],
       recurring_motifs: Array.isArray(obj.recurring_motifs) ? obj.recurring_motifs : [],
       reference_albums: Array.isArray(obj.reference_albums) ? obj.reference_albums : [],
       visual_inspiration: Array.isArray(obj.visual_inspiration) ? obj.visual_inspiration : [],
+      },
     };
   }, [initialAlbum]);
 
-  const [album, setAlbum] = useState<AlbumJson>(initialParsed);
+  const [album, setAlbum] = useState<AlbumJson>(initialParsed.album);
   const [selectedSong, setSelectedSong] = useState(0);
   const [selectedSection, setSelectedSection] = useState(0);
   const [centralThemesText, setCentralThemesText] = useState(
-    (initialParsed.central_themes ?? []).join(", "),
+    (initialParsed.album.central_themes ?? []).join(", "),
   );
   const [versionMessage, setVersionMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [stableIdsPersisted, setStableIdsPersisted] = useState(!initialParsed.idsWereMissing);
 
   const songs = useMemo(() => album.songs ?? [], [album.songs]);
   const activeSong = songs[selectedSong];
@@ -148,6 +228,14 @@ export function AlbumStudio({
   }, [initialSelection?.song, songs]);
 
   useEffect(() => {
+    const desiredSid = initialSelection?.sid?.trim();
+    if (!desiredSid) return;
+    const index = sections.findIndex((section) => section.id === desiredSid);
+    if (index >= 0) setSelectedSection(index);
+  }, [initialSelection?.sid, sections]);
+
+  useEffect(() => {
+    if (initialSelection?.sid) return;
     const desiredOrder =
       initialSelection?.section && /^\d+$/.test(initialSelection.section)
         ? Number(initialSelection.section)
@@ -156,7 +244,7 @@ export function AlbumStudio({
 
     const index = sections.findIndex((section) => section.order === desiredOrder);
     if (index >= 0) setSelectedSection(index);
-  }, [initialSelection?.section, sections]);
+  }, [initialSelection?.section, initialSelection?.sid, sections]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -215,6 +303,7 @@ export function AlbumStudio({
         central_themes: parseCentralThemes(centralThemesText),
       }));
       setDirty(false);
+      setStableIdsPersisted(true);
       setVersionMessage("");
       setStatus(opts?.withVersion ? "Saved + versioned." : "Saved.");
     } catch (err) {
@@ -730,13 +819,58 @@ export function AlbumStudio({
           {status ? <div className="mt-3 text-xs text-[var(--muted)]">{status}</div> : null}
         </div>
 
+        {activeSong && activeSection ? (
+          stableIdsPersisted ? (
+            <SectionComments
+              albumId={albumId}
+              section={{
+                id: activeSection.id!,
+                songTrackNumber: activeSong.track_number,
+                sectionType: activeSection.section_type,
+                sectionOrder: activeSection.order,
+              }}
+            />
+          ) : (
+            <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs text-[var(--muted2)]">Collaboration</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--text)]">Comments</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => save({ withVersion: false })}
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Save className="h-4 w-4" />
+                  Save to enable
+                </button>
+              </div>
+              <div className="mt-2 text-xs leading-relaxed text-[var(--muted2)]">
+                This project was imported without stable section IDs. Save once to enable comments and
+                shareable deep links.
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+            <div className="text-xs text-[var(--muted2)]">Collaboration</div>
+            <div className="mt-1 text-sm font-semibold text-[var(--text)]">Comments</div>
+            <div className="mt-2 text-xs text-[var(--muted2)]">
+              Select a section to leave feedback.
+            </div>
+          </div>
+        )}
+
         <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
           <div className="text-xs text-[var(--muted2)]">Tips</div>
           <ul className="mt-2 space-y-2 text-sm text-[var(--muted)]">
             <li>Keep chord loops short (4-8 chords) for clean MIDI exports.</li>
             <li>Use section types like `verse`, `chorus`, `bridge` for better tooling.</li>
             <li>
-              Jump here from Search results with deep links: `song=track_number&section=order`.
+              Jump here from deep links: `song=track_number&section=order` or
+              `song=track_number&sid=section_id`.
             </li>
           </ul>
         </div>

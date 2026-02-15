@@ -58,10 +58,10 @@ export default async function AlbumStudioPage({
         initialSelection={{
           song: typeof query.song === "string" ? query.song : undefined,
           section: typeof query.section === "string" ? query.section : undefined,
+          sid: typeof query.sid === "string" ? query.sid : undefined,
           q: typeof query.q === "string" ? query.q : undefined,
         }}
       />
     </div>
   );
 }
-

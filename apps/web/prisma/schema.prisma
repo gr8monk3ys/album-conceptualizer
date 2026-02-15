@@ -21,6 +21,8 @@ model User {
   albumVersionsCreated AlbumVersion[]
   albumShareLinksCreated AlbumShareLink[]
   albumLikes AlbumLike[]
+  sectionCommentsAuthored AlbumSectionComment[] @relation("SectionCommentAuthor")
+  sectionCommentsResolved AlbumSectionComment[] @relation("SectionCommentResolver")
 }
 
 model Account {
@@ -112,6 +114,7 @@ model Album {
   versions  AlbumVersion[]
   shareLink AlbumShareLink?
   likes     AlbumLike[]
+  sectionComments AlbumSectionComment[]
 }
 
 model Song {
@@ -238,4 +241,28 @@ model AlbumLike {
 
   @@unique([albumId, userId])
   @@index([albumId, createdAt])
+}
+
+model AlbumSectionComment {
+  id              String   @id @default(cuid())
+  albumId          String
+  // External section id from the Album JSON (songs[].sections[].id).
+  sectionId        String
+  songTrackNumber  Int
+  sectionType      String
+  sectionOrder     Int
+  authorUserId     String
+  body             String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  deletedAt        DateTime?
+
+  album     Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  author    User  @relation("SectionCommentAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  resolvedBy User? @relation("SectionCommentResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([albumId, sectionId, createdAt])
+  @@index([authorUserId, createdAt])
 }
