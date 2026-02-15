@@ -81,7 +81,7 @@ export async function POST(
 
   const album = await prisma.album.findFirst({
     where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true },
+    select: { id: true, title: true },
   });
   if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
