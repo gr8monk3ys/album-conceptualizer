@@ -108,7 +108,9 @@ def create_email_sender(settings) -> EmailSender:
             missing_csv = ", ".join(missing)
             raise ValueError(f"SMTP email provider requires: {missing_csv}")
         if settings.smtp_use_ssl and settings.smtp_use_tls:
-            raise ValueError("Set only one of ALBUM_CONCEPTUALIZER_SMTP_USE_SSL or _USE_TLS to true")
+            raise ValueError(
+                "Set only one of ALBUM_CONCEPTUALIZER_SMTP_USE_SSL or _USE_TLS to true"
+            )
         return SMTPEmailSender(
             host=settings.smtp_host,
             port=settings.smtp_port,

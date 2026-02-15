@@ -46,5 +46,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         if metrics:
             route = request.scope.get("route")
             route_path = getattr(route, "path", request.url.path)
-            metrics.record(route_path, response.status_code, duration_ms=(time.time() - start) * 1000)
+            metrics.record(
+                route_path, response.status_code, duration_ms=(time.time() - start) * 1000
+            )
         return response

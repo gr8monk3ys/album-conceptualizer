@@ -241,9 +241,7 @@ class SQLiteAlbumStore(AlbumStore):
 
     def get(self, album_id: str) -> Album | None:
         with sqlite3.connect(self.path) as conn:
-            row = conn.execute(
-                "SELECT payload FROM albums WHERE id = ?", (album_id,)
-            ).fetchone()
+            row = conn.execute("SELECT payload FROM albums WHERE id = ?", (album_id,)).fetchone()
         if not row:
             return None
         return Album.model_validate_json(row[0])

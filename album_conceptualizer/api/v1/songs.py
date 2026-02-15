@@ -248,7 +248,9 @@ async def update_song(
 
 
 @router.delete("/{song_id}", status_code=204)
-async def delete_song(request: Request, album_id: str = Path(...), song_id: str = Path(...)) -> None:
+async def delete_song(
+    request: Request, album_id: str = Path(...), song_id: str = Path(...)
+) -> None:
     """Delete a song from an album."""
     album = _get_album(request, album_id)
 

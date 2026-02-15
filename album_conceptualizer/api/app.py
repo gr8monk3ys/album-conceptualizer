@@ -63,8 +63,12 @@ def _initialize_state(app: FastAPI) -> None:
     if settings.storage_backend == "file":
         app.state.album_store = FileAlbumStore(settings.output_dir / "api_albums")
         app.state.bible_store = FileBibleStore(settings.output_dir / "api_bibles")
-        app.state.subscription_store = FileSubscriptionStore(settings.output_dir / "api_subscriptions")
-        app.state.experience_store = FileExperienceStateStore(settings.output_dir / "api_experience")
+        app.state.subscription_store = FileSubscriptionStore(
+            settings.output_dir / "api_subscriptions"
+        )
+        app.state.experience_store = FileExperienceStateStore(
+            settings.output_dir / "api_experience"
+        )
         app.state.identity_store = FileIdentityStateStore(settings.output_dir / "api_identity")
     elif settings.storage_backend == "sqlite":
         app.state.album_store = SQLiteAlbumStore(settings.storage_db_path)

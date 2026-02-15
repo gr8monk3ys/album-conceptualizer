@@ -75,7 +75,9 @@ def test_create_workspace_and_issue_token(monkeypatch):
     assert issued.status_code == 200
     second_token = issued.json()["token"]
 
-    switched = client.get("/api/v1/identity/me", headers={"Authorization": f"Bearer {second_token}"})
+    switched = client.get(
+        "/api/v1/identity/me", headers={"Authorization": f"Bearer {second_token}"}
+    )
     assert switched.status_code == 200
     assert switched.json()["workspace"]["id"] == workspace_id
 

@@ -65,7 +65,9 @@ def resolve_workspace_session(connection: Connection, token: str) -> WorkspaceSe
     return session
 
 
-def resolve_subscription_subject(connection: Connection, token: str) -> tuple[str, WorkspaceSession | None]:
+def resolve_subscription_subject(
+    connection: Connection, token: str
+) -> tuple[str, WorkspaceSession | None]:
     """Resolve subscription subject key for this token.
 
     Workspace sessions map to `workspace:<id>` subject keys while legacy API keys map
