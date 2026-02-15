@@ -34,26 +34,22 @@ const nav: NavItem[] = [
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
 
-function computeCredits(plan: string | null | undefined) {
-  // Placeholder until we implement true credit accounting.
-  if (plan === "team") return { remaining: 500, total: 500 };
-  if (plan === "pro") return { remaining: 200, total: 200 };
-  return { remaining: 50, total: 50 };
-}
-
 export function Sidebar({
   className,
   workspaceName,
   userName,
   plan,
+  credits,
 }: {
   className?: string;
   workspaceName: string;
   userName?: string | null;
   plan?: string | null;
+  credits?: { remaining: number; total: number };
 }) {
-  const credits = computeCredits(plan);
-  const ratio = credits.total ? Math.min(1, credits.remaining / credits.total) : 0;
+  const creditsRemaining = credits?.remaining ?? 0;
+  const creditsTotal = credits?.total ?? 0;
+  const ratio = creditsTotal ? Math.min(1, creditsRemaining / creditsTotal) : 0;
   const planLabel = plan ? `${plan} plan` : "free plan";
   const showUpgrade = plan !== "pro" && plan !== "team";
 
@@ -91,7 +87,7 @@ export function Sidebar({
         <div className="flex items-center justify-between">
           <div className="text-xs text-[var(--muted2)]">Credits</div>
           <div className="rounded-full bg-[rgba(50,213,131,0.14)] px-2 py-0.5 text-xs font-medium text-[var(--ok)]">
-            {credits.remaining}
+            {creditsRemaining}
           </div>
         </div>
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">

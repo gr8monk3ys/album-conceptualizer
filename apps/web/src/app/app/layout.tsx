@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Playerbar } from "@/components/playerbar";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
+import { getCreditsStatus } from "@/server/credits";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
@@ -13,6 +14,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // here so child pages can stay focused on their content.
   const { session, userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
+  const plan = workspace.subscription?.plan ?? "free";
+  const credits = await getCreditsStatus({ workspaceId: workspace.id, plan });
 
   return (
     <div className="relative px-3 py-3 md:px-4 md:py-4">
@@ -21,7 +24,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           className="hidden md:flex"
           workspaceName={workspace.name}
           userName={session.user?.name}
-          plan={workspace.subscription?.plan ?? "free"}
+          plan={plan}
+          credits={credits}
         />
 
         <div className="flex min-h-[calc(100vh-28px)] flex-1 flex-col gap-4">
