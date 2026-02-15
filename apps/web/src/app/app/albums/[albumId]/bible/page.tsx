@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fragment } from "react";
 
+import { BibleActions } from "@/components/bible-actions";
 import { getAlbum } from "@/server/albums";
 import { buildAlbumBible } from "@/server/bible";
+import { buildMotifCharacterGraph, type MotifCharacterGraph } from "@/server/bible-relationships";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
@@ -17,6 +19,140 @@ function Tag({ children }: { children: string }) {
   );
 }
 
+function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
+  if (!graph.characters.length || !graph.motifs.length) {
+    return (
+      <div className="text-sm text-[var(--muted)]">
+        Tag characters and motifs on tracks to see a relationship map.
+      </div>
+    );
+  }
+
+  const chars = graph.characters;
+  const motifs = graph.motifs;
+  const edges = graph.edges.slice(0, 120);
+
+  const row = 34;
+  const padY = 26;
+  const viewW = 1000;
+  const viewH = Math.max(chars.length, motifs.length) * row + padY * 2;
+
+  const leftX = 220;
+  const rightX = 780;
+  const leftLabelX = 16;
+  const rightLabelX = 984;
+
+  const yForIndex = (idx: number) => padY + idx * row + row / 2;
+
+  const charY = new Map<string, number>();
+  for (let i = 0; i < chars.length; i += 1) {
+    charY.set(chars[i]?.name ?? "", yForIndex(i));
+  }
+  const motifY = new Map<string, number>();
+  for (let i = 0; i < motifs.length; i += 1) {
+    motifY.set(motifs[i]?.name ?? "", yForIndex(i));
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="overflow-auto rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)]">
+        <svg
+          viewBox={`0 0 ${viewW} ${viewH}`}
+          className="min-w-[680px] text-[var(--muted2)]"
+          role="img"
+          aria-label="Character to motif relationship map"
+        >
+          <defs>
+            <linearGradient id="acEdge" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="rgba(109,94,252,0.55)" />
+              <stop offset="100%" stopColor="rgba(255,62,165,0.45)" />
+            </linearGradient>
+          </defs>
+
+          {edges.map((edge) => {
+            const y1 = charY.get(edge.character);
+            const y2 = motifY.get(edge.motif);
+            if (!y1 || !y2) return null;
+            const w = Math.min(6, 1 + edge.weight * 1.2);
+            const op = Math.min(0.85, 0.22 + edge.weight * 0.18);
+            return (
+              <line
+                key={`${edge.character}::${edge.motif}`}
+                x1={leftX}
+                y1={y1}
+                x2={rightX}
+                y2={y2}
+                stroke="url(#acEdge)"
+                strokeWidth={w}
+                opacity={op}
+                vectorEffect="non-scaling-stroke"
+              >
+                <title>
+                  {edge.character} ↔ {edge.motif} (tracks: {edge.trackNumbers.join(", ")})
+                </title>
+              </line>
+            );
+          })}
+
+          {chars.map((c, idx) => {
+            const y = yForIndex(idx);
+            return (
+              <g key={`c-${c.name}`}>
+                <circle cx={leftX} cy={y} r={6} fill="rgba(255,255,255,0.55)" />
+                <text
+                  x={leftLabelX}
+                  y={y + 4}
+                  fontSize={14}
+                  fill="rgba(255,255,255,0.86)"
+                  textAnchor="start"
+                >
+                  {c.name}
+                </text>
+              </g>
+            );
+          })}
+
+          {motifs.map((m, idx) => {
+            const y = yForIndex(idx);
+            return (
+              <g key={`m-${m.name}`}>
+                <circle cx={rightX} cy={y} r={6} fill="rgba(255,255,255,0.45)" />
+                <text
+                  x={rightLabelX}
+                  y={y + 4}
+                  fontSize={14}
+                  fill="rgba(255,255,255,0.86)"
+                  textAnchor="end"
+                >
+                  {m.name}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {graph.edges.length ? (
+        <div className="space-y-2">
+          {graph.edges.slice(0, 10).map((edge) => (
+            <div
+              key={`edge-${edge.character}-${edge.motif}`}
+              className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-2"
+            >
+              <div className="text-xs font-semibold text-[var(--text)]">
+                {edge.character} <span className="text-[var(--muted2)]">↔</span> {edge.motif}
+              </div>
+              <div className="mt-1 text-[10px] text-[var(--muted2)]">
+                Tracks {edge.trackNumbers.join(", ")}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default async function AlbumBiblePage({ params }: { params: Promise<{ albumId: string }> }) {
   const { albumId } = await params;
   const { userId } = await requireUser();
@@ -25,6 +161,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
   if (!album) notFound();
 
   const bible = buildAlbumBible(album.data);
+  const graph = buildMotifCharacterGraph(bible, { maxCharacters: 10, maxMotifs: 10, minEdgeWeight: 1 });
   const gridCols =
     bible.themeGrid.tracks.length > 0
       ? `240px repeat(${bible.themeGrid.tracks.length}, minmax(44px, 1fr))`
@@ -60,6 +197,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
           >
             Studio
           </Link>
+          <BibleActions albumId={album.id} />
         </div>
       </div>
 
@@ -261,6 +399,16 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
                 </div>
               </div>
             ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+            <div className="text-xs text-[var(--muted2)]">Relationship map</div>
+            <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+              Characters × motifs
+            </div>
+            <div className="mt-3">
+              <RelationshipMap graph={graph} />
+            </div>
           </div>
 
           <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
