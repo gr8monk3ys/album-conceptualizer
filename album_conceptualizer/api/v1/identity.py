@@ -169,9 +169,7 @@ class WorkspaceInviteListResponse(BaseModel):
 def _normalize_email(email: str) -> str:
     normalized = email.strip().lower()
     if "@" not in normalized:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid email"
-        )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid email")
     return normalized
 
 
@@ -241,9 +239,7 @@ def _resolve_caller(
 
     session = resolve_workspace_session(request, token)
     if not session:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
     store = _get_store(request)
     account = store.get_account(session.account_id)
@@ -344,9 +340,7 @@ def _invite_status(invite: WorkspaceInvite) -> str:
 def _get_email_sender(request: Request) -> EmailSender:
     sender = getattr(request.app.state, "email_sender", None)
     if sender is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Email sender unavailable"
-        )
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Email sender unavailable")
     return cast("EmailSender", sender)
 
 
@@ -443,9 +437,7 @@ async def consume_magic_link(request: Request, data: MagicLinkConsumeRequest) ->
     store = _get_store(request)
     challenge = store.get_email_challenge(hash_token(data.token))
     if challenge is None or not challenge.is_active():
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired magic link"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired magic link")
 
     display_name = data.display_name.strip() if data.display_name else None
     account = _upsert_account(
@@ -458,9 +450,7 @@ async def consume_magic_link(request: Request, data: MagicLinkConsumeRequest) ->
     if challenge.intent == IdentityChallengeIntent.INVITE:
         invite = store.get_invite_by_token_hash(challenge.token_hash)
         if invite is None or not invite.is_active():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="Invite is no longer valid"
-            )
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Invite is no longer valid")
 
         workspace = store.get_workspace(invite.workspace_id)
         if workspace is None:
@@ -480,9 +470,7 @@ async def consume_magic_link(request: Request, data: MagicLinkConsumeRequest) ->
         if workspaces:
             workspace = workspaces[0]
         else:
-            fallback_name = (
-                f"{(account.display_name or account.email.split('@')[0]).strip()}'s Workspace"
-            )
+            fallback_name = f"{(account.display_name or account.email.split('@')[0]).strip()}'s Workspace"
             workspace = _create_workspace(store, account_id=account.id, name=fallback_name)
 
     challenge.consumed_at = datetime.now(UTC)
@@ -594,9 +582,7 @@ async def create_workspace_invite(
 
     invited_email = _normalize_email(data.email)
     if invited_email == account.email.strip().lower():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot invite yourself"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot invite yourself")
 
     ttl_hours = data.expires_in_hours or settings.identity_invite_ttl_hours
     token, challenge = _issue_email_challenge(
@@ -650,9 +636,7 @@ async def accept_workspace_invite(request: Request, data: AcceptInviteRequest) -
     if invite is None or challenge is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid invite token")
     if not invite.is_active() or not challenge.is_active():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Invite is no longer valid"
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Invite is no longer valid")
 
     workspace = store.get_workspace(invite.workspace_id)
     if workspace is None:

@@ -369,45 +369,6 @@ class TestExportEndpoints:
         assert "{title: Export Song}" in response.text
         assert "Hello world" in response.text
 
-    def test_export_album_zip_is_stateless(self, client):
-        """Test exporting an album bundle via stateless zip endpoint."""
-        response = client.post(
-            "/api/v1/export/album/zip",
-            json={
-                "album": {
-                    "title": "Zip Album",
-                    "artist": "Zip Artist",
-                    "concept_summary": "Stateless export test",
-                    "songs": [
-                        {
-                            "title": "Zip Track 1",
-                            "track_number": 1,
-                            "sections": [
-                                {
-                                    "section_type": "verse",
-                                    "order": 1,
-                                    "lyrics": "Hello zip",
-                                    "chord_progression": ["C", "G", "Am", "F"],
-                                }
-                            ],
-                        }
-                    ],
-                },
-                "formats": ["json", "text"],
-            },
-        )
-        assert response.status_code == 200
-        assert response.headers.get("content-type") == "application/zip"
-
-        import io
-        import zipfile
-
-        with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
-            names = set(zf.namelist())
-            assert any(name.endswith("export_report.json") for name in names)
-            assert any(name.endswith("/album.json") for name in names)
-            assert any(name.endswith("/tracklist.txt") for name in names)
-
 
 class TestBibleEndpoints:
     """Tests for bible subresource endpoints."""

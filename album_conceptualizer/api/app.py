@@ -16,9 +16,6 @@ from album_conceptualizer.api.rate_limit import (
     RedisRateLimiter,
 )
 from album_conceptualizer.api.v1 import router as v1_router
-from album_conceptualizer.api.v1.health import health_check as v1_health_check
-from album_conceptualizer.api.v1.health import liveness_check as v1_liveness_check
-from album_conceptualizer.api.v1.health import readiness_check as v1_readiness_check
 from album_conceptualizer.config import get_settings
 from album_conceptualizer.emailing import create_email_sender
 from album_conceptualizer.experience_state import (
@@ -63,12 +60,8 @@ def _initialize_state(app: FastAPI) -> None:
     if settings.storage_backend == "file":
         app.state.album_store = FileAlbumStore(settings.output_dir / "api_albums")
         app.state.bible_store = FileBibleStore(settings.output_dir / "api_bibles")
-        app.state.subscription_store = FileSubscriptionStore(
-            settings.output_dir / "api_subscriptions"
-        )
-        app.state.experience_store = FileExperienceStateStore(
-            settings.output_dir / "api_experience"
-        )
+        app.state.subscription_store = FileSubscriptionStore(settings.output_dir / "api_subscriptions")
+        app.state.experience_store = FileExperienceStateStore(settings.output_dir / "api_experience")
         app.state.identity_store = FileIdentityStateStore(settings.output_dir / "api_identity")
     elif settings.storage_backend == "sqlite":
         app.state.album_store = SQLiteAlbumStore(settings.storage_db_path)

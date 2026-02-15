@@ -90,9 +90,7 @@ def _install_fake_stripe(
 
 def test_get_subscription_accepts_bearer_token(monkeypatch):
     app, client = _build_client(monkeypatch)
-    response = client.get(
-        "/api/v1/billing/subscription", headers={"Authorization": "Bearer secret"}
-    )
+    response = client.get("/api/v1/billing/subscription", headers={"Authorization": "Bearer secret"})
     assert response.status_code == 200
 
     payload = response.json()
@@ -113,9 +111,7 @@ def test_workspace_token_uses_workspace_subject_key(monkeypatch):
     token = identity.json()["token"]
     workspace_id = identity.json()["workspace"]["id"]
 
-    response = client.get(
-        "/api/v1/billing/subscription", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get("/api/v1/billing/subscription", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
 
     payload = response.json()

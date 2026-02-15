@@ -39,7 +39,5 @@ class MetricsRegistry:
             "path_counts": dict(self.path_counts),
             "total_duration_ms": round(self.total_duration_ms, 2),
             "avg_duration_ms": avg_duration_ms,
-            "path_duration_ms": {
-                path: round(value, 2) for path, value in self.path_duration_ms.items()
-            },
+            "path_duration_ms": {path: round(value, 2) for path, value in self.path_duration_ms.items()},
         }

@@ -272,9 +272,7 @@ class FileIdentityStateStore:
 
     def save_email_challenge(self, challenge: EmailChallenge) -> None:
         with self._lock:
-            self._challenge_path(challenge.token_hash).write_text(
-                challenge.model_dump_json(indent=2)
-            )
+            self._challenge_path(challenge.token_hash).write_text(challenge.model_dump_json(indent=2))
 
     def get_invite_by_id(self, invite_id: UUID) -> WorkspaceInvite | None:
         with self._lock:
