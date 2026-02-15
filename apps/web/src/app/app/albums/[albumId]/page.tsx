@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AlbumDangerZone } from "@/components/album-danger-zone";
+import { ShareAlbumButton } from "@/components/share-album-button";
 import { getAlbum } from "@/server/albums";
 import { analyzeAlbumCoherence } from "@/server/coherence";
 import { requireUser } from "@/server/identity";
@@ -65,6 +66,7 @@ export default async function AlbumDetailPage({
           >
             Export
           </Link>
+          <ShareAlbumButton albumId={album.id} />
           <Link
             href={`/app/albums/${album.id}/versions`}
             className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"

@@ -19,6 +19,7 @@ model User {
   workspacesOwned Workspace[] @relation("WorkspaceOwner")
   memberships WorkspaceMember[]
   albumVersionsCreated AlbumVersion[]
+  albumShareLinksCreated AlbumShareLink[]
 }
 
 model Account {
@@ -103,6 +104,7 @@ model Album {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   songs     Song[]
   versions  AlbumVersion[]
+  shareLink AlbumShareLink?
 }
 
 model Song {
@@ -164,4 +166,19 @@ model AlbumVersion {
   createdBy User  @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([albumId, createdAt])
+}
+
+model AlbumShareLink {
+  id              String   @id @default(cuid())
+  albumId         String   @unique
+  token           String   @unique
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  revokedAt       DateTime?
+  expiresAt       DateTime?
+
+  album     Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([token])
 }
