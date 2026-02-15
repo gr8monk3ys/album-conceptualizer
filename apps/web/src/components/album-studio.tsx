@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Play, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, Play, Plus, Save, Trash2 } from "lucide-react";
 
 import type { AlbumJson } from "@/server/album-json";
 import { SectionComments } from "@/components/section-comments";
@@ -320,6 +320,47 @@ export function AlbumStudio({
     }
   }
 
+  async function downloadMp3FromChords(chords: string[], opts: { title: string; subtitle: string }) {
+    setPreviewing(true);
+    setPreviewStatus(null);
+    try {
+      const response = await fetch("/api/audio/preview/mp3", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chords,
+          tempo: activeSong?.tempo ?? 120,
+          barsPerChord: 1,
+          title: opts.title,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(text || `MP3 render failed (${response.status}).`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const safe = `${opts.title} ${opts.subtitle}`.trim() || "preview";
+      const filename = `${safe.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_")}.mp3`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setPreviewStatus("MP3 downloaded.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "MP3 render failed.";
+      setPreviewStatus(message);
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
   async function previewSection() {
     if (!activeSong || !activeSection) return;
     const chords = Array.isArray(activeSection.chord_progression)
@@ -351,6 +392,21 @@ export function AlbumStudio({
     await previewFromChords(chords, {
       title: activeSong.title || `Track ${activeSong.track_number}`,
       subtitle: "Full track preview",
+    });
+  }
+
+  async function downloadSectionMp3() {
+    if (!activeSong || !activeSection) return;
+    const chords = Array.isArray(activeSection.chord_progression)
+      ? activeSection.chord_progression.map((c) => String(c).trim()).filter(Boolean)
+      : [];
+    if (!chords.length) {
+      setPreviewStatus("Add a chord progression to render MP3.");
+      return;
+    }
+    await downloadMp3FromChords(chords, {
+      title: activeSong.title || `Track ${activeSong.track_number}`,
+      subtitle: `${activeSection.section_type} #${activeSection.order + 1}`,
     });
   }
 
@@ -719,6 +775,16 @@ export function AlbumStudio({
                         >
                           <Play className="h-4 w-4" />
                           Preview
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void downloadSectionMp3()}
+                          disabled={previewing}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+                          title="Render and download an MP3 (requires server configuration)"
+                        >
+                          <Download className="h-4 w-4" />
+                          MP3
                         </button>
                         <button
                           type="button"
