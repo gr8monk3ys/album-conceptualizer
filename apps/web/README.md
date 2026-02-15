@@ -72,6 +72,23 @@ Then open:
 - `http://localhost:3002` (marketing home)
 - `http://localhost:3002/sign-in` (use Dev Login when enabled)
 
+## E2E Tests (Playwright)
+
+The repo includes a Playwright smoke test that exercises:
+
+- Sign in (dev credentials provider)
+- Create project
+- Edit in Studio
+- Export zip (requires Python engine)
+- Publish + Discover + Remix
+
+Run:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
 ## Deploy (Vercel + Neon)
 
 High level:
