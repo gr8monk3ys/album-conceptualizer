@@ -42,12 +42,14 @@ export function Sidebar({
   userName,
   plan,
   credits,
+  unreadNotifications,
 }: {
   className?: string;
   workspaceName: string;
   userName?: string | null;
   plan?: string | null;
   credits?: { remaining: number; total: number };
+  unreadNotifications?: number;
 }) {
   const creditsRemaining = credits?.remaining ?? 0;
   const creditsTotal = credits?.total ?? 0;
@@ -106,6 +108,8 @@ export function Sidebar({
       <nav className="mt-4 flex flex-1 flex-col gap-1 overflow-auto pr-1">
         {nav.map((item) => {
           const Icon = item.icon;
+          const showNotificationBadge =
+            item.href === "/app/notifications" && (unreadNotifications ?? 0) > 0;
           return (
             <Link
               key={item.href}
@@ -118,6 +122,11 @@ export function Sidebar({
             >
               <Icon className="h-4 w-4 text-[var(--muted)] group-hover:text-[var(--text)]" />
               <span className="truncate">{item.label}</span>
+              {showNotificationBadge ? (
+                <span className="ml-auto rounded-full bg-[rgba(255,62,165,0.22)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text)]">
+                  {Math.min(99, unreadNotifications ?? 0)}
+                </span>
+              ) : null}
             </Link>
           );
         })}

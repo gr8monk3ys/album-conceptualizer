@@ -32,7 +32,7 @@ export async function GET(
 
   const album = await prisma.album.findFirst({
     where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true },
+    select: { id: true, title: true },
   });
   if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
@@ -111,6 +111,93 @@ export async function POST(
     },
   });
 
+  // Notifications: album owner + @mentions (workspace members).
+  const commentUrl = `/app/albums/${album.id}/studio?song=${payload.data.songTrackNumber}&sid=${encodeURIComponent(
+    payload.data.sectionId,
+  )}`;
+
+  const mentionTokens = Array.from(payload.data.body.matchAll(/@([a-zA-Z0-9][a-zA-Z0-9._-]{1,31})/g))
+    .map((m) => (m[1] ?? "").toLowerCase())
+    .filter(Boolean)
+    .slice(0, 16);
+
+  const mentionedUserIds = new Set<string>();
+  if (mentionTokens.length) {
+    const members = await prisma.workspaceMember.findMany({
+      where: { workspaceId: workspace.id },
+      select: { user: { select: { id: true, name: true, email: true } } },
+      take: 100,
+    });
+
+    const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    for (const { user } of members) {
+      const handles = new Set<string>();
+      if (user.email) {
+        const email = user.email.toLowerCase();
+        handles.add(email);
+        handles.add(email.split("@")[0] ?? "");
+      }
+      if (user.name) {
+        const s = slug(user.name);
+        if (s) handles.add(s);
+        const first = slug(user.name.split(/\s+/g)[0] ?? "");
+        if (first) handles.add(first);
+      }
+      if (handles.size === 0) continue;
+
+      if (mentionTokens.some((t) => handles.has(t))) {
+        mentionedUserIds.add(user.id);
+      }
+    }
+  }
+
+  const notifications: Array<{
+    workspaceId: string;
+    userId: string;
+    actorUserId: string;
+    type: string;
+    title: string;
+    body?: string;
+    url: string;
+    albumId: string;
+    commentId: string;
+  }> = [];
+
+  const excerpt = payload.data.body.trim().slice(0, 240);
+  for (const mentionedUserId of mentionedUserIds) {
+    if (mentionedUserId === userId) continue;
+    notifications.push({
+      workspaceId: workspace.id,
+      userId: mentionedUserId,
+      actorUserId: userId,
+      type: "mention",
+      title: `Mentioned in a comment · ${album.title}`,
+      body: excerpt,
+      url: commentUrl,
+      albumId: album.id,
+      commentId: created.id,
+    });
+  }
+
+  // Notify workspace owner if not the author and not already mentioned.
+  if (workspace.ownerId !== userId && !mentionedUserIds.has(workspace.ownerId)) {
+    notifications.push({
+      workspaceId: workspace.id,
+      userId: workspace.ownerId,
+      actorUserId: userId,
+      type: "comment",
+      title: `New comment · ${album.title}`,
+      body: excerpt,
+      url: commentUrl,
+      albumId: album.id,
+      commentId: created.id,
+    });
+  }
+
+  if (notifications.length) {
+    await prisma.notification.createMany({ data: notifications });
+  }
+
   return NextResponse.json({ comment: created }, { status: 201 });
 }
-

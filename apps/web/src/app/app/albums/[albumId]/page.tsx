@@ -79,6 +79,12 @@ export default async function AlbumDetailPage({
           >
             Bible
           </Link>
+          <Link
+            href={`/app/albums/${album.id}/inbox`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            Inbox
+          </Link>
           <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
           <ShareAlbumButton albumId={album.id} />
           <Link

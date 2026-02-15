@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
 
 type CommentAuthor = {
   id: string;
@@ -167,6 +167,36 @@ export function SectionComments({
     }
   }
 
+  async function makeTask(comment: SectionComment) {
+    setError(null);
+    setStatus(null);
+    try {
+      const titleBase = comment.body.trim().split(/\n+/g)[0] ?? "Review comment";
+      const title = titleBase.length > 90 ? `${titleBase.slice(0, 90)}…` : titleBase;
+      const response = await fetch(`/api/albums/${albumId}/tasks`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title,
+          body: comment.body,
+          sourceCommentId: comment.id,
+          sectionId,
+          songTrackNumber: section.songTrackNumber,
+          sectionType: section.sectionType,
+          sectionOrder: section.sectionOrder,
+        }),
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(text || `Failed to create task (${response.status}).`);
+      }
+      setStatus("Task created.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create task.";
+      setError(message);
+    }
+  }
+
   async function copyLink() {
     try {
       const url = new URL(`${window.location.origin}/app/albums/${albumId}/studio`);
@@ -238,6 +268,15 @@ export function SectionComments({
 
                       {!isDeleted ? (
                         <div className="flex flex-none items-center gap-1 text-[var(--muted)]">
+                          <button
+                            type="button"
+                            onClick={() => void makeTask(comment)}
+                            className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)]"
+                            aria-label="Create task"
+                            title="Create task"
+                          >
+                            <ClipboardCheck className="h-4 w-4" />
+                          </button>
                           {isResolved ? (
                             <button
                               type="button"

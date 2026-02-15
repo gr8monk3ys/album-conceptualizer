@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { getCreditsStatus } from "@/server/credits";
 import { requireUser } from "@/server/identity";
+import { getUnreadNotificationCount } from "@/server/notifications";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const workspace = await getActiveWorkspaceForUser(userId);
   const plan = workspace.subscription?.plan ?? "free";
   const credits = await getCreditsStatus({ workspaceId: workspace.id, plan });
+  const unreadNotifications = await getUnreadNotificationCount({
+    workspaceId: workspace.id,
+    userId,
+  });
 
   return (
     <PlayerProvider>
@@ -28,6 +33,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             userName={session.user?.name}
             plan={plan}
             credits={credits}
+            unreadNotifications={unreadNotifications}
           />
 
           <div className="flex min-h-[calc(100vh-28px)] flex-1 flex-col gap-4">
