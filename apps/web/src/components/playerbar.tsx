@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Pause, Play, Repeat2, SkipBack, SkipForward, Square, Volume2 } from "lucide-react";
 
-import { usePlayer } from "@/components/player/player-provider";
+import { usePlayer, type PreviewInstrument } from "@/components/player/player-provider";
 
 function formatClock(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "0:00";
@@ -14,19 +15,76 @@ function formatClock(totalSeconds: number) {
 
 export function Playerbar() {
   const player = usePlayer();
+  const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const waveformRafRef = useRef<number | null>(null);
+  const getWaveform = player.getWaveform;
 
   const loaded = player.status !== "idle";
   const playing = player.status === "playing";
-  const canPlay = loaded && player.status !== "loading" && player.status !== "error";
+  const canPlay =
+    loaded && player.status !== "loading" && player.status !== "error" && !player.instrumentLoading;
   const title = player.nowPlaying?.title ?? "No preview loaded";
   const subtitle =
     player.status === "loading"
       ? "Loading preview…"
       : player.status === "error"
         ? player.error ?? "Preview failed."
+        : player.instrumentLoading
+          ? "Loading instrument…"
         : player.nowPlaying?.subtitle ?? "Load a section preview from Studio.";
 
   const ratio = player.duration ? Math.min(1, Math.max(0, player.position / player.duration)) : 0;
+
+  useEffect(() => {
+    const canvas = waveformCanvasRef.current;
+    if (!canvas) return;
+    const canvasEl: HTMLCanvasElement = canvas;
+    const ctx = canvasEl.getContext("2d");
+    if (!ctx) return;
+
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(1, Math.floor(canvasEl.clientWidth * dpr));
+      const height = Math.max(1, Math.floor(canvasEl.clientHeight * dpr));
+      if (canvasEl.width === width && canvasEl.height === height) return;
+      canvasEl.width = width;
+      canvasEl.height = height;
+    }
+
+    const draw = () => {
+      resize();
+
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvasEl.width / dpr;
+      const h = canvasEl.height / dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      const data = getWaveform();
+      if (data && data.length) {
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(255,255,255,0.28)";
+        ctx.beginPath();
+        const stride = Math.max(1, Math.floor(data.length / 220));
+        for (let i = 0; i < data.length; i += stride) {
+          const x = (i / Math.max(1, data.length - 1)) * w;
+          const v = (data[i] - 128) / 128;
+          const y = h / 2 + v * (h / 2) * 0.92;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      waveformRafRef.current = requestAnimationFrame(draw);
+    };
+
+    waveformRafRef.current = requestAnimationFrame(draw);
+    return () => {
+      if (waveformRafRef.current) cancelAnimationFrame(waveformRafRef.current);
+      waveformRafRef.current = null;
+    };
+  }, [getWaveform]);
 
   return (
     <div className="pointer-events-auto fixed bottom-4 left-1/2 z-50 w-[min(1120px,calc(100vw-32px))] -translate-x-1/2 rounded-2xl border border-[var(--border)] bg-[rgba(15,16,21,0.78)] px-4 py-3 shadow-[0_30px_80px_rgba(0,0,0,0.6)] backdrop-blur">
@@ -118,6 +176,10 @@ export function Playerbar() {
               aria-label="Seek"
               title="Seek"
             >
+              <canvas
+                ref={waveformCanvasRef}
+                className="absolute inset-0 h-full w-full opacity-60"
+              />
               <div
                 className="absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,var(--accent2),var(--accent))]"
                 style={{ width: `${Math.round(ratio * 100)}%` }}
@@ -130,6 +192,21 @@ export function Playerbar() {
         </div>
 
         <div className="hidden items-center gap-2 md:flex">
+          <label className="hidden lg:flex items-center gap-2 text-xs text-[var(--muted2)]">
+            <span>Instrument</span>
+            <select
+              value={player.instrument}
+              onChange={(e) => void player.setInstrument(e.target.value as PreviewInstrument)}
+              className="rounded-xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+              aria-label="Instrument"
+              disabled={player.status === "loading"}
+            >
+              <option value="piano">Piano (SoundFont)</option>
+              <option value="epiano">E-Piano</option>
+              <option value="strings">Strings</option>
+              <option value="pad">Pad</option>
+            </select>
+          </label>
           <Volume2 className="h-4 w-4 text-[var(--muted2)]" />
           <input
             type="range"
@@ -150,4 +227,3 @@ export function Playerbar() {
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
-
