@@ -250,8 +250,7 @@ def generate_review_pass(album: Album) -> tuple[list[str], list[str]]:
         top_motifs = sorted(motif_counts.items(), key=lambda item: item[1], reverse=True)[:5]
         if top_motifs:
             lines.append(
-                "- Top motifs: "
-                + ", ".join(f"{name} ({count})" for name, count in top_motifs)
+                "- Top motifs: " + ", ".join(f"{name} ({count})" for name, count in top_motifs)
             )
             if all(count == 1 for _, count in top_motifs):
                 warnings.append("Motifs appear only once; consider repeating key motifs.")

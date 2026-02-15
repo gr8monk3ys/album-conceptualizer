@@ -1,5 +1,6 @@
 """Export endpoints for generating files in various formats."""
 
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -39,6 +40,24 @@ class ProgressionExportRequest(BaseModel):
     bars_per_chord: int = Field(default=1, ge=1, le=8)
     key: str | None = None
     title: str | None = None
+
+
+class AlbumZipExportRequest(BaseModel):
+    """Request for exporting an album bundle as a zip archive."""
+
+    album: dict = Field(..., description="Album JSON payload compatible with the Album model.")
+    formats: list[str] = Field(
+        default_factory=lambda: ["json"],
+        description="List of formats: midi, chordpro, musicxml, json, text",
+    )
+    include_production_notes: bool = Field(
+        default=True,
+        description="Include production notes when supported by exporters.",
+    )
+
+
+def _cleanup_temp_dir(path: str) -> None:
+    shutil.rmtree(path, ignore_errors=True)
 
 
 @router.post("/chordpro", response_class=PlainTextResponse)
@@ -129,6 +148,103 @@ async def export_album_chordpro(
         parts.append(chordpro)
 
     return "\n\n".join(parts)
+
+
+@router.post("/album/zip")
+async def export_album_zip(
+    data: AlbumZipExportRequest,
+    background_tasks: BackgroundTasks,
+) -> FileResponse:
+    """
+    Export a full album bundle to a downloadable zip archive.
+
+    This endpoint is stateless: it accepts the album JSON and runs exporters without relying on
+    server-side project storage. Useful for the Next.js dashboard.
+    """
+    try:
+        from album_conceptualizer.models.album import Album
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(status_code=500, detail=f"Album model unavailable: {exc}") from exc
+
+    try:
+        from album_conceptualizer.export.formats import AlbumExporter, ExportFormat
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="Export formats unavailable. Install with: pip install -e '.[music]'",
+        ) from None
+
+    try:
+        album = Album.model_validate(data.album)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid album payload: {exc}") from exc
+
+    formats: list[ExportFormat] = []
+    try:
+        for fmt in data.formats:
+            formats.append(ExportFormat(fmt))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid export format.") from None
+
+    # Create a temp export folder and zip. Both are cleaned up after the response is sent.
+    temp_dir = tempfile.mkdtemp(prefix="album_export_")
+    output_dir = Path(temp_dir)
+
+    exporter = AlbumExporter(output_dir=output_dir, artist_name=album.artist)
+    results = exporter.export_album(album, formats)
+    try:
+        import json as _json
+
+        report_path = output_dir / "export_report.json"
+        report_path.write_text(
+            _json.dumps(
+                {
+                    "album_title": album.title,
+                    "formats": {
+                        fmt: [
+                            {
+                                "path": str(r.path.relative_to(output_dir)),
+                                "success": r.success,
+                                "message": r.message,
+                            }
+                            for r in result_list
+                        ]
+                        for fmt, result_list in results.items()
+                    },
+                },
+                indent=2,
+            )
+        )
+    except Exception:
+        # Export is still useful even if the report can't be written.
+        pass
+
+    safe_title = "".join(c for c in album.title if c.isalnum() or c in (" ", "_", "-")).strip()
+    safe_title = "_".join(safe_title.split()) or "album"
+    zip_name = f"{safe_title}_export.zip"
+
+    zip_path = output_dir / zip_name
+    try:
+        import zipfile
+
+        # Exporter writes into <output_dir>/<album_title_sanitized>/...
+        # Zip the whole temp directory to preserve exporter folder structure.
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for file_path in output_dir.rglob("*"):
+                if file_path.is_dir() or file_path == zip_path:
+                    continue
+                zf.write(file_path, arcname=str(file_path.relative_to(output_dir)))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to build zip: {exc}") from exc
+
+    background_tasks.add_task(_cleanup_temp_dir, temp_dir)
+    response = FileResponse(
+        path=str(zip_path),
+        filename=zip_name,
+        media_type="application/zip",
+    )
+    response.background = background_tasks
+    return response
 
 
 @router.get("/album/{album_id}/json")

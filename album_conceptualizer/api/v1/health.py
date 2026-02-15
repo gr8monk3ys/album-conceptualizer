@@ -104,12 +104,12 @@ async def metrics(request: Request, format: str | None = None):
             f"album_conceptualizer_request_duration_ms_avg {snapshot['avg_duration_ms']}",
         ]
         for status, count in snapshot["status_counts"].items():
-            lines.append(
-                f'album_conceptualizer_status_total{{status="{status}"}} {count}'
-            )
+            lines.append(f'album_conceptualizer_status_total{{status="{status}"}} {count}')
         for path, count in snapshot["path_counts"].items():
+            lines.append(f'album_conceptualizer_path_total{{path="{path}"}} {count}')
+        for path, duration_ms in snapshot["path_duration_ms"].items():
             lines.append(
-                f'album_conceptualizer_path_total{{path="{path}"}} {count}'
+                f'album_conceptualizer_path_duration_ms_sum{{path="{path}"}} {duration_ms}'
             )
         for path, duration_ms in snapshot["path_duration_ms"].items():
             lines.append(

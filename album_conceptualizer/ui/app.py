@@ -3259,7 +3259,156 @@ def _get_custom_css() -> str:
     """Get custom CSS for the application."""
     return """
     .gradio-container {
+        --neu-bg: #e9eef5;
+        --neu-surface: #eef3fa;
+        --neu-surface-strong: #f4f7fc;
+        --neu-text: #2f3b4d;
+        --neu-muted: #617086;
+        --neu-accent: #3b79cc;
+        --neu-accent-soft: #d8e8ff;
+        --neu-shadow-light: rgba(255, 255, 255, 0.95);
+        --neu-shadow-dark: rgba(158, 173, 195, 0.5);
+        --neu-shadow-inset-dark: rgba(155, 171, 194, 0.35);
+        --neu-shadow-inset-light: rgba(255, 255, 255, 0.95);
+        --neu-radius-lg: 18px;
+        --neu-radius-md: 12px;
         max-width: 1400px !important;
+        font-family: "Avenir Next", "Nunito Sans", "Segoe UI", sans-serif;
+        color: var(--neu-text);
+        background:
+            radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.65), transparent 36%),
+            radial-gradient(circle at 86% 2%, rgba(220, 234, 255, 0.55), transparent 34%),
+            var(--neu-bg);
+    }
+
+    .gradio-container .prose,
+    .gradio-container h1,
+    .gradio-container h2,
+    .gradio-container h3,
+    .gradio-container h4,
+    .gradio-container h5,
+    .gradio-container p,
+    .gradio-container li,
+    .gradio-container label,
+    .gradio-container span,
+    .gradio-container div {
+        color: var(--neu-text);
+    }
+
+    .gradio-container a {
+        color: var(--neu-accent);
+    }
+
+    .gradio-container .gr-box,
+    .gradio-container .gr-group,
+    .gradio-container .gr-panel,
+    .gradio-container .block {
+        border-radius: var(--neu-radius-lg) !important;
+        border: 1px solid rgba(255, 255, 255, 0.6) !important;
+        background: var(--neu-surface) !important;
+        box-shadow:
+            10px 10px 24px var(--neu-shadow-dark),
+            -10px -10px 24px var(--neu-shadow-light) !important;
+    }
+
+    .gradio-container .tab-nav {
+        border-radius: var(--neu-radius-md) !important;
+        padding: 6px !important;
+        background: var(--neu-surface) !important;
+        box-shadow:
+            inset 5px 5px 10px var(--neu-shadow-inset-dark),
+            inset -5px -5px 10px var(--neu-shadow-inset-light) !important;
+    }
+
+    .gradio-container .tab-nav button {
+        border-radius: 10px !important;
+        border: 0 !important;
+        background: transparent !important;
+        color: var(--neu-muted) !important;
+        transition: all 0.2s ease;
+    }
+
+    .gradio-container .tab-nav button[aria-selected="true"],
+    .gradio-container .tab-nav button.selected {
+        color: var(--neu-accent) !important;
+        background: var(--neu-surface-strong) !important;
+        box-shadow:
+            6px 6px 14px var(--neu-shadow-dark),
+            -6px -6px 14px var(--neu-shadow-light) !important;
+    }
+
+    .gradio-container input,
+    .gradio-container textarea,
+    .gradio-container select,
+    .gradio-container .gr-dataframe,
+    .gradio-container .gr-file {
+        color: var(--neu-text) !important;
+        border-radius: var(--neu-radius-md) !important;
+        border: 1px solid rgba(255, 255, 255, 0.7) !important;
+        background: var(--neu-surface-strong) !important;
+        box-shadow:
+            inset 5px 5px 10px var(--neu-shadow-inset-dark),
+            inset -5px -5px 10px var(--neu-shadow-inset-light) !important;
+    }
+
+    .gradio-container input::placeholder,
+    .gradio-container textarea::placeholder {
+        color: #8a96aa !important;
+    }
+
+    .gradio-container input:focus,
+    .gradio-container textarea:focus,
+    .gradio-container select:focus {
+        outline: none !important;
+        box-shadow:
+            inset 4px 4px 9px var(--neu-shadow-inset-dark),
+            inset -4px -4px 9px var(--neu-shadow-inset-light),
+            0 0 0 2px rgba(59, 121, 204, 0.28) !important;
+    }
+
+    .gradio-container button {
+        border-radius: var(--neu-radius-md) !important;
+        border: 1px solid rgba(255, 255, 255, 0.72) !important;
+        background: linear-gradient(140deg, #edf3fb, #dfe9f6) !important;
+        color: var(--neu-text) !important;
+        box-shadow:
+            7px 7px 14px var(--neu-shadow-dark),
+            -7px -7px 14px var(--neu-shadow-light) !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .gradio-container button.primary,
+    .gradio-container button[variant="primary"] {
+        background: linear-gradient(145deg, #5f9be8, #3b79cc) !important;
+        color: #f5f9ff !important;
+        box-shadow:
+            7px 7px 14px rgba(124, 146, 173, 0.52),
+            -7px -7px 14px rgba(255, 255, 255, 0.82) !important;
+    }
+
+    .gradio-container button:hover {
+        transform: translateY(-1px);
+    }
+
+    .gradio-container button:active {
+        transform: translateY(0);
+        box-shadow:
+            inset 4px 4px 10px var(--neu-shadow-inset-dark),
+            inset -4px -4px 10px var(--neu-shadow-inset-light) !important;
+    }
+
+    .gradio-container table {
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        border-radius: var(--neu-radius-md) !important;
+        overflow: hidden !important;
+    }
+
+    .gradio-container th,
+    .gradio-container td {
+        border-color: rgba(208, 220, 239, 0.8) !important;
+        background: rgba(241, 246, 254, 0.72) !important;
+        color: var(--neu-text) !important;
     }
 
     .chord-button {
@@ -3267,16 +3416,24 @@ def _get_custom_css() -> str:
         font-family: monospace !important;
     }
 
+    .section-header,
+    .song-card,
+    .motif-tag,
+    .theme-tag {
+        border-radius: var(--neu-radius-md);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        background: var(--neu-surface-strong);
+        box-shadow:
+            6px 6px 14px var(--neu-shadow-dark),
+            -6px -6px 14px var(--neu-shadow-light);
+    }
+
     .section-header {
-        background-color: var(--primary-100);
         padding: 8px 12px;
-        border-radius: 4px;
         margin-bottom: 8px;
     }
 
     .song-card {
-        border: 1px solid var(--border-color-primary);
-        border-radius: 8px;
         padding: 12px;
         margin-bottom: 8px;
         cursor: pointer;
@@ -3284,28 +3441,46 @@ def _get_custom_css() -> str:
     }
 
     .song-card:hover {
-        border-color: var(--primary-500);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow:
+            inset 4px 4px 9px var(--neu-shadow-inset-dark),
+            inset -4px -4px 9px var(--neu-shadow-inset-light);
+    }
+
+    .motif-tag,
+    .theme-tag {
+        display: inline-block;
+        font-size: 0.85em;
+        margin-right: 4px;
+        padding: 2px 8px;
     }
 
     .motif-tag {
-        display: inline-block;
-        background-color: var(--secondary-100);
-        color: var(--secondary-700);
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.85em;
-        margin-right: 4px;
+        color: #2e5c98;
     }
 
     .theme-tag {
-        display: inline-block;
-        background-color: var(--primary-100);
-        color: var(--primary-700);
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.85em;
-        margin-right: 4px;
+        color: #365483;
+    }
+
+    @media (max-width: 768px) {
+        .gradio-container {
+            padding: 10px !important;
+        }
+
+        .gradio-container .gr-box,
+        .gradio-container .gr-group,
+        .gradio-container .gr-panel,
+        .gradio-container .block {
+            border-radius: 14px !important;
+            box-shadow:
+                6px 6px 14px var(--neu-shadow-dark),
+                -6px -6px 14px var(--neu-shadow-light) !important;
+        }
+
+        .gradio-container .tab-nav {
+            overflow-x: auto;
+            white-space: nowrap;
+        }
     }
     """
 
@@ -3332,8 +3507,8 @@ def launch_app(
         server_port=server_port,
         server_name=server_name,
         theme=gr.themes.Soft(
-            primary_hue="purple",
-            secondary_hue="blue",
+            primary_hue="blue",
+            secondary_hue="slate",
         ),
         css=_get_custom_css(),
     )

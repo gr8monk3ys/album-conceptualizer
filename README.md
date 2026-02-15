@@ -128,6 +128,11 @@ echo "OPENAI_API_KEY=your-key-here" >> .env
 
 ## Usage
 
+### Web Dashboard (Next.js)
+
+The modern dashboard lives in `apps/web/` (Next.js + Prisma + Neon + Stripe) and uses the Python
+engine for exports. For local setup and deployment notes, see `apps/web/README.md`.
+
 ### Command Line Interface
 
 ```bash

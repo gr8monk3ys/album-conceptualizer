@@ -1,0 +1,335 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String?
+  email     String?   @unique
+  image     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  accounts  Account[]
+  sessions  Session[]
+  workspacesOwned Workspace[] @relation("WorkspaceOwner")
+  memberships WorkspaceMember[]
+  albumVersionsCreated AlbumVersion[]
+  albumShareLinksCreated AlbumShareLink[]
+  albumLikes AlbumLike[]
+  sectionCommentsAuthored AlbumSectionComment[] @relation("SectionCommentAuthor")
+  sectionCommentsResolved AlbumSectionComment[] @relation("SectionCommentResolver")
+  notificationsReceived Notification[] @relation("NotificationRecipient")
+  notificationsSent Notification[] @relation("NotificationActor")
+  tasksCreated AlbumTask[] @relation("TaskCreator")
+  tasksAssigned AlbumTask[] @relation("TaskAssignee")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner     User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members   WorkspaceMember[]
+  albums    Album[]
+  subscription Subscription?
+  creditBalance CreditBalance?
+  creditLedger CreditLedgerEntry[]
+  challengeCompletions ChallengeCompletion[]
+  notifications Notification[]
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String   @default("member")
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model Album {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  title         String
+  artist        String?
+  conceptSummary String?
+  primaryGenre  String?
+  centralThemes Json?
+  trackCount    Int      @default(0)
+  coverUrl      String?
+  status        String   @default("draft")
+  isPublic      Boolean  @default(false)
+  publishedAt   DateTime?
+  // Full album JSON compatible with the Python `Album` pydantic model.
+  // This is the source of truth for exports + future editors.
+  data          Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  songs     Song[]
+  versions  AlbumVersion[]
+  shareLink AlbumShareLink?
+  likes     AlbumLike[]
+  sectionComments AlbumSectionComment[]
+  tasks     AlbumTask[]
+  notifications Notification[]
+}
+
+model Song {
+  id          String   @id @default(cuid())
+  albumId     String
+  trackNumber Int
+  title       String
+  key         String?
+  tempo       Int?
+  narrativeSummary String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  album    Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  sections Section[]
+
+  @@unique([albumId, trackNumber])
+}
+
+model Section {
+  id              String   @id @default(cuid())
+  songId          String
+  sectionType     String
+  order           Int
+  lyrics          String?
+  chordProgression Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@unique([songId, sectionType, order])
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  workspaceId           String   @unique
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  plan                 String   @default("free")
+  status               String   @default("inactive")
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AlbumVersion {
+  id              String   @id @default(cuid())
+  albumId         String
+  createdByUserId String
+  message         String?
+  // Full album JSON snapshot at the time of saving.
+  data            Json
+  createdAt       DateTime @default(now())
+
+  album     Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([albumId, createdAt])
+}
+
+model AlbumShareLink {
+  id              String   @id @default(cuid())
+  albumId         String   @unique
+  token           String   @unique
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  revokedAt       DateTime?
+  expiresAt       DateTime?
+
+  album     Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+model CreditBalance {
+  workspaceId String @id
+  balance     Int    @default(0)
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model CreditLedgerEntry {
+  id          String   @id @default(cuid())
+  workspaceId String
+  delta       Int
+  reason      String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model ChallengeCompletion {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  challengeKey String
+  // UTC day string (YYYY-MM-DD) to avoid timezone ambiguity.
+  challengeDay String
+  notes        String?
+  creditsEarned Int @default(0)
+  createdAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, challengeKey, challengeDay])
+  @@index([workspaceId, challengeDay])
+}
+
+model AlbumLike {
+  id        String   @id @default(cuid())
+  albumId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([albumId, userId])
+  @@index([albumId, createdAt])
+}
+
+model AlbumSectionComment {
+  id              String   @id @default(cuid())
+  albumId          String
+  // External section id from the Album JSON (songs[].sections[].id).
+  sectionId        String
+  songTrackNumber  Int
+  sectionType      String
+  sectionOrder     Int
+  authorUserId     String
+  body             String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  deletedAt        DateTime?
+
+  album     Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  author    User  @relation("SectionCommentAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  resolvedBy User? @relation("SectionCommentResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  notifications Notification[]
+  tasks         AlbumTask[]
+
+  @@index([albumId, sectionId, createdAt])
+  @@index([authorUserId, createdAt])
+}
+
+model AlbumTask {
+  id              String   @id @default(cuid())
+  albumId          String
+  title            String
+  body             String?
+  status           String   @default("open")
+  priority         Int      @default(2)
+  dueAt            DateTime?
+  createdByUserId  String
+  assignedToUserId String?
+  sourceCommentId  String?
+  // Optional deep link target (external ids from album.json)
+  sectionId        String?
+  songTrackNumber  Int?
+  sectionType      String?
+  sectionOrder     Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  album        Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  createdBy    User  @relation("TaskCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  assignedTo   User? @relation("TaskAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  sourceComment AlbumSectionComment? @relation(fields: [sourceCommentId], references: [id], onDelete: SetNull)
+  notifications Notification[]
+
+  @@index([albumId, status, createdAt])
+  @@index([assignedToUserId, status, createdAt])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  actorUserId String?
+  type        String
+  title       String
+  body        String?
+  url         String?
+  albumId     String?
+  commentId   String?
+  taskId      String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  album     Album?    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  comment   AlbumSectionComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  task      AlbumTask? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId, createdAt])
+  @@index([userId, readAt, createdAt])
+  @@index([albumId, createdAt])
+}

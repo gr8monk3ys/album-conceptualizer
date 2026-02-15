@@ -38,13 +38,17 @@ class InMemoryQuota(BaseHTTPMiddleware):
         return f"ip:{client_ip}"
 
     async def dispatch(self, request: Request, call_next):
-        settings = request.app.state.settings if hasattr(request.app.state, "settings") else get_settings()
+        settings = (
+            request.app.state.settings if hasattr(request.app.state, "settings") else get_settings()
+        )
         if not settings.quota_enabled:
             return await call_next(request)
 
-        if request.url.path.startswith("/api/v1/health") or request.url.path.startswith(
-            "/api/v1/ready"
-        ) or request.url.path.startswith("/api/v1/live"):
+        if (
+            request.url.path.startswith("/api/v1/health")
+            or request.url.path.startswith("/api/v1/ready")
+            or request.url.path.startswith("/api/v1/live")
+        ):
             return await call_next(request)
 
         key = self._get_key(request)
@@ -98,13 +102,17 @@ class RedisQuota(BaseHTTPMiddleware):
         return int((tomorrow - now).total_seconds())
 
     async def dispatch(self, request: Request, call_next):
-        settings = request.app.state.settings if hasattr(request.app.state, "settings") else get_settings()
+        settings = (
+            request.app.state.settings if hasattr(request.app.state, "settings") else get_settings()
+        )
         if not settings.quota_enabled:
             return await call_next(request)
 
-        if request.url.path.startswith("/api/v1/health") or request.url.path.startswith(
-            "/api/v1/ready"
-        ) or request.url.path.startswith("/api/v1/live"):
+        if (
+            request.url.path.startswith("/api/v1/health")
+            or request.url.path.startswith("/api/v1/ready")
+            or request.url.path.startswith("/api/v1/live")
+        ):
             return await call_next(request)
 
         key = self._get_key(request)

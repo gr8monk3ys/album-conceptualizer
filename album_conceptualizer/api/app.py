@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -220,6 +220,19 @@ def create_app(
             "docs": "/docs",
             "health": "/api/v1/health",
         }
+
+    # Compatibility endpoints: many load balancers probe /health by default.
+    @app.get("/health", include_in_schema=False)
+    async def health_root(request: Request):
+        return await v1_health_check(request)
+
+    @app.get("/ready", include_in_schema=False)
+    async def ready_root(request: Request):
+        return await v1_readiness_check(request)
+
+    @app.get("/live", include_in_schema=False)
+    async def live_root():
+        return await v1_liveness_check()
 
     # Global exception handler
     @app.exception_handler(Exception)
