@@ -20,6 +20,7 @@ model User {
   memberships WorkspaceMember[]
   albumVersionsCreated AlbumVersion[]
   albumShareLinksCreated AlbumShareLink[]
+  albumLikes AlbumLike[]
 }
 
 model Account {
@@ -98,6 +99,8 @@ model Album {
   trackCount    Int      @default(0)
   coverUrl      String?
   status        String   @default("draft")
+  isPublic      Boolean  @default(false)
+  publishedAt   DateTime?
   // Full album JSON compatible with the Python `Album` pydantic model.
   // This is the source of truth for exports + future editors.
   data          Json?
@@ -108,6 +111,7 @@ model Album {
   songs     Song[]
   versions  AlbumVersion[]
   shareLink AlbumShareLink?
+  likes     AlbumLike[]
 }
 
 model Song {
@@ -221,4 +225,17 @@ model ChallengeCompletion {
 
   @@unique([workspaceId, challengeKey, challengeDay])
   @@index([workspaceId, challengeDay])
+}
+
+model AlbumLike {
+  id        String   @id @default(cuid())
+  albumId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([albumId, userId])
+  @@index([albumId, createdAt])
 }
