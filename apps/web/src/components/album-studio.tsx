@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Play, Plus, Save, Trash2 } from "lucide-react";
 
 import type { AlbumJson } from "@/server/album-json";
 import { SectionComments } from "@/components/section-comments";
+import { usePlayer } from "@/components/player/player-provider";
 
 type SelectionInput = {
   song?: string;
@@ -210,6 +211,10 @@ export function AlbumStudio({
   const [status, setStatus] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [stableIdsPersisted, setStableIdsPersisted] = useState(!initialParsed.idsWereMissing);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewStatus, setPreviewStatus] = useState<string | null>(null);
+
+  const player = usePlayer();
 
   const songs = useMemo(() => album.songs ?? [], [album.songs]);
   const activeSong = songs[selectedSong];
@@ -272,6 +277,81 @@ export function AlbumStudio({
 
   function selectSection(index: number) {
     setSelectedSection(clampIndex(index, sections.length));
+  }
+
+  async function previewFromChords(chords: string[], opts: { title: string; subtitle: string }) {
+    setPreviewing(true);
+    setPreviewStatus(null);
+
+    // Best-effort: unlock audio on this click. If it fails, we can still load the preview and
+    // the user can press Play in the playerbar to start audio.
+    void player.arm().catch(() => null);
+
+    try {
+      const response = await fetch("/api/midi/preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chords,
+          tempo: activeSong?.tempo ?? 120,
+          barsPerChord: 1,
+          title: opts.title,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(text || `Preview failed (${response.status}).`);
+      }
+
+      const midi = await response.arrayBuffer();
+      await player.loadMidi({ midi, title: opts.title, subtitle: opts.subtitle });
+
+      try {
+        await player.play();
+      } catch {
+        setPreviewStatus("Preview loaded. Press Play in the playerbar to start audio.");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Preview failed.";
+      setPreviewStatus(message);
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  async function previewSection() {
+    if (!activeSong || !activeSection) return;
+    const chords = Array.isArray(activeSection.chord_progression)
+      ? activeSection.chord_progression.map((c) => String(c).trim()).filter(Boolean)
+      : [];
+    if (!chords.length) {
+      setPreviewStatus("Add a chord progression to preview.");
+      return;
+    }
+    await previewFromChords(chords, {
+      title: activeSong.title || `Track ${activeSong.track_number}`,
+      subtitle: `${activeSection.section_type} #${activeSection.order + 1}`,
+    });
+  }
+
+  async function previewSong() {
+    if (!activeSong) return;
+    const chords = Array.isArray(activeSong.sections)
+      ? activeSong.sections.flatMap((section) =>
+          Array.isArray(section.chord_progression)
+            ? section.chord_progression.map((c) => String(c).trim()).filter(Boolean)
+            : [],
+        )
+      : [];
+    if (!chords.length) {
+      setPreviewStatus("Add chord progressions to preview this track.");
+      return;
+    }
+    await previewFromChords(chords, {
+      title: activeSong.title || `Track ${activeSong.track_number}`,
+      subtitle: "Full track preview",
+    });
   }
 
   async function save(opts?: { withVersion?: boolean }) {
@@ -498,6 +578,15 @@ export function AlbumStudio({
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void previewSong()}
+                  disabled={previewing}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Play className="h-4 w-4" />
+                  Preview song
+                </button>
                 <Link
                   href={`/app/albums/${albumId}`}
                   className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
@@ -624,6 +713,15 @@ export function AlbumStudio({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          onClick={() => void previewSection()}
+                          disabled={previewing}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Play className="h-4 w-4" />
+                          Preview
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => moveSection(selectedSection, -1)}
                           className="inline-flex items-center gap-1 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-2 py-2 text-xs text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
                           aria-label="Move section up"
@@ -649,6 +747,10 @@ export function AlbumStudio({
                       </div>
                     ) : null}
                   </div>
+
+                  {previewStatus ? (
+                    <div className="text-xs text-[var(--muted2)]">{previewStatus}</div>
+                  ) : null}
 
                   {activeSection ? (
                     <>

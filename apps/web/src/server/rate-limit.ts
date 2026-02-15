@@ -1,7 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-type LimiterName = "albums_create" | "export_zip" | "stripe";
+type LimiterName = "albums_create" | "export_zip" | "preview_midi" | "stripe";
 
 type RateLimitResult = {
   ok: boolean;
@@ -33,6 +33,14 @@ const limiters: Record<LimiterName, Ratelimit | null> = {
         redis,
         limiter: Ratelimit.slidingWindow(30, "1 m"),
         prefix: "ac:ratelimit:export_zip",
+        analytics: true,
+      })
+    : null,
+  preview_midi: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(60, "1 m"),
+        prefix: "ac:ratelimit:preview_midi",
         analytics: true,
       })
     : null,
@@ -73,4 +81,3 @@ export async function checkRateLimit(name: LimiterName, key: string): Promise<Ra
     reset: result.reset,
   };
 }
-
