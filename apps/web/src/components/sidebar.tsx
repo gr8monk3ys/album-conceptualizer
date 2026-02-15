@@ -4,6 +4,7 @@ import {
   Bell,
   BookOpenText,
   ChevronDown,
+  Compass,
   Disc3,
   Home,
   LibraryBig,
@@ -24,6 +25,7 @@ type NavItem = {
 
 const nav: NavItem[] = [
   { href: "/app", label: "Home", icon: Home },
+  { href: "/app/discover", label: "Discover", icon: Compass },
   { href: "/app/create", label: "Create", icon: Plus, isPrimary: true },
   { href: "/app/library", label: "Library", icon: LibraryBig },
   { href: "/app/challenges", label: "Challenges", icon: Sparkles },
