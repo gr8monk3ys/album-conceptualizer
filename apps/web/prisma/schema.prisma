@@ -69,6 +69,9 @@ model Workspace {
   members   WorkspaceMember[]
   albums    Album[]
   subscription Subscription?
+  creditBalance CreditBalance?
+  creditLedger CreditLedgerEntry[]
+  challengeCompletions ChallengeCompletion[]
 }
 
 model WorkspaceMember {
@@ -181,4 +184,41 @@ model AlbumShareLink {
   createdBy User  @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([token])
+}
+
+model CreditBalance {
+  workspaceId String @id
+  balance     Int    @default(0)
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model CreditLedgerEntry {
+  id          String   @id @default(cuid())
+  workspaceId String
+  delta       Int
+  reason      String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model ChallengeCompletion {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  challengeKey String
+  // UTC day string (YYYY-MM-DD) to avoid timezone ambiguity.
+  challengeDay String
+  notes        String?
+  creditsEarned Int @default(0)
+  createdAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, challengeKey, challengeDay])
+  @@index([workspaceId, challengeDay])
 }
