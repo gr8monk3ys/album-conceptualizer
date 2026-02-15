@@ -6,6 +6,7 @@ import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { engineFetch } from "@/server/engine";
 import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
+import { getCreditsStatus, InsufficientCreditsError, spendCredits } from "@/server/credits";
 
 export const runtime = "nodejs";
 
@@ -38,12 +39,21 @@ export async function GET(
 
   const { albumId } = await params;
   const workspace = await getActiveWorkspaceForUser(userId);
+  const plan = workspace.subscription?.plan ?? "free";
   const prisma = getPrisma();
   const album = await prisma.album.findFirst({
     where: { id: albumId, workspaceId: workspace.id },
     select: { title: true, data: true },
   });
   if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
+
+  const creditStatus = await getCreditsStatus({ workspaceId: workspace.id, plan });
+  if (creditStatus.remaining < 2) {
+    return NextResponse.json(
+      { error: "Not enough credits to export. Complete challenges or upgrade." },
+      { status: 402 },
+    );
+  }
 
   const url = new URL(request.url);
   const formatsRaw = url.searchParams.get("formats") ?? "json";
@@ -70,6 +80,25 @@ export async function GET(
       { error: `Export engine error (${engineResponse.status}): ${text || "request failed"}` },
       { status: 502 },
     );
+  }
+
+  try {
+    await spendCredits({
+      workspaceId: workspace.id,
+      plan,
+      amount: 2,
+      reason: "export_zip",
+      metadata: { albumId, formats: formatsParsed.data },
+    });
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      return NextResponse.json(
+        { error: "Not enough credits to export. Complete challenges or upgrade." },
+        { status: 402 },
+      );
+    }
+    const message = err instanceof Error ? err.message : "Unable to spend credits.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   const filename = `${album.title.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "album"}_export.zip`;

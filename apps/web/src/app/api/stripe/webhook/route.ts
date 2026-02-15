@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 
 import { getPrisma } from "@/server/db";
 import { getStripe } from "@/server/stripe";
+import { ensureCreditBalance } from "@/server/credits";
 
 export const runtime = "nodejs";
 
@@ -66,6 +67,9 @@ export async function POST(request: Request) {
             stripeSubscriptionId,
           },
         });
+
+        // Bump the workspace balance to at least the plan baseline on purchase.
+        await ensureCreditBalance(workspaceId, plan);
       }
     }
 

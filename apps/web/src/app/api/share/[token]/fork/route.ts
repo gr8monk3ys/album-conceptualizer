@@ -8,6 +8,7 @@ import { getPrisma } from "@/server/db";
 import { buildAlbumMutationData } from "@/server/album-sync";
 import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { InsufficientCreditsError, spendCredits } from "@/server/credits";
 
 export const runtime = "nodejs";
 
@@ -67,6 +68,25 @@ export async function POST(
   const forked = forkAlbumJson(parsed.data, { titleSuffix: " (Remix)" });
   const mutation = buildAlbumMutationData(forked);
 
+  try {
+    await spendCredits({
+      workspaceId: workspace.id,
+      plan,
+      amount: 5,
+      reason: "album_create_remix",
+      metadata: { source: "share", token },
+    });
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      return NextResponse.json(
+        { error: "Not enough credits to fork a remix. Complete challenges or upgrade." },
+        { status: 402 },
+      );
+    }
+    const message = err instanceof Error ? err.message : "Unable to spend credits.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
   const created = await prisma.$transaction(async (tx) => {
     const album = await tx.album.create({
       data: {
@@ -91,4 +111,3 @@ export async function POST(
 
   return NextResponse.json({ id: created.id }, { status: 201 });
 }
-

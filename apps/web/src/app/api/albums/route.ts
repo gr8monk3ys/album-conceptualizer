@@ -7,6 +7,9 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
 import { AlbumJsonSchema } from "@/server/album-json";
 import { buildAlbumMutationData } from "@/server/album-sync";
+import { InsufficientCreditsError, spendCredits } from "@/server/credits";
+
+export const runtime = "nodejs";
 
 const BodySchema = z.object({
   album: AlbumJsonSchema,
@@ -49,6 +52,26 @@ export async function POST(request: Request) {
 
   const album = payload.data.album;
   const mutation = buildAlbumMutationData(album);
+
+  try {
+    // Credit spend (keeps the model aligned with Suno-style usage accounting).
+    await spendCredits({
+      workspaceId: workspace.id,
+      plan,
+      amount: 5,
+      reason: "album_create",
+      metadata: { title: album.title },
+    });
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      return NextResponse.json(
+        { error: "Not enough credits to create a new project. Complete challenges or upgrade." },
+        { status: 402 },
+      );
+    }
+    const message = err instanceof Error ? err.message : "Unable to spend credits.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   const created = await prisma.album.create({
     data: {
