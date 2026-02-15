@@ -69,7 +69,11 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)]">
+    <div
+      className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)]"
+      data-testid="discover-album-card"
+      data-album-id={album.id}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <Link
@@ -121,4 +125,3 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
     </div>
   );
 }
-

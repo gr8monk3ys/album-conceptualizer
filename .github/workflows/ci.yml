@@ -227,6 +227,7 @@ jobs:
       NEXTAUTH_SECRET: ci-secret
       ENABLE_DEV_LOGIN: "1"
       NEXT_PUBLIC_ENABLE_DEV_LOGIN: "1"
+      AC_E2E: "1"
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       ENGINE_API_URL: http://localhost:8000/api/v1
       ENGINE_API_KEY: ""
@@ -264,6 +265,10 @@ jobs:
         working-directory: apps/web
         run: npm run prisma:migrate:deploy
 
+      - name: Build web
+        working-directory: apps/web
+        run: npm run build
+
       - name: Run web E2E
         run: |
           set -euo pipefail
@@ -271,7 +276,7 @@ jobs:
           uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000 &
           ENGINE_PID=$!
 
-          (cd apps/web && npm run dev -- -p 3000) &
+          (cd apps/web && npm run start -- -p 3000) &
           WEB_PID=$!
 
           cleanup() {

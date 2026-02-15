@@ -26,7 +26,9 @@ export function buildAuthOptions(): NextAuthOptions {
     );
   }
 
-  const enableDevLogin = process.env.ENABLE_DEV_LOGIN === "1" && process.env.NODE_ENV !== "production";
+  const enableDevLogin =
+    process.env.ENABLE_DEV_LOGIN === "1" &&
+    (process.env.NODE_ENV !== "production" || process.env.AC_E2E === "1");
   if (enableDevLogin) {
     // DEV ONLY. A credentials provider that lets us test end-to-end flows locally without OAuth setup.
     providers.unshift(
