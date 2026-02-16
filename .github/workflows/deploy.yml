@@ -1,12 +1,9 @@
 name: Deploy
 
-# This workflow runs only on pushes to main.
-# It contains placeholder deployment jobs for the API and web app.
-# Replace the echo statements with real deployment commands for your
-# platform of choice (Vercel, Railway, Fly.io, Render, AWS, etc.).
-
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -14,132 +11,49 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false  # don't cancel in-flight deploys
 
-env:
-  PYTHON_VERSION: "3.11"
-
 jobs:
   deploy-api:
     name: Deploy API
     runs-on: ubuntu-latest
-    # Uncomment the next line to gate deploys behind the CI workflow:
-    # needs: []
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     environment: production
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
-      # ---------------------------------------------------------------
-      # Option A: Deploy to Fly.io
-      # ---------------------------------------------------------------
-      # - name: Set up Fly CLI
-      #   uses: superfly/flyctl-actions/setup-flyctl@master
-      #
-      # - name: Deploy to Fly.io
-      #   run: flyctl deploy --remote-only
-      #   env:
-      #     FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
 
-      # ---------------------------------------------------------------
-      # Option B: Deploy to Railway
-      # ---------------------------------------------------------------
-      # - name: Deploy to Railway
-      #   uses: bervProject/railway-deploy@main
-      #   with:
-      #     railway_token: ${{ secrets.RAILWAY_TOKEN }}
-      #     service: album-api
-
-      # ---------------------------------------------------------------
-      # Option C: Deploy Docker image to any registry / orchestrator
-      # ---------------------------------------------------------------
-      # - name: Build & push production image
-      #   run: |
-      #     docker build -t album-api:${{ github.sha }} --target production .
-      #     docker tag album-api:${{ github.sha }} <your-registry>/album-api:latest
-      #     docker push <your-registry>/album-api:latest
-
-      # ---------------------------------------------------------------
-      # Placeholder -- remove when real deployment is configured
-      # ---------------------------------------------------------------
-      - name: Placeholder - API deployment steps
+      - name: Deploy to Railway
+        run: railway up --service album-api
         env:
-          DEPLOY_SHA: ${{ github.sha }}
-          DEPLOY_REF: ${{ github.ref_name }}
-          DEPLOY_ACTOR: ${{ github.actor }}
-        run: |
-          echo "=========================================="
-          echo "  API Deployment Placeholder"
-          echo "=========================================="
-          echo ""
-          echo "Commit:  $DEPLOY_SHA"
-          echo "Branch:  $DEPLOY_REF"
-          echo "Actor:   $DEPLOY_ACTOR"
-          echo ""
-          echo "To enable real deployments, replace this step with"
-          echo "commands for your platform (Fly.io, Railway, AWS, etc.)."
-          echo "See the commented-out examples above in this workflow file."
-          echo ""
-          echo "API deployment placeholder complete."
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   deploy-web:
     name: Deploy Web
     runs-on: ubuntu-latest
-    # Uncomment the next line to gate deploys behind the CI workflow:
-    # needs: []
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     environment: production
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
-      # ---------------------------------------------------------------
-      # Option A: Deploy to Vercel (recommended for Next.js)
-      # ---------------------------------------------------------------
-      # - name: Deploy to Vercel
-      #   uses: amondnet/vercel-action@v25
-      #   with:
-      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
-      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-      #     working-directory: apps/web
-      #     vercel-args: --prod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-      # ---------------------------------------------------------------
-      # Option B: Deploy to Netlify
-      # ---------------------------------------------------------------
-      # - name: Deploy to Netlify
-      #   uses: nwtgck/actions-netlify@v3
-      #   with:
-      #     publish-dir: apps/web/.next
-      #     production-deploy: true
-      #   env:
-      #     NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      #     NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      - name: Install Vercel CLI
+        run: npm install -g vercel
 
-      # ---------------------------------------------------------------
-      # Option C: Deploy via Docker
-      # ---------------------------------------------------------------
-      # - name: Build & push web image
-      #   run: |
-      #     docker build -t album-web:${{ github.sha }} apps/web
-      #     docker tag album-web:${{ github.sha }} <your-registry>/album-web:latest
-      #     docker push <your-registry>/album-web:latest
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: apps/web
 
-      # ---------------------------------------------------------------
-      # Placeholder -- remove when real deployment is configured
-      # ---------------------------------------------------------------
-      - name: Placeholder - Web deployment steps
+      - name: Build
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: apps/web
+
+      - name: Deploy
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: apps/web
         env:
-          DEPLOY_SHA: ${{ github.sha }}
-          DEPLOY_REF: ${{ github.ref_name }}
-          DEPLOY_ACTOR: ${{ github.actor }}
-        run: |
-          echo "=========================================="
-          echo "  Web Deployment Placeholder"
-          echo "=========================================="
-          echo ""
-          echo "Commit:  $DEPLOY_SHA"
-          echo "Branch:  $DEPLOY_REF"
-          echo "Actor:   $DEPLOY_ACTOR"
-          echo ""
-          echo "To enable real deployments, replace this step with"
-          echo "commands for your platform (Vercel, Netlify, etc.)."
-          echo "See the commented-out examples above in this workflow file."
-          echo ""
-          echo "Web deployment placeholder complete."
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
