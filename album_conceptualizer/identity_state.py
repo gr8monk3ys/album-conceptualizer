@@ -367,6 +367,9 @@ class SQLiteIdentityStateStore:
                 )
                 """
             )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)"
+            )
             conn.commit()
 
     def get_account(self, account_id: UUID) -> Account | None:

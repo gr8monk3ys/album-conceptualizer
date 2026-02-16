@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import sqlite3
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+
+import pydantic
+
+logger = logging.getLogger(__name__)
 
 from album_conceptualizer.models.album import Album
 from album_conceptualizer.models.album_bible import AlbumBible
@@ -130,7 +137,7 @@ class FileAlbumStore(AlbumStore):
         for path in self.root.glob("*.json"):
             try:
                 albums.append(Album.model_validate_json(path.read_text()))
-            except Exception:
+            except (json.JSONDecodeError, pydantic.ValidationError):
                 continue
         return albums
 
@@ -142,7 +149,14 @@ class FileAlbumStore(AlbumStore):
 
     def save(self, album: Album) -> None:
         path = self._path_for(str(album.id))
-        path.write_text(album.model_dump_json(indent=2))
+        fd, tmp = tempfile.mkstemp(dir=self.root, suffix=".tmp")
+        try:
+            with open(fd, "w") as f:
+                f.write(album.model_dump_json(indent=2))
+            Path(tmp).replace(path)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
 
     def delete(self, album_id: str) -> None:
         path = self._path_for(album_id)
@@ -170,7 +184,14 @@ class FileBibleStore(BibleStore):
 
     def save(self, album_id: str, bible: AlbumBible) -> None:
         path = self._path_for(album_id)
-        path.write_text(bible.model_dump_json(indent=2))
+        fd, tmp = tempfile.mkstemp(dir=self.root, suffix=".tmp")
+        try:
+            with open(fd, "w") as f:
+                f.write(bible.model_dump_json(indent=2))
+            Path(tmp).replace(path)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
 
     def delete(self, album_id: str) -> None:
         path = self._path_for(album_id)
@@ -195,7 +216,7 @@ class FileSubscriptionStore(SubscriptionStore):
         for path in self.root.glob("*.json"):
             try:
                 items.append(AccountSubscription.model_validate_json(path.read_text()))
-            except Exception:
+            except (json.JSONDecodeError, pydantic.ValidationError):
                 continue
         return items
 
@@ -224,6 +245,7 @@ class SQLiteAlbumStore(AlbumStore):
     def __post_init__(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS albums (id TEXT PRIMARY KEY, payload TEXT NOT NULL)"
             )
@@ -235,7 +257,8 @@ class SQLiteAlbumStore(AlbumStore):
         for (payload,) in rows:
             try:
                 albums.append(Album.model_validate_json(payload))
-            except Exception:
+            except (json.JSONDecodeError, pydantic.ValidationError):
+                logger.warning("Skipping corrupt album payload in SQLite")
                 continue
         return albums
 
@@ -270,6 +293,7 @@ class SQLiteBibleStore(BibleStore):
     def __post_init__(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS bibles (album_id TEXT PRIMARY KEY, payload TEXT NOT NULL)"
             )
@@ -307,6 +331,7 @@ class SQLiteSubscriptionStore(SubscriptionStore):
     def __post_init__(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS subscriptions ("
                 "api_key_hash TEXT PRIMARY KEY, payload TEXT NOT NULL)"
@@ -319,7 +344,8 @@ class SQLiteSubscriptionStore(SubscriptionStore):
         for (payload,) in rows:
             try:
                 items.append(AccountSubscription.model_validate_json(payload))
-            except Exception:
+            except (json.JSONDecodeError, pydantic.ValidationError):
+                logger.warning("Skipping corrupt subscription payload in SQLite")
                 continue
         return items
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from album_conceptualizer.config import get_settings
+
+logger = logging.getLogger("album_conceptualizer.api.rate_limit")
 
 
 @dataclass
@@ -43,6 +46,10 @@ class InMemoryRateLimiter(BaseHTTPMiddleware):
         bucket = self._requests[key]
         while bucket and bucket[0] < window_start:
             bucket.popleft()
+        if not bucket:
+            del self._requests[key]
+            # Re-add for the current request below
+            bucket = self._requests[key]
         if len(bucket) >= self.config.max_per_minute:
             return False
         bucket.append(now)
@@ -64,6 +71,10 @@ class InMemoryRateLimiter(BaseHTTPMiddleware):
 
         key = self._get_key(request)
         if not self._allowed(key):
+            logger.warning(
+                "rate limit exceeded",
+                extra={"key": key, "path": request.url.path},
+            )
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded"},
@@ -136,6 +147,10 @@ class RedisRateLimiter(BaseHTTPMiddleware):
 
         key = self._get_key(request)
         if not self._allowed(key):
+            logger.warning(
+                "rate limit exceeded (redis)",
+                extra={"key": key, "path": request.url.path},
+            )
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded"},
