@@ -75,12 +75,20 @@ full = [
     "musicbrainzngs>=0.7.1",
 ]
 
-# Development dependencies
-dev = [
+# Test dependencies (includes crewai for agent tests)
+test = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",
     "pytest-httpx>=0.36.0",
+    "httpx>=0.28.1",
+    "crewai>=1.9.3",
+    "crewai-tools>=1.9.3",
+]
+
+# Development dependencies
+dev = [
+    "album-conceptualizer[test]",
     "ruff>=0.13.1",
     "mypy>=1.19.0",
     "pre-commit>=4.3.0",
@@ -196,8 +204,16 @@ addopts = [
     "--strict-markers",
 ]
 markers = [
+    "agents: tests requiring crewai (deselect with '-m \"not agents\"')",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic.*",
+    "ignore::DeprecationWarning:langchain.*",
+    "ignore::DeprecationWarning:crewai.*",
+    "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning:crewai.*",
 ]
 
 # Coverage configuration
@@ -207,6 +223,8 @@ branch = true
 omit = ["*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]
+fail_under = 50
+show_missing = true
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

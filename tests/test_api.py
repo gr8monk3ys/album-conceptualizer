@@ -45,6 +45,19 @@ class TestHealthEndpoints:
         data = response.json()
         assert "ready" in data
         assert "checks" in data
+        assert data["status"] in ("ok", "degraded")
+
+    def test_readiness_check_has_dependency_checks(self, client):
+        """Test /api/v1/ready includes actual dependency health details."""
+        response = client.get("/api/v1/ready")
+        data = response.json()
+        checks = data["checks"]
+        # API check is always present.
+        assert "api" in checks
+        assert checks["api"]["healthy"] is True
+        # With default in-memory backend there should be a storage check.
+        assert "storage" in checks
+        assert checks["storage"]["healthy"] is True
 
     def test_metrics_snapshot_contains_duration_fields(self, client):
         """Test /api/v1/metrics JSON includes latency aggregates."""
@@ -57,6 +70,19 @@ class TestHealthEndpoints:
         assert "avg_duration_ms" in payload
         assert "path_duration_ms" in payload
 
+    def test_metrics_snapshot_contains_extended_fields(self, client):
+        """Test /api/v1/metrics JSON includes min/max/p95/uptime/version."""
+        client.get("/api/v1/health")
+        response = client.get("/api/v1/metrics")
+        payload = response.json()
+        assert "min_duration_ms" in payload
+        assert "max_duration_ms" in payload
+        assert "p95_duration_ms" in payload
+        assert "uptime_seconds" in payload
+        assert payload["uptime_seconds"] >= 0
+        assert "python_version" in payload
+        assert "app_version" in payload
+
     def test_metrics_prometheus_contains_duration_series(self, client):
         """Test Prometheus text output includes duration counters."""
         client.get("/api/v1/health")
@@ -65,6 +91,29 @@ class TestHealthEndpoints:
         body = response.text
         assert "album_conceptualizer_request_duration_ms_sum" in body
         assert "album_conceptualizer_request_duration_ms_avg" in body
+        assert "album_conceptualizer_request_duration_ms_min" in body
+        assert "album_conceptualizer_request_duration_ms_max" in body
+        assert "album_conceptualizer_request_duration_ms_p95" in body
+        assert "album_conceptualizer_uptime_seconds" in body
+
+    def test_error_response_contains_request_id(self, client):
+        """Test that 404 error responses include a request_id field."""
+        response = client.get("/api/v1/nonexistent-endpoint-xyz")
+        assert response.status_code == 404
+        data = response.json()
+        assert "request_id" in data
+
+    def test_request_id_header_echoed(self, client):
+        """Test that X-Request-ID header is echoed back in responses."""
+        response = client.get("/api/v1/health", headers={"X-Request-ID": "test-rid-123"})
+        assert response.headers.get("X-Request-ID") == "test-rid-123"
+
+    def test_request_id_generated_when_not_provided(self, client):
+        """Test that X-Request-ID is generated when client does not provide one."""
+        response = client.get("/api/v1/health")
+        rid = response.headers.get("X-Request-ID")
+        assert rid is not None
+        assert len(rid) > 0
 
 
 class TestAlbumEndpoints:

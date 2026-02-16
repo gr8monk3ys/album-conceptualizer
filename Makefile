@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test test-cov clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke
+.PHONY: help install install-dev install-test lint format test test-all test-agents test-cov test-coverage test-fast clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke
 
 # Default target
 help:
@@ -12,8 +12,11 @@ help:
 	@echo "Development:"
 	@echo "  make lint          Run linter (ruff check)"
 	@echo "  make format        Format code (ruff format)"
-	@echo "  make test          Run tests"
-	@echo "  make test-cov      Run tests with coverage"
+	@echo "  make test          Run tests (skip agent tests if crewai missing)"
+	@echo "  make test-all      Run all tests including agent tests (requires crewai)"
+	@echo "  make test-agents   Run only agent/crewai tests"
+	@echo "  make test-cov      Run tests with coverage report"
+	@echo "  make test-coverage Run tests with coverage and fail-under check"
 	@echo "  make type-check    Run type checker (mypy)"
 	@echo ""
 	@echo "Application:"
@@ -58,6 +61,9 @@ install-dev:
 install-full:
 	uv pip install --system -e ".[full,dev]"
 
+install-test:
+	uv pip install --system -e ".[test]"
+
 install-ai:
 	uv pip install --system -e ".[ai,rag]"
 
@@ -80,8 +86,17 @@ format-check:
 test:
 	pytest tests/ -v
 
+test-all:
+	pytest tests/ -v -m ""
+
+test-agents:
+	pytest tests/ -v -m agents
+
 test-cov:
 	pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=html
+
+test-coverage:
+	pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=xml --cov-fail-under=50
 
 test-fast:
 	pytest tests/ -v -x --tb=short
