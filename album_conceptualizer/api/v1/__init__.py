@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 from album_conceptualizer.api.deps import require_active_subscription, require_api_key
 from album_conceptualizer.api.v1.albums import router as albums_router
+from album_conceptualizer.api.v1.audio_gen import router as audio_gen_router
 from album_conceptualizer.api.v1.bible import router as bible_router
 from album_conceptualizer.api.v1.billing import (
     protected_router as billing_protected_router,
@@ -36,6 +37,7 @@ subscription_router.include_router(bible_router, prefix="/albums/{album_id}/bibl
 subscription_router.include_router(theory_router, prefix="/theory", tags=["theory"])
 subscription_router.include_router(export_router, prefix="/export", tags=["export"])
 subscription_router.include_router(experience_router, tags=["experience"])
+subscription_router.include_router(audio_gen_router, prefix="/audio-gen", tags=["audio-generation"])
 api_key_router.include_router(billing_protected_router, prefix="/billing", tags=["billing"])
 
 router.include_router(api_key_router)

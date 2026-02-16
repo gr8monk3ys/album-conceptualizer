@@ -1,14 +1,23 @@
 """FastAPI application factory and configuration."""
 
+from __future__ import annotations
+
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import album_conceptualizer
 from album_conceptualizer.api.metrics import MetricsRegistry
-from album_conceptualizer.api.middleware import MetricsMiddleware, RequestLoggingMiddleware
+from album_conceptualizer.api.middleware import (
+    MetricsMiddleware,
+    RequestIDMiddleware,
+    RequestLoggingMiddleware,
+)
 from album_conceptualizer.api.quota import InMemoryQuota, QuotaConfig, RedisQuota
 from album_conceptualizer.api.rate_limit import (
     InMemoryRateLimiter,
@@ -31,7 +40,7 @@ from album_conceptualizer.identity_state import (
     InMemoryIdentityStateStore,
     SQLiteIdentityStateStore,
 )
-from album_conceptualizer.logging import configure_logging
+from album_conceptualizer.logging import configure_logging, get_logger, request_id_var
 from album_conceptualizer.storage import (
     FileAlbumStore,
     FileBibleStore,
@@ -43,6 +52,9 @@ from album_conceptualizer.storage import (
     SQLiteBibleStore,
     SQLiteSubscriptionStore,
 )
+
+
+logger = get_logger("album_conceptualizer.api.app")
 
 
 def _validate_strict_production(settings) -> None:
@@ -91,6 +103,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _initialize_state(app)
     settings = app.state.settings
 
+    # Determine enabled features for the startup banner.
+    enabled_features: list[str] = []
+    if settings.rate_limit_backend == "redis" or settings.rate_limit_enabled:
+        enabled_features.append("rate_limiting")
+    if settings.quota_backend == "redis" or settings.quota_enabled:
+        enabled_features.append("quotas")
+    if settings.subscription_required:
+        enabled_features.append("subscription_gating")
+    if settings.chroma_persist_directory:
+        enabled_features.append("rag")
+    if settings.collab_realtime_backend == "redis":
+        enabled_features.append("redis_collab_realtime")
+
+    logger.info(
+        "application starting",
+        extra={
+            "app_version": album_conceptualizer.__version__,
+            "python_version": sys.version,
+            "storage_backend": settings.storage_backend,
+            "log_level": settings.log_level,
+            "enabled_features": enabled_features,
+        },
+    )
+
     # Initialize RAG system if configured
     if settings.chroma_persist_directory:
         try:
@@ -106,13 +142,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 embedding_model=embedding_model,
                 persist_directory=settings.chroma_persist_directory,
             )
+            logger.info("RAG vector store initialized")
         except Exception:
+            logger.warning("RAG vector store initialization failed; RAG features disabled")
             app.state.vector_store = None
 
+    logger.info(
+        "application startup complete",
+        extra={
+            "app_version": album_conceptualizer.__version__,
+        },
+    )
     yield
 
     # Shutdown
-    # Cleanup resources if needed
+    logger.info(
+        "application shutting down gracefully",
+        extra={
+            "app_version": album_conceptualizer.__version__,
+        },
+    )
 
 
 def create_app(
@@ -169,6 +218,7 @@ def create_app(
             {"name": "export", "description": "Export to various formats"},
             {"name": "identity", "description": "Accounts, workspaces, and workspace tokens"},
             {"name": "experience", "description": "Creative workflow and launch readiness tools"},
+            {"name": "audio-generation", "description": "AI-powered audio generation"},
             {"name": "agents", "description": "AI agent workflows"},
             {"name": "health", "description": "Health check endpoints"},
         ],
@@ -185,6 +235,7 @@ def create_app(
     )
 
     app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(RequestIDMiddleware)
     app.add_middleware(MetricsMiddleware)
 
     # Apply quota middleware.
@@ -241,18 +292,44 @@ def create_app(
     async def live_root():
         return await v1_liveness_check()
 
+    # HTTPException handler – inject request_id into 4xx/5xx error bodies.
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+        rid = request_id_var.get()
+        detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+        body: dict[str, object] = {"detail": detail}
+        if rid:
+            body["request_id"] = rid
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=body,
+            headers=getattr(exc, "headers", None),
+        )
+
     # Global exception handler
     @app.exception_handler(Exception)
     async def global_exception_handler(request, exc):
+        rid = request_id_var.get()
+        logger.error(
+            "unhandled exception",
+            extra={
+                "exception_type": type(exc).__name__,
+                "path": str(request.url),
+            },
+            exc_info=exc,
+        )
         metrics: MetricsRegistry | None = getattr(request.app.state, "metrics", None)
         if metrics:
             metrics.record_error()
+        body: dict[str, object] = {
+            "detail": "Internal server error",
+            "type": type(exc).__name__,
+        }
+        if rid:
+            body["request_id"] = rid
         return JSONResponse(
             status_code=500,
-            content={
-                "detail": "Internal server error",
-                "type": type(exc).__name__,
-            },
+            content=body,
         )
 
     return app

@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     hooktheory_api_key: str | None = Field(default=None, alias="HOOKTHEORY_API_KEY")
+    replicate_api_token: str | None = Field(default=None, alias="REPLICATE_API_TOKEN")
     api_key: str | None = Field(default=None, alias="ALBUM_CONCEPTUALIZER_API_KEY")
     api_keys: list[str] = Field(
         default_factory=list,
@@ -191,7 +192,7 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: list[str] = Field(
-        default_factory=lambda: ["*"],
+        default_factory=lambda: ["http://localhost:3000"],
         alias="ALBUM_CONCEPTUALIZER_CORS_ORIGINS",
     )
 
@@ -274,7 +275,7 @@ class Settings(BaseSettings):
     @classmethod
     def _parse_cors_origins(cls, value: object) -> list[str]:
         if value is None:
-            return ["*"]
+            return ["http://localhost:3000"]
         if isinstance(value, list):
             return value
         if isinstance(value, str):
@@ -286,10 +287,10 @@ class Settings(BaseSettings):
                     loaded = None
                 if isinstance(loaded, list):
                     parsed = [item for item in loaded if isinstance(item, str) and item.strip()]
-                    return parsed or ["*"]
+                    return parsed or ["http://localhost:3000"]
             cleaned = [item.strip() for item in value.split(",") if item.strip()]
-            return cleaned or ["*"]
-        return ["*"]
+            return cleaned or ["http://localhost:3000"]
+        return ["http://localhost:3000"]
 
     @field_validator("collab_realtime_backend")
     @classmethod
