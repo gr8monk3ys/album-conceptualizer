@@ -67,6 +67,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Enable standalone output for optimized Docker deployments.
+  output: "standalone",
+
   turbopack: {
     // Avoid picking up lockfiles outside this app when the repo is used as a workspace.
     root: currentDir,
