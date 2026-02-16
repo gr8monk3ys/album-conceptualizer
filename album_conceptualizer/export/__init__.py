@@ -20,9 +20,19 @@ AlbumExporter: Any = None
 
 # Optional: MIDI export (requires pretty_midi)
 try:
-    from album_conceptualizer.export.midi import MidiExporter, create_chord_midi
+    from album_conceptualizer.export.midi import (
+        MidiExporter,
+        create_chord_midi,
+        get_section_velocity,
+        resolve_program,
+    )
 
-    __all__.extend(["MidiExporter", "create_chord_midi"])
+    __all__.extend([
+        "MidiExporter",
+        "create_chord_midi",
+        "resolve_program",
+        "get_section_velocity",
+    ])
 except ImportError:
     pass
 
@@ -40,8 +50,9 @@ try:
         AlbumExporter,
         ExportFormat,
         ExportResult,
+        ExportValidation,
     )
 
-    __all__.extend(["AlbumExporter", "ExportFormat", "ExportResult"])
+    __all__.extend(["AlbumExporter", "ExportFormat", "ExportResult", "ExportValidation"])
 except ImportError:
     pass

@@ -1,6 +1,6 @@
 """Unified export interface for all formats."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -27,6 +27,15 @@ class ExportResult:
     path: Path
     success: bool
     message: str = ""
+
+
+@dataclass
+class ExportValidation:
+    """Result of validating export readiness."""
+
+    is_ready: bool
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 class AlbumExporter:
@@ -70,6 +79,52 @@ class AlbumExporter:
             self.musicxml_exporter = MusicXMLExporter()
         except ImportError:
             self.musicxml_exporter = None
+
+    def validate_album_for_export(
+        self,
+        album: Album,
+        formats: list[ExportFormat],
+    ) -> ExportValidation:
+        """Check if an album has sufficient data for export.
+
+        Args:
+            album: Album to validate.
+            formats: Target export formats to validate against.
+
+        Returns:
+            An :class:`ExportValidation` containing any warnings or errors.
+        """
+        warnings: list[str] = []
+        errors: list[str] = []
+
+        if not album.songs:
+            errors.append("Album has no songs")
+
+        for song in album.songs:
+            if not song.sections:
+                warnings.append(f"Song '{song.title}' has no sections")
+
+            has_chords = any(s.chord_progression for s in song.sections)
+            has_lyrics = any(s.lyrics for s in song.sections)
+
+            if ExportFormat.MIDI in formats and not has_chords:
+                warnings.append(
+                    f"Song '{song.title}' has no chord progressions (MIDI will be empty)"
+                )
+
+            if ExportFormat.CHORDPRO in formats and not has_lyrics and not has_chords:
+                warnings.append(
+                    f"Song '{song.title}' has no lyrics or chords (ChordPro will be empty)"
+                )
+
+            if ExportFormat.TEXT in formats and not has_lyrics:
+                warnings.append(f"Song '{song.title}' has no lyrics")
+
+        return ExportValidation(
+            is_ready=len(errors) == 0,
+            warnings=warnings,
+            errors=errors,
+        )
 
     def export_album(
         self,
