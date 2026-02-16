@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, "feature/**", "feat/**", "fix/**", "gr8monk3ys/**"]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -16,6 +16,8 @@ env:
   UV_SYSTEM_PYTHON: 1
 
 jobs:
+  # ---------- Python ----------
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -39,9 +41,43 @@ jobs:
       - name: Run Ruff formatter check
         run: ruff format --check album_conceptualizer/ tests/
 
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: test-key
+      OPENAI_API_KEY: test-key
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: pip-${{ runner.os }}-py3.11-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11-
+
+      - name: Install dependencies (with test extras)
+        run: uv pip install --system -e ".[test]"
+
+      - name: Run pytest
+        run: python -m pytest tests/ -x --tb=short
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: test-key
+      OPENAI_API_KEY: test-key
     strategy:
       fail-fast: false
       matrix:
@@ -162,6 +198,68 @@ jobs:
             tests/test_rag.py::TestEmbeddings \
             -v --tb=short
 
+  # ---------- TypeScript / Next.js ----------
+
+  typescript-check:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: apps/web/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('apps/web/package-lock.json') }}
+          restore-keys: |
+            node-modules-${{ runner.os }}-
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Run TypeScript type check
+        working-directory: apps/web
+        run: npx tsc --noEmit
+
+      - name: Run Next.js lint
+        working-directory: apps/web
+        run: npx next lint
+
+  web:
+    name: Web (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Lint web
+        working-directory: apps/web
+        run: npm run lint
+
+      - name: Build web
+        working-directory: apps/web
+        run: npm run build
+
+  # ---------- E2E ----------
+
   ui-e2e:
     name: UI E2E (Playwright CLI)
     runs-on: ubuntu-latest
@@ -197,31 +295,6 @@ jobs:
           path: |
             output/playwright/
             .playwright-cli/
-
-  web:
-    name: Web (Next.js)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: apps/web/package-lock.json
-
-      - name: Install web dependencies
-        working-directory: apps/web
-        run: npm ci
-
-      - name: Lint web
-        working-directory: apps/web
-        run: npm run lint
-
-      - name: Build web
-        working-directory: apps/web
-        run: npm run build
 
   web-e2e:
     name: Web E2E (Next.js + Engine)
@@ -343,10 +416,46 @@ jobs:
             apps/web/playwright-report/
             apps/web/test-results/
 
+  # ---------- Docker ----------
+
+  docker-build:
+    name: Docker Build (validate)
+    runs-on: ubuntu-latest
+    # Only validate Docker builds on pushes to main and pull requests (not every feature branch push)
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Python API Docker image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: false
+          tags: album-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Note: The Next.js app does not have a Dockerfile yet.
+      # When apps/web/Dockerfile is added, uncomment the step below.
+      # - name: Build Next.js Docker image (no push)
+      #   uses: docker/build-push-action@v6
+      #   with:
+      #     context: apps/web
+      #     push: false
+      #     tags: album-web:ci
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
+
+  # ---------- Packaging & Release ----------
+
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [lint, test, type-check, security, optional-stack, ui-e2e, web, web-e2e]
+    needs: [lint, python-tests, test, type-check, typescript-check, security, optional-stack, ui-e2e, web, web-e2e]
     steps:
       - uses: actions/checkout@v6
 
@@ -368,9 +477,9 @@ jobs:
           path: dist/
 
   docker:
-    name: Build Docker Image
+    name: Build & Push Docker Image
     runs-on: ubuntu-latest
-    needs: [lint, test, type-check, security, optional-stack, ui-e2e]
+    needs: [lint, python-tests, test, type-check, typescript-check, security, optional-stack, ui-e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v6
