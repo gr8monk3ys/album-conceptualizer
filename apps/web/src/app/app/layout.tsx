@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { ErrorBoundary } from "@/components/error-boundary";
 import { PlayerProvider } from "@/components/player/player-provider";
 import { Playerbar } from "@/components/playerbar";
 import { Sidebar } from "@/components/sidebar";
@@ -24,6 +25,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   });
 
   return (
+    <ErrorBoundary>
     <PlayerProvider>
       <div className="relative px-3 py-3 md:px-4 md:py-4">
         <div className="mx-auto flex max-w-[1600px] gap-4">
@@ -50,5 +52,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <Playerbar />
       </div>
     </PlayerProvider>
+    </ErrorBoundary>
   );
 }

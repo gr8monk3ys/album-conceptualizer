@@ -94,6 +94,7 @@ export async function POST(request: Request) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return NextResponse.json({ error: "Already completed today." }, { status: 409 });
     }
+    console.error("Failed to record challenge completion:", err);
     return NextResponse.json({ error: "Could not record completion." }, { status: 500 });
   }
 }

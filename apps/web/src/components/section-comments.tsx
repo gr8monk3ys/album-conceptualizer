@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ClipboardCheck, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
 
 type CommentAuthor = {
@@ -53,7 +53,7 @@ export function SectionComments({
     return `Track ${section.songTrackNumber} · ${section.sectionType} #${section.sectionOrder + 1}`;
   }, [section.songTrackNumber, section.sectionOrder, section.sectionType]);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -74,12 +74,11 @@ export function SectionComments({
     } finally {
       setLoading(false);
     }
-  }
+  }, [albumId, sectionId]);
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [albumId, sectionId]);
+  }, [refresh]);
 
   async function submit() {
     setSubmitting(true);

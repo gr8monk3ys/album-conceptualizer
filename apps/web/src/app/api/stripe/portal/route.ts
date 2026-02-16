@@ -38,6 +38,7 @@ export async function POST() {
   try {
     stripe = getStripe();
   } catch (err) {
+    console.error("Failed to initialize Stripe for billing portal:", err);
     const message = err instanceof Error ? err.message : "Stripe is not configured.";
     return NextResponse.json({ error: message }, { status: 503 });
   }

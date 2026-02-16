@@ -71,6 +71,7 @@ export async function POST(
         { status: 402 },
       );
     }
+    console.error("Failed to spend credits for album fork:", err);
     const message = err instanceof Error ? err.message : "Unable to spend credits.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

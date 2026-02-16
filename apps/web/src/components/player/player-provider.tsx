@@ -342,7 +342,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let mounted = true;
+
     const tick = () => {
+      if (!mounted) return;
+
       const next = Tone.Transport.seconds;
       setPosition(next);
       positionRef.current = next;
@@ -357,6 +361,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
     rafRef.current = requestAnimationFrame(tick);
     return () => {
+      mounted = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };

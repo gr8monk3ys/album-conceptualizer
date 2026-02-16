@@ -34,6 +34,7 @@ export async function POST(
     });
   } catch (err) {
     if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) {
+      console.error("Failed to process album like:", err);
       return NextResponse.json({ error: "Unable to like." }, { status: 500 });
     }
   }
