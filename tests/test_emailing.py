@@ -16,12 +16,13 @@ from album_conceptualizer.emailing import (
 
 
 def test_outbox_email_sender_writes_jsonl(tmp_path: Path) -> None:
-    outbox = tmp_path / "mail" / "outbox.log"
-    sender = OutboxEmailSender(outbox)
+    outbox_dir = tmp_path / "mail" / "outbox"
+    sender = OutboxEmailSender(outbox_dir)
 
     sender.send(to_email="person@example.com", subject="Test Subject", body="Hello")
 
-    lines = outbox.read_text(encoding="utf-8").strip().splitlines()
+    jsonl_path = outbox_dir / "outbox.jsonl"
+    lines = jsonl_path.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 1
     payload = json.loads(lines[0])
     assert payload["email"] == "person@example.com"
@@ -41,6 +42,7 @@ def test_create_email_sender_validates_smtp_requirements(tmp_path: Path) -> None
         smtp_password=None,
         email_reply_to=None,
         smtp_timeout_seconds=10.0,
+        data_dir=tmp_path,
         output_dir=tmp_path,
     )
 

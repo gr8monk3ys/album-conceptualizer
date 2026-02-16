@@ -58,7 +58,7 @@ def main() -> int:
 
     print(f"[PASS] Email smoke sent via provider={provider} to {args.to}")
     if isinstance(sender, OutboxEmailSender):
-        print(f"       outbox={sender.outbox_path}")
+        print(f"       outbox={sender.outbox_dir}")
     return 0
 
 
