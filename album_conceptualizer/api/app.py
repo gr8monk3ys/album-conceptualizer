@@ -183,6 +183,16 @@ def create_app(
     settings = get_settings()
     _validate_strict_production(settings)
     configure_logging(settings.log_level)
+
+    # Initialize Sentry error monitoring (optional – gracefully skips if not configured)
+    from album_conceptualizer.sentry_setup import init_sentry
+
+    init_sentry(
+        dsn=settings.sentry_dsn,
+        environment=settings.sentry_environment,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+    )
+
     app = FastAPI(
         title=title,
         description="""

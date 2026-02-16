@@ -64,6 +64,9 @@ data = [
     "numpy>=2.4.2",
 ]
 
+# Monitoring
+monitoring = ["sentry-sdk[fastapi]>=2.0"]
+
 # UI
 ui = ["gradio>=6.5.1"]
 
@@ -88,7 +91,7 @@ test = [
 
 # Development dependencies
 dev = [
-    "album-conceptualizer[test]",
+    "album-conceptualizer[test,monitoring]",
     "ruff>=0.13.1",
     "mypy>=1.19.0",
     "pre-commit>=4.3.0",

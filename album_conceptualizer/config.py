@@ -177,6 +177,13 @@ class Settings(BaseSettings):
         alias="ALBUM_CONCEPTUALIZER_SMTP_TIMEOUT_SECONDS",
     )
 
+    # Sentry error monitoring
+    sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
+    sentry_environment: str = Field(default="development", alias="SENTRY_ENVIRONMENT")
+    sentry_traces_sample_rate: float = Field(
+        default=0.1, ge=0.0, le=1.0, alias="SENTRY_TRACES_SAMPLE_RATE"
+    )
+
     # Logging
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 

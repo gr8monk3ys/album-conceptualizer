@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
+    "@sentry/nextjs": "^10.39.0",
     "@neondatabase/serverless": "^1.0.2",
     "@prisma/adapter-neon": "^7.4.0",
     "@prisma/adapter-pg": "^7.4.0",
