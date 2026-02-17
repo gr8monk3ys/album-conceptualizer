@@ -1,11 +1,14 @@
 import { Tabs } from "expo-router";
 import { Bell, Compass, Home, Library, PlusCircle } from "lucide-react-native";
 import { StyleSheet, View } from "react-native";
+import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 import type { ReactNode } from "react";
 
+import { ErrorBoundary } from "../../src/components/ui";
 import { MiniPlayer } from "../../src/components/player/mini-player";
 import { useUnreadCount } from "../../src/hooks/use-notifications";
 import { usePlayerStore } from "../../src/stores/player-store";
+import { hapticSelection } from "../../src/utils/haptics";
 import { colors, spacing } from "../../src/theme";
 
 const TAB_BAR_ICON_SIZE = 24;
@@ -22,83 +25,94 @@ export default function TabsLayout(): ReactNode {
 
   return (
     <View style={styles.root}>
-      <Tabs
-        screenOptions={{
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-          headerTitleStyle: { fontWeight: "600" },
-          tabBarStyle: styles.tabBar,
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textMuted,
-          tabBarLabelStyle: styles.tabBarLabel,
-        }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: "Home",
-            tabBarIcon: ({ color }) => (
-              <Home size={TAB_BAR_ICON_SIZE} color={color} />
-            ),
+      <ErrorBoundary>
+        <Tabs
+          screenOptions={{
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+            headerTitleStyle: { fontWeight: "600" },
+            tabBarStyle: styles.tabBar,
+            tabBarActiveTintColor: colors.primary,
+            tabBarInactiveTintColor: colors.textMuted,
+            tabBarLabelStyle: styles.tabBarLabel,
           }}
-        />
-
-        <Tabs.Screen
-          name="library"
-          options={{
-            title: "Library",
-            tabBarIcon: ({ color }) => (
-              <Library size={TAB_BAR_ICON_SIZE} color={color} />
-            ),
+          screenListeners={{
+            tabPress: () => {
+              hapticSelection();
+            },
           }}
-        />
+        >
+          <Tabs.Screen
+            name="index"
+            options={{
+              title: "Home",
+              tabBarIcon: ({ color }) => (
+                <Home size={TAB_BAR_ICON_SIZE} color={color} />
+              ),
+            }}
+          />
 
-        <Tabs.Screen
-          name="studio"
-          options={{
-            title: "Create",
-            tabBarIcon: () => (
-              <View style={styles.createButton}>
-                <PlusCircle
-                  size={CREATE_ICON_SIZE}
-                  color={colors.primary}
-                  strokeWidth={2}
-                />
-              </View>
-            ),
-            tabBarLabel: () => null,
-          }}
-        />
+          <Tabs.Screen
+            name="library"
+            options={{
+              title: "Library",
+              tabBarIcon: ({ color }) => (
+                <Library size={TAB_BAR_ICON_SIZE} color={color} />
+              ),
+            }}
+          />
 
-        <Tabs.Screen
-          name="discover"
-          options={{
-            title: "Discover",
-            tabBarIcon: ({ color }) => (
-              <Compass size={TAB_BAR_ICON_SIZE} color={color} />
-            ),
-          }}
-        />
+          <Tabs.Screen
+            name="studio"
+            options={{
+              title: "Create",
+              tabBarIcon: () => (
+                <View style={styles.createButton}>
+                  <PlusCircle
+                    size={CREATE_ICON_SIZE}
+                    color={colors.primary}
+                    strokeWidth={2}
+                  />
+                </View>
+              ),
+              tabBarLabel: () => null,
+            }}
+          />
 
-        <Tabs.Screen
-          name="notifications"
-          options={{
-            title: "Notifications",
-            tabBarIcon: ({ color }) => (
-              <View>
-                <Bell size={TAB_BAR_ICON_SIZE} color={color} />
-                {unreadCount > 0 && <TabBarBadgeDot />}
-              </View>
-            ),
-          }}
-        />
-      </Tabs>
+          <Tabs.Screen
+            name="discover"
+            options={{
+              title: "Discover",
+              tabBarIcon: ({ color }) => (
+                <Compass size={TAB_BAR_ICON_SIZE} color={color} />
+              ),
+            }}
+          />
 
-      {hasAudio && (
-        <View style={styles.miniPlayerContainer}>
-          <MiniPlayer onExpand={() => {}} />
-        </View>
-      )}
+          <Tabs.Screen
+            name="notifications"
+            options={{
+              title: "Notifications",
+              tabBarIcon: ({ color }) => (
+                <View>
+                  <Bell size={TAB_BAR_ICON_SIZE} color={color} />
+                  {unreadCount > 0 && <TabBarBadgeDot />}
+                </View>
+              ),
+            }}
+          />
+        </Tabs>
+
+        {hasAudio && (
+          <Animated.View
+            entering={SlideInDown.duration(300)}
+            exiting={SlideOutDown.duration(300)}
+            style={styles.miniPlayerContainer}
+          >
+            <MiniPlayer onExpand={() => {}} />
+          </Animated.View>
+        )}
+      </ErrorBoundary>
     </View>
   );
 }

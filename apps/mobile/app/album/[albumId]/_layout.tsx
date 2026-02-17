@@ -1,5 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter, useSegments } from "expo-router";
 import {
+  AlertTriangle,
   BookOpen,
   Download,
   GitBranch,
@@ -10,10 +11,12 @@ import {
 } from "lucide-react-native";
 import { useCallback } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, { Layout } from "react-native-reanimated";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react-native";
 
-import { Loading } from "../../../src/components/ui";
+import { ErrorBoundary, Loading } from "../../../src/components/ui";
+import { hapticSelection } from "../../../src/utils/haptics";
 import { useAlbum } from "../../../src/hooks/use-albums";
 import { borderRadius, colors, fontSize, spacing } from "../../../src/theme";
 
@@ -50,7 +53,10 @@ function TabItem({ tab, isActive, onPress }: TabItemProps): ReactNode {
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        hapticSelection();
+        onPress();
+      }}
       style={({ pressed }) => [
         styles.tab,
         { opacity: pressed ? 0.7 : 1 },
@@ -58,7 +64,9 @@ function TabItem({ tab, isActive, onPress }: TabItemProps): ReactNode {
     >
       <Icon size={18} color={color} />
       <Text style={[styles.tabLabel, { color }]}>{tab.label}</Text>
-      {isActive && <View style={styles.tabIndicator} />}
+      {isActive && (
+        <Animated.View layout={Layout.springify()} style={styles.tabIndicator} />
+      )}
     </Pressable>
   );
 }
@@ -82,7 +90,7 @@ export default function AlbumWorkspaceLayout(): ReactNode {
     [albumId, router],
   );
 
-  if (isLoading) {
+  if (!albumId || isLoading) {
     return <Loading />;
   }
 
@@ -90,65 +98,92 @@ export default function AlbumWorkspaceLayout(): ReactNode {
 
   return (
     <View style={styles.root}>
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-          headerTitleStyle: { fontWeight: "600" },
-          contentStyle: { backgroundColor: colors.background },
-          animation: "fade",
-        }}
+      <ErrorBoundary
+        fallback={(error, resetError) => (
+          <View style={styles.errorContainer}>
+            <AlertTriangle size={48} color={colors.warning} />
+            <Text style={styles.errorTitle}>Album Error</Text>
+            <Text style={styles.errorMessage} numberOfLines={3}>
+              {error.message || "Something went wrong loading this album."}
+            </Text>
+            <View style={styles.errorActions}>
+              <Pressable style={styles.errorButton} onPress={resetError}>
+                <Text style={styles.errorButtonText}>Try Again</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.errorButton, styles.errorButtonSecondary]}
+                onPress={() => router.back()}
+              >
+                <Text style={styles.errorButtonTextSecondary}>Go Back</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
       >
-        <Stack.Screen
-          name="index"
-          options={{ title: headerTitle, headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="studio"
-          options={{ title: headerTitle, headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="bible"
-          options={{ title: headerTitle, headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="coherence"
-          options={{ title: headerTitle, headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="export"
-          options={{ title: headerTitle, headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="versions"
-          options={{ title: headerTitle, headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="inbox"
-          options={{ title: headerTitle, headerBackTitle: "Back" }}
-        />
-        <Stack.Screen
-          name="collab/[roomId]"
-          options={{ title: "Collab Room", headerBackTitle: "Back" }}
-        />
-      </Stack>
-
-      <View style={styles.tabBarContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabBarContent}
+        <Stack
+          screenOptions={{
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+            headerTitleStyle: { fontWeight: "600" },
+            contentStyle: { backgroundColor: colors.background },
+            animation: "fade",
+          }}
         >
-          {TABS.map((tab) => (
-            <TabItem
-              key={tab.key}
-              tab={tab}
-              isActive={activeKey === tab.key}
-              onPress={() => handleTabPress(tab)}
-            />
-          ))}
-        </ScrollView>
-      </View>
+          <Stack.Screen
+            name="index"
+            options={{ title: headerTitle, headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="studio"
+            options={{ title: headerTitle, headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="bible"
+            options={{ title: headerTitle, headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="coherence"
+            options={{ title: headerTitle, headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="export"
+            options={{ title: headerTitle, headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="versions"
+            options={{ title: headerTitle, headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="inbox"
+            options={{ title: headerTitle, headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="collab/index"
+            options={{ title: "Collab Rooms", headerBackTitle: "Back" }}
+          />
+          <Stack.Screen
+            name="collab/[roomId]"
+            options={{ title: "Collab Room", headerBackTitle: "Back" }}
+          />
+        </Stack>
+
+        <View style={styles.tabBarContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabBarContent}
+          >
+            {TABS.map((tab) => (
+              <TabItem
+                key={tab.key}
+                tab={tab}
+                isActive={activeKey === tab.key}
+                onPress={() => handleTabPress(tab)}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      </ErrorBoundary>
     </View>
   );
 }
@@ -189,5 +224,51 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing["2xl"],
+    backgroundColor: colors.background,
+    gap: spacing.lg,
+  },
+  errorTitle: {
+    color: colors.text,
+    fontSize: fontSize.xl,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  errorMessage: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  errorActions: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  errorButton: {
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+  },
+  errorButtonSecondary: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+  },
+  errorButtonText: {
+    color: colors.white,
+    fontWeight: "600",
+    fontSize: fontSize.base,
+  },
+  errorButtonTextSecondary: {
+    color: colors.text,
+    fontWeight: "600",
+    fontSize: fontSize.base,
   },
 });
