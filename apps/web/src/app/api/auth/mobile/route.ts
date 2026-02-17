@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SignJWT } from "jose";
 
+import { getMobileJwtSecret } from "@/server/auth";
 import { getPrisma } from "@/server/db";
 
 /**
@@ -160,20 +161,16 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Issue a JWT matching NextAuth's format so existing middleware can validate it.
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) {
-    return NextResponse.json(
-      { error: "NEXTAUTH_SECRET not configured" },
-      { status: 500 },
-    );
-  }
+  // Issue a JWT for the mobile client, signed with MOBILE_JWT_SECRET (or
+  // NEXTAUTH_SECRET as fallback). The backend's getAuthSession() will
+  // validate these tokens on subsequent requests.
+  const secret = getMobileJwtSecret();
 
-  const jwt = await new SignJWT({ sub: user.id })
+  const jwt = await new SignJWT({ sub: user.id, email: user.email })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
-    .sign(new TextEncoder().encode(secret));
+    .sign(secret);
 
   return NextResponse.json({
     jwt,

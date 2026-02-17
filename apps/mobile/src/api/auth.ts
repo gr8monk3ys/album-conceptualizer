@@ -49,6 +49,14 @@ export function fetchSession(): Promise<{ user: User }> {
   return api.get<{ user: User }>("/api/auth/session");
 }
 
+/**
+ * Refresh the current JWT, obtaining a new token with a fresh 30-day expiry.
+ * The current Bearer token must still be valid (non-expired).
+ */
+export async function refreshToken(): Promise<AuthSessionResponse> {
+  return api.post<AuthSessionResponse>("/api/auth/mobile-token/refresh");
+}
+
 /** Clear the stored JWT. */
 export async function signOut(): Promise<void> {
   await clearToken();

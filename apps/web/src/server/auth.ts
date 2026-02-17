@@ -1,8 +1,11 @@
 import type { NextAuthOptions } from "next-auth";
+import type { Session } from "next-auth";
 import { getServerSession } from "next-auth/next";
 import GitHubProvider from "next-auth/providers/github";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { jwtVerify } from "jose";
+import { headers } from "next/headers";
 
 import { getPrisma } from "@/server/db";
 
@@ -207,6 +210,92 @@ export function buildAuthOptions(): NextAuthOptions {
   };
 }
 
-export async function getAuthSession() {
-  return getServerSession(buildAuthOptions());
+// ---------------------------------------------------------------------------
+// Mobile JWT secret — used to sign/verify Bearer tokens for mobile clients.
+// Falls back to NEXTAUTH_SECRET so the existing /api/auth/mobile endpoint
+// (which already signs with NEXTAUTH_SECRET) keeps working without a separate
+// env var, while still allowing operators to rotate secrets independently.
+// ---------------------------------------------------------------------------
+export function getMobileJwtSecret(): Uint8Array {
+  const raw = process.env.MOBILE_JWT_SECRET ?? process.env.NEXTAUTH_SECRET;
+  if (!raw) {
+    throw new Error(
+      "Neither MOBILE_JWT_SECRET nor NEXTAUTH_SECRET is set. " +
+        "At least one is required to verify mobile Bearer tokens.",
+    );
+  }
+  return new TextEncoder().encode(raw);
+}
+
+/**
+ * Attempts to extract and validate a Bearer JWT from the Authorization header.
+ * Returns a NextAuth-compatible Session object if valid, or null.
+ */
+async function getSessionFromBearerToken(): Promise<Session | null> {
+  let authHeader: string | null;
+  try {
+    const hdrs = await headers();
+    authHeader = hdrs.get("authorization");
+  } catch {
+    // headers() can throw outside of a request context (e.g. during build).
+    return null;
+  }
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authHeader.slice(7);
+  if (!token) return null;
+
+  try {
+    const secret = getMobileJwtSecret();
+    const { payload } = await jwtVerify(token, secret, {
+      algorithms: ["HS256"],
+    });
+
+    const userId = payload.sub;
+    if (!userId || typeof userId !== "string") return null;
+
+    // Look up the user in the database to ensure they still exist.
+    const prisma = getPrisma();
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, image: true },
+    });
+
+    if (!user) return null;
+
+    // Return a Session object compatible with NextAuth's shape.
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+      },
+      expires: new Date(
+        (payload.exp ?? 0) * 1000,
+      ).toISOString(),
+    };
+  } catch {
+    // Invalid token, expired, wrong signature, etc.
+    return null;
+  }
+}
+
+/**
+ * Returns the authenticated session from either:
+ *  1. NextAuth cookie-based session (web app), or
+ *  2. Bearer JWT in the Authorization header (mobile app).
+ *
+ * Cookie-based auth is checked first so existing web behaviour is unchanged.
+ */
+export async function getAuthSession(): Promise<Session | null> {
+  // Primary: cookie-based session (web app).
+  const cookieSession = await getServerSession(buildAuthOptions());
+  if (cookieSession?.user?.id) return cookieSession;
+
+  // Fallback: Bearer JWT (mobile app).
+  return getSessionFromBearerToken();
 }
