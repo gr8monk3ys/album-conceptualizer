@@ -1,91 +1,138 @@
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
+// ---------------------------------------------------------------------------
+// In-memory sliding-window rate limiter
+// ---------------------------------------------------------------------------
+// Provides request rate limiting without requiring Redis/Upstash. In a
+// multi-instance deployment each process maintains its own window, which is
+// acceptable for moderate traffic. For high-scale production deployments
+// consider swapping in a Redis-backed store (the public API is compatible).
+// ---------------------------------------------------------------------------
 
-type LimiterName = "albums_create" | "export_zip" | "preview_midi" | "preview_audio" | "stripe";
-
-type RateLimitResult = {
-  ok: boolean;
-  limit?: number;
-  remaining?: number;
-  reset?: number;
-};
-
-let redis: Redis | null = null;
-try {
-  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    redis = Redis.fromEnv();
-  }
-} catch {
-  redis = null;
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
 }
 
-const limiters: Record<LimiterName, Ratelimit | null> = {
-  albums_create: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(10, "1 m"),
-        prefix: "ac:ratelimit:albums_create",
-        analytics: true,
-      })
-    : null,
-  export_zip: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(30, "1 m"),
-        prefix: "ac:ratelimit:export_zip",
-        analytics: true,
-      })
-    : null,
-  preview_midi: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(60, "1 m"),
-        prefix: "ac:ratelimit:preview_midi",
-        analytics: true,
-      })
-    : null,
-  preview_audio: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(20, "1 m"),
-        prefix: "ac:ratelimit:preview_audio",
-        analytics: true,
-      })
-    : null,
-  stripe: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(5, "1 m"),
-        prefix: "ac:ratelimit:stripe",
-        analytics: true,
-      })
-    : null,
-};
+const store = new Map<string, RateLimitEntry>();
 
-export function getRateLimitHeaders(result: RateLimitResult) {
-  if (!result.limit) return {};
+// ---------------------------------------------------------------------------
+// Periodic cleanup — sweep expired entries every 60 seconds to prevent the
+// store from growing without bound.
+// ---------------------------------------------------------------------------
+const CLEANUP_INTERVAL_MS = 60_000;
+let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+function ensureCleanupTimer() {
+  if (cleanupTimer) return;
+  cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of store) {
+      if (now > entry.resetAt) {
+        store.delete(key);
+      }
+    }
+  }, CLEANUP_INTERVAL_MS);
+  // Allow the Node.js process to exit even if the timer is still running.
+  if (cleanupTimer && typeof cleanupTimer === "object" && "unref" in cleanupTimer) {
+    cleanupTimer.unref();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Core rate-limit function
+// ---------------------------------------------------------------------------
+
+export interface RateLimitResult {
+  ok: boolean;
+  limit: number;
+  remaining: number;
+  reset: number; // Unix timestamp (ms) when the window resets
+}
+
+/**
+ * Check and increment the rate limit for `key`.
+ *
+ * @param key       Unique identifier (e.g. IP address, user id, ...)
+ * @param limit     Maximum number of requests allowed in the window
+ * @param windowMs  Window duration in milliseconds
+ */
+export function rateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+): RateLimitResult {
+  ensureCleanupTimer();
+
+  const now = Date.now();
+  const entry = store.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    const resetAt = now + windowMs;
+    store.set(key, { count: 1, resetAt });
+    return { ok: true, limit, remaining: limit - 1, reset: resetAt };
+  }
+
+  if (entry.count >= limit) {
+    return { ok: false, limit, remaining: 0, reset: entry.resetAt };
+  }
+
+  entry.count++;
+  return { ok: true, limit, remaining: limit - entry.count, reset: entry.resetAt };
+}
+
+// ---------------------------------------------------------------------------
+// Convenience helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build standard rate-limit response headers from a RateLimitResult.
+ */
+export function getRateLimitHeaders(result: RateLimitResult): Record<string, string> {
   const headers: Record<string, string> = {
-    "x-ratelimit-limit": String(result.limit),
-    "x-ratelimit-remaining": String(result.remaining ?? 0),
+    "X-RateLimit-Limit": String(result.limit),
+    "X-RateLimit-Remaining": String(result.remaining),
+    "X-RateLimit-Reset": String(result.reset),
   };
-  if (result.reset) {
-    // reset is a unix timestamp in ms
-    headers["x-ratelimit-reset"] = String(result.reset);
-    const retryAfterSeconds = Math.max(0, Math.ceil((result.reset - Date.now()) / 1000));
-    headers["retry-after"] = String(retryAfterSeconds);
+  if (!result.ok) {
+    const retryAfterSeconds = Math.max(
+      0,
+      Math.ceil((result.reset - Date.now()) / 1000),
+    );
+    headers["Retry-After"] = String(retryAfterSeconds);
   }
   return headers;
 }
 
-export async function checkRateLimit(name: LimiterName, key: string): Promise<RateLimitResult> {
-  const limiter = limiters[name];
-  if (!limiter) return { ok: true };
+// ---------------------------------------------------------------------------
+// Named rate limiters (backward-compatible with existing route code)
+// ---------------------------------------------------------------------------
+// The previous implementation used Upstash Redis. These named limiters match
+// the old API so existing call-sites (`checkRateLimit("albums_create", key)`)
+// continue to work without changes.
+// ---------------------------------------------------------------------------
 
-  const result = await limiter.limit(key);
-  return {
-    ok: result.success,
-    limit: result.limit,
-    remaining: result.remaining,
-    reset: result.reset,
-  };
+type LimiterName =
+  | "albums_create"
+  | "export_zip"
+  | "preview_midi"
+  | "preview_audio"
+  | "stripe";
+
+const NAMED_LIMITS: Record<LimiterName, { limit: number; windowMs: number }> = {
+  albums_create: { limit: 10, windowMs: 60_000 },
+  export_zip: { limit: 30, windowMs: 60_000 },
+  preview_midi: { limit: 60, windowMs: 60_000 },
+  preview_audio: { limit: 20, windowMs: 60_000 },
+  stripe: { limit: 5, windowMs: 60_000 },
+};
+
+/**
+ * Check a named rate limiter. Drop-in replacement for the previous
+ * Upstash-based `checkRateLimit`.
+ */
+export async function checkRateLimit(
+  name: LimiterName,
+  key: string,
+): Promise<RateLimitResult> {
+  const cfg = NAMED_LIMITS[name];
+  return rateLimit(`${name}:${key}`, cfg.limit, cfg.windowMs);
 }
