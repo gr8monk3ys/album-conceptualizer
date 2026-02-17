@@ -1,5 +1,6 @@
 /** Album hooks — React Query wrappers for all album-related endpoints. */
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -8,10 +9,13 @@ import {
 import { albumsApi } from "../api/albums";
 import type {
   Album,
+  AlbumListResponse,
   AlbumTask,
+  CommentListResponse,
   CreateAlbumInput,
   CreateCommentInput,
   CreateTaskInput,
+  TaskListResponse,
 } from "../api/types";
 
 // ── Query keys ───────────────────────────────────────────────────────
@@ -26,9 +30,12 @@ const keys = {
 // ── Queries ──────────────────────────────────────────────────────────
 
 export function useAlbums() {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: keys.all,
-    queryFn: albumsApi.list,
+    queryFn: ({ pageParam }) =>
+      albumsApi.list({ cursor: pageParam as string | undefined }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: AlbumListResponse) => lastPage.nextCursor,
   });
 }
 
@@ -41,17 +48,23 @@ export function useAlbum(id: string) {
 }
 
 export function useAlbumComments(albumId: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: keys.comments(albumId),
-    queryFn: () => albumsApi.getComments(albumId),
+    queryFn: ({ pageParam }) =>
+      albumsApi.getComments(albumId, { cursor: pageParam as string | undefined }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: CommentListResponse) => lastPage.nextCursor,
     enabled: !!albumId,
   });
 }
 
 export function useAlbumTasks(albumId: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: keys.tasks(albumId),
-    queryFn: () => albumsApi.getTasks(albumId),
+    queryFn: ({ pageParam }) =>
+      albumsApi.getTasks(albumId, { cursor: pageParam as string | undefined }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: TaskListResponse) => lastPage.nextCursor,
     enabled: !!albumId,
   });
 }

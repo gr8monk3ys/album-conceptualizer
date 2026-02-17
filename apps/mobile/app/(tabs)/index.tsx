@@ -12,7 +12,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
 
-import { Badge, Card, Loading, SectionHeader } from "../../src/components/ui";
+import {
+  AnimatedScreen,
+  Badge,
+  Card,
+  EmptyState,
+  ErrorState,
+  GradientHeader,
+  Loading,
+  SectionHeader,
+} from "../../src/components/ui";
+import { AlbumCover } from "../../src/components/album/album-cover";
 import { useAlbums } from "../../src/hooks/use-albums";
 import { useAuth } from "../../src/hooks/use-auth";
 import type { Album } from "../../src/api/types";
@@ -49,9 +59,7 @@ interface AlbumCardProps {
 function AlbumCard({ album, onPress }: AlbumCardProps): ReactNode {
   return (
     <Card style={styles.albumCard} onPress={onPress}>
-      <View style={styles.albumIconContainer}>
-        <Disc3 size={28} color={colors.primaryLight} />
-      </View>
+      <AlbumCover coverUrl={album.coverUrl} size={48} />
       <Text style={styles.albumTitle} numberOfLines={1}>
         {album.title}
       </Text>
@@ -105,7 +113,8 @@ function QuickAction({
 export default function HomeScreen(): ReactNode {
   const router = useRouter();
   const { user } = useAuth();
-  const { data: albums, isLoading, refetch, isRefetching } = useAlbums();
+  const { data, isLoading, error, refetch, isRefetching } = useAlbums();
+  const albums = data?.pages.flatMap((page) => page.albums) ?? [];
 
   const handleRefresh = useCallback(() => {
     refetch();
@@ -115,31 +124,36 @@ export default function HomeScreen(): ReactNode {
     return <Loading />;
   }
 
-  const allAlbums = albums ?? [];
+  if (error) {
+    return <ErrorState onRetry={() => refetch()} />;
+  }
+
+  const allAlbums = albums;
   const draftCount = allAlbums.filter((a) => a.status === "draft").length;
   const recentAlbums = allAlbums.slice(0, 5);
 
   const displayName = user?.name ?? "there";
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
+    <AnimatedScreen>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+            />
+          }
+        >
+          {/* Welcome */}
+          <GradientHeader
+            title={`Welcome back,`}
+            subtitle={displayName}
           />
-        }
-      >
-        {/* Welcome */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.welcomeName}>{displayName}</Text>
-        </View>
 
         {/* Quick Stats */}
         <View style={styles.statsRow}>
@@ -156,7 +170,7 @@ export default function HomeScreen(): ReactNode {
         </View>
 
         {/* Recent Albums */}
-        {recentAlbums.length > 0 && (
+        {recentAlbums.length > 0 ? (
           <View>
             <SectionHeader
               title="Recent Albums"
@@ -178,6 +192,18 @@ export default function HomeScreen(): ReactNode {
                 />
               ))}
             </ScrollView>
+          </View>
+        ) : (
+          <View style={styles.emptyAlbumsContainer}>
+            <EmptyState
+              icon={Disc3}
+              title="No albums yet"
+              description="Create your first concept album to get started."
+              action={{
+                title: "Create Album",
+                onPress: () => router.push("/create"),
+              }}
+            />
           </View>
         )}
 
@@ -203,8 +229,9 @@ export default function HomeScreen(): ReactNode {
             onPress={() => {}}
           />
         </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </AnimatedScreen>
   );
 }
 
@@ -221,22 +248,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: spacing["3xl"],
   },
-  welcomeSection: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
-  },
-  welcomeText: {
-    color: colors.textSecondary,
-    fontSize: fontSize.base,
-  },
-  welcomeName: {
-    color: colors.text,
-    fontSize: fontSize["3xl"],
-    fontWeight: "700",
-    marginTop: spacing.xs,
-  },
-
   // Stats
   statsRow: {
     flexDirection: "row",
@@ -262,6 +273,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
   },
 
+  // Empty albums
+  emptyAlbumsContainer: {
+    paddingVertical: spacing.xl,
+    minHeight: 200,
+  },
+
   // Album cards
   albumsScroll: {
     paddingHorizontal: spacing.lg,
@@ -270,15 +287,6 @@ const styles = StyleSheet.create({
   albumCard: {
     width: 160,
     gap: spacing.sm,
-  },
-  albumIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.surfaceElevated,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
   },
   albumTitle: {
     color: colors.text,

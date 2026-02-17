@@ -223,6 +223,32 @@ export interface NotificationList {
   notifications: Notification[];
   unreadCount: number;
   nextCursor: string | null;
+  hasMore: boolean;
+}
+
+// ── Cursor-paginated list responses ──────────────────────────────────
+export interface AlbumListResponse {
+  albums: Album[];
+  nextCursor: string | undefined;
+  hasMore: boolean;
+}
+
+export interface CommentListResponse {
+  comments: SectionComment[];
+  nextCursor: string | undefined;
+  hasMore: boolean;
+}
+
+export interface TaskListResponse {
+  tasks: AlbumTask[];
+  nextCursor: string | undefined;
+  hasMore: boolean;
+}
+
+export interface MemberListResponse {
+  members: WorkspaceMember[];
+  nextCursor: string | undefined;
+  hasMore: boolean;
 }
 
 // ── Versions ──────────────────────────────────────────────────────────
@@ -294,6 +320,20 @@ export interface AudioPreviewInput {
 export interface AudioGenerateInput {
   prompt: string;
   duration: number;
+}
+
+// ── Voice Memos ──────────────────────────────────────────────────────
+export interface VoiceMemo {
+  id: string;
+  albumId: string;
+  songId: string | null;
+  sectionId: string | null;
+  authorUserId: string;
+  audioUrl: string;
+  durationMs: number;
+  title: string | null;
+  createdAt: string;
+  author: User;
 }
 
 // ── API Responses ─────────────────────────────────────────────────────

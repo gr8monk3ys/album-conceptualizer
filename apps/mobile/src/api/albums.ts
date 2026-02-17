@@ -2,17 +2,33 @@
 import { api } from "./client";
 import type {
   Album,
+  AlbumListResponse,
   AlbumTask,
   AlbumVersion,
+  CommentListResponse,
   CreateAlbumInput,
   CreateCommentInput,
   CreateTaskInput,
-  SectionComment,
+  TaskListResponse,
 } from "./types";
+
+export interface PaginationParams {
+  cursor?: string;
+  limit?: number;
+}
+
+function buildPaginationQuery(params?: PaginationParams): string {
+  if (!params) return "";
+  const entries: string[] = [];
+  if (params.cursor) entries.push(`cursor=${encodeURIComponent(params.cursor)}`);
+  if (params.limit !== undefined) entries.push(`limit=${params.limit}`);
+  return entries.length > 0 ? `?${entries.join("&")}` : "";
+}
 
 export const albumsApi = {
   // ── CRUD ─────────────────────────────────────────────────────────────
-  list: () => api.get<Album[]>("/api/albums"),
+  list: (params?: PaginationParams) =>
+    api.get<AlbumListResponse>(`/api/albums${buildPaginationQuery(params)}`),
   get: (id: string) => api.get<Album>(`/api/albums/${id}`),
   create: (data: CreateAlbumInput) => api.post<Album>("/api/albums", data),
   update: (id: string, data: Partial<Album>) =>
@@ -31,13 +47,18 @@ export const albumsApi = {
     api.post(`/api/albums/${id}/export`, { format }),
 
   // ── Comments ─────────────────────────────────────────────────────────
-  getComments: (id: string) =>
-    api.get<SectionComment[]>(`/api/albums/${id}/comments`),
+  getComments: (id: string, params?: PaginationParams) =>
+    api.get<CommentListResponse>(
+      `/api/albums/${id}/comments${buildPaginationQuery(params)}`,
+    ),
   addComment: (id: string, data: CreateCommentInput) =>
     api.post(`/api/albums/${id}/comments`, data),
 
   // ── Tasks ────────────────────────────────────────────────────────────
-  getTasks: (id: string) => api.get<AlbumTask[]>(`/api/albums/${id}/tasks`),
+  getTasks: (id: string, params?: PaginationParams) =>
+    api.get<TaskListResponse>(
+      `/api/albums/${id}/tasks${buildPaginationQuery(params)}`,
+    ),
   createTask: (id: string, data: CreateTaskInput) =>
     api.post(`/api/albums/${id}/tasks`, data),
   updateTask: (id: string, taskId: string, data: Partial<AlbumTask>) =>

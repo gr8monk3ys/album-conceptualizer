@@ -11,6 +11,50 @@ import { InsufficientCreditsError, spendCredits } from "@/server/credits";
 
 export const runtime = "nodejs";
 
+export async function GET(request: Request) {
+  const session = await getAuthSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get("cursor") ?? undefined;
+  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10) || 20, 50);
+
+  const workspace = await getActiveWorkspaceForUser(userId);
+  const prisma = getPrisma();
+
+  const albums = await prisma.album.findMany({
+    where: { workspaceId: workspace.id },
+    orderBy: { updatedAt: "desc" },
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    select: {
+      id: true,
+      title: true,
+      artist: true,
+      conceptSummary: true,
+      primaryGenre: true,
+      centralThemes: true,
+      trackCount: true,
+      coverUrl: true,
+      status: true,
+      isPublic: true,
+      publishedAt: true,
+      data: true,
+      updatedAt: true,
+      createdAt: true,
+    },
+  });
+
+  const hasMore = albums.length > limit;
+  if (hasMore) albums.pop();
+  const nextCursor = hasMore ? albums[albums.length - 1]?.id : undefined;
+
+  return NextResponse.json({ albums, nextCursor, hasMore });
+}
+
 const BodySchema = z.object({
   album: AlbumJsonSchema,
 });

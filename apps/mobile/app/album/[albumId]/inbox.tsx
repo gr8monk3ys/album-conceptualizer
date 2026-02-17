@@ -6,17 +6,26 @@ import {
   Plus,
   X,
 } from "lucide-react-native";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
 import type { ListRenderItemInfo } from "react-native";
@@ -28,8 +37,10 @@ import {
   Card,
   Chip,
   EmptyState,
+  ErrorState,
   Input,
   Loading,
+  LoadingInline,
 } from "../../../src/components/ui";
 import {
   useAddComment,
@@ -309,7 +320,10 @@ function AddCommentModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Comment</Text>
@@ -350,7 +364,7 @@ function AddCommentModal({
             disabled={!body.trim()}
           />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -390,7 +404,10 @@ function AddTaskModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Task</Text>
@@ -440,7 +457,7 @@ function AddTaskModal({
             disabled={!title.trim()}
           />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -451,16 +468,24 @@ export default function InboxScreen(): ReactNode {
   const { albumId } = useLocalSearchParams<{ albumId: string }>();
   const { data: album } = useAlbum(albumId);
   const {
-    data: comments,
+    data: commentsData,
     isLoading: commentsLoading,
+    error: commentsError,
     refetch: refetchComments,
     isRefetching: commentsRefetching,
+    fetchNextPage: fetchNextCommentsPage,
+    hasNextPage: hasNextCommentsPage,
+    isFetchingNextPage: isFetchingNextCommentsPage,
   } = useAlbumComments(albumId);
   const {
-    data: tasks,
+    data: tasksData,
     isLoading: tasksLoading,
+    error: tasksError,
     refetch: refetchTasks,
     isRefetching: tasksRefetching,
+    fetchNextPage: fetchNextTasksPage,
+    hasNextPage: hasNextTasksPage,
+    isFetchingNextPage: isFetchingNextTasksPage,
   } = useAlbumTasks(albumId);
 
   const addComment = useAddComment();
@@ -471,13 +496,26 @@ export default function InboxScreen(): ReactNode {
   const [showAddComment, setShowAddComment] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
 
+  // FAB pulse animation
+  const fabScale = useSharedValue(1);
+  useEffect(() => {
+    fabScale.value = withRepeat(
+      withTiming(1.08, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+  }, [fabScale]);
+  const fabAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }],
+  }));
+
   const songs = useMemo(
     () => (album?.songs ?? []).sort((a, b) => a.trackNumber - b.trackNumber),
     [album],
   );
 
-  const commentList = comments ?? [];
-  const taskList = tasks ?? [];
+  const commentList = commentsData?.pages.flatMap((p) => p.comments) ?? [];
+  const taskList = tasksData?.pages.flatMap((p) => p.tasks) ?? [];
 
   const handleAddComment = useCallback(
     (data: CreateCommentInput) => {
@@ -518,6 +556,18 @@ export default function InboxScreen(): ReactNode {
     [albumId, updateTask],
   );
 
+  const handleCommentsEndReached = useCallback(() => {
+    if (hasNextCommentsPage && !isFetchingNextCommentsPage) {
+      fetchNextCommentsPage();
+    }
+  }, [hasNextCommentsPage, isFetchingNextCommentsPage, fetchNextCommentsPage]);
+
+  const handleTasksEndReached = useCallback(() => {
+    if (hasNextTasksPage && !isFetchingNextTasksPage) {
+      fetchNextTasksPage();
+    }
+  }, [hasNextTasksPage, isFetchingNextTasksPage, fetchNextTasksPage]);
+
   const renderComment = useCallback(
     ({ item }: ListRenderItemInfo<SectionComment>) => (
       <CommentRow comment={item} />
@@ -540,11 +590,23 @@ export default function InboxScreen(): ReactNode {
     return <Loading />;
   }
 
+  const isError = commentsError || tasksError;
+  if (isError) {
+    return (
+      <ErrorState
+        onRetry={() => {
+          refetchComments();
+          refetchTasks();
+        }}
+      />
+    );
+  }
+
   const isRefetching = activeTab === "comments" ? commentsRefetching : tasksRefetching;
   const handleRefresh = activeTab === "comments" ? refetchComments : refetchTasks;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={[]}>
+    <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
       <SegmentControl
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -566,6 +628,9 @@ export default function InboxScreen(): ReactNode {
               tintColor={colors.primary}
             />
           }
+          onEndReached={handleCommentsEndReached}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={isFetchingNextCommentsPage ? <LoadingInline /> : null}
           ListEmptyComponent={
             <EmptyState
               icon={MessageSquare}
@@ -592,6 +657,9 @@ export default function InboxScreen(): ReactNode {
               tintColor={colors.primary}
             />
           }
+          onEndReached={handleTasksEndReached}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={isFetchingNextTasksPage ? <LoadingInline /> : null}
           ListEmptyComponent={
             <EmptyState
               icon={CheckSquare}
@@ -607,21 +675,23 @@ export default function InboxScreen(): ReactNode {
       )}
 
       {/* FAB */}
-      <Pressable
-        onPress={() => {
-          if (activeTab === "comments") {
-            setShowAddComment(true);
-          } else {
-            setShowAddTask(true);
-          }
-        }}
-        style={({ pressed }) => [
-          styles.fab,
-          { opacity: pressed ? 0.8 : 1 },
-        ]}
-      >
-        <Plus size={24} color={colors.white} />
-      </Pressable>
+      <Animated.View style={[styles.fab, fabAnimatedStyle]}>
+        <Pressable
+          onPress={() => {
+            if (activeTab === "comments") {
+              setShowAddComment(true);
+            } else {
+              setShowAddTask(true);
+            }
+          }}
+          style={({ pressed }) => [
+            styles.fabInner,
+            { opacity: pressed ? 0.8 : 1 },
+          ]}
+        >
+          <Plus size={24} color={colors.white} />
+        </Pressable>
+      </Animated.View>
 
       {/* Modals */}
       <AddCommentModal
@@ -796,6 +866,11 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: spacing.xl,
     right: spacing.xl,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  fabInner: {
     width: 56,
     height: 56,
     borderRadius: 28,

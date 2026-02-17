@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { ListRenderItem } from "react-native";
 import type { ReactNode } from "react";
 
-import { Badge, EmptyState, Loading } from "../../src/components/ui";
+import { AnimatedScreen, Badge, EmptyState, ErrorState, Loading, LoadingInline } from "../../src/components/ui";
 import { useAlbums, useDeleteAlbum } from "../../src/hooks/use-albums";
 import type { Album } from "../../src/api/types";
 import {
@@ -93,12 +93,23 @@ function AlbumRow({ album, onPress, onDelete }: AlbumRowProps): ReactNode {
 
 export default function LibraryScreen(): ReactNode {
   const router = useRouter();
-  const { data: albums, isLoading, refetch, isRefetching } = useAlbums();
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useAlbums();
   const deleteAlbum = useDeleteAlbum();
   const [searchQuery, setSearchQuery] = useState("");
 
+  const albums = data?.pages.flatMap((page) => page.albums) ?? [];
+
   const filteredAlbums = useMemo(() => {
-    if (!albums) return [];
+    if (albums.length === 0) return [];
 
     const query = searchQuery.toLowerCase().trim();
     if (!query) return albums;
@@ -132,6 +143,12 @@ export default function LibraryScreen(): ReactNode {
     refetch();
   }, [refetch]);
 
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   const renderItem: ListRenderItem<Album> = useCallback(
     ({ item }) => (
       <AlbumRow
@@ -149,7 +166,12 @@ export default function LibraryScreen(): ReactNode {
     return <Loading />;
   }
 
+  if (error) {
+    return <ErrorState onRetry={() => refetch()} />;
+  }
+
   return (
+    <AnimatedScreen>
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.screenTitle}>Library</Text>
@@ -189,6 +211,9 @@ export default function LibraryScreen(): ReactNode {
             tintColor={colors.primary}
           />
         }
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={isFetchingNextPage ? <LoadingInline /> : null}
         ListEmptyComponent={
           <EmptyState
             icon={Library}
@@ -202,6 +227,7 @@ export default function LibraryScreen(): ReactNode {
         }
       />
     </SafeAreaView>
+    </AnimatedScreen>
   );
 }
 

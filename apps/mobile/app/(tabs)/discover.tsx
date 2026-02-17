@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Compass, GitFork, Heart, Search } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -15,10 +15,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { ListRenderItem } from "react-native";
 import type { ReactNode } from "react";
 
-import { Badge, Card, EmptyState, Loading } from "../../src/components/ui";
+import { AnimatedScreen, Badge, Card, EmptyState, ErrorState, Loading, LoadingInline } from "../../src/components/ui";
+import { hapticLight } from "../../src/utils/haptics";
 import { api } from "../../src/api/client";
 import { albumsApi } from "../../src/api/albums";
-import type { Album } from "../../src/api/types";
+import type { Album, AlbumListResponse } from "../../src/api/types";
 import {
   borderRadius,
   colors,
@@ -29,9 +30,16 @@ import {
 // ── Data hooks ──────────────────────────────────────────────────────
 
 function usePublicAlbums() {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["albums", "public"],
-    queryFn: () => api.get<Album[]>("/api/albums?public=true"),
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams();
+      params.set("public", "true");
+      if (pageParam) params.set("cursor", pageParam as string);
+      return api.get<AlbumListResponse>(`/api/albums?${params.toString()}`);
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: AlbumListResponse) => lastPage.nextCursor,
   });
 }
 
@@ -99,7 +107,10 @@ function DiscoverCard({
 
       <View style={styles.actionsRow}>
         <Pressable
-          onPress={onLike}
+          onPress={() => {
+            hapticLight();
+            onLike();
+          }}
           hitSlop={8}
           style={({ pressed }) => [
             styles.actionButton,
@@ -130,13 +141,24 @@ function DiscoverCard({
 
 export default function DiscoverScreen(): ReactNode {
   const router = useRouter();
-  const { data: albums, isLoading, refetch, isRefetching } = usePublicAlbums();
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = usePublicAlbums();
   const likeAlbum = useLikeAlbum();
   const forkAlbum = useForkAlbum();
   const [searchQuery, setSearchQuery] = useState("");
 
+  const albums = data?.pages.flatMap((page) => page.albums) ?? [];
+
   const filteredAlbums = useMemo(() => {
-    if (!albums) return [];
+    if (albums.length === 0) return [];
 
     const query = searchQuery.toLowerCase().trim();
     if (!query) return albums;
@@ -151,6 +173,12 @@ export default function DiscoverScreen(): ReactNode {
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const renderItem: ListRenderItem<Album> = useCallback(
     ({ item }) => (
@@ -170,7 +198,12 @@ export default function DiscoverScreen(): ReactNode {
     return <Loading />;
   }
 
+  if (error) {
+    return <ErrorState onRetry={() => refetch()} />;
+  }
+
   return (
+    <AnimatedScreen>
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.screenTitle}>Discover</Text>
@@ -210,6 +243,8 @@ export default function DiscoverScreen(): ReactNode {
             tintColor={colors.primary}
           />
         }
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
         ListHeaderComponent={
           filteredAlbums.length > 0 ? (
             <View style={styles.trendingHeader}>
@@ -217,6 +252,7 @@ export default function DiscoverScreen(): ReactNode {
             </View>
           ) : null
         }
+        ListFooterComponent={isFetchingNextPage ? <LoadingInline /> : null}
         ListEmptyComponent={
           <EmptyState
             icon={Compass}
@@ -226,6 +262,7 @@ export default function DiscoverScreen(): ReactNode {
         }
       />
     </SafeAreaView>
+    </AnimatedScreen>
   );
 }
 

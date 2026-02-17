@@ -54,5 +54,6 @@ export async function GET(request: Request) {
     notifications: items,
     unreadCount,
     nextCursor,
+    hasMore,
   });
 }
