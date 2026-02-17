@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getAuthSession } from "@/server/auth";
 import { getPrisma } from "@/server/db";
+import { sendPushNotificationsToUser } from "@/server/push-notifications";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const runtime = "nodejs";
@@ -31,6 +32,8 @@ export async function GET(
 
   const url = new URL(request.url);
   const status = (url.searchParams.get("status") ?? "").trim().toLowerCase();
+  const cursor = url.searchParams.get("cursor") ?? undefined;
+  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10) || 20, 50);
 
   const { albumId } = await params;
   const workspace = await getActiveWorkspaceForUser(userId);
@@ -49,7 +52,8 @@ export async function GET(
       ...(status ? { status } : {}),
     },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    take: 200,
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     select: {
       id: true,
       title: true,
@@ -69,7 +73,11 @@ export async function GET(
     },
   });
 
-  return NextResponse.json({ tasks });
+  const hasMore = tasks.length > limit;
+  if (hasMore) tasks.pop();
+  const nextCursor = hasMore ? tasks[tasks.length - 1]?.id : undefined;
+
+  return NextResponse.json({ tasks, nextCursor, hasMore });
 }
 
 export async function POST(
@@ -192,6 +200,14 @@ export async function POST(
 
   if (notifications.length) {
     await prisma.notification.createMany({ data: notifications });
+
+    // Send push notifications (fire-and-forget)
+    for (const n of notifications) {
+      sendPushNotificationsToUser(n.userId, n.title, n.body ?? "", {
+        url: n.url,
+        albumId: n.albumId,
+      }).catch(() => {});
+    }
   }
 
   return NextResponse.json({ task: created }, { status: 201 });

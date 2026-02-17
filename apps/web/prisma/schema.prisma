@@ -27,6 +27,8 @@ model User {
   notificationsSent Notification[] @relation("NotificationActor")
   tasksCreated AlbumTask[] @relation("TaskCreator")
   tasksAssigned AlbumTask[] @relation("TaskAssignee")
+  voiceMemos VoiceMemo[]
+  pushTokens PushToken[]
 }
 
 model Account {
@@ -122,6 +124,7 @@ model Album {
   sectionComments AlbumSectionComment[]
   tasks     AlbumTask[]
   notifications Notification[]
+  voiceMemos VoiceMemo[]
 }
 
 model Song {
@@ -137,6 +140,7 @@ model Song {
 
   album    Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
   sections Section[]
+  voiceMemos VoiceMemo[]
 
   @@unique([albumId, trackNumber])
 }
@@ -331,5 +335,38 @@ model Notification {
 
   @@index([workspaceId, userId, createdAt])
   @@index([userId, readAt, createdAt])
+  @@index([albumId, createdAt])
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String
+  platform  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId, isActive])
+}
+
+model VoiceMemo {
+  id           String   @id @default(cuid())
+  albumId      String
+  songId       String?
+  sectionId    String?
+  authorUserId String
+  audioUrl     String
+  durationMs   Int
+  title        String?
+  createdAt    DateTime @default(now())
+
+  album  Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  song   Song? @relation(fields: [songId], references: [id], onDelete: SetNull)
+  author User  @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+
   @@index([albumId, createdAt])
 }

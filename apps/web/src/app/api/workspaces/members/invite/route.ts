@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getAuthSession } from "@/server/auth";
 import { getPrisma } from "@/server/db";
+import { sendPushNotificationsToUser } from "@/server/push-notifications";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const runtime = "nodejs";
@@ -71,6 +72,14 @@ export async function POST(request: Request) {
       },
     });
 
+    // Send push notification (fire-and-forget)
+    sendPushNotificationsToUser(
+      invitedUser.id,
+      `You were added to ${workspace.name}`,
+      "You can now collaborate on albums in this workspace.",
+      { url: "/app" },
+    ).catch(() => {});
+
     return NextResponse.json({ status: "added", email: payload.data.email }, { status: 201 });
   }
 
@@ -88,6 +97,10 @@ export async function GET(request: Request) {
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get("cursor") ?? undefined;
+  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10) || 20, 50);
+
   const workspace = await getActiveWorkspaceForUser(userId);
   const prisma = getPrisma();
 
@@ -100,7 +113,13 @@ export async function GET(request: Request) {
       user: { select: { id: true, name: true, email: true, image: true } },
     },
     orderBy: { createdAt: "asc" },
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });
 
-  return NextResponse.json({ members });
+  const hasMore = members.length > limit;
+  if (hasMore) members.pop();
+  const nextCursor = hasMore ? members[members.length - 1]?.id : undefined;
+
+  return NextResponse.json({ members, nextCursor, hasMore });
 }
