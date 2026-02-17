@@ -19,11 +19,21 @@ export const audioApi = {
       tempo,
     } satisfies AudioPreviewInput),
 
-  /** Generate audio from a text prompt using AI. */
+  /**
+   * Generate audio from a text prompt using AI.
+   *
+   * NOTE: The `/api/audio/generate` route does not exist in the backend yet.
+   * Calling this will result in a 404 ApiClientError until the route is added.
+   */
   generate: (prompt: string, duration: number) =>
     api.post<AudioGenResult>("/api/audio/generate", { prompt, duration }),
 
-  /** Generate audio from structured song data. */
+  /**
+   * Generate audio from structured song data.
+   *
+   * NOTE: The `/api/audio/generate-from-song` route does not exist in the backend yet.
+   * Calling this will result in a 404 ApiClientError until the route is added.
+   */
   generateFromSong: (songData: object) =>
     api.post<AudioGenResult>("/api/audio/generate-from-song", songData),
 };

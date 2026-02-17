@@ -5,7 +5,6 @@ import {
   GitFork,
   Hash,
   Music,
-  Tag,
 } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import {
@@ -27,7 +26,6 @@ import {
   SectionHeader,
 } from "../../src/components/ui";
 import { api } from "../../src/api/client";
-import { albumsApi } from "../../src/api/albums";
 import { useAuth } from "../../src/hooks/use-auth";
 import type { Album, Song } from "../../src/api/types";
 import {
@@ -66,7 +64,7 @@ function SharedSongCard({ song }: SharedSongCardProps): ReactNode {
       </View>
 
       {/* Sections with lyrics */}
-      {song.sections.length > 0 && (
+      {(song.sections?.length ?? 0) > 0 && (
         <View style={styles.sectionsContainer}>
           {song.sections
             .sort((a, b) => a.order - b.order)
@@ -96,9 +94,12 @@ export default function SharedAlbumScreen(): ReactNode {
   const { isAuthenticated } = useAuth();
   const [forking, setForking] = useState(false);
 
+  // NOTE: The backend has no GET /api/share/:token endpoint yet (only POST /api/share/:token/fork).
+  // We attempt to fetch but gracefully handle 404 by showing a fork-only UI.
   const { data: album, isLoading, error } = useQuery({
     queryKey: ["shared-album", token],
     queryFn: () => api.get<Album>(`/api/share/${token}`),
+    retry: false,
   });
 
   const handleFork = useCallback(async () => {
@@ -117,11 +118,10 @@ export default function SharedAlbumScreen(): ReactNode {
       return;
     }
 
-    if (!album) return;
-
     setForking(true);
     try {
-      const forked = await albumsApi.fork(album.id);
+      // Use the share-token fork endpoint (POST /api/share/:token/fork)
+      const forked = await api.post<{ id: string }>(`/api/share/${token}/fork`);
       Alert.alert("Success", "Album forked to your library!", [
         {
           text: "View Album",
@@ -134,13 +134,44 @@ export default function SharedAlbumScreen(): ReactNode {
     } finally {
       setForking(false);
     }
-  }, [isAuthenticated, album, router]);
+  }, [isAuthenticated, token, router]);
 
   if (isLoading) {
     return <Loading />;
   }
 
-  if (error || !album) {
+  if (error && !album) {
+    // The GET endpoint may not exist yet -- show fork-only UI
+    return (
+      <SafeAreaView style={styles.safeArea} edges={[]}>
+        <View style={styles.errorContainer}>
+          <Disc3 size={48} color={colors.primary} strokeWidth={1.5} />
+          <Text style={styles.errorTitle}>Shared Album</Text>
+          <Text style={styles.errorDescription}>
+            Someone shared an album with you. Fork it to your library to
+            start editing.
+          </Text>
+          <View style={styles.forkSection}>
+            <Button
+              title="Fork to My Library"
+              onPress={handleFork}
+              variant="primary"
+              size="lg"
+              loading={forking}
+              icon={<GitFork size={20} color={colors.white} />}
+            />
+            {!isAuthenticated && (
+              <Text style={styles.forkHint}>
+                Sign in required to fork albums
+              </Text>
+            )}
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!album) {
     return (
       <SafeAreaView style={styles.safeArea} edges={[]}>
         <View style={styles.errorContainer}>
@@ -190,11 +221,11 @@ export default function SharedAlbumScreen(): ReactNode {
         )}
 
         {/* Themes */}
-        {album.centralThemes.length > 0 && (
+        {(album.centralThemes?.length ?? 0) > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Themes</Text>
             <View style={styles.chipRow}>
-              {album.centralThemes.map((theme) => (
+              {album.centralThemes?.map((theme) => (
                 <Chip key={theme} label={theme} />
               ))}
             </View>
@@ -211,7 +242,7 @@ export default function SharedAlbumScreen(): ReactNode {
           <View style={styles.statBox}>
             <Music size={16} color={colors.primary} />
             <Text style={styles.statValue}>
-              {songs.reduce((acc, s) => acc + s.sections.length, 0)}
+              {songs.reduce((acc, s) => acc + (s.sections?.length ?? 0), 0)}
             </Text>
             <Text style={styles.statLabel}>Sections</Text>
           </View>
