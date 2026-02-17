@@ -14,8 +14,10 @@ import type { ListRenderItem } from "react-native";
 import type { ReactNode } from "react";
 
 import {
+  AnimatedScreen,
   Avatar,
   EmptyState,
+  ErrorState,
   Loading,
   LoadingInline,
 } from "../../src/components/ui";
@@ -106,6 +108,7 @@ export default function NotificationsScreen(): ReactNode {
   const {
     data,
     isLoading,
+    error,
     refetch,
     isRefetching,
     fetchNextPage,
@@ -155,7 +158,12 @@ export default function NotificationsScreen(): ReactNode {
     return <Loading />;
   }
 
+  if (error) {
+    return <ErrorState onRetry={() => refetch()} />;
+  }
+
   return (
+    <AnimatedScreen>
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.screenTitle}>Notifications</Text>
@@ -196,6 +204,7 @@ export default function NotificationsScreen(): ReactNode {
         }
       />
     </SafeAreaView>
+    </AnimatedScreen>
   );
 }
 

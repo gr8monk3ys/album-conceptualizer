@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
 
-import { Badge, Button, Card, Loading } from "../../src/components/ui";
+import { Badge, Button, Card, ErrorState, Loading } from "../../src/components/ui";
 import { billingApi } from "../../src/api/billing";
 import type { Subscription } from "../../src/api/types";
 import {
@@ -153,6 +153,8 @@ export default function BillingScreen(): ReactNode {
   const {
     data: subscription,
     isLoading: subLoading,
+    error: subError,
+    refetch: refetchSub,
   } = useQuery({
     queryKey: ["subscription"],
     queryFn: billingApi.getSubscription,
@@ -161,6 +163,8 @@ export default function BillingScreen(): ReactNode {
   const {
     data: credits,
     isLoading: creditsLoading,
+    error: creditsError,
+    refetch: refetchCredits,
   } = useQuery({
     queryKey: ["credits"],
     queryFn: billingApi.getCredits,
@@ -197,6 +201,17 @@ export default function BillingScreen(): ReactNode {
 
   if (subLoading || creditsLoading) {
     return <Loading />;
+  }
+
+  if (subError || creditsError) {
+    return (
+      <ErrorState
+        onRetry={() => {
+          refetchSub();
+          refetchCredits();
+        }}
+      />
+    );
   }
 
   const renewalDate = subscription?.currentPeriodEnd

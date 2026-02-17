@@ -26,6 +26,8 @@ import {
   Button,
   Card,
   Chip,
+  EmptyState,
+  ErrorState,
   Loading,
   SectionHeader,
 } from "../../../src/components/ui";
@@ -124,7 +126,7 @@ function SongRow({ song, onPress }: SongRowProps): ReactNode {
 export default function AlbumOverviewScreen(): ReactNode {
   const { albumId } = useLocalSearchParams<{ albumId: string }>();
   const router = useRouter();
-  const { data: album, isLoading, refetch, isRefetching } = useAlbum(albumId);
+  const { data: album, isLoading, error, refetch, isRefetching } = useAlbum(albumId);
   const updateAlbum = useUpdateAlbum();
 
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -195,12 +197,16 @@ export default function AlbumOverviewScreen(): ReactNode {
     return <Loading />;
   }
 
+  if (error) {
+    return <ErrorState onRetry={() => refetch()} />;
+  }
+
   const songs = album.songs ?? [];
-  const sectionCount = songs.reduce((acc, s) => acc + s.sections.length, 0);
+  const sectionCount = songs.reduce((acc, s) => acc + (s.sections?.length ?? 0), 0);
   const isPublished = album.status === "published";
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={[]}>
+    <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
@@ -265,11 +271,11 @@ export default function AlbumOverviewScreen(): ReactNode {
           </View>
         )}
 
-        {album.centralThemes.length > 0 && (
+        {(album.centralThemes?.length ?? 0) > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Themes</Text>
             <View style={styles.chipRow}>
-              {album.centralThemes.map((theme) => (
+              {album.centralThemes?.map((theme) => (
                 <Chip key={theme} label={theme} />
               ))}
             </View>
@@ -329,9 +335,11 @@ export default function AlbumOverviewScreen(): ReactNode {
         <SectionHeader title="Tracks" />
         <View style={styles.songsList}>
           {songs.length === 0 ? (
-            <Text style={styles.emptyText}>
-              No songs yet. Head to Studio to add tracks.
-            </Text>
+            <EmptyState
+              icon={Music}
+              title="No songs yet"
+              description="Head to Studio to add tracks to your album."
+            />
           ) : (
             songs
               .sort((a, b) => a.trackNumber - b.trackNumber)

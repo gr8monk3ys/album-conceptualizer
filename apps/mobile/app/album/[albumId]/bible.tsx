@@ -26,6 +26,7 @@ import {
   Card,
   Chip,
   EmptyState,
+  ErrorState,
   Input,
   Loading,
 } from "../../../src/components/ui";
@@ -410,7 +411,7 @@ function AddItemModal({ visible, onClose, type }: AddItemModalProps): ReactNode 
 
 export default function BibleScreen(): ReactNode {
   const { albumId } = useLocalSearchParams<{ albumId: string }>();
-  const { data: album, isLoading } = useAlbum(albumId);
+  const { data: album, isLoading, error, refetch } = useAlbum(albumId);
   const [activeTab, setActiveTab] = useState<BibleTab>("themes");
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -435,6 +436,10 @@ export default function BibleScreen(): ReactNode {
 
   if (isLoading) {
     return <Loading />;
+  }
+
+  if (error) {
+    return <ErrorState onRetry={() => refetch()} />;
   }
 
   function renderEmptyForTab(tab: BibleTab): ReactNode {

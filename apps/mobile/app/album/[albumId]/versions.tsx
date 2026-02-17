@@ -20,6 +20,7 @@ import {
   Button,
   Card,
   EmptyState,
+  ErrorState,
   Input,
   Loading,
 } from "../../../src/components/ui";
@@ -157,6 +158,7 @@ export default function VersionsScreen(): ReactNode {
   const {
     data: versions,
     isLoading,
+    error,
     refetch,
     isRefetching,
   } = useAlbumVersions(albumId);
@@ -215,6 +217,10 @@ export default function VersionsScreen(): ReactNode {
 
   if (isLoading) {
     return <Loading />;
+  }
+
+  if (error) {
+    return <ErrorState onRetry={() => refetch()} />;
   }
 
   const versionsList = versions ?? [];

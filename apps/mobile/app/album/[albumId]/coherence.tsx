@@ -21,6 +21,7 @@ import {
   Button,
   Card,
   EmptyState,
+  ErrorState,
   Loading,
 } from "../../../src/components/ui";
 import { albumsApi } from "../../../src/api/albums";
@@ -115,7 +116,7 @@ function TimelineSong({ song, narrativePosition, isLast }: TimelineSongProps): R
 
 export default function CoherenceScreen(): ReactNode {
   const { albumId } = useLocalSearchParams<{ albumId: string }>();
-  const { data: album, isLoading, refetch } = useAlbum(albumId);
+  const { data: album, isLoading, error, refetch } = useAlbum(albumId);
   const [checking, setChecking] = useState(false);
 
   // Placeholder warnings (would come from API in production)
@@ -136,6 +137,10 @@ export default function CoherenceScreen(): ReactNode {
 
   if (isLoading || !album) {
     return <Loading />;
+  }
+
+  if (error) {
+    return <ErrorState onRetry={() => refetch()} />;
   }
 
   const songs = [...(album.songs ?? [])].sort(
