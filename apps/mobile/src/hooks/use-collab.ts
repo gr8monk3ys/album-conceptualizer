@@ -5,14 +5,19 @@ import {
   CollabClient,
   type CollabBoardItem,
   type CollabComment,
+  type CollabConnectionStatus,
   type CollabSnapshot,
   type Participant,
 } from "../api/collab";
+import { config } from "../config/env";
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+const BASE_URL = config.apiUrl;
 
 interface UseCollabRoomReturn {
+  /** @deprecated Use `status` instead for granular connection state. */
   connected: boolean;
+  /** Granular connection status. */
+  status: CollabConnectionStatus;
   participants: Participant[];
   comments: CollabComment[];
   boardItems: CollabBoardItem[];
@@ -21,6 +26,8 @@ interface UseCollabRoomReturn {
   sendVote: (itemId: string, value: -1 | 0 | 1) => void;
   createBoardItem: (title: string, detail?: string) => void;
   createSnapshot: (summary: string) => void;
+  /** Manually retry the connection after failure. */
+  retry: () => void;
 }
 
 export function useCollabRoom(
@@ -30,6 +37,7 @@ export function useCollabRoom(
 ): UseCollabRoomReturn {
   const clientRef = useRef<CollabClient | null>(null);
   const [connected, setConnected] = useState(false);
+  const [status, setStatus] = useState<CollabConnectionStatus>("connecting");
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [comments, setComments] = useState<CollabComment[]>([]);
   const [boardItems, setBoardItems] = useState<CollabBoardItem[]>([]);
@@ -39,6 +47,7 @@ export function useCollabRoom(
     const client = new CollabClient(BASE_URL, albumId, roomId, alias);
 
     client.onConnectionChange = setConnected;
+    client.onStatusChange = setStatus;
     client.onParticipants = setParticipants;
     client.onComment = (comment) =>
       setComments((prev) => [...prev, comment]);
@@ -92,8 +101,13 @@ export function useCollabRoom(
     [],
   );
 
+  const retry = useCallback(() => {
+    clientRef.current?.retry();
+  }, []);
+
   return {
     connected,
+    status,
     participants,
     comments,
     boardItems,
@@ -102,5 +116,6 @@ export function useCollabRoom(
     sendVote,
     createBoardItem,
     createSnapshot,
+    retry,
   };
 }

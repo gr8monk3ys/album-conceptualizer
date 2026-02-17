@@ -5,11 +5,14 @@ import {
   ChevronUp,
   Lightbulb,
   MessageCircle,
+  RefreshCw,
   Send,
   Users,
+  WifiOff,
 } from "lucide-react-native";
 import { useCallback, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -25,10 +28,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
 
 import { Avatar, Badge, Button, Card } from "../../../../src/components/ui";
+import { hapticMedium } from "../../../../src/utils/haptics";
 import { useCollabRoom } from "../../../../src/hooks/use-collab";
 import type {
   CollabBoardItem,
   CollabComment,
+  CollabConnectionStatus,
   CollabSnapshot,
 } from "../../../../src/api/collab";
 import {
@@ -159,14 +164,20 @@ function BoardItemCard({ item, onVote }: BoardItemCardProps): ReactNode {
         <Text style={styles.boardAlias}>{item.alias}</Text>
         <View style={styles.voteRow}>
           <Pressable
-            onPress={() => onVote(1)}
+            onPress={() => {
+              hapticMedium();
+              onVote(1);
+            }}
             style={styles.voteButton}
           >
             <ChevronUp size={18} color={colors.success} />
           </Pressable>
           <Text style={styles.voteScore}>{item.vote_score}</Text>
           <Pressable
-            onPress={() => onVote(-1)}
+            onPress={() => {
+              hapticMedium();
+              onVote(-1);
+            }}
             style={styles.voteButton}
           >
             <ChevronDown size={18} color={colors.error} />
@@ -212,6 +223,75 @@ function SnapshotRow({ snapshot }: SnapshotRowProps): ReactNode {
   );
 }
 
+// ── Connection status banner ──────────────────────────────────────────
+
+interface ConnectionBannerProps {
+  status: CollabConnectionStatus;
+  onRetry: () => void;
+}
+
+function ConnectionBanner({ status, onRetry }: ConnectionBannerProps): ReactNode {
+  if (status === "connected") return null;
+
+  if (status === "connecting") {
+    return (
+      <View style={styles.bannerConnecting}>
+        <ActivityIndicator size="small" color={colors.warning} />
+        <Text style={styles.bannerText}>Connecting...</Text>
+      </View>
+    );
+  }
+
+  // status === "error" or "disconnected"
+  return (
+    <View style={styles.bannerError}>
+      <WifiOff size={16} color={colors.error} />
+      <Text style={styles.bannerErrorText}>
+        {status === "error"
+          ? "Unable to connect to collaboration server"
+          : "Connection lost"}
+      </Text>
+      <Pressable onPress={onRetry} style={styles.bannerRetryButton}>
+        <RefreshCw size={14} color={colors.primary} />
+        <Text style={styles.bannerRetryText}>Retry</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+// ── Unavailable overlay (shown over content when disconnected) ────────
+
+interface UnavailableOverlayProps {
+  status: CollabConnectionStatus;
+  onRetry: () => void;
+}
+
+function UnavailableOverlay({ status, onRetry }: UnavailableOverlayProps): ReactNode {
+  if (status === "connected" || status === "connecting") return null;
+
+  return (
+    <View style={styles.unavailableOverlay}>
+      <View style={styles.unavailableCard}>
+        <WifiOff size={40} color={colors.textMuted} />
+        <Text style={styles.unavailableTitle}>
+          Real-time collaboration is currently unavailable
+        </Text>
+        <Text style={styles.unavailableMessage}>
+          Your changes are saved locally. Collaboration features will be
+          available in a future update.
+        </Text>
+        <Button
+          title="Retry Connection"
+          onPress={onRetry}
+          variant="secondary"
+          size="sm"
+          icon={<RefreshCw size={16} color={colors.text} />}
+        />
+      </View>
+    </View>
+  );
+}
+
 // ── Main screen ──────────────────────────────────────────────────────
 
 export default function CollabRoomScreen(): ReactNode {
@@ -229,6 +309,7 @@ export default function CollabRoomScreen(): ReactNode {
 
   const {
     connected,
+    status,
     participants,
     comments,
     boardItems,
@@ -237,7 +318,10 @@ export default function CollabRoomScreen(): ReactNode {
     sendVote,
     createBoardItem,
     createSnapshot,
+    retry,
   } = useCollabRoom(albumId, roomId, alias);
+
+  const isDisconnected = status === "error" || status === "disconnected";
 
   // ── Chat actions ─────────────────────────────────────────────────
 
@@ -285,7 +369,7 @@ export default function CollabRoomScreen(): ReactNode {
         <FlatList
           ref={chatListRef}
           data={comments}
-          keyExtractor={(_, i) => String(i)}
+          keyExtractor={(item, i) => `${item.created_at}-${item.alias}-${i}`}
           renderItem={({ item }) => <ChatMessage comment={item} />}
           contentContainerStyle={styles.chatList}
           inverted={false}
@@ -382,7 +466,7 @@ export default function CollabRoomScreen(): ReactNode {
       <View style={styles.tabContent}>
         <FlatList
           data={snapshots}
-          keyExtractor={(_, i) => String(i)}
+          keyExtractor={(item, i) => `${item.created_at}-${item.alias}-${i}`}
           renderItem={({ item }) => <SnapshotRow snapshot={item} />}
           contentContainerStyle={styles.snapshotList}
           ListEmptyComponent={
@@ -428,6 +512,9 @@ export default function CollabRoomScreen(): ReactNode {
   return (
     <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
       <View style={styles.container}>
+        {/* Connection status banner */}
+        <ConnectionBanner status={status} onRetry={retry} />
+
         {/* Header bar */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -437,14 +524,21 @@ export default function CollabRoomScreen(): ReactNode {
                 style={[
                   styles.connectionDot,
                   {
-                    backgroundColor: connected
-                      ? colors.success
-                      : colors.error,
+                    backgroundColor:
+                      status === "connected"
+                        ? colors.success
+                        : status === "connecting"
+                          ? colors.warning
+                          : colors.error,
                   },
                 ]}
               />
               <Text style={styles.connectionText}>
-                {connected ? "Connected" : "Disconnected"}
+                {status === "connected"
+                  ? "Connected"
+                  : status === "connecting"
+                    ? "Connecting..."
+                    : "Disconnected"}
               </Text>
             </View>
           </View>
@@ -479,8 +573,16 @@ export default function CollabRoomScreen(): ReactNode {
           onTabChange={setActiveTab}
         />
 
-        {/* Tab content */}
-        {renderActiveTab()}
+        {/* Tab content — dimmed when disconnected */}
+        <View
+          style={[styles.tabContentWrapper, isDisconnected && styles.tabContentDimmed]}
+          pointerEvents={isDisconnected ? "none" : "auto"}
+        >
+          {renderActiveTab()}
+        </View>
+
+        {/* Unavailable overlay shown on top of dimmed content */}
+        <UnavailableOverlay status={status} onRetry={retry} />
       </View>
     </SafeAreaView>
   );
@@ -495,6 +597,96 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+
+  // Connection banner
+  bannerConnecting: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(245, 158, 11, 0.2)",
+  },
+  bannerText: {
+    color: colors.warning,
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+  },
+  bannerError: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(239, 68, 68, 0.2)",
+  },
+  bannerErrorText: {
+    flex: 1,
+    color: colors.error,
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+  },
+  bannerRetryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.surfaceElevated,
+  },
+  bannerRetryText: {
+    color: colors.primary,
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+  },
+
+  // Unavailable overlay
+  unavailableOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    top: 160, // below header + banner area
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(10, 10, 10, 0.7)",
+    zIndex: 10,
+  },
+  unavailableCard: {
+    alignItems: "center",
+    paddingHorizontal: spacing["2xl"],
+    paddingVertical: spacing["2xl"],
+    gap: spacing.lg,
+    marginHorizontal: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+  },
+  unavailableTitle: {
+    color: colors.text,
+    fontSize: fontSize.lg,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  unavailableMessage: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+
+  // Dimmed content wrapper
+  tabContentWrapper: {
+    flex: 1,
+  },
+  tabContentDimmed: {
+    opacity: 0.3,
   },
 
   // Header

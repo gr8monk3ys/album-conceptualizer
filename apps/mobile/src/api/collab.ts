@@ -31,6 +31,13 @@ export interface CollabSnapshot {
   created_at: string;
 }
 
+/** Granular connection state for UI feedback. */
+export type CollabConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";
+
 type CollabEventType =
   | "participants"
   | "comment"
@@ -43,16 +50,48 @@ interface CollabEvent {
   payload: unknown;
 }
 
+/** Response from the /api/collab/status health-check endpoint. */
+export interface CollabStatusResponse {
+  status: "available" | "unavailable";
+  message: string;
+}
+
+// ── Health check ─────────────────────────────────────────────────────
+
+/**
+ * Check whether the collab WebSocket server is available before
+ * attempting a connection.  Returns the status response or null
+ * if the endpoint itself is unreachable.
+ */
+export async function checkCollabHealth(
+  baseUrl: string,
+): Promise<CollabStatusResponse | null> {
+  try {
+    const res = await fetch(`${baseUrl}/api/collab/status`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as CollabStatusResponse;
+  } catch {
+    return null;
+  }
+}
+
 // ── Client ───────────────────────────────────────────────────────────
 
 const MAX_RECONNECT_DELAY = 30_000;
 const BASE_RECONNECT_DELAY = 1_000;
+/** Maximum number of consecutive reconnect attempts before giving up. */
+const MAX_RETRY_ATTEMPTS = 3;
 
 export class CollabClient {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
+  private hasEverConnected = false;
+  private _status: CollabConnectionStatus = "disconnected";
 
   // Event callbacks
   onParticipants: ((participants: Participant[]) => void) | null = null;
@@ -60,7 +99,10 @@ export class CollabClient {
   onBoardItem: ((item: CollabBoardItem) => void) | null = null;
   onSnapshot: ((snapshot: CollabSnapshot) => void) | null = null;
   onError: ((error: string) => void) | null = null;
+  /** @deprecated – use onStatusChange for granular status updates. */
   onConnectionChange: ((connected: boolean) => void) | null = null;
+  /** Called whenever the connection status changes. */
+  onStatusChange: ((status: CollabConnectionStatus) => void) | null = null;
 
   constructor(
     private readonly baseUrl: string,
@@ -69,10 +111,40 @@ export class CollabClient {
     private readonly alias: string,
   ) {}
 
+  /** Current connection status. */
+  getStatus(): CollabConnectionStatus {
+    return this._status;
+  }
+
   // ── Connection lifecycle ─────────────────────────────────────────
 
-  connect(): void {
+  /**
+   * Attempt to connect.  When `checkHealth` is true (the default) the
+   * client will first query the `/api/collab/status` endpoint and skip
+   * the WebSocket connection entirely when the server reports
+   * "unavailable".
+   */
+  async connect(checkHealth = true): Promise<void> {
     this.intentionalClose = false;
+
+    // Optionally pre-flight against the health endpoint.
+    if (checkHealth) {
+      this.setStatus("connecting");
+      const health = await checkCollabHealth(this.baseUrl);
+      if (health && health.status === "unavailable") {
+        this.setStatus("error");
+        this.onError?.(health.message);
+        return;
+      }
+    }
+
+    this.connectWebSocket();
+  }
+
+  /** Raw WebSocket connection (no health pre-flight). */
+  private connectWebSocket(): void {
+    this.setStatus("connecting");
+
     const protocol = this.baseUrl.startsWith("https") ? "wss" : "ws";
     const host = this.baseUrl.replace(/^https?:\/\//, "");
     const url = `${protocol}://${host}/collab/albums/${this.albumId}/rooms/${this.roomId}?alias=${encodeURIComponent(this.alias)}`;
@@ -81,6 +153,8 @@ export class CollabClient {
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
+      this.hasEverConnected = true;
+      this.setStatus("connected");
       this.onConnectionChange?.(true);
     };
 
@@ -96,6 +170,8 @@ export class CollabClient {
       this.onConnectionChange?.(false);
       if (!this.intentionalClose) {
         this.scheduleReconnect();
+      } else {
+        this.setStatus("disconnected");
       }
     };
   }
@@ -110,6 +186,31 @@ export class CollabClient {
       this.ws.close();
       this.ws = null;
     }
+    this.setStatus("disconnected");
+    this.onParticipants = null;
+    this.onComment = null;
+    this.onBoardItem = null;
+    this.onSnapshot = null;
+    this.onError = null;
+    this.onConnectionChange = null;
+    this.onStatusChange = null;
+  }
+
+  /** Reset retry counter and attempt a fresh connection. */
+  async retry(): Promise<void> {
+    this.reconnectAttempts = 0;
+    this.hasEverConnected = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.intentionalClose = true;
+      this.ws.close();
+      this.ws = null;
+      this.intentionalClose = false;
+    }
+    await this.connect(true);
   }
 
   // ── Outgoing actions ─────────────────────────────────────────────
@@ -143,6 +244,12 @@ export class CollabClient {
   }
 
   // ── Internal helpers ─────────────────────────────────────────────
+
+  private setStatus(status: CollabConnectionStatus): void {
+    if (status === this._status) return;
+    this._status = status;
+    this.onStatusChange?.(status);
+  }
 
   private send(event: { type: string; payload: unknown }): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -178,11 +285,22 @@ export class CollabClient {
   }
 
   private scheduleReconnect(): void {
+    // If we have exhausted retries, give up and surface an error.
+    if (this.reconnectAttempts >= MAX_RETRY_ATTEMPTS) {
+      this.setStatus("error");
+      this.onError?.(
+        "Unable to connect to the collaboration server after multiple attempts.",
+      );
+      return;
+    }
+
+    this.setStatus("connecting");
+
     const delay = Math.min(
       BASE_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts),
       MAX_RECONNECT_DELAY,
     );
     this.reconnectAttempts += 1;
-    this.reconnectTimer = setTimeout(() => this.connect(), delay);
+    this.reconnectTimer = setTimeout(() => this.connectWebSocket(), delay);
   }
 }
