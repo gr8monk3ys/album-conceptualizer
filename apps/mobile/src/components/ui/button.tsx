@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ReactNode } from "react";
 
+import { hapticLight } from "../../utils/haptics";
 import { borderRadius, colors, fontSize, spacing } from "../../theme";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
@@ -66,7 +67,10 @@ export function Button({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        hapticLight();
+        onPress();
+      }}
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,

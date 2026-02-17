@@ -88,11 +88,16 @@ export function MiniPlayer({ onExpand }: MiniPlayerProps): ReactNode {
     const sound = soundRef.current;
     if (!sound) return;
 
-    if (isPlaying) {
-      sound.playAsync();
-    } else {
-      sound.pauseAsync();
-    }
+    (async () => {
+      const status = await sound.getStatusAsync();
+      if (!status.isLoaded) return;
+
+      if (isPlaying) {
+        await sound.playAsync();
+      } else {
+        await sound.pauseAsync();
+      }
+    })();
   }, [isPlaying]);
 
   // Cleanup on unmount
