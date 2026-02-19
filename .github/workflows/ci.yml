@@ -63,7 +63,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/ -v --tb=short --cov=album_conceptualizer --cov-report=xml --cov-fail-under=70
+          pytest tests/ -v --tb=short --cov=album_conceptualizer --cov-report=xml --cov-fail-under=85
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'

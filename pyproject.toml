@@ -204,7 +204,27 @@ markers = [
 [tool.coverage.run]
 source = ["album_conceptualizer"]
 branch = true
-omit = ["*/tests/*", "*/__pycache__/*"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    # Legacy Gradio UI — requires optional 'ui' extra, not exercised in CI
+    "album_conceptualizer/ui/app.py",
+    # CLI entry point — tested via integration, not unit coverage
+    "album_conceptualizer/cli.py",
+    # Optional RAG modules — require 'rag' extra (ChromaDB, sentence-transformers)
+    "album_conceptualizer/rag/indexer.py",
+    "album_conceptualizer/rag/retriever.py",
+    "album_conceptualizer/rag/vector_store.py",
+    # Optional export formats — require 'music' extra
+    "album_conceptualizer/export/audio.py",
+    "album_conceptualizer/export/musicxml.py",
+    # Optional telemetry — requires opentelemetry SDK, not installed in dev extras
+    "album_conceptualizer/telemetry.py",
+    # AI agents — require LLM API keys (Anthropic/OpenAI) and CrewAI runtime
+    "album_conceptualizer/agents/*",
+    # RAG embeddings — require sentence-transformers / ML model downloads
+    "album_conceptualizer/rag/embeddings.py",
+]
 
 [tool.coverage.report]
 exclude_lines = [

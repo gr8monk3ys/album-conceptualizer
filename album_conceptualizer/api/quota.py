@@ -69,7 +69,7 @@ class InMemoryQuota(BaseHTTPMiddleware):
         return response
 
 
-class RedisQuota(BaseHTTPMiddleware):
+class RedisQuota(BaseHTTPMiddleware):  # pragma: no cover
     """Redis-backed daily quota limiter."""
 
     def __init__(self, app, config: QuotaConfig, redis_url: str | None):

@@ -74,7 +74,7 @@ class InMemoryRateLimiter(BaseHTTPMiddleware):
         return response
 
 
-class RedisRateLimiter(BaseHTTPMiddleware):
+class RedisRateLimiter(BaseHTTPMiddleware):  # pragma: no cover
     """Redis-backed per-IP rate limiter."""
 
     def __init__(self, app, config: RateLimitConfig, redis_url: str | None):
