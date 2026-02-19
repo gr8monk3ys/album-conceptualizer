@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import secrets
 from typing import TypeAlias
 
 from fastapi import Header, HTTPException, Request, WebSocket, status
@@ -91,7 +92,7 @@ def require_api_key(
         return
 
     token = extract_auth_token(x_api_key, authorization)
-    if token in allowed_keys:
+    if token and any(secrets.compare_digest(token, key) for key in allowed_keys):
         return
     if token and connection and resolve_workspace_session(connection, token):
         return

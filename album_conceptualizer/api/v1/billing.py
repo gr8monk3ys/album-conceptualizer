@@ -23,6 +23,10 @@ protected_router = APIRouter()
 public_router = APIRouter()
 
 
+# TODO: Replace None values with real Stripe Price IDs before enabling billing.
+# These can be found in your Stripe Dashboard under Products > Pricing.
+# Example: BillingPlan.PRO: "price_1ABC123..."
+# Set ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED=false until these are populated.
 PLAN_PRICE_IDS: dict[BillingPlan, str | None] = {
     BillingPlan.FREE: None,
     BillingPlan.PRO: None,
