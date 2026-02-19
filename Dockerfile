@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build stage
-FROM python:3.12-slim as builder
+FROM python:3.14-slim as builder
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system -e .
 
 # Production stage
-FROM python:3.12-slim as production
+FROM python:3.14-slim as production
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash appuser
