@@ -16,6 +16,11 @@ from album_conceptualizer.api.rate_limit import (
     RedisRateLimiter,
 )
 from album_conceptualizer.api.v1 import router as v1_router
+from album_conceptualizer.api.v1.health import (
+    health_check as v1_health_check,
+    liveness_check as v1_liveness_check,
+    readiness_check as v1_readiness_check,
+)
 from album_conceptualizer.config import get_settings
 from album_conceptualizer.emailing import create_email_sender
 from album_conceptualizer.experience_state import (
