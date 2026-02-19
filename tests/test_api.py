@@ -10,6 +10,7 @@ from album_conceptualizer.config import reset_settings
 @pytest.fixture
 def client(monkeypatch):
     """Create a test client."""
+    monkeypatch.setenv("ALBUM_CONCEPTUALIZER_STORAGE_BACKEND", "memory")
     monkeypatch.delenv("ALBUM_CONCEPTUALIZER_API_KEY", raising=False)
     monkeypatch.delenv("ALBUM_CONCEPTUALIZER_API_KEYS", raising=False)
     monkeypatch.delenv("ALBUM_CONCEPTUALIZER_STRICT_PRODUCTION", raising=False)

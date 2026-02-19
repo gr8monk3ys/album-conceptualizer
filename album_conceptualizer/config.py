@@ -181,7 +181,7 @@ class Settings(BaseSettings):
 
     # Storage
     storage_backend: str = Field(
-        default="memory",
+        default="sqlite",
         alias="ALBUM_CONCEPTUALIZER_STORAGE_BACKEND",
     )
     storage_db_path: Path = Field(
