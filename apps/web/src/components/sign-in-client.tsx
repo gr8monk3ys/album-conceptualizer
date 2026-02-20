@@ -1,8 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useEffect, useMemo, useState } from "react";
+import { getProviders, signIn, type ClientSafeProvider } from "next-auth/react";
 
 export function SignInClient() {
   const enableDevLogin = process.env.NEXT_PUBLIC_ENABLE_DEV_LOGIN === "1";
@@ -10,6 +10,39 @@ export function SignInClient() {
   const callbackUrl = searchParams.get("callbackUrl") ?? "/app";
   const [devEmail, setDevEmail] = useState("dev@example.com");
   const [devName, setDevName] = useState("Dev User");
+  const [magicEmail, setMagicEmail] = useState("");
+  const [providers, setProviders] = useState<Record<string, ClientSafeProvider>>({});
+  const [providersLoaded, setProvidersLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getProviders()
+      .then((value) => {
+        if (!cancelled) {
+          setProviders(value ?? {});
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setProvidersLoaded(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const githubProvider = providers.github;
+  const emailProvider = useMemo(
+    () => Object.values(providers).find((provider) => provider.type === "email"),
+    [providers],
+  );
+  const oauthProviders = useMemo(
+    () =>
+      Object.values(providers).filter((provider) => provider.type === "oauth" && provider.id !== "github"),
+    [providers],
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(109,94,252,0.25),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(255,62,165,0.22),transparent_45%),radial-gradient(circle_at_40%_90%,rgba(50,213,131,0.12),transparent_55%),var(--bg)]">
@@ -31,13 +64,27 @@ export function SignInClient() {
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => signIn("github", { callbackUrl })}
-                className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_70px_rgba(0,0,0,0.4)] hover:bg-white/90"
-              >
-                Continue with GitHub
-              </button>
+              {githubProvider ? (
+                <button
+                  type="button"
+                  onClick={() => signIn(githubProvider.id, { callbackUrl })}
+                  className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_70px_rgba(0,0,0,0.4)] hover:bg-white/90"
+                >
+                  Continue with GitHub
+                </button>
+              ) : null}
+              {oauthProviders.length > 0
+                ? oauthProviders.map((provider) => (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      onClick={() => signIn(provider.id, { callbackUrl })}
+                      className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_70px_rgba(0,0,0,0.4)] hover:bg-white/90"
+                    >
+                      Continue with {provider.name}
+                    </button>
+                  ))
+                : null}
               <button
                 type="button"
                 onClick={() => signIn(undefined, { callbackUrl })}
@@ -46,6 +93,39 @@ export function SignInClient() {
                 More options
               </button>
             </div>
+
+            {emailProvider ? (
+              <div className="mt-5 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.25)] p-4">
+                <div className="text-xs font-semibold text-[var(--text)]">Email magic link</div>
+                <div className="mt-1 text-xs text-[var(--muted2)]">
+                  We&apos;ll email you a secure sign-in link.
+                </div>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    value={magicEmail}
+                    onChange={(e) => setMagicEmail(e.target.value)}
+                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    placeholder="you@example.com"
+                    type="email"
+                    autoComplete="email"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const email = magicEmail.trim();
+                      if (!email) return;
+                      void signIn(emailProvider.id, {
+                        email,
+                        callbackUrl,
+                      });
+                    }}
+                    className="rounded-2xl bg-[rgba(255,255,255,0.10)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.14)]"
+                  >
+                    Send link
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {enableDevLogin ? (
               <div className="mt-5 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.25)] p-4">
@@ -82,6 +162,17 @@ export function SignInClient() {
                 >
                   Continue (dev)
                 </button>
+              </div>
+            ) : null}
+
+            {providersLoaded &&
+            !githubProvider &&
+            !emailProvider &&
+            !oauthProviders.length &&
+            !enableDevLogin ? (
+              <div className="mt-5 rounded-2xl border border-[rgba(255,173,173,0.45)] bg-[rgba(140,24,24,0.25)] p-4 text-xs text-[rgba(255,220,220,0.95)]">
+                No auth provider is configured yet. Set GitHub OAuth or Email auth in your
+                environment.
               </div>
             ) : null}
 
@@ -134,4 +225,3 @@ export function SignInClient() {
     </div>
   );
 }
-

@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import { getServerSession } from "next-auth/next";
 import GitHubProvider from "next-auth/providers/github";
+import EmailProvider from "next-auth/providers/email";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 
@@ -12,8 +13,34 @@ function getRequiredEnv(name: string): string {
   return value;
 }
 
+function getConfiguredEmailServer(): string | null {
+  const emailServer = process.env.EMAIL_SERVER?.trim();
+  if (emailServer) return emailServer;
+
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  if (!resendApiKey) return null;
+
+  const encoded = encodeURIComponent(resendApiKey);
+  return `smtp://resend:${encoded}@smtp.resend.com:465`;
+}
+
+function getConfiguredEmailFrom(): string {
+  const configured =
+    process.env.AUTH_EMAIL_FROM?.trim() ||
+    process.env.EMAIL_FROM?.trim() ||
+    process.env.RESEND_FROM?.trim();
+  if (configured) return configured;
+
+  // Resend's default sender works for initial setup/tests before a custom domain is verified.
+  return "onboarding@resend.dev";
+}
+
 export function buildAuthOptions(): NextAuthOptions {
   const prisma = getPrisma();
+  const authSecret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
+  if (!authSecret) {
+    throw new Error("NEXTAUTH_SECRET (or AUTH_SECRET) is not set.");
+  }
 
   const providers: NextAuthOptions["providers"] = [];
 
@@ -22,6 +49,17 @@ export function buildAuthOptions(): NextAuthOptions {
       GitHubProvider({
         clientId: getRequiredEnv("GITHUB_ID"),
         clientSecret: getRequiredEnv("GITHUB_SECRET"),
+      }),
+    );
+  }
+
+  const emailServer = getConfiguredEmailServer();
+  if (emailServer) {
+    providers.push(
+      EmailProvider({
+        server: emailServer,
+        from: getConfiguredEmailFrom(),
+        maxAge: 24 * 60 * 60,
       }),
     );
   }
@@ -61,11 +99,14 @@ export function buildAuthOptions(): NextAuthOptions {
   }
 
   if (!providers.length) {
-    throw new Error("No auth providers configured. Set GitHub OAuth or ENABLE_DEV_LOGIN=1.");
+    throw new Error(
+      "No auth providers configured. Set GitHub OAuth, Email auth (EMAIL_SERVER or RESEND_API_KEY), or ENABLE_DEV_LOGIN=1.",
+    );
   }
 
   return {
     adapter: PrismaAdapter(prisma),
+    secret: authSecret,
     session: { strategy: "jwt" },
     pages: { signIn: "/sign-in" },
     providers,

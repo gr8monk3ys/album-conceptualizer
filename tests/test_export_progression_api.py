@@ -1,5 +1,7 @@
 """Tests for progression export API endpoints (MIDI and MusicXML)."""
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -104,6 +106,79 @@ class TestProgressionMusicXMLExport:
         assert resp.status_code == 200
         disposition = resp.headers.get("content-disposition", "")
         assert "progression.musicxml" in disposition
+
+
+class TestProgressionMp3Export:
+    """Tests for POST /api/v1/export/progression/mp3."""
+
+    def test_export_progression_mp3_success(self, client, monkeypatch, tmp_path):
+        soundfont = tmp_path / "test.sf2"
+        soundfont.write_bytes(b"dummy")
+
+        monkeypatch.setattr(
+            "album_conceptualizer.api.v1.export._resolve_soundfont_path",
+            lambda: soundfont,
+        )
+
+        def _fake_render_midi_to_mp3(
+            *, midi_path: Path, mp3_path: Path, soundfont_path: Path, sample_rate: int = 44100
+        ):
+            assert midi_path.exists()
+            assert soundfont_path == soundfont
+            mp3_path.write_bytes(b"ID3\x03\x00\x00\x00\x00\x00\x00")
+
+        monkeypatch.setattr(
+            "album_conceptualizer.export.audio.render_midi_to_mp3",
+            _fake_render_midi_to_mp3,
+        )
+
+        resp = client.post(
+            "/api/v1/export/progression/mp3",
+            json={"chords": ["C", "G", "Am", "F"], "tempo": 120, "title": "My MP3"},
+        )
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("audio/mpeg")
+        assert "my_mp3.mp3" in resp.headers.get("content-disposition", "")
+
+    def test_export_progression_mp3_missing_soundfont_returns_501(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "album_conceptualizer.api.v1.export._resolve_soundfont_path",
+            lambda: None,
+        )
+        resp = client.post(
+            "/api/v1/export/progression/mp3",
+            json={"chords": ["C", "G", "Am", "F"], "tempo": 120},
+        )
+        assert resp.status_code == 501
+        assert "MP3 rendering unavailable" in resp.json()["detail"]
+
+    def test_export_progression_mp3_render_error_returns_501(self, client, monkeypatch, tmp_path):
+        from album_conceptualizer.export.audio import AudioRenderError
+
+        soundfont = tmp_path / "test.sf2"
+        soundfont.write_bytes(b"dummy")
+
+        monkeypatch.setattr(
+            "album_conceptualizer.api.v1.export._resolve_soundfont_path",
+            lambda: soundfont,
+        )
+
+        def _raise_render_error(
+            *, midi_path: Path, mp3_path: Path, soundfont_path: Path, sample_rate: int = 44100
+        ):
+            raise AudioRenderError("fluidsynth not found in PATH.")
+
+        monkeypatch.setattr(
+            "album_conceptualizer.export.audio.render_midi_to_mp3",
+            _raise_render_error,
+        )
+
+        resp = client.post(
+            "/api/v1/export/progression/mp3",
+            json={"chords": ["C", "G", "Am", "F"], "tempo": 120},
+        )
+        assert resp.status_code == 501
+        assert "fluidsynth not found" in resp.json()["detail"]
 
 
 class TestGenerateChordProNoSectionName:

@@ -1,0 +1,36 @@
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    UV_SYSTEM_PYTHON=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    ffmpeg \
+    fluidsynth \
+    fluid-soundfont-gm && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+COPY pyproject.toml README.md LICENSE ./
+COPY album_conceptualizer/ ./album_conceptualizer/
+
+RUN uv pip install --system -e ".[music]" "redis>=5.0.0"
+
+ENV AC_SOUNDFONT_PATH=/usr/share/sounds/sf2/FluidR3_GM.sf2 \
+    ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=memory \
+    DATA_DIR=/tmp/data \
+    CACHE_DIR=/tmp/cache \
+    OUTPUT_DIR=/tmp/output \
+    ALBUM_CONCEPTUALIZER_STORAGE_DB=/tmp/album_conceptualizer.db
+
+EXPOSE 8000
+
+CMD ["sh", "-c", "uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port ${PORT:-8000}"]

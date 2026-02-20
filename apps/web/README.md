@@ -94,6 +94,10 @@ npm run test:e2e
 High level:
 
 1. Create a Neon Postgres database and set `DATABASE_URL` in Vercel.
-2. Configure NextAuth (GitHub OAuth) and set `GITHUB_ID`, `GITHUB_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`.
+2. Configure auth:
+   - GitHub OAuth: `GITHUB_ID`, `GITHUB_SECRET`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET` (or `AUTH_SECRET`), or
+   - Email magic links: `EMAIL_SERVER` + `EMAIL_FROM` (or `RESEND_API_KEY` + `RESEND_FROM`), plus `NEXTAUTH_SECRET` (or `AUTH_SECRET`).
 3. Configure Stripe and set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and price ids.
-4. Deploy the Python engine somewhere reachable from Vercel (or move long-running tasks to a job system).
+4. Deploy the Python engine somewhere reachable from Vercel and set:
+   - `ENGINE_API_URL=https://<engine-host>/api/v1`
+   - `ENGINE_API_KEY=<shared-api-key>` (recommended)

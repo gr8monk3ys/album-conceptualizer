@@ -15,8 +15,31 @@ from album_conceptualizer.export.chordpro import ChordProExporter, format_chordp
 router = APIRouter()
 
 
+DEFAULT_SOUNDFONT_PATHS = (
+    Path("/usr/share/sounds/sf2/FluidR3_GM.sf2"),
+    Path("/usr/share/sounds/sf2/TimGM6mb.sf2"),
+)
+
+
 def _cleanup_temp_file(path: str) -> None:
     Path(path).unlink(missing_ok=True)
+
+
+def _resolve_soundfont_path() -> Path | None:
+    try:
+        from album_conceptualizer.export.audio import get_soundfont_path
+    except Exception:
+        return None
+
+    configured = get_soundfont_path()
+    if configured and configured.exists():
+        return configured
+
+    for candidate in DEFAULT_SOUNDFONT_PATHS:
+        if candidate.exists():
+            return candidate
+
+    return None
 
 
 class ChordProRequest(BaseModel):
@@ -317,6 +340,75 @@ async def export_progression_midi(
         path=temp_path,
         filename=f"{filename}.mid",
         media_type="audio/midi",
+    )
+    response.background = background_tasks
+    return response
+
+
+@router.post("/progression/mp3")
+async def export_progression_mp3(
+    data: ProgressionExportRequest,
+    background_tasks: BackgroundTasks,
+) -> FileResponse:
+    """Export chord progression as MP3 (requires `fluidsynth`, `ffmpeg`, and a SoundFont)."""
+    try:
+        from album_conceptualizer.export.audio import AudioRenderError, render_midi_to_mp3
+        from album_conceptualizer.export.midi import create_chord_midi
+        from album_conceptualizer.models.music_theory import Chord
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="MP3 export not available. Install with: pip install -e '.[music]'",
+        ) from None
+
+    soundfont_path = _resolve_soundfont_path()
+    if soundfont_path is None:
+        raise HTTPException(
+            status_code=501,
+            detail=(
+                "MP3 rendering unavailable. Configure AC_SOUNDFONT_PATH (or SOUNDFONT_PATH) "
+                "and install fluidsynth + ffmpeg."
+            ),
+        )
+
+    chords = [Chord.from_symbol(c) for c in data.chords]
+    midi = create_chord_midi(
+        chords=chords,
+        tempo=data.tempo,
+        chord_duration=data.bars_per_chord * 4.0,  # Assuming 4/4
+    )
+
+    with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as midi_file:
+        midi.write(midi_file.name)
+        midi_temp_path = midi_file.name
+
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as mp3_file:
+        mp3_temp_path = mp3_file.name
+
+    try:
+        render_midi_to_mp3(
+            midi_path=Path(midi_temp_path),
+            mp3_path=Path(mp3_temp_path),
+            soundfont_path=soundfont_path,
+        )
+    except AudioRenderError as exc:
+        _cleanup_temp_file(midi_temp_path)
+        _cleanup_temp_file(mp3_temp_path)
+        raise HTTPException(status_code=501, detail=f"MP3 rendering unavailable: {exc}") from exc
+    except Exception:
+        _cleanup_temp_file(midi_temp_path)
+        _cleanup_temp_file(mp3_temp_path)
+        raise
+
+    filename = data.title or "progression"
+    filename = filename.replace(" ", "_").lower()
+
+    background_tasks.add_task(_cleanup_temp_file, midi_temp_path)
+    background_tasks.add_task(_cleanup_temp_file, mp3_temp_path)
+    response = FileResponse(
+        path=mp3_temp_path,
+        filename=f"{filename}.mp3",
+        media_type="audio/mpeg",
     )
     response.background = background_tasks
     return response
