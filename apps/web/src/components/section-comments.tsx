@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, ClipboardCheck, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
 
 type CommentAuthor = {
@@ -24,15 +24,15 @@ type SectionComment = {
   resolvedBy: CommentAuthor | null;
 };
 
-function formatTime(ts: string) {
-  const dt = new Date(ts);
-  return dt.toLocaleString();
-}
+type SectionCommentsUiState = {
+  loading: boolean;
+  submitting: boolean;
+  body: string;
+  status: string | null;
+  error: string | null;
+};
 
-export function SectionComments({
-  albumId,
-  section,
-}: {
+type SectionCommentsProps = {
   albumId: string;
   section: {
     id: string;
@@ -40,22 +40,29 @@ export function SectionComments({
     sectionType: string;
     sectionOrder: number;
   };
-}) {
+};
+
+function formatTime(ts: string) {
+  const dt = new Date(ts);
+  return dt.toLocaleString();
+}
+
+function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   const sectionId = section.id;
   const [comments, setComments] = useState<SectionComment[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [body, setBody] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [ui, setUi] = useState<SectionCommentsUiState>({
+    loading: false,
+    submitting: false,
+    body: "",
+    status: null,
+    error: null,
+  });
+  const { loading, submitting, body, status, error } = ui;
 
-  const header = useMemo(() => {
-    return `Track ${section.songTrackNumber} · ${section.sectionType} #${section.sectionOrder + 1}`;
-  }, [section.songTrackNumber, section.sectionOrder, section.sectionType]);
+  const header = `Track ${section.songTrackNumber} · ${section.sectionType} #${section.sectionOrder + 1}`;
 
   async function refresh() {
-    setLoading(true);
-    setError(null);
+    setUi((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const response = await fetch(
         `/api/albums/${albumId}/comments?sectionId=${encodeURIComponent(sectionId)}`,
@@ -70,9 +77,9 @@ export function SectionComments({
       setComments(Array.isArray(payload?.comments) ? payload!.comments! : []);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load comments.";
-      setError(message);
+      setUi((prev) => ({ ...prev, error: message }));
     } finally {
-      setLoading(false);
+      setUi((prev) => ({ ...prev, loading: false }));
     }
   }
 
@@ -82,9 +89,7 @@ export function SectionComments({
   }, [albumId, sectionId]);
 
   async function submit() {
-    setSubmitting(true);
-    setError(null);
-    setStatus(null);
+    setUi((prev) => ({ ...prev, submitting: true, error: null, status: null }));
     try {
       const response = await fetch(`/api/albums/${albumId}/comments`, {
         method: "POST",
@@ -101,14 +106,13 @@ export function SectionComments({
         const text = await response.text().catch(() => "");
         throw new Error(text || `Failed to create comment (${response.status}).`);
       }
-      setBody("");
-      setStatus("Comment added.");
+      setUi((prev) => ({ ...prev, body: "", status: "Comment added." }));
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create comment.";
-      setError(message);
+      setUi((prev) => ({ ...prev, error: message }));
     } finally {
-      setSubmitting(false);
+      setUi((prev) => ({ ...prev, submitting: false }));
     }
   }
 
@@ -125,32 +129,29 @@ export function SectionComments({
   }
 
   async function resolve(commentId: string) {
-    setError(null);
-    setStatus(null);
+    setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
       await patch(commentId, { action: "resolve" });
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to resolve comment.";
-      setError(message);
+      setUi((prev) => ({ ...prev, error: message }));
     }
   }
 
   async function unresolve(commentId: string) {
-    setError(null);
-    setStatus(null);
+    setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
       await patch(commentId, { action: "unresolve" });
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to unresolve comment.";
-      setError(message);
+      setUi((prev) => ({ ...prev, error: message }));
     }
   }
 
   async function remove(commentId: string) {
-    setError(null);
-    setStatus(null);
+    setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
       const response = await fetch(`/api/albums/${albumId}/comments/${commentId}`, {
         method: "DELETE",
@@ -159,17 +160,16 @@ export function SectionComments({
         const text = await response.text().catch(() => "");
         throw new Error(text || `Delete failed (${response.status}).`);
       }
-      setStatus("Comment deleted.");
+      setUi((prev) => ({ ...prev, status: "Comment deleted." }));
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to delete comment.";
-      setError(message);
+      setUi((prev) => ({ ...prev, error: message }));
     }
   }
 
   async function makeTask(comment: SectionComment) {
-    setError(null);
-    setStatus(null);
+    setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
       const titleBase = comment.body.trim().split(/\n+/g)[0] ?? "Review comment";
       const title = titleBase.length > 90 ? `${titleBase.slice(0, 90)}…` : titleBase;
@@ -190,10 +190,10 @@ export function SectionComments({
         const text = await response.text().catch(() => "");
         throw new Error(text || `Failed to create task (${response.status}).`);
       }
-      setStatus("Task created.");
+      setUi((prev) => ({ ...prev, status: "Task created." }));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create task.";
-      setError(message);
+      setUi((prev) => ({ ...prev, error: message }));
     }
   }
 
@@ -204,10 +204,10 @@ export function SectionComments({
       url.searchParams.set("section", String(section.sectionOrder));
       url.searchParams.set("sid", sectionId);
       await navigator.clipboard.writeText(url.toString());
-      setStatus("Copied section link.");
-      window.setTimeout(() => setStatus(null), 1400);
+      setUi((prev) => ({ ...prev, status: "Copied section link." }));
+      window.setTimeout(() => setUi((prev) => ({ ...prev, status: null })), 1400);
     } catch {
-      setError("Unable to copy link.");
+      setUi((prev) => ({ ...prev, error: "Unable to copy link." }));
     }
   }
 
@@ -329,7 +329,7 @@ export function SectionComments({
         </div>
         <textarea
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={(e) => setUi((prev) => ({ ...prev, body: e.target.value }))}
           rows={3}
           className="mt-2 w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-xs leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
           placeholder="Leave feedback for this section…"
@@ -354,4 +354,8 @@ export function SectionComments({
       </div>
     </div>
   );
+}
+
+export function SectionComments(props: SectionCommentsProps) {
+  return useSectionCommentsRender(props);
 }

@@ -5,6 +5,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Album Bibles",
+  description: "Open and compare album bibles across your workspace projects.",
+};
 
 export default async function BiblesPage() {
   const { userId } = await requireUser();

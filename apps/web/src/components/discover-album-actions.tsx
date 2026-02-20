@@ -14,10 +14,11 @@ export function DiscoverAlbumActions({
   initialLikes: number;
 }) {
   const router = useRouter();
-  const [liked, setLiked] = useState(initialLiked);
-  const [likes, setLikes] = useState(initialLikes);
+  const [optimistic, setOptimistic] = useState<{ liked: boolean; likes: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const liked = optimistic?.liked ?? initialLiked;
+  const likes = optimistic?.likes ?? initialLikes;
 
   async function toggleLike() {
     setBusy(true);
@@ -33,8 +34,10 @@ export function DiscoverAlbumActions({
       const payload = (await response.json().catch(() => null)) as
         | { liked?: boolean; likes?: number }
         | null;
-      setLiked(Boolean(payload?.liked));
-      setLikes(typeof payload?.likes === "number" ? payload.likes : likes);
+      setOptimistic({
+        liked: Boolean(payload?.liked),
+        likes: typeof payload?.likes === "number" ? payload.likes : likes,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to like.";
       setError(message);
@@ -89,4 +92,3 @@ export function DiscoverAlbumActions({
     </div>
   );
 }
-

@@ -6,6 +6,10 @@ import { getAuthSession } from "@/server/auth";
 import { getPrisma } from "@/server/db";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Shared Album",
+  description: "Review a shared album and fork it into your workspace.",
+};
 
 function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; title: string }> {
   if (!data || typeof data !== "object") return [];

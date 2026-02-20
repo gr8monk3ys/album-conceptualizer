@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 type VersionListItem = {
   id: string;
@@ -23,7 +23,7 @@ export function AlbumVersions({
   const [isSaving, setIsSaving] = useState(false);
   const [isRestoring, setIsRestoring] = useState<string | null>(null);
 
-  const canSave = useMemo(() => message.trim().length > 0, [message]);
+  const canSave = message.trim().length > 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -163,4 +163,3 @@ export function AlbumVersions({
     </div>
   );
 }
-

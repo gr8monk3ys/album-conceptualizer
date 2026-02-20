@@ -6,6 +6,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Search",
+  description: "Search albums, summaries, and themes across your workspace.",
+};
 
 function normalizeQuery(value: string | string[] | undefined) {
   if (typeof value === "string") return value.trim();
@@ -245,4 +249,3 @@ export default async function SearchPage({
     </div>
   );
 }
-

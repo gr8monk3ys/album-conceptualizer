@@ -3,6 +3,10 @@ import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Discover",
+  description: "Find public concept albums and fork ideas into your own projects.",
+};
 
 function normalizeQuery(value: string | string[] | undefined) {
   if (typeof value === "string") return value.trim();
@@ -114,4 +118,3 @@ export default async function DiscoverPage({
     </div>
   );
 }
-

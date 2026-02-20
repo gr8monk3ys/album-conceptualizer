@@ -1,33 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type ShareResponse =
   | { share: null }
   | { share: { token: string; url: string; revokedAt: string | null; expiresAt: string | null } };
 
-export function ShareAlbumButton({ albumId }: { albumId: string }) {
+export function ShareAlbumButton({
+  albumId,
+  initialLink,
+}: {
+  albumId: string;
+  initialLink?: string | null;
+}) {
   const [status, setStatus] = useState<string>("");
-  const [link, setLink] = useState<string>("");
+  const [linkOverride, setLinkOverride] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-
-  useEffect(() => {
-    let ignore = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/albums/${albumId}/share`, { method: "GET" });
-        const body = (await res.json().catch(() => null)) as ShareResponse | null;
-        if (!ignore && res.ok && body && "share" in body && body.share?.url) {
-          if (!body.share.revokedAt) setLink(body.share.url);
-        }
-      } catch {
-        // Ignore; sharing is optional.
-      }
-    })();
-    return () => {
-      ignore = true;
-    };
-  }, [albumId]);
+  const link = linkOverride ?? initialLink ?? "";
 
   async function createOrRotate() {
     setIsBusy(true);
@@ -37,7 +26,7 @@ export function ShareAlbumButton({ albumId }: { albumId: string }) {
       if (!res.ok || !body || !("share" in body) || !body.share) {
         throw new Error("Failed to create share link.");
       }
-      setLink(body.share.url);
+      setLinkOverride(body.share.url);
       await navigator.clipboard.writeText(body.share.url);
       setStatus("Share link copied.");
     } catch (err) {
@@ -54,7 +43,7 @@ export function ShareAlbumButton({ albumId }: { albumId: string }) {
     try {
       const res = await fetch(`/api/albums/${albumId}/share`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to revoke share link.");
-      setLink("");
+      setLinkOverride("");
       setStatus("Revoked.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to revoke share link.";

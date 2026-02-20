@@ -7,6 +7,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Album Studio",
+  description: "Edit songs, lyrics, chords, and section-level details for your album.",
+};
 
 export default async function AlbumStudioPage({
   params,

@@ -1,30 +1,49 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { getProviders, signIn, type ClientSafeProvider } from "next-auth/react";
+
+type SignInFormState = {
+  devEmail: string;
+  devName: string;
+  magicEmail: string;
+};
+
+type ProvidersState = {
+  providers: Record<string, ClientSafeProvider>;
+  loaded: boolean;
+};
 
 export function SignInClient() {
   const enableDevLogin = process.env.NEXT_PUBLIC_ENABLE_DEV_LOGIN === "1";
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/app";
-  const [devEmail, setDevEmail] = useState("dev@example.com");
-  const [devName, setDevName] = useState("Dev User");
-  const [magicEmail, setMagicEmail] = useState("");
-  const [providers, setProviders] = useState<Record<string, ClientSafeProvider>>({});
-  const [providersLoaded, setProvidersLoaded] = useState(false);
+  const [callbackUrl] = useState(() => {
+    if (typeof window === "undefined") return "/app";
+    const params = new URLSearchParams(window.location.search);
+    return params.get("callbackUrl") ?? "/app";
+  });
+  const [form, setForm] = useState<SignInFormState>({
+    devEmail: "dev@example.com",
+    devName: "Dev User",
+    magicEmail: "",
+  });
+  const [providerState, setProviderState] = useState<ProvidersState>({
+    providers: {},
+    loaded: false,
+  });
+  const providers = providerState.providers;
+  const providersLoaded = providerState.loaded;
 
   useEffect(() => {
     let cancelled = false;
     void getProviders()
       .then((value) => {
         if (!cancelled) {
-          setProviders(value ?? {});
+          setProviderState((prev) => ({ ...prev, providers: value ?? {} }));
         }
       })
       .finally(() => {
         if (!cancelled) {
-          setProvidersLoaded(true);
+          setProviderState((prev) => ({ ...prev, loaded: true }));
         }
       });
 
@@ -34,14 +53,9 @@ export function SignInClient() {
   }, []);
 
   const githubProvider = providers.github;
-  const emailProvider = useMemo(
-    () => Object.values(providers).find((provider) => provider.type === "email"),
-    [providers],
-  );
-  const oauthProviders = useMemo(
-    () =>
-      Object.values(providers).filter((provider) => provider.type === "oauth" && provider.id !== "github"),
-    [providers],
+  const emailProvider = Object.values(providers).find((provider) => provider.type === "email");
+  const oauthProviders = Object.values(providers).filter(
+    (provider) => provider.type === "oauth" && provider.id !== "github",
   );
 
   return (
@@ -102,8 +116,13 @@ export function SignInClient() {
                 </div>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <input
-                    value={magicEmail}
-                    onChange={(e) => setMagicEmail(e.target.value)}
+                    value={form.magicEmail}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        magicEmail: e.target.value,
+                      }))
+                    }
                     className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
                     placeholder="you@example.com"
                     type="email"
@@ -112,7 +131,7 @@ export function SignInClient() {
                   <button
                     type="button"
                     onClick={() => {
-                      const email = magicEmail.trim();
+                      const email = form.magicEmail.trim();
                       if (!email) return;
                       void signIn(emailProvider.id, {
                         email,
@@ -135,15 +154,25 @@ export function SignInClient() {
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <input
-                    value={devEmail}
-                    onChange={(e) => setDevEmail(e.target.value)}
+                    value={form.devEmail}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        devEmail: e.target.value,
+                      }))
+                    }
                     className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
                     placeholder="email"
                     autoComplete="off"
                   />
                   <input
-                    value={devName}
-                    onChange={(e) => setDevName(e.target.value)}
+                    value={form.devName}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        devName: e.target.value,
+                      }))
+                    }
                     className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
                     placeholder="name"
                     autoComplete="off"
@@ -153,8 +182,8 @@ export function SignInClient() {
                   type="button"
                   onClick={() =>
                     signIn("credentials", {
-                      email: devEmail,
-                      name: devName,
+                      email: form.devEmail,
+                      name: form.devName,
                       callbackUrl,
                     })
                   }

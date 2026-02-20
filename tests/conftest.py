@@ -1,5 +1,7 @@
 """Shared pytest fixtures available to all test modules."""
 
+import inspect
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -58,3 +60,36 @@ def auth_client(monkeypatch):
     with TestClient(app) as test_client:
         yield test_client
     reset_settings()
+
+
+def _is_unit_focus_file(path: str) -> bool:
+    return path.endswith(
+        (
+            "/tests/test_models.py",
+            "/tests/test_models_extended.py",
+            "/tests/test_ui_helpers.py",
+            "/tests/test_ui_helpers_extended.py",
+        )
+    )
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        item_path = str(getattr(item, "path", item.fspath))
+        normalized = item_path.replace("\\", "/")
+        if not _is_unit_focus_file(normalized):
+            item.add_marker(pytest.mark.integration)
+        if "/tests/integration/" not in normalized:
+            item.add_marker(pytest.mark.unit)
+
+        fixture_names = set(getattr(item, "fixturenames", ()))
+
+        test_obj = getattr(item, "obj", None)
+        params: dict[str, inspect.Parameter] = {}
+        if test_obj is not None:
+            try:
+                params = dict(inspect.signature(test_obj).parameters)
+            except (TypeError, ValueError):
+                params = {}
+        if "_default_memory_storage" in fixture_names or "monkeypatch" in params or "mocker" in params:
+            item.add_marker(pytest.mark.mock)

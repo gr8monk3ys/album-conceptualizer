@@ -89,15 +89,13 @@ function normalizeTrackNumbers<T extends { track_number: number }>(songs: T[]): 
   return songs.map((song, index) => ({ ...song, track_number: index + 1 }));
 }
 
-export function AlbumStudio({
-  albumId,
-  initialAlbum,
-  initialSelection,
-}: {
+type AlbumStudioProps = {
   albumId: string;
   initialAlbum: unknown;
   initialSelection?: SelectionInput;
-}) {
+};
+
+function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: AlbumStudioProps) {
   const initialParsed = useMemo((): { album: AlbumJson; idsWereMissing: boolean } => {
     const fallback: AlbumJson = {
       id: newId(),
@@ -203,7 +201,7 @@ export function AlbumStudio({
   const [album, setAlbum] = useState<AlbumJson>(initialParsed.album);
   const [selectedSong, setSelectedSong] = useState(0);
   const [selectedSection, setSelectedSection] = useState(0);
-  const [centralThemesText, setCentralThemesText] = useState(
+  const [centralThemesText, setCentralThemesText] = useState(() =>
     (initialParsed.album.central_themes ?? []).join(", "),
   );
   const [versionMessage, setVersionMessage] = useState("");
@@ -1045,4 +1043,8 @@ export function AlbumStudio({
       </aside>
     </div>
   );
+}
+
+export function AlbumStudio(props: AlbumStudioProps) {
+  return useAlbumStudioRender(props);
 }

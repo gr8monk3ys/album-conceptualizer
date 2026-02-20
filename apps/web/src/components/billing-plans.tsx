@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 type PlanKey = "free" | "pro" | "team";
 
@@ -39,15 +38,20 @@ export function BillingPlans({
   currentPeriodEnd: string | null;
   hasCustomer: boolean;
 }) {
-  const params = useSearchParams();
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
   const [statusText, setStatusText] = useState<string>("");
+  const [banner, setBanner] = useState("");
 
-  const banner = useMemo(() => {
-    if (params.get("success") === "1") return "Subscription updated. You’re all set.";
-    if (params.get("canceled") === "1") return "Checkout canceled.";
-    return "";
-  }, [params]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const nextBanner =
+      params.get("success") === "1"
+        ? "Subscription updated. You’re all set."
+        : params.get("canceled") === "1"
+          ? "Checkout canceled."
+          : "";
+    setBanner(nextBanner);
+  }, []);
 
   return (
     <div className="flex flex-col gap-4">
@@ -169,4 +173,3 @@ export function BillingPlans({
     </div>
   );
 }
-

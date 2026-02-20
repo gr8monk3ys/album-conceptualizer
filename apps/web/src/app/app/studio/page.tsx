@@ -6,6 +6,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Studio",
+  description: "Jump into active projects and continue drafting album sections.",
+};
 
 export default async function StudioPage() {
   const { userId } = await requireUser();

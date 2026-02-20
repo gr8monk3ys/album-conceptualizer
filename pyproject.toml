@@ -8,7 +8,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Lorenzo", email = "lorenzosca7@protonmail.ch" }]
 keywords = ["music", "ai", "rag", "concept-album", "crewai", "langchain"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
@@ -196,8 +196,10 @@ addopts = [
     "--strict-markers",
 ]
 markers = [
+    "unit: marks unit-level tests focused on isolated module behavior",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
+    "mock: marks tests that explicitly use monkeypatch/mocking fixtures",
 ]
 
 # Coverage configuration

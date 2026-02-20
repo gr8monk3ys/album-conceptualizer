@@ -7,6 +7,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Coherence Report",
+  description: "Inspect narrative and musical coherence across album tracks and sections.",
+};
 
 function scoreLabel(score: number) {
   if (score >= 85) return { label: "Excellent", className: "text-[var(--ok)]" };
@@ -135,4 +139,3 @@ export default async function CoherencePage({
     </div>
   );
 }
-

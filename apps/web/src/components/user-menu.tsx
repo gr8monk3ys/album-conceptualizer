@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -22,10 +23,9 @@ export function UserMenu({
         </div>
         <div className="max-w-[220px] truncate text-[11px] text-[var(--muted2)]">{email}</div>
       </div>
-      <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.06)] text-xs font-semibold text-[var(--text)]">
+      <div className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.06)] text-xs font-semibold text-[var(--text)]">
         {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+          <Image src={imageUrl} alt="" fill sizes="36px" unoptimized className="object-cover" />
         ) : (
           initial
         )}
@@ -42,4 +42,3 @@ export function UserMenu({
     </div>
   );
 }
-

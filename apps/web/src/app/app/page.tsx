@@ -6,6 +6,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Workspace Home",
+  description: "Track album progress, recent projects, and next actions in one view.",
+};
 
 function buildSubtitle(input: {
   primaryGenre: string | null;

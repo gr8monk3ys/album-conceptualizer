@@ -3,6 +3,14 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type QuickStartFormState = {
+  title: string;
+  artist: string;
+  conceptSummary: string;
+  trackCount: number;
+  trackNamesRaw: string;
+};
+
 function splitTrackNames(raw: string): string[] {
   return raw
     .split(/\r?\n|,/g)
@@ -86,11 +94,13 @@ function buildAlbumJson(input: {
 
 export function QuickStartComposer() {
   const router = useRouter();
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
-  const [conceptSummary, setConceptSummary] = useState("");
-  const [trackCount, setTrackCount] = useState(10);
-  const [trackNamesRaw, setTrackNamesRaw] = useState("");
+  const [form, setForm] = useState<QuickStartFormState>({
+    title: "",
+    artist: "",
+    conceptSummary: "",
+    trackCount: 10,
+    trackNamesRaw: "",
+  });
   const [albumJson, setAlbumJson] = useState<Record<string, unknown> | null>(null);
   const [status, setStatus] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
@@ -139,8 +149,8 @@ export function QuickStartComposer() {
           <label className="block">
             <div className="text-xs font-semibold text-[var(--text)]">Album title</div>
             <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              value={form.title}
+              onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
               className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
               placeholder="e.g., The Last Summer"
               autoComplete="off"
@@ -150,8 +160,8 @@ export function QuickStartComposer() {
           <label className="block">
             <div className="text-xs font-semibold text-[var(--text)]">Artist</div>
             <input
-              value={artist}
-              onChange={(e) => setArtist(e.target.value)}
+              value={form.artist}
+              onChange={(e) => setForm((prev) => ({ ...prev, artist: e.target.value }))}
               className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
               placeholder="e.g., The Storytellers"
               autoComplete="off"
@@ -161,24 +171,36 @@ export function QuickStartComposer() {
           <label className="block">
             <div className="text-xs font-semibold text-[var(--text)]">Concept summary</div>
             <textarea
-              value={conceptSummary}
-              onChange={(e) => setConceptSummary(e.target.value)}
+              value={form.conceptSummary}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  conceptSummary: e.target.value,
+                }))
+              }
               className="mt-2 min-h-[110px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
               placeholder="One or two sentences about the album concept..."
             />
           </label>
 
-          <label className="block">
+          <label htmlFor="quickstart-track-count" className="block">
             <div className="flex items-center justify-between">
               <div className="text-xs font-semibold text-[var(--text)]">Track count</div>
-              <div className="text-xs text-[var(--muted)]">{trackCount}</div>
+              <div className="text-xs text-[var(--muted)]">{form.trackCount}</div>
             </div>
             <input
+              id="quickstart-track-count"
               type="range"
               min={4}
               max={20}
-              value={trackCount}
-              onChange={(e) => setTrackCount(Number(e.target.value))}
+              value={form.trackCount}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  trackCount: Number(e.target.value),
+                }))
+              }
+              aria-label="Track count"
               className="mt-2 w-full accent-[var(--accent)]"
             />
           </label>
@@ -186,8 +208,13 @@ export function QuickStartComposer() {
           <label className="block">
             <div className="text-xs font-semibold text-[var(--text)]">Track names (optional)</div>
             <textarea
-              value={trackNamesRaw}
-              onChange={(e) => setTrackNamesRaw(e.target.value)}
+              value={form.trackNamesRaw}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  trackNamesRaw: e.target.value,
+                }))
+              }
               className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
               placeholder="One per line or comma-separated"
             />
@@ -196,18 +223,18 @@ export function QuickStartComposer() {
           <button
             type="button"
             onClick={() => {
-              if (!title.trim()) {
+              if (!form.title.trim()) {
                 setStatus("Album title is required.");
                 window.setTimeout(() => setStatus(""), 2000);
                 return;
               }
               setAlbumJson(
                 buildAlbumJson({
-                  title: title.trim(),
-                  artist: artist.trim(),
-                  conceptSummary: conceptSummary.trim(),
-                  trackCount,
-                  trackNamesRaw,
+                  title: form.title.trim(),
+                  artist: form.artist.trim(),
+                  conceptSummary: form.conceptSummary.trim(),
+                  trackCount: form.trackCount,
+                  trackNamesRaw: form.trackNamesRaw,
                 }),
               );
               setStatus("Generated album.json.");

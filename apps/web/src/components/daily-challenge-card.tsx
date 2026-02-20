@@ -18,10 +18,12 @@ export function DailyChallengeCard({
   completionNote: string | null;
   completionTime: string | null;
 }) {
-  const [note, setNote] = useState(completionNote ?? "");
+  const [noteDraft, setNoteDraft] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(completed);
+  const [doneOverride, setDoneOverride] = useState<boolean | null>(null);
+  const note = noteDraft ?? (completionNote ?? "");
+  const done = doneOverride ?? completed;
 
   async function submit() {
     setSubmitting(true);
@@ -41,7 +43,7 @@ export function DailyChallengeCard({
         throw new Error(text || `Request failed (${response.status}).`);
       }
 
-      setDone(true);
+      setDoneOverride(true);
       // Reload so sidebar credits + streak sidebar reflect latest server state.
       window.setTimeout(() => window.location.reload(), 600);
     } catch (err) {
@@ -84,7 +86,7 @@ export function DailyChallengeCard({
         </div>
         <textarea
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onChange={(e) => setNoteDraft(e.target.value)}
           rows={4}
           disabled={done}
           className="mt-3 w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)] disabled:opacity-70"
@@ -116,4 +118,3 @@ export function DailyChallengeCard({
     </section>
   );
 }
-

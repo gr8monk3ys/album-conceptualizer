@@ -6,6 +6,10 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { MarkAllReadButton, ToggleNotificationReadButton } from "@/components/notifications-actions";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Notifications",
+  description: "Review workspace notifications and clear unread updates.",
+};
 
 export default async function NotificationsPage() {
   const { userId } = await requireUser();
@@ -115,4 +119,3 @@ export default async function NotificationsPage() {
     </div>
   );
 }
-

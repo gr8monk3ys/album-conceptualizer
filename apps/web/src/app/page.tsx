@@ -1,5 +1,10 @@
 import Link from "next/link";
 
+export const metadata = {
+  title: "Album Conceptualizer",
+  description: "Plan cohesive concept albums with narrative, chords, and export-ready structure.",
+};
+
 export default function HomePage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(109,94,252,0.25),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(255,62,165,0.22),transparent_45%),radial-gradient(circle_at_40%_90%,rgba(50,213,131,0.12),transparent_55%),var(--bg)]">

@@ -7,6 +7,10 @@ import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Discover Album",
+  description: "Explore a published album and remix it into your workspace.",
+};
 
 function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; title: string }> {
   if (!data || typeof data !== "object") return [];
@@ -160,4 +164,3 @@ export default async function DiscoverAlbumPage({
     </div>
   );
 }
-

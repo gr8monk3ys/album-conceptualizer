@@ -50,13 +50,17 @@ export function AlbumExport({ albumId }: { albumId: string }) {
           <div className="mt-3 space-y-2">
             {ALL_FORMATS.map((fmt) => {
               const checked = selected.has(fmt.key);
+              const inputId = `export-format-${fmt.key}`;
               return (
                 <label
                   key={fmt.key}
+                  htmlFor={inputId}
                   className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3 hover:bg-[rgba(0,0,0,0.24)]"
                 >
                   <input
+                    id={inputId}
                     type="checkbox"
+                    aria-label={fmt.title}
                     checked={checked}
                     onChange={() => {
                       setSelected((prev) => {
@@ -81,9 +85,14 @@ export function AlbumExport({ albumId }: { albumId: string }) {
         <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
           <div className="text-sm font-semibold text-[var(--text)]">Options</div>
           <div className="mt-3 space-y-3">
-            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3 hover:bg-[rgba(0,0,0,0.24)]">
+            <label
+              htmlFor="include-production-notes"
+              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3 hover:bg-[rgba(0,0,0,0.24)]"
+            >
               <input
+                id="include-production-notes"
                 type="checkbox"
+                aria-label="Include production notes"
                 checked={includeProductionNotes}
                 onChange={() => setIncludeProductionNotes((v) => !v)}
                 className="h-4 w-4 accent-[var(--accent)]"
@@ -119,4 +128,3 @@ export function AlbumExport({ albumId }: { albumId: string }) {
     </div>
   );
 }
-

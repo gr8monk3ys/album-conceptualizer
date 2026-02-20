@@ -10,6 +10,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Album Bible",
+  description: "View themes, motifs, characters, and relationship maps for your album.",
+};
 
 function Tag({ children }: { children: string }) {
   return (
@@ -153,7 +157,9 @@ function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
   );
 }
 
-export default async function AlbumBiblePage({ params }: { params: Promise<{ albumId: string }> }) {
+type AlbumBiblePageProps = { params: Promise<{ albumId: string }> };
+
+async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
   const { albumId } = await params;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
@@ -460,4 +466,8 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
       </div>
     </div>
   );
+}
+
+export default async function AlbumBiblePage(props: AlbumBiblePageProps) {
+  return renderAlbumBiblePage(props);
 }

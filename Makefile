@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test test-cov clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke
+.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke
 
 # Default target
 help:
@@ -14,6 +14,9 @@ help:
 	@echo "  make format        Format code (ruff format)"
 	@echo "  make test          Run tests"
 	@echo "  make test-cov      Run tests with coverage"
+	@echo "  make test-cov-integration  Run integration-marked tests with coverage"
+	@echo "  make test-cov-unit Run unit-marked tests with coverage"
+	@echo "  make test-cov-mock Run mock-marked tests with coverage"
 	@echo "  make type-check    Run type checker (mypy)"
 	@echo ""
 	@echo "Application:"
@@ -66,28 +69,103 @@ install-ai:
 # =============================================================================
 
 lint:
-	ruff check album_conceptualizer/ tests/
+	@if command -v ruff >/dev/null 2>&1; then \
+		ruff check album_conceptualizer/ tests/ ; \
+	elif [ -x .venv/bin/ruff ]; then \
+		.venv/bin/ruff check album_conceptualizer/ tests/ ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' ruff check album_conceptualizer/ tests/ ; \
+	fi
 
 lint-fix:
-	ruff check album_conceptualizer/ tests/ --fix
+	@if command -v ruff >/dev/null 2>&1; then \
+		ruff check album_conceptualizer/ tests/ --fix ; \
+	elif [ -x .venv/bin/ruff ]; then \
+		.venv/bin/ruff check album_conceptualizer/ tests/ --fix ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' ruff check album_conceptualizer/ tests/ --fix ; \
+	fi
 
 format:
-	ruff format album_conceptualizer/ tests/
+	@if command -v ruff >/dev/null 2>&1; then \
+		ruff format album_conceptualizer/ tests/ ; \
+	elif [ -x .venv/bin/ruff ]; then \
+		.venv/bin/ruff format album_conceptualizer/ tests/ ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' ruff format album_conceptualizer/ tests/ ; \
+	fi
 
 format-check:
-	ruff format --check album_conceptualizer/ tests/
+	@if command -v ruff >/dev/null 2>&1; then \
+		ruff format --check album_conceptualizer/ tests/ ; \
+	elif [ -x .venv/bin/ruff ]; then \
+		.venv/bin/ruff format --check album_conceptualizer/ tests/ ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' ruff format --check album_conceptualizer/ tests/ ; \
+	fi
 
 test:
-	pytest tests/ -v
+	@if command -v pytest >/dev/null 2>&1; then \
+		pytest tests/ -v ; \
+	elif [ -x .venv/bin/pytest ]; then \
+		.venv/bin/pytest tests/ -v ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' pytest tests/ -v ; \
+	fi
 
 test-cov:
-	pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=html
+	@if command -v pytest >/dev/null 2>&1; then \
+		pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	elif [ -x .venv/bin/pytest ]; then \
+		.venv/bin/pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	fi
+
+test-cov-integration:
+	@if command -v pytest >/dev/null 2>&1; then \
+		pytest tests/ -v -m integration --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	elif [ -x .venv/bin/pytest ]; then \
+		.venv/bin/pytest tests/ -v -m integration --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' pytest tests/ -v -m integration --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	fi
+
+test-cov-unit:
+	@if command -v pytest >/dev/null 2>&1; then \
+		pytest tests/ -v -m unit --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	elif [ -x .venv/bin/pytest ]; then \
+		.venv/bin/pytest tests/ -v -m unit --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' pytest tests/ -v -m unit --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	fi
+
+test-cov-mock:
+	@if command -v pytest >/dev/null 2>&1; then \
+		pytest tests/ -v -m mock --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	elif [ -x .venv/bin/pytest ]; then \
+		.venv/bin/pytest tests/ -v -m mock --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' pytest tests/ -v -m mock --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
+	fi
 
 test-fast:
-	pytest tests/ -v -x --tb=short
+	@if command -v pytest >/dev/null 2>&1; then \
+		pytest tests/ -v -x --tb=short ; \
+	elif [ -x .venv/bin/pytest ]; then \
+		.venv/bin/pytest tests/ -v -x --tb=short ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' pytest tests/ -v -x --tb=short ; \
+	fi
 
 type-check:
-	mypy album_conceptualizer/ --ignore-missing-imports
+	@if command -v mypy >/dev/null 2>&1; then \
+		mypy album_conceptualizer/ --ignore-missing-imports ; \
+	elif [ -x .venv/bin/mypy ]; then \
+		.venv/bin/mypy album_conceptualizer/ --ignore-missing-imports ; \
+	else \
+		uv run --python 3.11 --with '.[dev]' mypy album_conceptualizer/ --ignore-missing-imports ; \
+	fi
 
 pre-commit:
 	pre-commit run --all-files

@@ -7,6 +7,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Challenges",
+  description: "Complete daily songwriting challenges and earn workspace credits.",
+};
 
 function addDaysUtc(day: string, delta: number) {
   const [y, m, d] = day.split("-").map((v) => Number(v));
@@ -131,4 +135,3 @@ export default async function ChallengesPage() {
     </div>
   );
 }
-

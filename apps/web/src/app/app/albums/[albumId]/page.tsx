@@ -6,10 +6,15 @@ import { PublishAlbumButton } from "@/components/publish-album-button";
 import { ShareAlbumButton } from "@/components/share-album-button";
 import { getAlbum } from "@/server/albums";
 import { analyzeAlbumCoherence } from "@/server/coherence";
+import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Album Details",
+  description: "Review album details, songs, sharing, and next steps.",
+};
 
 function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; title: string }> {
   if (!data || typeof data !== "object") return [];
@@ -38,6 +43,15 @@ export default async function AlbumDetailPage({
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
+
+  const prisma = getPrisma();
+  const shareLink = await prisma.albumShareLink.findUnique({
+    where: { albumId: album.id },
+    select: { token: true, revokedAt: true },
+  });
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const initialShareLink =
+    shareLink && !shareLink.revokedAt ? `${appUrl}/share/${shareLink.token}` : null;
 
   const songs = getSongsFromAlbumData(album.data);
   const coherence = analyzeAlbumCoherence(album.data);
@@ -86,7 +100,7 @@ export default async function AlbumDetailPage({
             Inbox
           </Link>
           <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
-          <ShareAlbumButton albumId={album.id} />
+          <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
           <Link
             href={`/app/albums/${album.id}/versions`}
             className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"

@@ -7,6 +7,10 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { CompleteTaskButton, ResolveCommentButton } from "@/components/inbox-actions";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Album Inbox",
+  description: "Resolve album comments and tasks from a focused inbox.",
+};
 
 function excerpt(text: string, max = 220) {
   const t = text.trim();
@@ -16,8 +20,7 @@ function excerpt(text: string, max = 220) {
 }
 
 export default async function AlbumInboxPage({ params }: { params: Promise<{ albumId: string }> }) {
-  const { albumId } = await params;
-  const { userId } = await requireUser();
+  const [{ albumId }, { userId }] = await Promise.all([params, requireUser()]);
   const workspace = await getActiveWorkspaceForUser(userId);
   const prisma = getPrisma();
 
@@ -225,4 +228,3 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
     </div>
   );
 }
-

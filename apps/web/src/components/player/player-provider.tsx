@@ -50,7 +50,9 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function PlayerProvider({ children }: { children: ReactNode }) {
+type PlayerProviderProps = { children: ReactNode };
+
+function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const [status, setStatus] = useState<PlayerStatus>("idle");
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [duration, setDuration] = useState(0);
@@ -430,6 +432,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   );
 
   return <PlayerContext.Provider value={api}>{children}</PlayerContext.Provider>;
+}
+
+export function PlayerProvider(props: PlayerProviderProps) {
+  return usePlayerProviderRender(props);
 }
 
 export function usePlayer() {

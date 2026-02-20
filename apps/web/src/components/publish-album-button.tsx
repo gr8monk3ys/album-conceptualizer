@@ -10,9 +10,10 @@ export function PublishAlbumButton({
   albumId: string;
   initialPublic: boolean;
 }) {
-  const [isPublic, setIsPublic] = useState(initialPublic);
+  const [publicOverride, setPublicOverride] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const isPublic = publicOverride ?? initialPublic;
 
   async function toggle() {
     setBusy(true);
@@ -28,7 +29,7 @@ export function PublishAlbumButton({
         throw new Error(text || `Request failed (${response.status}).`);
       }
       const payload = (await response.json().catch(() => null)) as { isPublic?: boolean } | null;
-      setIsPublic(Boolean(payload?.isPublic));
+      setPublicOverride(Boolean(payload?.isPublic));
       setStatus(payload?.isPublic ? "Published to Discover." : "Unpublished.");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to update publish state.";
@@ -58,4 +59,3 @@ export function PublishAlbumButton({
     </div>
   );
 }
-

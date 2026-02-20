@@ -8,6 +8,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Version History",
+  description: "Save, inspect, and restore album snapshots.",
+};
 
 export default async function VersionsPage({
   params,
@@ -63,4 +67,3 @@ export default async function VersionsPage({
     </div>
   );
 }
-

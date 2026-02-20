@@ -3,6 +3,10 @@ import { Suspense } from "react";
 import { SignInClient } from "@/components/sign-in-client";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Sign In",
+  description: "Sign in to continue building and exporting concept albums.",
+};
 
 export default function SignInPage() {
   return (
@@ -17,4 +21,3 @@ export default function SignInPage() {
     </Suspense>
   );
 }
-

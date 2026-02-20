@@ -4,6 +4,10 @@ import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Library",
+  description: "Browse your concept album projects and recent activity.",
+};
 
 export default async function LibraryPage() {
   const { userId } = await requireUser();
