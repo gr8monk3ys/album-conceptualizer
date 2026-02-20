@@ -1,0 +1,30 @@
+# Python/runtime artifacts not needed for the Next.js deployment
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.playwright-cli/
+__pycache__/
+*.pyc
+
+# Local build/test outputs
+htmlcov/
+site/
+cache/
+output/
+.coverage
+.coverage.*
+coverage.xml
+
+# Python app/docs/test tree (Vercel project root is apps/web)
+album_conceptualizer/
+tests/
+docs/
+data/
+
+# Web local artifacts
+apps/web/node_modules/
+apps/web/.next/
+apps/web/coverage/
+apps/web/test-results/
+apps/web/playwright-report/
