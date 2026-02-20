@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const SectionSchema = z
+const SectionSchema = z
   .object({
     id: z.string().optional(),
     section_type: z.string().min(1),
@@ -17,7 +17,7 @@ export const SectionSchema = z
   })
   .passthrough();
 
-export const SongSchema = z
+const SongSchema = z
   .object({
     id: z.string().optional(),
     title: z.string().min(1).max(200),
@@ -74,4 +74,3 @@ export const AlbumJsonSchema = z
   .passthrough();
 
 export type AlbumJson = z.infer<typeof AlbumJsonSchema>;
-

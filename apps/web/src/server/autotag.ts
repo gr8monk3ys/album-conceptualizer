@@ -132,7 +132,7 @@ function extractCharacters(lyrics: string) {
   return map;
 }
 
-export function suggestTagsFromLyrics(data: unknown): TrackTagSuggestion[] {
+function suggestTagsFromLyrics(data: unknown): TrackTagSuggestion[] {
   const parsed = AlbumJsonSchema.safeParse(data);
   if (!parsed.success) return [];
 
@@ -224,4 +224,3 @@ export function applyAutoTagsFromLyrics(data: unknown): AlbumJson | null {
 
   return updated;
 }
-

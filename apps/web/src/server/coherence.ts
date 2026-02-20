@@ -1,8 +1,8 @@
 import { AlbumJsonSchema } from "@/server/album-json";
 
-export type CoherenceIssueSeverity = "info" | "warning" | "error";
+type CoherenceIssueSeverity = "info" | "warning" | "error";
 
-export type CoherenceIssue = {
+type CoherenceIssue = {
   id: string;
   severity: CoherenceIssueSeverity;
   title: string;
@@ -10,7 +10,7 @@ export type CoherenceIssue = {
   suggestion?: string;
 };
 
-export type CoherenceReport = {
+type CoherenceReport = {
   score: number;
   summary: string;
   stats: {
@@ -284,4 +284,3 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     issues: sortIssues(issues),
   };
 }
-

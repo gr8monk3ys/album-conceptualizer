@@ -72,8 +72,3 @@ export function getDailyChallenge(day: string = getUtcDay()): {
 export function isKnownChallenge(key: string): boolean {
   return CHALLENGES.some((c) => c.key === key);
 }
-
-export function getChallengeByKey(key: string): DailyChallenge | null {
-  return CHALLENGES.find((c) => c.key === key) ?? null;
-}
-

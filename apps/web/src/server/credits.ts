@@ -50,43 +50,6 @@ export async function getCreditsStatus(input: {
   };
 }
 
-export async function grantCredits(input: {
-  workspaceId: string;
-  plan: string | null | undefined;
-  amount: number;
-  reason: string;
-  metadata?: unknown;
-}) {
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
-    throw new Error("Invalid credit grant amount.");
-  }
-
-  const prisma = getPrisma();
-  await ensureCreditBalance(input.workspaceId, input.plan);
-
-  const result = await prisma.$transaction(async (tx) => {
-    await tx.creditLedgerEntry.create({
-      data: {
-        workspaceId: input.workspaceId,
-        delta: Math.trunc(input.amount),
-        reason: input.reason,
-        metadata: input.metadata as Prisma.InputJsonValue,
-      },
-      select: { id: true },
-    });
-
-    const balance = await tx.creditBalance.update({
-      where: { workspaceId: input.workspaceId },
-      data: { balance: { increment: Math.trunc(input.amount) } },
-      select: { balance: true },
-    });
-
-    return balance.balance;
-  });
-
-  return result;
-}
-
 export async function spendCredits(input: {
   workspaceId: string;
   plan: string | null | undefined;
