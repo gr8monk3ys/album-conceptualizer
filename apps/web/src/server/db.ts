@@ -6,8 +6,23 @@ import ws from "ws";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
+function withSchemaParam(connectionString: string, schema: string): string {
+  try {
+    const url = new URL(connectionString);
+    url.searchParams.set("schema", schema);
+    return url.toString();
+  } catch {
+    // Fallback for non-URL formats; avoid throwing during startup.
+    const separator = connectionString.includes("?") ? "&" : "?";
+    return `${connectionString}${separator}schema=${encodeURIComponent(schema)}`;
+  }
+}
+
 function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL;
+  const rawConnectionString = process.env.DATABASE_URL;
+  const schema = process.env.PRISMA_DB_SCHEMA?.trim();
+  const connectionString =
+    rawConnectionString && schema ? withSchemaParam(rawConnectionString, schema) : rawConnectionString;
   if (!connectionString) {
     // Don't fail module evaluation (e.g. during Next build); fail only when the DB is actually used.
     throw new Error(

@@ -4,7 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
+import json
 import os
+import time
 from typing import Any
 
 import httpx
@@ -36,12 +40,32 @@ def request_json(
     return response.json()
 
 
+def normalize_base_url(base_url: str) -> str:
+    """Normalize base URL so callers can pass either host root or /api(/v1) URL."""
+    normalized = base_url.rstrip("/")
+    for suffix in ("/api/v1", "/api"):
+        if normalized.endswith(suffix):
+            normalized = normalized[: -len(suffix)]
+    return normalized
+
+
+def build_stripe_signature(payload: bytes, secret: str) -> str:
+    """Build Stripe-compatible webhook signature for test payloads."""
+    timestamp = str(int(time.time()))
+    signed_payload = f"{timestamp}.".encode("utf-8") + payload
+    digest = hmac.new(secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+    return f"t={timestamp},v1={digest}"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--base-url",
         default=os.getenv("ALBUM_CONCEPTUALIZER_BASE_URL", "http://localhost:8000"),
-        help="API base URL (default: %(default)s)",
+        help=(
+            "API base URL. Accepts host root or URLs ending with /api or /api/v1 "
+            "(default: %(default)s)."
+        ),
     )
     parser.add_argument(
         "--api-key",
@@ -59,6 +83,27 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable TLS certificate verification (useful for local self-signed HTTPS).",
     )
+    parser.add_argument(
+        "--verify-billing-checkout",
+        action="store_true",
+        help="Verify Stripe checkout-session creation endpoint.",
+    )
+    parser.add_argument(
+        "--verify-billing-webhook",
+        action="store_true",
+        help="Verify Stripe webhook signature handling using a signed noop event.",
+    )
+    parser.add_argument(
+        "--stripe-webhook-secret",
+        default=(
+            os.getenv("ALBUM_CONCEPTUALIZER_STRIPE_WEBHOOK_SECRET")
+            or os.getenv("STRIPE_WEBHOOK_SECRET")
+        ),
+        help=(
+            "Stripe webhook secret used for --verify-billing-webhook. "
+            "Defaults to ALBUM_CONCEPTUALIZER_STRIPE_WEBHOOK_SECRET/STRIPE_WEBHOOK_SECRET."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -67,7 +112,7 @@ def main() -> int:
     if not args.api_key:
         return fail("Missing API key. Set --api-key or ALBUM_CONCEPTUALIZER_API_KEY.")
 
-    base_url = args.base_url.rstrip("/")
+    base_url = normalize_base_url(args.base_url)
     headers = {"X-API-Key": args.api_key}
     created_album_id: str | None = None
 
@@ -607,6 +652,67 @@ def main() -> int:
         )
         if billing_status is None:
             return fail("Billing status endpoint failed.")
+
+        if args.verify_billing_checkout:
+            print("[STEP] Verify billing checkout-session creation")
+            checkout = request_json(
+                client,
+                "POST",
+                f"{base_url}/api/v1/billing/checkout-session",
+                expected_status=200,
+                headers=headers,
+                json={"plan": "pro", "quantity": 1},
+            )
+            if not isinstance(checkout, dict):
+                return fail("Billing checkout-session endpoint failed.")
+            session_id = str(checkout.get("session_id") or "").strip()
+            checkout_url = str(checkout.get("url") or "").strip()
+            if not session_id or not checkout_url:
+                return fail("Billing checkout-session missing session_id/url.")
+            if "stripe.com" not in checkout_url:
+                return fail("Billing checkout URL does not look like Stripe-hosted checkout.")
+
+        if args.verify_billing_webhook:
+            print("[STEP] Verify billing webhook signature handling")
+            secret = (args.stripe_webhook_secret or "").strip()
+            if not secret:
+                return fail("Missing Stripe webhook secret for webhook verification.")
+
+            webhook_payload = {
+                "id": "evt_e2e_signature_probe",
+                "object": "event",
+                "api_version": "2024-10-28.acacia",
+                "created": int(time.time()),
+                "type": "payment_intent.succeeded",
+                "data": {"object": {"id": "pi_e2e_signature_probe", "object": "payment_intent"}},
+            }
+            payload_bytes = json.dumps(webhook_payload, separators=(",", ":")).encode("utf-8")
+            signature = build_stripe_signature(payload_bytes, secret)
+
+            # First ensure unsigned payload is rejected.
+            unsigned = client.post(
+                f"{base_url}/api/v1/billing/webhook",
+                headers={"content-type": "application/json"},
+                content=payload_bytes,
+            )
+            if unsigned.status_code != 400:
+                return fail(
+                    f"Billing webhook should reject unsigned payloads (got {unsigned.status_code})."
+                )
+
+            signed = request_json(
+                client,
+                "POST",
+                f"{base_url}/api/v1/billing/webhook",
+                expected_status=200,
+                headers={
+                    "content-type": "application/json",
+                    "stripe-signature": signature,
+                },
+                content=payload_bytes,
+            )
+            if not isinstance(signed, dict) or not signed.get("received"):
+                return fail("Billing webhook signed event acknowledgement failed.")
 
         print("[PASS] E2E staging flow completed successfully.")
 
