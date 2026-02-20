@@ -9,6 +9,12 @@ type CheckoutBody = {
   plan?: "free" | "pro" | "team";
 };
 
+function isStripePermissionError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const maybe = err as { type?: unknown; statusCode?: unknown };
+  return maybe.type === "StripePermissionError" || maybe.statusCode === 403;
+}
+
 const PLAN_TO_PRICE_ENVS: Record<NonNullable<CheckoutBody["plan"]>, string[]> = {
   free: ["STRIPE_PRICE_ID_FREE"],
   // Compatibility with Vercel Stripe integrations that provide "basic/premium" plan ids.
@@ -83,6 +89,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: checkoutSession.url, sessionId: checkoutSession.id });
   } catch (err) {
     console.error("stripe_checkout_error", err);
+    if (isStripePermissionError(err)) {
+      return NextResponse.json(
+        {
+          error:
+            "Billing is temporarily unavailable. The configured Stripe key is missing checkout-session write permissions.",
+        },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: "Stripe checkout request failed." }, { status: 502 });
   }
 }

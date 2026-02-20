@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["album_conceptualizer"]
 }
 
 model User {
@@ -27,6 +28,7 @@ model User {
   notificationsSent Notification[] @relation("NotificationActor")
   tasksCreated AlbumTask[] @relation("TaskCreator")
   tasksAssigned AlbumTask[] @relation("TaskAssignee")
+  @@schema("album_conceptualizer")
 }
 
 model Account {
@@ -46,6 +48,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@schema("album_conceptualizer")
 }
 
 model Session {
@@ -55,6 +58,7 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@schema("album_conceptualizer")
 }
 
 model VerificationToken {
@@ -63,6 +67,7 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@schema("album_conceptualizer")
 }
 
 model Workspace {
@@ -80,6 +85,7 @@ model Workspace {
   creditLedger CreditLedgerEntry[]
   challengeCompletions ChallengeCompletion[]
   notifications Notification[]
+  @@schema("album_conceptualizer")
 }
 
 model WorkspaceMember {
@@ -93,6 +99,7 @@ model WorkspaceMember {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, userId])
+  @@schema("album_conceptualizer")
 }
 
 model Album {
@@ -122,6 +129,7 @@ model Album {
   sectionComments AlbumSectionComment[]
   tasks     AlbumTask[]
   notifications Notification[]
+  @@schema("album_conceptualizer")
 }
 
 model Song {
@@ -139,6 +147,7 @@ model Song {
   sections Section[]
 
   @@unique([albumId, trackNumber])
+  @@schema("album_conceptualizer")
 }
 
 model Section {
@@ -154,6 +163,7 @@ model Section {
   song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
 
   @@unique([songId, sectionType, order])
+  @@schema("album_conceptualizer")
 }
 
 model Subscription {
@@ -168,6 +178,7 @@ model Subscription {
   updatedAt            DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@schema("album_conceptualizer")
 }
 
 model AlbumVersion {
@@ -183,6 +194,7 @@ model AlbumVersion {
   createdBy User  @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([albumId, createdAt])
+  @@schema("album_conceptualizer")
 }
 
 model AlbumShareLink {
@@ -198,6 +210,7 @@ model AlbumShareLink {
   createdBy User  @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([token])
+  @@schema("album_conceptualizer")
 }
 
 model CreditBalance {
@@ -206,6 +219,7 @@ model CreditBalance {
   updatedAt   DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@schema("album_conceptualizer")
 }
 
 model CreditLedgerEntry {
@@ -219,6 +233,7 @@ model CreditLedgerEntry {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, createdAt])
+  @@schema("album_conceptualizer")
 }
 
 model ChallengeCompletion {
@@ -235,6 +250,7 @@ model ChallengeCompletion {
 
   @@unique([workspaceId, challengeKey, challengeDay])
   @@index([workspaceId, challengeDay])
+  @@schema("album_conceptualizer")
 }
 
 model AlbumLike {
@@ -248,6 +264,7 @@ model AlbumLike {
 
   @@unique([albumId, userId])
   @@index([albumId, createdAt])
+  @@schema("album_conceptualizer")
 }
 
 model AlbumSectionComment {
@@ -274,6 +291,7 @@ model AlbumSectionComment {
 
   @@index([albumId, sectionId, createdAt])
   @@index([authorUserId, createdAt])
+  @@schema("album_conceptualizer")
 }
 
 model AlbumTask {
@@ -304,6 +322,7 @@ model AlbumTask {
 
   @@index([albumId, status, createdAt])
   @@index([assignedToUserId, status, createdAt])
+  @@schema("album_conceptualizer")
 }
 
 model Notification {
@@ -332,4 +351,5 @@ model Notification {
   @@index([workspaceId, userId, createdAt])
   @@index([userId, readAt, createdAt])
   @@index([albumId, createdAt])
+  @@schema("album_conceptualizer")
 }

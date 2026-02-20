@@ -8,6 +8,12 @@ import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 
+function isStripePermissionError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const maybe = err as { type?: unknown; statusCode?: unknown };
+  return maybe.type === "StripePermissionError" || maybe.statusCode === 403;
+}
+
 export async function POST() {
   const authSession = await getAuthSession();
   const userId = authSession?.user?.id;
@@ -43,10 +49,24 @@ export async function POST() {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const portal = await stripe.billingPortal.sessions.create({
-    customer: subscription.stripeCustomerId,
-    return_url: `${appUrl}/app/settings/billing`,
-  });
+  try {
+    const portal = await stripe.billingPortal.sessions.create({
+      customer: subscription.stripeCustomerId,
+      return_url: `${appUrl}/app/settings/billing`,
+    });
 
-  return NextResponse.json({ url: portal.url });
+    return NextResponse.json({ url: portal.url });
+  } catch (err) {
+    console.error("stripe_portal_error", err);
+    if (isStripePermissionError(err)) {
+      return NextResponse.json(
+        {
+          error:
+            "Billing portal is temporarily unavailable. The configured Stripe key is missing billing-portal permissions.",
+        },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json({ error: "Stripe portal request failed." }, { status: 502 });
+  }
 }
