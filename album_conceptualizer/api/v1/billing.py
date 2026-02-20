@@ -23,17 +23,6 @@ protected_router = APIRouter()
 public_router = APIRouter()
 
 
-# TODO: Replace None values with real Stripe Price IDs before enabling billing.
-# These can be found in your Stripe Dashboard under Products > Pricing.
-# Example: BillingPlan.PRO: "price_1ABC123..."
-# Set ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED=false until these are populated.
-PLAN_PRICE_IDS: dict[BillingPlan, str | None] = {
-    BillingPlan.FREE: None,
-    BillingPlan.PRO: None,
-    BillingPlan.TEAM: None,
-}
-
-
 class SubscriptionResponse(BaseModel):
     """Current subscription status for the caller."""
 
@@ -120,6 +109,14 @@ def _status_from_stripe(status_text: str | None) -> SubscriptionStatus:
     return mapping.get(status_text, SubscriptionStatus.INACTIVE)
 
 
+def _plan_price_id_for(settings, plan: BillingPlan) -> str | None:
+    if plan == BillingPlan.PRO:
+        return settings.stripe_price_id_pro
+    if plan == BillingPlan.TEAM:
+        return settings.stripe_price_id_team
+    return None
+
+
 def _find_by_customer_id(
     store: SubscriptionStore, customer_id: str | None
 ) -> AccountSubscription | None:
@@ -191,11 +188,23 @@ async def create_checkout_session(
             detail="Missing API key",
         )
 
-    price_id = data.price_id or PLAN_PRICE_IDS.get(data.plan)
+    price_id = data.price_id or _plan_price_id_for(settings, data.plan)
     if not price_id:
+        if data.plan == BillingPlan.PRO:
+            detail = (
+                "No Stripe price id configured for requested plan. "
+                "Set ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_PRO (or STRIPE_PRICE_ID)."
+            )
+        elif data.plan == BillingPlan.TEAM:
+            detail = (
+                "No Stripe price id configured for requested plan. "
+                "Set ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_TEAM."
+            )
+        else:
+            detail = "No Stripe price id configured for requested plan."
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No Stripe price id configured for requested plan",
+            detail=detail,
         )
 
     try:
@@ -224,22 +233,28 @@ async def create_checkout_session(
     if record.workspace_id:
         customer_metadata["workspace_id"] = str(record.workspace_id)
 
-    if not record.stripe_customer_id:
-        customer = stripe.Customer.create(metadata=customer_metadata)
-        record.stripe_customer_id = str(customer.id)
+    try:
+        if not record.stripe_customer_id:
+            customer = stripe.Customer.create(metadata=customer_metadata)
+            record.stripe_customer_id = str(customer.id)
 
-    checkout_metadata = {
-        **customer_metadata,
-        "plan": data.plan.value,
-    }
-    session_payload = stripe.checkout.Session.create(
-        mode="subscription",
-        customer=record.stripe_customer_id,
-        line_items=[{"price": price_id, "quantity": data.quantity}],
-        success_url=f"{settings.billing_success_url}?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=settings.billing_cancel_url,
-        metadata=checkout_metadata,
-    )
+        checkout_metadata = {
+            **customer_metadata,
+            "plan": data.plan.value,
+        }
+        session_payload = stripe.checkout.Session.create(
+            mode="subscription",
+            customer=record.stripe_customer_id,
+            line_items=[{"price": price_id, "quantity": data.quantity}],
+            success_url=f"{settings.billing_success_url}?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=settings.billing_cancel_url,
+            metadata=checkout_metadata,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Stripe checkout request failed",
+        ) from exc
 
     record.plan = data.plan
     record.updated_at = datetime.now(UTC)
@@ -282,7 +297,9 @@ async def stripe_webhook(request: Request) -> WebhookAckResponse:
     payload = await request.body()
     signature = request.headers.get("stripe-signature")
     if not signature:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Stripe signature")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Stripe signature"
+        )
 
     try:
         event = stripe.Webhook.construct_event(

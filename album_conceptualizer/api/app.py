@@ -18,7 +18,11 @@ from album_conceptualizer.api.rate_limit import (
 from album_conceptualizer.api.v1 import router as v1_router
 from album_conceptualizer.api.v1.health import (
     health_check as v1_health_check,
+)
+from album_conceptualizer.api.v1.health import (
     liveness_check as v1_liveness_check,
+)
+from album_conceptualizer.api.v1.health import (
     readiness_check as v1_readiness_check,
 )
 from album_conceptualizer.config import get_settings
@@ -65,8 +69,12 @@ def _initialize_state(app: FastAPI) -> None:
     if settings.storage_backend == "file":
         app.state.album_store = FileAlbumStore(settings.output_dir / "api_albums")
         app.state.bible_store = FileBibleStore(settings.output_dir / "api_bibles")
-        app.state.subscription_store = FileSubscriptionStore(settings.output_dir / "api_subscriptions")
-        app.state.experience_store = FileExperienceStateStore(settings.output_dir / "api_experience")
+        app.state.subscription_store = FileSubscriptionStore(
+            settings.output_dir / "api_subscriptions"
+        )
+        app.state.experience_store = FileExperienceStateStore(
+            settings.output_dir / "api_experience"
+        )
         app.state.identity_store = FileIdentityStateStore(settings.output_dir / "api_identity")
     elif settings.storage_backend == "sqlite":
         app.state.album_store = SQLiteAlbumStore(settings.storage_db_path)
@@ -86,7 +94,6 @@ def _initialize_state(app: FastAPI) -> None:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager for startup/shutdown events."""
     # Startup
-    _initialize_state(app)
     settings = app.state.settings
 
     # Initialize RAG system if configured
@@ -177,7 +184,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_credentials=True,
+        allow_credentials="*" not in settings.cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -185,33 +192,35 @@ def create_app(
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(MetricsMiddleware)
 
-    # Apply quota middleware.
-    quota_config = QuotaConfig(daily_limit=settings.quota_daily_limit)
-    if settings.quota_backend == "redis":
-        app.add_middleware(
-            RedisQuota,
-            config=quota_config,
-            redis_url=settings.redis_url,
-        )
-    else:
-        app.add_middleware(
-            InMemoryQuota,
-            config=quota_config,
-        )
+    # Apply quota middleware only when enabled.
+    if settings.quota_enabled:
+        quota_config = QuotaConfig(daily_limit=settings.quota_daily_limit)
+        if settings.quota_backend == "redis":
+            app.add_middleware(
+                RedisQuota,
+                config=quota_config,
+                redis_url=settings.redis_url,
+            )
+        else:
+            app.add_middleware(
+                InMemoryQuota,
+                config=quota_config,
+            )
 
-    # Rate limiting (optional)
-    rate_limit_config = RateLimitConfig(max_per_minute=settings.rate_limit_per_minute)
-    if settings.rate_limit_backend == "redis":
-        app.add_middleware(
-            RedisRateLimiter,
-            config=rate_limit_config,
-            redis_url=settings.redis_url,
-        )
-    else:
-        app.add_middleware(
-            InMemoryRateLimiter,
-            config=rate_limit_config,
-        )
+    # Apply rate limiting middleware only when enabled.
+    if settings.rate_limit_enabled:
+        rate_limit_config = RateLimitConfig(max_per_minute=settings.rate_limit_per_minute)
+        if settings.rate_limit_backend == "redis":
+            app.add_middleware(
+                RedisRateLimiter,
+                config=rate_limit_config,
+                redis_url=settings.redis_url,
+            )
+        else:
+            app.add_middleware(
+                InMemoryRateLimiter,
+                config=rate_limit_config,
+            )
 
     # Include API routers
     app.include_router(v1_router, prefix="/api/v1")
@@ -233,7 +242,7 @@ def create_app(
 
     @app.get("/ready", include_in_schema=False)
     async def ready_root(request: Request):
-        return await v1_readiness_check(request)
+        return await v1_readiness_check(request, strict=False)
 
     @app.get("/live", include_in_schema=False)
     async def live_root():

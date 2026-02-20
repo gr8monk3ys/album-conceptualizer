@@ -47,6 +47,25 @@ class TestHealthEndpoints:
         assert "ready" in data
         assert "checks" in data
 
+    def test_readiness_default_mode_ignores_optional_dependencies(self, client):
+        """Default readiness gates only required production checks."""
+        response = client.get("/api/v1/ready")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["strict_mode"] is False
+        assert payload["ready"] is True
+        assert payload["required_checks"]["api"] is True
+        assert payload["optional_checks"]["vector_store"] is False
+        assert payload["optional_checks"]["llm"] is False
+
+    def test_readiness_strict_mode_requires_optional_dependencies(self, client):
+        """Strict readiness requires LLM and vector dependencies to be ready."""
+        response = client.get("/api/v1/ready?strict=true")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["strict_mode"] is True
+        assert payload["ready"] is False
+
     def test_metrics_snapshot_contains_duration_fields(self, client):
         """Test /api/v1/metrics JSON includes latency aggregates."""
         client.get("/api/v1/health")

@@ -333,6 +333,10 @@ class AlbumExporter:
 
         if ExportFormat.MIDI in formats:
             try:
+                if not self.midi_exporter:
+                    raise RuntimeError(
+                        "MIDI export not available. Install with: pip install -e '.[music]'"
+                    )
                 midi_path = output_dir / f"{filename}.mid"
                 self.midi_exporter.export_progression(progression, midi_path)
                 results[ExportFormat.MIDI.value] = ExportResult(
@@ -350,6 +354,10 @@ class AlbumExporter:
 
         if ExportFormat.MUSICXML in formats:
             try:
+                if not self.musicxml_exporter:
+                    raise RuntimeError(
+                        "MusicXML export not available. Install with: pip install -e '.[music]'"
+                    )
                 xml_path = output_dir / f"{filename}.musicxml"
                 self.musicxml_exporter.export_progression(progression, xml_path)
                 results[ExportFormat.MUSICXML.value] = ExportResult(

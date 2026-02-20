@@ -9,10 +9,11 @@ type CheckoutBody = {
   plan?: "free" | "pro" | "team";
 };
 
-const PLAN_TO_PRICE_ENV: Record<NonNullable<CheckoutBody["plan"]>, string> = {
-  free: "STRIPE_PRICE_ID_FREE",
-  pro: "STRIPE_PRICE_ID_PRO",
-  team: "STRIPE_PRICE_ID_TEAM",
+const PLAN_TO_PRICE_ENVS: Record<NonNullable<CheckoutBody["plan"]>, string[]> = {
+  free: ["STRIPE_PRICE_ID_FREE"],
+  // Compatibility with Vercel Stripe integrations that provide "basic/premium" plan ids.
+  pro: ["STRIPE_PRICE_ID_PRO", "STRIPE_BASIC_MONTHLY_PRICE_ID"],
+  team: ["STRIPE_PRICE_ID_TEAM", "STRIPE_PREMIUM_MONTHLY_PRICE_ID"],
 };
 
 export async function POST(request: Request) {
@@ -32,11 +33,12 @@ export async function POST(request: Request) {
 
   const payload = (await request.json().catch(() => ({}))) as CheckoutBody;
   const plan = payload.plan ?? "pro";
-  const priceEnv = PLAN_TO_PRICE_ENV[plan];
-  const priceId = process.env[priceEnv];
+  const priceEnvCandidates = PLAN_TO_PRICE_ENVS[plan];
+  const resolvedPriceEnv = priceEnvCandidates.find((envName) => Boolean(process.env[envName]));
+  const priceId = resolvedPriceEnv ? process.env[resolvedPriceEnv] : undefined;
   if (!priceId) {
     return NextResponse.json(
-      { error: `${priceEnv} is not set.` },
+      { error: `${priceEnvCandidates.join(" or ")} is not set.` },
       { status: 500 },
     );
   }
@@ -55,27 +57,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    allow_promotion_codes: true,
-    client_reference_id: workspace.id,
-    customer_email: authSession.user?.email ?? undefined,
-    metadata: {
-      plan,
-      workspaceId: workspace.id,
-      userId,
-    },
-    subscription_data: {
+  try {
+    const checkoutSession = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      allow_promotion_codes: true,
+      client_reference_id: workspace.id,
+      customer_email: authSession.user?.email ?? undefined,
       metadata: {
+        plan,
         workspaceId: workspace.id,
         userId,
-        plan,
       },
-    },
-  });
+      subscription_data: {
+        metadata: {
+          workspaceId: workspace.id,
+          userId,
+          plan,
+        },
+      },
+    });
 
-  return NextResponse.json({ url: checkoutSession.url, sessionId: checkoutSession.id });
+    return NextResponse.json({ url: checkoutSession.url, sessionId: checkoutSession.id });
+  } catch (err) {
+    console.error("stripe_checkout_error", err);
+    return NextResponse.json({ error: "Stripe checkout request failed." }, { status: 502 });
+  }
 }

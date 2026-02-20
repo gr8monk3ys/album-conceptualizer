@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -16,6 +17,27 @@ from album_conceptualizer.config import get_settings
 @dataclass
 class QuotaConfig:
     daily_limit: int
+
+
+_EXEMPT_PATHS = frozenset(
+    {
+        "/health",
+        "/ready",
+        "/live",
+        "/api/v1/health",
+        "/api/v1/ready",
+        "/api/v1/live",
+    }
+)
+
+
+def _is_exempt_path(path: str) -> bool:
+    return path in _EXEMPT_PATHS
+
+
+def _token_fingerprint(token: str) -> str:
+    """Hash sensitive credentials before using them in quota keys."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 class InMemoryQuota(BaseHTTPMiddleware):
@@ -33,7 +55,7 @@ class InMemoryQuota(BaseHTTPMiddleware):
             if auth and auth.lower().startswith("bearer "):
                 api_key = auth.split()[1]
         if api_key:
-            return f"api:{api_key}"
+            return f"api:{_token_fingerprint(api_key)}"
         client_ip = request.client.host if request.client else "unknown"
         return f"ip:{client_ip}"
 
@@ -44,11 +66,7 @@ class InMemoryQuota(BaseHTTPMiddleware):
         if not settings.quota_enabled:
             return await call_next(request)
 
-        if (
-            request.url.path.startswith("/api/v1/health")
-            or request.url.path.startswith("/api/v1/ready")
-            or request.url.path.startswith("/api/v1/live")
-        ):
+        if _is_exempt_path(request.url.path):
             return await call_next(request)
 
         key = self._get_key(request)
@@ -92,7 +110,7 @@ class RedisQuota(BaseHTTPMiddleware):  # pragma: no cover
             if auth and auth.lower().startswith("bearer "):
                 api_key = auth.split()[1]
         if api_key:
-            return f"api:{api_key}"
+            return f"api:{_token_fingerprint(api_key)}"
         client_ip = request.client.host if request.client else "unknown"
         return f"ip:{client_ip}"
 
@@ -108,11 +126,7 @@ class RedisQuota(BaseHTTPMiddleware):  # pragma: no cover
         if not settings.quota_enabled:
             return await call_next(request)
 
-        if (
-            request.url.path.startswith("/api/v1/health")
-            or request.url.path.startswith("/api/v1/ready")
-            or request.url.path.startswith("/api/v1/live")
-        ):
+        if _is_exempt_path(request.url.path):
             return await call_next(request)
 
         key = self._get_key(request)

@@ -111,4 +111,3 @@ def render_midi_to_mp3(
         except subprocess.CalledProcessError as exc:
             stderr = (exc.stderr or "").strip()
             raise AudioRenderError(f"ffmpeg failed: {stderr or 'unknown error'}") from exc
-

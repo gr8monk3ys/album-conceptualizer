@@ -11,18 +11,20 @@ This guide covers the recommended production run modes for Album Conceptualizer.
 - Start from `.env.example` and create a `.env` with API keys and settings:
   - `OPENAI_API_KEY=...`
   - `ANTHROPIC_API_KEY=...`
-  - `ALBUM_CONCEPTUALIZER_API_KEY=...` (optional, enables API auth)
-  - `ALBUM_CONCEPTUALIZER_API_KEYS=key1,key2` (optional, multi-key auth)
+  - `ALBUM_CONCEPTUALIZER_API_KEYS=key1,key2` (recommended for API auth + key rotation)
+  - `ALBUM_CONCEPTUALIZER_API_KEY=...` (legacy single-key fallback)
   - `ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED=true` (optional, enforce active subscriptions)
-  - `ALBUM_CONCEPTUALIZER_CORS_ORIGINS=https://yourdomain.com` (optional)
+  - `ALBUM_CONCEPTUALIZER_CORS_ORIGINS=https://yourdomain.com` (required for strict production)
   - `ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=true` (optional)
   - `ALBUM_CONCEPTUALIZER_RATE_LIMIT_PER_MINUTE=120` (optional)
   - `ALBUM_CONCEPTUALIZER_QUOTA_ENABLED=true` (optional)
   - `ALBUM_CONCEPTUALIZER_QUOTA_DAILY_LIMIT=1000` (optional)
-  - `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=file` (optional)
-  - `ALBUM_CONCEPTUALIZER_STRICT_PRODUCTION=true` (optional, fail fast on insecure config)
+  - `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=sqlite` (recommended)
+  - `ALBUM_CONCEPTUALIZER_STRICT_PRODUCTION=true` (recommended, fail fast on insecure config)
   - `STRIPE_SECRET_KEY=...` (optional, required for checkout sessions)
   - `STRIPE_WEBHOOK_SECRET=...` (optional, required for Stripe webhooks)
+  - `ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_PRO=price_...` (required for PRO checkout)
+  - `ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_TEAM=price_...` (optional, required for TEAM checkout)
   - `ALBUM_CONCEPTUALIZER_BILLING_SUCCESS_URL=https://yourdomain.com/billing/success`
   - `ALBUM_CONCEPTUALIZER_BILLING_CANCEL_URL=https://yourdomain.com/billing/cancel`
   - `ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER=smtp` (recommended for magic links/invites)
@@ -51,7 +53,12 @@ This guide covers the recommended production run modes for Album Conceptualizer.
 
 ### Compose Production File
 - `docker compose -f docker-compose.prod.yml up -d`
-- `scripts/run-prod-compose.sh` runs the same command.
+- `scripts/run-prod-compose.sh` runs a strict-production preflight and then starts the stack.
+- By default `scripts/run-prod-compose.sh` rebuilds images (`docker compose ... up -d --build`).
+  Set `ALBUM_CONCEPTUALIZER_BUILD_IMAGES=false` to skip rebuild and reuse existing images.
+- The production compose profile requires:
+  - `ALBUM_CONCEPTUALIZER_API_KEYS`
+  - `ALBUM_CONCEPTUALIZER_CORS_ORIGINS`
 
 Use `docker compose logs -f` to tail logs and `docker compose down` to stop.
 
@@ -93,13 +100,14 @@ Routes:
 ## Health Checks
 - API readiness:
   - `GET /api/v1/ready`
+  - `GET /api/v1/ready?strict=true` (also requires optional LLM/vector dependencies)
 - API liveness:
   - `GET /api/v1/live`
 - API metrics:
   - `GET /api/v1/metrics`
 
 ## Authentication
-- If `ALBUM_CONCEPTUALIZER_API_KEY` is set, pass it on requests:
+- If `ALBUM_CONCEPTUALIZER_API_KEYS` or `ALBUM_CONCEPTUALIZER_API_KEY` is set, pass a configured key on requests:
   - Header `X-API-Key: <your-key>`
   - Or `Authorization: Bearer <your-key>`
 - For rotation, set multiple keys:
@@ -201,7 +209,7 @@ bash scripts/ui-e2e-playwright.sh
 - Set `ALBUM_CONCEPTUALIZER_QUOTA_BACKEND=redis` and `ALBUM_CONCEPTUALIZER_REDIS_URL` for persistence.
 
 ## Storage Backend
-- Default API storage is in‑memory (ephemeral).
+- Default API storage is SQLite (`./data/album_conceptualizer.db`).
 - Set `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=file` to persist albums/bibles to disk under `output/api_*`.
 - Set `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=sqlite` for a single SQLite database.
 - Configure the SQLite path with `ALBUM_CONCEPTUALIZER_STORAGE_DB` (default `./data/album_conceptualizer.db`).
@@ -213,7 +221,10 @@ bash scripts/ui-e2e-playwright.sh
   - CORS cannot include `*`
   - API auth must be configured (`ALBUM_CONCEPTUALIZER_API_KEY` or `ALBUM_CONCEPTUALIZER_API_KEYS`)
   - storage backend cannot be `memory`
+  - when `ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=true` and `ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND=redis`, `ALBUM_CONCEPTUALIZER_REDIS_URL` must be set
+  - when `ALBUM_CONCEPTUALIZER_QUOTA_ENABLED=true` and `ALBUM_CONCEPTUALIZER_QUOTA_BACKEND=redis`, `ALBUM_CONCEPTUALIZER_REDIS_URL` must be set
   - if `ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED=true`, Stripe secrets must be configured
+  - if subscription gating + Stripe is enabled, `ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_PRO` (or `STRIPE_PRICE_ID`) must be configured
   - `ALBUM_CONCEPTUALIZER_IDENTITY_DEBUG_TOKENS` must be `false`
   - when `ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER=smtp`, SMTP host/from and TLS/SSL config must be valid
 

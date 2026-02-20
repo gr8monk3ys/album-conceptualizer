@@ -2,7 +2,13 @@
 
 from album_conceptualizer.config import configure, reset_settings
 from album_conceptualizer.models.album import Album, Song
-from album_conceptualizer.models.album_bible import AlbumBible, Character, Motif, StyleProfile, Theme
+from album_conceptualizer.models.album_bible import (
+    AlbumBible,
+    Character,
+    Motif,
+    StyleProfile,
+    Theme,
+)
 from album_conceptualizer.models.music_theory import (
     Chord,
     ChordProgression,
@@ -284,7 +290,7 @@ class TestAlbumModelMethods:
         album = self._make_album_with_songs()
         results = album.get_motif_usage("rain")
         assert len(results) == 1
-        song, sections = results[0]
+        song, _sections = results[0]
         assert song.title == "Song C"
 
     def test_get_motif_usage_not_found(self):

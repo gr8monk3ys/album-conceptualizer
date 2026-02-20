@@ -4,8 +4,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-import pytest
-
 from album_conceptualizer.identity_state import (
     FileIdentityStateStore,
     SQLiteIdentityStateStore,
@@ -13,7 +11,6 @@ from album_conceptualizer.identity_state import (
 from album_conceptualizer.models.identity import (
     Account,
     EmailChallenge,
-    IdentityChallengeIntent,
     Workspace,
     WorkspaceInvite,
     WorkspaceMember,

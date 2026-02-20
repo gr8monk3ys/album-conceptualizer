@@ -130,8 +130,10 @@ echo "OPENAI_API_KEY=your-key-here" >> .env
 
 ### Web Dashboard (Next.js)
 
-The modern dashboard lives in `apps/web/` (Next.js + Prisma + Neon + Stripe) and uses the Python
-engine for exports. For local setup and deployment notes, see `apps/web/README.md`.
+The primary product surface lives in `apps/web/` (Next.js + Prisma + Neon + Stripe) and uses the
+Python engine for exports. For local setup and deployment notes, see `apps/web/README.md`.
+
+The Gradio UI is still supported for local workflows, API parity checks, and smoke testing.
 
 ### Command Line Interface
 
@@ -267,8 +269,8 @@ The system can integrate with:
 ## Production Checklist
 
 - Ensure `.env` includes required API keys and settings.
-- If API access is exposed, set `ALBUM_CONCEPTUALIZER_API_KEY` and restrict CORS.
-- For rotation, use `ALBUM_CONCEPTUALIZER_API_KEYS=key1,key2`.
+- If API access is exposed, set `ALBUM_CONCEPTUALIZER_API_KEYS=key1,key2` and restrict CORS.
+- Enable strict startup validation with `ALBUM_CONCEPTUALIZER_STRICT_PRODUCTION=true`.
 - Use `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=sqlite` or `file` for persistence.
 - For shared/clustered deployments, plan for Redis-backed rate limits and quotas.
 - For websocket collaboration across multiple app instances, set
@@ -279,7 +281,6 @@ The system can integrate with:
 - Enable rate limiting (`ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=true`).
 - Enable quotas (`ALBUM_CONCEPTUALIZER_QUOTA_ENABLED=true`).
 - Set `LOG_LEVEL=INFO` (or `DEBUG`) and monitor logs.
-- Set `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=file` to persist API data.
 - Confirm `output/projects/` is writable.
 - Run a smoke flow: create album → export → open ZIP.
 - Verify API health endpoints (`/api/v1/live`, `/api/v1/ready`).
@@ -289,7 +290,7 @@ The system can integrate with:
 
 - `scripts/run-prod.sh` starts API + UI containers.
 - `scripts/stop-prod.sh` stops containers.
-- `scripts/run-prod-compose.sh` uses `docker-compose.prod.yml` with production defaults.
+- `scripts/run-prod-compose.sh` runs strict preflight checks, then uses `docker-compose.prod.yml`.
 
 
 ### Using Make Commands

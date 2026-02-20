@@ -1,6 +1,5 @@
 """Extended tests for InMemoryRateLimiter middleware."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 from album_conceptualizer.api.app import create_app
@@ -47,6 +46,17 @@ class TestInMemoryRateLimiter:
             resp = client.get("/api/v1/live")
         reset_settings()
         assert resp.status_code == 200
+
+    def test_root_probe_endpoints_exempt_from_rate_limit(self, monkeypatch):
+        with _make_rate_limited_client(monkeypatch, max_per_minute=1) as client:
+            client.get("/api/v1/albums")
+            health_resp = client.get("/health")
+            ready_resp = client.get("/ready")
+            live_resp = client.get("/live")
+        reset_settings()
+        assert health_resp.status_code == 200
+        assert ready_resp.status_code == 200
+        assert live_resp.status_code == 200
 
     def test_rate_limit_response_includes_header(self, monkeypatch):
         with _make_rate_limited_client(monkeypatch, max_per_minute=1) as client:

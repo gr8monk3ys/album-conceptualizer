@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from album_conceptualizer.experience_state import (
     FileExperienceStateStore,
     InMemoryExperienceStateStore,
@@ -17,7 +15,6 @@ SAMPLE_PROFILE = {"profile_id": "p1", "score": 42, "badges": ["first-album"]}
 
 def _run_store_contract(store) -> None:
     """Exercise the full ExperienceStateStore API contract."""
-    # Rooms: save and retrieve
     store.save_room("album-1", "room-1", SAMPLE_ROOM)
     room = store.get_room("album-1", "room-1")
     assert room is not None
@@ -34,7 +31,6 @@ def _run_store_contract(store) -> None:
     # get_room - missing
     assert store.get_room("album-1", "room-99") is None
 
-    # Profiles: save and retrieve
     store.save_profile("profile-1", SAMPLE_PROFILE)
     profile = store.get_profile("profile-1")
     assert profile is not None

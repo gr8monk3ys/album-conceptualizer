@@ -1,11 +1,8 @@
 """Tests for AlbumExporter and ExportFormat (formats.py)."""
 
 import sys
-from pathlib import Path
 
-import pytest
-
-from album_conceptualizer.export.formats import AlbumExporter, ExportFormat, ExportResult
+from album_conceptualizer.export.formats import AlbumExporter, ExportFormat
 from album_conceptualizer.models.album import Album, Section, SectionType, Song
 from album_conceptualizer.models.music_theory import Chord, ChordProgression, ChordQuality
 
@@ -17,14 +14,12 @@ from album_conceptualizer.models.music_theory import Chord, ChordProgression, Ch
 
 def _make_song(title="Test Song", track_number=1, **kwargs) -> Song:
     song = Song(title=title, track_number=track_number, key="G major", tempo=120, **kwargs)
-    song.sections = [
-        Section(section_type=SectionType.VERSE, order=1, lyrics="Hello world")
-    ]
+    song.sections = [Section(section_type=SectionType.VERSE, order=1, lyrics="Hello world")]
     return song
 
 
 def _make_album(song_count=1) -> Album:
-    songs = [_make_song(title=f"Song {i+1}", track_number=i + 1) for i in range(song_count)]
+    songs = [_make_song(title=f"Song {i + 1}", track_number=i + 1) for i in range(song_count)]
     return Album(title="Test Album", artist="Test Artist", songs=songs)
 
 
@@ -79,7 +74,9 @@ class TestExportSong:
 
     def test_chordpro_export_with_album_title(self, tmp_path):
         exporter = AlbumExporter(output_dir=tmp_path, artist_name="My Artist")
-        results = exporter.export_song(_make_song(), [ExportFormat.CHORDPRO], album_title="My Album")
+        results = exporter.export_song(
+            _make_song(), [ExportFormat.CHORDPRO], album_title="My Album"
+        )
         assert results["chordpro"][0].success is True
 
     def test_midi_unavailable_produces_failure_result(self, tmp_path):

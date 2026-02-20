@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from album_conceptualizer.config import Settings, reset_settings
+from album_conceptualizer.config import Settings, configure, get_settings, reset_settings
 
 
 class TestProductionIssues:
@@ -66,6 +66,26 @@ class TestProductionIssues:
         assert not any("REDIS_URL" in i for i in issues)
         reset_settings()
 
+    def test_rate_limit_redis_enabled_without_redis_url_flagged(self, monkeypatch):
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED", "true")
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND", "redis")
+        monkeypatch.delenv("ALBUM_CONCEPTUALIZER_REDIS_URL", raising=False)
+        reset_settings()
+        settings = Settings()
+        issues = settings.production_issues()
+        assert any("RATE_LIMIT_ENABLED" in i for i in issues)
+        reset_settings()
+
+    def test_quota_redis_enabled_without_redis_url_flagged(self, monkeypatch):
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_QUOTA_ENABLED", "true")
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_QUOTA_BACKEND", "redis")
+        monkeypatch.delenv("ALBUM_CONCEPTUALIZER_REDIS_URL", raising=False)
+        reset_settings()
+        settings = Settings()
+        issues = settings.production_issues()
+        assert any("QUOTA_ENABLED" in i for i in issues)
+        reset_settings()
+
     def test_subscription_required_without_stripe_keys(self, monkeypatch):
         monkeypatch.setenv("ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED", "true")
         monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
@@ -80,6 +100,7 @@ class TestProductionIssues:
         monkeypatch.setenv("ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED", "true")
         monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
         monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_abc")
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_PRO", "price_pro_abc")
         reset_settings()
         settings = Settings()
         issues = settings.production_issues()
@@ -226,7 +247,7 @@ class TestCollabRealtimeBackendValidator:
     def test_invalid_value_raises_validation_error(self, monkeypatch):
         monkeypatch.setenv("ALBUM_CONCEPTUALIZER_COLLAB_REALTIME_BACKEND", "kafka")
         reset_settings()
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             Settings()
         reset_settings()
 
@@ -249,6 +270,58 @@ class TestCollabRealtimeBackendValidator:
         reset_settings()
         settings = Settings()
         assert settings.collab_realtime_backend == "memory"
+        reset_settings()
+
+
+class TestBackendValidators:
+    def test_invalid_rate_limit_backend_raises_validation_error(self, monkeypatch):
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND", "memcached")
+        reset_settings()
+        with pytest.raises(ValidationError):
+            Settings()
+        reset_settings()
+
+    def test_invalid_quota_backend_raises_validation_error(self, monkeypatch):
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_QUOTA_BACKEND", "dynamo")
+        reset_settings()
+        with pytest.raises(ValidationError):
+            Settings()
+        reset_settings()
+
+    def test_invalid_storage_backend_raises_validation_error(self, monkeypatch):
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_STORAGE_BACKEND", "postgres")
+        reset_settings()
+        with pytest.raises(ValidationError):
+            Settings()
+        reset_settings()
+
+    def test_invalid_email_provider_raises_validation_error(self, monkeypatch):
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER", "mailgun")
+        reset_settings()
+        with pytest.raises(ValidationError):
+            Settings()
+        reset_settings()
+
+    def test_backends_are_normalized_to_lowercase(self, monkeypatch):
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND", "  REDIS  ")
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_QUOTA_BACKEND", "  MEMORY ")
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_STORAGE_BACKEND", " SQLITE ")
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_BILLING_PROVIDER", " STRIPE ")
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER", " SMTP ")
+        reset_settings()
+        settings = Settings()
+        assert settings.rate_limit_backend == "redis"
+        assert settings.quota_backend == "memory"
+        assert settings.storage_backend == "sqlite"
+        assert settings.billing_provider == "stripe"
+        assert settings.email_provider == "smtp"
+        reset_settings()
+
+    def test_noop_email_provider_is_valid(self, monkeypatch):
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_EMAIL_PROVIDER", "NOOP")
+        reset_settings()
+        settings = Settings()
+        assert settings.email_provider == "noop"
         reset_settings()
 
 
@@ -277,4 +350,50 @@ class TestConfiguredApiKeys:
         reset_settings()
         settings = Settings()
         assert settings.configured_api_keys() == []
+        reset_settings()
+
+
+class TestStripePriceIdAliases:
+    def test_legacy_stripe_price_id_alias_maps_to_pro(self, monkeypatch):
+        monkeypatch.setenv("STRIPE_PRICE_ID", "price_legacy_pro")
+        reset_settings()
+        settings = Settings()
+        assert settings.stripe_price_id_pro == "price_legacy_pro"
+        reset_settings()
+
+
+class TestDirectValidatorCoverage:
+    def test_parse_cors_origins_none_defaults_to_wildcard(self):
+        assert Settings._parse_cors_origins(None) == ["*"]
+
+    def test_parse_cors_origins_string_branches(self):
+        assert Settings._parse_cors_origins("https://a.com, https://b.com") == [
+            "https://a.com",
+            "https://b.com",
+        ]
+        assert Settings._parse_cors_origins('["https://json.example"]') == ["https://json.example"]
+        assert Settings._parse_cors_origins("[not-valid-json]") == ["[not-valid-json]"]
+        assert Settings._parse_cors_origins(123) == ["*"]
+
+    def test_parse_api_keys_none_and_string_branches(self):
+        assert Settings._parse_api_keys(None) == []
+        assert Settings._parse_api_keys(" key-1 , key-2 ") == ["key-1", "key-2"]
+        assert Settings._parse_api_keys('["json-key-1","json-key-2"]') == [
+            "json-key-1",
+            "json-key-2",
+        ]
+        assert Settings._parse_api_keys("[broken-json]") == ["[broken-json]"]
+        assert Settings._parse_api_keys(999) == []
+
+    def test_configure_sets_cached_settings_and_creates_directories(self, tmp_path):
+        reset_settings()
+        settings = configure(
+            data_dir=tmp_path / "data",
+            cache_dir=tmp_path / "cache",
+            output_dir=tmp_path / "output",
+        )
+        assert settings.data_dir.exists()
+        assert settings.cache_dir.exists()
+        assert settings.output_dir.exists()
+        assert get_settings() is settings
         reset_settings()

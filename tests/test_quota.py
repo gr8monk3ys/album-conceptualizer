@@ -33,3 +33,6 @@ def test_quota_exempts_health(monkeypatch):
     assert client.get("/api/v1/health").status_code == 200
     assert client.get("/api/v1/ready").status_code in (200, 503, 500)
     assert client.get("/api/v1/live").status_code == 200
+    assert client.get("/health").status_code == 200
+    assert client.get("/ready").status_code == 200
+    assert client.get("/live").status_code == 200

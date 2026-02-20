@@ -1,7 +1,10 @@
 # syntax=docker/dockerfile:1
 
+ARG PYTHON_VERSION=3.13
+
 # Build stage
-FROM python:3.14-slim as builder
+FROM python:${PYTHON_VERSION}-slim as builder
+ARG PYTHON_VERSION
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -19,10 +22,11 @@ COPY album_conceptualizer/ ./album_conceptualizer/
 
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -e .
+    uv pip install --system -e ".[ui,music]" "redis>=5.0.0"
 
 # Production stage
-FROM python:3.14-slim as production
+FROM python:${PYTHON_VERSION}-slim as production
+ARG PYTHON_VERSION
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash appuser
@@ -35,7 +39,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/lib/python${PYTHON_VERSION}/site-packages /usr/local/lib/python${PYTHON_VERSION}/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code

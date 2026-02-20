@@ -2,11 +2,13 @@
 
 from pathlib import Path
 
-import pytest
-
 from album_conceptualizer.models.album import Album, Section, SectionType, Song
-from album_conceptualizer.models.album_bible import AlbumBible, Motif, Theme
-from album_conceptualizer.models.subscription import AccountSubscription, BillingPlan, SubscriptionStatus
+from album_conceptualizer.models.album_bible import AlbumBible, Theme
+from album_conceptualizer.models.subscription import (
+    AccountSubscription,
+    BillingPlan,
+    SubscriptionStatus,
+)
 from album_conceptualizer.storage import (
     FileAlbumStore,
     FileBibleStore,
@@ -258,7 +260,9 @@ class TestSQLiteBibleStore:
     def test_overwrite_updates(self, tmp_path: Path) -> None:
         store = SQLiteBibleStore(path=tmp_path / "test.db")
         store.save("album-1", _make_bible())
-        updated = AlbumBible(album_title="Test Album", logline="New logline.", synopsis="Updated synopsis.")
+        updated = AlbumBible(
+            album_title="Test Album", logline="New logline.", synopsis="Updated synopsis."
+        )
         store.save("album-1", updated)
         assert store.get("album-1").logline == "New logline."
 

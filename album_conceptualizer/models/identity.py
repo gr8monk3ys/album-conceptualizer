@@ -105,8 +105,4 @@ class WorkspaceInvite(BaseModel):
     def is_active(self, now: datetime | None = None) -> bool:
         """Return whether this invite can still be accepted."""
         current = now or datetime.now(UTC)
-        return (
-            self.accepted_at is None
-            and self.revoked_at is None
-            and self.expires_at > current
-        )
+        return self.accepted_at is None and self.revoked_at is None and self.expires_at > current

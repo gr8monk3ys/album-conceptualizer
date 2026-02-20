@@ -117,6 +117,17 @@ class Settings(BaseSettings):
     )
     stripe_secret_key: str | None = Field(default=None, alias="STRIPE_SECRET_KEY")
     stripe_webhook_secret: str | None = Field(default=None, alias="STRIPE_WEBHOOK_SECRET")
+    stripe_price_id_pro: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_PRO",
+            "STRIPE_PRICE_ID",
+        ),
+    )
+    stripe_price_id_team: str | None = Field(
+        default=None,
+        alias="ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_TEAM",
+    )
     billing_success_url: str = Field(
         default="http://localhost:7860/billing/success",
         alias="ALBUM_CONCEPTUALIZER_BILLING_SUCCESS_URL",
@@ -247,11 +258,32 @@ class Settings(BaseSettings):
                 "Set ALBUM_CONCEPTUALIZER_REDIS_URL when "
                 "ALBUM_CONCEPTUALIZER_COLLAB_REALTIME_BACKEND=redis in strict mode"
             )
+        if self.rate_limit_enabled and self.rate_limit_backend == "redis" and not self.redis_url:
+            issues.append(
+                "Set ALBUM_CONCEPTUALIZER_REDIS_URL when "
+                "ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=true and "
+                "ALBUM_CONCEPTUALIZER_RATE_LIMIT_BACKEND=redis in strict mode"
+            )
+        if self.quota_enabled and self.quota_backend == "redis" and not self.redis_url:
+            issues.append(
+                "Set ALBUM_CONCEPTUALIZER_REDIS_URL when "
+                "ALBUM_CONCEPTUALIZER_QUOTA_ENABLED=true and "
+                "ALBUM_CONCEPTUALIZER_QUOTA_BACKEND=redis in strict mode"
+            )
         if self.subscription_required and (
             not self.stripe_secret_key or not self.stripe_webhook_secret
         ):
             issues.append(
                 "Subscription gating requires STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in strict mode"
+            )
+        if (
+            self.subscription_required
+            and self.billing_provider == "stripe"
+            and not self.stripe_price_id_pro
+        ):
+            issues.append(
+                "Set ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_PRO (or STRIPE_PRICE_ID) "
+                "for Stripe checkout in strict mode"
             )
         if self.identity_debug_tokens:
             issues.append("ALBUM_CONCEPTUALIZER_IDENTITY_DEBUG_TOKENS must be false in strict mode")
@@ -297,6 +329,43 @@ class Settings(BaseSettings):
         normalized = value.strip().lower()
         if normalized not in {"memory", "redis"}:
             raise ValueError("collab_realtime_backend must be 'memory' or 'redis'")
+        return normalized
+
+    @field_validator("rate_limit_backend")
+    @classmethod
+    def _validate_rate_limit_backend(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"memory", "redis"}:
+            raise ValueError("rate_limit_backend must be 'memory' or 'redis'")
+        return normalized
+
+    @field_validator("quota_backend")
+    @classmethod
+    def _validate_quota_backend(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"memory", "redis"}:
+            raise ValueError("quota_backend must be 'memory' or 'redis'")
+        return normalized
+
+    @field_validator("storage_backend")
+    @classmethod
+    def _validate_storage_backend(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"memory", "file", "sqlite"}:
+            raise ValueError("storage_backend must be 'memory', 'file', or 'sqlite'")
+        return normalized
+
+    @field_validator("billing_provider")
+    @classmethod
+    def _normalize_billing_provider(cls, value: str) -> str:
+        return value.strip().lower()
+
+    @field_validator("email_provider")
+    @classmethod
+    def _validate_email_provider(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"outbox", "noop", "smtp"}:
+            raise ValueError("email_provider must be 'outbox', 'noop', or 'smtp'")
         return normalized
 
     @field_validator("api_keys", mode="before")

@@ -8,11 +8,7 @@ These tests verify that all major experience endpoints:
 No Anthropic API calls are made — all endpoints do pure data computation.
 """
 
-import pytest
 from fastapi.testclient import TestClient
-
-from album_conceptualizer.api.app import create_app
-from album_conceptualizer.config import reset_settings
 
 
 # ---------------------------------------------------------------------------
@@ -231,9 +227,7 @@ class TestReleaseKit:
     def test_release_kit_platform_filter(self, client):
         """GET /albums/{id}/experience/release-kit?platform=streaming works."""
         album_id = _create_album(client, "Release Kit Album 2")
-        resp = client.get(
-            f"/api/v1/albums/{album_id}/experience/release-kit?platform=streaming"
-        )
+        resp = client.get(f"/api/v1/albums/{album_id}/experience/release-kit?platform=streaming")
         assert resp.status_code == 200
 
 
@@ -310,17 +304,13 @@ class TestCollabRooms:
             json={"name": "My Room", "host_alias": "Carol"},
         )
         room_id = create_resp.json()["id"]
-        resp = client.get(
-            f"/api/v1/albums/{album_id}/experience/collab-rooms/{room_id}"
-        )
+        resp = client.get(f"/api/v1/albums/{album_id}/experience/collab-rooms/{room_id}")
         assert resp.status_code == 200
         assert resp.json()["id"] == room_id
 
     def test_get_collab_room_not_found(self, client):
         album_id = _create_album(client, "Collab Album 4")
-        resp = client.get(
-            f"/api/v1/albums/{album_id}/experience/collab-rooms/nonexistent-room"
-        )
+        resp = client.get(f"/api/v1/albums/{album_id}/experience/collab-rooms/nonexistent-room")
         assert resp.status_code == 404
 
     def test_join_collab_room(self, client):
@@ -513,9 +503,7 @@ class TestCreatorMemory:
     def test_get_creator_memory_recommendations(self, client):
         """GET /albums/{id}/experience/creator-memory/recommendations returns suggestions."""
         album_id = _create_album(client, "Creator Memory Album")
-        resp = client.get(
-            f"/api/v1/albums/{album_id}/experience/creator-memory/recommendations"
-        )
+        resp = client.get(f"/api/v1/albums/{album_id}/experience/creator-memory/recommendations")
         assert resp.status_code == 200
         data = resp.json()
         assert "recommendations" in data

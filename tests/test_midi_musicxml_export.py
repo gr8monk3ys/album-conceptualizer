@@ -1,11 +1,6 @@
 """Tests for MIDI and MusicXML export paths — covers uncovered formats.py and midi.py lines."""
 
-import tempfile
-from pathlib import Path
-
-import pytest
-
-from album_conceptualizer.export.formats import AlbumExporter, ExportFormat, ExportResult
+from album_conceptualizer.export.formats import AlbumExporter, ExportFormat
 from album_conceptualizer.export.midi import MidiExporter
 from album_conceptualizer.models.album import Section, SectionType, Song
 from album_conceptualizer.models.music_theory import Chord, ChordProgression, ChordQuality
@@ -75,7 +70,9 @@ class TestMidiExporterDirect:
     def test_export_section_without_chords_returns_none(self, tmp_path):
         """Covers line 199: early return None when no chords."""
         exporter = MidiExporter()
-        section = Section(section_type=SectionType.VERSE, order=1, lyrics="Words", chord_progression=[])
+        section = Section(
+            section_type=SectionType.VERSE, order=1, lyrics="Words", chord_progression=[]
+        )
         result = exporter.export_section(section, tmp_path / "empty.mid")
         assert result is None
 

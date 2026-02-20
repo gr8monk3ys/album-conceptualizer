@@ -1,10 +1,7 @@
 """Extended tests for UI helper utilities."""
 
-import pytest
-
 from album_conceptualizer.models.album import Album, Section, SectionType, Song
 from album_conceptualizer.ui.helpers import (
-    build_tracklist_rows,
     generate_review_pass,
     merge_album_with_tracklist,
     normalize_tracklist_rows,
@@ -118,9 +115,7 @@ class TestMergeAlbumWithTracklist:
             songs=[Song(title="My Song", track_number=1, key=None, tempo=None)],
         )
         rows = [[1, "My Song", "D major", 100, "closing"]]
-        album = merge_album_with_tracklist(
-            existing.model_dump_json(), "Album", "Artist", "", rows
-        )
+        album = merge_album_with_tracklist(existing.model_dump_json(), "Album", "Artist", "", rows)
         assert album.songs[0].key == "D major"
         assert album.songs[0].tempo == 100
 
@@ -129,9 +124,7 @@ class TestMergeAlbumWithTracklist:
             title="Album",
             songs=[Song(title="Preserved", track_number=1)],
         )
-        album = merge_album_with_tracklist(
-            existing.model_dump_json(), "Album", "Artist", "", []
-        )
+        album = merge_album_with_tracklist(existing.model_dump_json(), "Album", "Artist", "", [])
         assert len(album.songs) == 1
         assert album.songs[0].title == "Preserved"
 
@@ -140,9 +133,7 @@ class TestMergeAlbumWithTracklist:
             title="Album",
             songs=[Song(title="Preserved", track_number=1)],
         )
-        album = merge_album_with_tracklist(
-            existing.model_dump_json(), "Album", "Artist", "", None
-        )
+        album = merge_album_with_tracklist(existing.model_dump_json(), "Album", "Artist", "", None)
         assert len(album.songs) == 1
 
     def test_rows_with_no_title_are_skipped(self):
@@ -172,9 +163,7 @@ class TestMergeAlbumWithTracklist:
     def test_new_song_created_when_not_in_existing(self):
         existing = Album(title="Album", songs=[])
         rows = [[1, "Brand New", "C", 90, "opening"]]
-        album = merge_album_with_tracklist(
-            existing.model_dump_json(), "Album", "Artist", "", rows
-        )
+        album = merge_album_with_tracklist(existing.model_dump_json(), "Album", "Artist", "", rows)
         assert album.songs[0].title == "Brand New"
 
 
@@ -188,14 +177,33 @@ class TestUpdateAlbumFromSongEditor:
 
     def test_creates_new_song_when_not_found(self):
         _, _, titles = update_album_from_song_editor(
-            self._album_json(), None, "Brand New", 2, "G", 140, "4/4", "opening", "Start", "Verse 1", "Hello"
+            self._album_json(),
+            None,
+            "Brand New",
+            2,
+            "G",
+            140,
+            "4/4",
+            "opening",
+            "Start",
+            "Verse 1",
+            "Hello",
         )
         assert "Brand New" in titles
 
     def test_updates_existing_song(self):
-        updated_json, rows, titles = update_album_from_song_editor(
-            self._album_json(), "Existing Song", "Existing Song", 1, "A minor", 90,
-            "4/4", "midpoint", "Middle part", "Chorus", "New lyrics"
+        updated_json, _rows, _titles = update_album_from_song_editor(
+            self._album_json(),
+            "Existing Song",
+            "Existing Song",
+            1,
+            "A minor",
+            90,
+            "4/4",
+            "midpoint",
+            "Middle part",
+            "Chorus",
+            "New lyrics",
         )
         updated = Album.model_validate_json(updated_json)
         song = updated.get_song_by_title("Existing Song")
@@ -205,15 +213,24 @@ class TestUpdateAlbumFromSongEditor:
 
     def test_empty_target_returns_unchanged(self):
         album_json = self._album_json()
-        result_json, rows, titles = update_album_from_song_editor(
+        result_json, _rows, _titles = update_album_from_song_editor(
             album_json, None, "", 1, "", 0, "", "", "", "Verse 1", ""
         )
         assert result_json == album_json
 
     def test_lyrics_updates_sections(self):
         updated_json, _, _ = update_album_from_song_editor(
-            self._album_json(), "Existing Song", "Existing Song", 1, "", 0,
-            "", "", "", "Chorus", "New chorus lyrics"
+            self._album_json(),
+            "Existing Song",
+            "Existing Song",
+            1,
+            "",
+            0,
+            "",
+            "",
+            "",
+            "Chorus",
+            "New chorus lyrics",
         )
         updated = Album.model_validate_json(updated_json)
         song = updated.get_song_by_title("Existing Song")
@@ -221,14 +238,25 @@ class TestUpdateAlbumFromSongEditor:
         assert song.sections[0].section_type == SectionType.CHORUS
 
     def test_no_lyrics_preserves_existing_sections(self):
-        existing_section = Section(section_type=SectionType.VERSE, order=1, lyrics="Original lyrics")
+        existing_section = Section(
+            section_type=SectionType.VERSE, order=1, lyrics="Original lyrics"
+        )
         album = Album(
             title="Test",
             songs=[Song(title="With Sections", track_number=1, sections=[existing_section])],
         )
         updated_json, _, _ = update_album_from_song_editor(
-            album.model_dump_json(), "With Sections", "With Sections", 1, "", 0,
-            "", "", "", "Chorus", ""  # empty lyrics → sections not replaced
+            album.model_dump_json(),
+            "With Sections",
+            "With Sections",
+            1,
+            "",
+            0,
+            "",
+            "",
+            "",
+            "Chorus",
+            "",  # empty lyrics → sections not replaced
         )
         updated = Album.model_validate_json(updated_json)
         assert updated.songs[0].sections[0].lyrics == "Original lyrics"
@@ -241,17 +269,25 @@ class TestUpdateAlbumFromSongEditor:
                 Song(title="Track 1", track_number=1),
             ],
         )
-        updated_json, rows, _ = update_album_from_song_editor(
-            album.model_dump_json(), "Track 3", "Track 3", 3, "", 0,
-            "", "", "", "Verse 1", ""
+        updated_json, _rows, _ = update_album_from_song_editor(
+            album.model_dump_json(), "Track 3", "Track 3", 3, "", 0, "", "", "", "Verse 1", ""
         )
         updated = Album.model_validate_json(updated_json)
         assert updated.songs[0].track_number < updated.songs[1].track_number
 
     def test_build_tracklist_rows_returned(self):
         _, rows, _ = update_album_from_song_editor(
-            self._album_json(), "Existing Song", "Existing Song", 1, "G", 120,
-            "4/4", "opening", "Summary", "Verse 1", ""
+            self._album_json(),
+            "Existing Song",
+            "Existing Song",
+            1,
+            "G",
+            120,
+            "4/4",
+            "opening",
+            "Summary",
+            "Verse 1",
+            "",
         )
         assert isinstance(rows, list)
         assert len(rows) == 1
@@ -354,8 +390,12 @@ class TestGenerateReviewPass:
         album = Album(
             title="With Narrative",
             songs=[
-                Song(title="Opening", track_number=1, tempo=120, key="C", narrative_position="intro"),
-                Song(title="Closing", track_number=2, tempo=120, key="C", narrative_position="outro"),
+                Song(
+                    title="Opening", track_number=1, tempo=120, key="C", narrative_position="intro"
+                ),
+                Song(
+                    title="Closing", track_number=2, tempo=120, key="C", narrative_position="outro"
+                ),
             ],
         )
         lines, _ = generate_review_pass(album)

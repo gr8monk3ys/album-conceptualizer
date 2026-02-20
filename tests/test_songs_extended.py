@@ -25,7 +25,9 @@ def _create_album(client: TestClient, title: str = "Test Album") -> str:
     return resp.json()["id"]
 
 
-def _create_song(client: TestClient, album_id: str, title: str = "Song", track_number: int = 1) -> str:
+def _create_song(
+    client: TestClient, album_id: str, title: str = "Song", track_number: int = 1
+) -> str:
     resp = client.post(
         f"/api/v1/albums/{album_id}/songs",
         json={"title": title, "track_number": track_number},
@@ -181,7 +183,7 @@ class TestReorderSong:
 
     def test_reorder_song_move_down(self, client):
         """Move song from position 1 to position 3 (moving down)."""
-        album_id, s1, s2, s3 = self._setup_three_songs(client)
+        album_id, s1, _s2, _s3 = self._setup_three_songs(client)
         resp = client.put(
             f"/api/v1/albums/{album_id}/songs/{s1}/reorder",
             params={"new_track_number": 3},
@@ -192,7 +194,7 @@ class TestReorderSong:
 
     def test_reorder_song_move_up(self, client):
         """Move song from position 3 to position 1 (moving up)."""
-        album_id, s1, s2, s3 = self._setup_three_songs(client)
+        album_id, _s1, _s2, s3 = self._setup_three_songs(client)
         resp = client.put(
             f"/api/v1/albums/{album_id}/songs/{s3}/reorder",
             params={"new_track_number": 1},
@@ -202,7 +204,7 @@ class TestReorderSong:
 
     def test_reorder_song_same_position(self, client):
         """Moving to same position should not error."""
-        album_id, s1, s2, s3 = self._setup_three_songs(client)
+        album_id, _s1, s2, _s3 = self._setup_three_songs(client)
         resp = client.put(
             f"/api/v1/albums/{album_id}/songs/{s2}/reorder",
             params={"new_track_number": 2},

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
@@ -16,6 +17,27 @@ from album_conceptualizer.config import get_settings
 @dataclass
 class RateLimitConfig:
     max_per_minute: int
+
+
+_EXEMPT_PATHS = frozenset(
+    {
+        "/health",
+        "/ready",
+        "/live",
+        "/api/v1/health",
+        "/api/v1/ready",
+        "/api/v1/live",
+    }
+)
+
+
+def _is_exempt_path(path: str) -> bool:
+    return path in _EXEMPT_PATHS
+
+
+def _token_fingerprint(token: str) -> str:
+    """Hash sensitive credentials before using them in limiter keys."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 class InMemoryRateLimiter(BaseHTTPMiddleware):
@@ -33,7 +55,7 @@ class InMemoryRateLimiter(BaseHTTPMiddleware):
             if auth and auth.lower().startswith("bearer "):
                 api_key = auth.split()[1]
         if api_key:
-            return f"api:{api_key}"
+            return f"api:{_token_fingerprint(api_key)}"
         client_ip = request.client.host if request.client else "unknown"
         return f"ip:{client_ip}"
 
@@ -55,11 +77,7 @@ class InMemoryRateLimiter(BaseHTTPMiddleware):
         if not settings.rate_limit_enabled:
             return await call_next(request)
 
-        if (
-            request.url.path.startswith("/api/v1/health")
-            or request.url.path.startswith("/api/v1/ready")
-            or request.url.path.startswith("/api/v1/live")
-        ):
+        if _is_exempt_path(request.url.path):
             return await call_next(request)
 
         key = self._get_key(request)
@@ -99,7 +117,7 @@ class RedisRateLimiter(BaseHTTPMiddleware):  # pragma: no cover
             if auth and auth.lower().startswith("bearer "):
                 api_key = auth.split()[1]
         if api_key:
-            return f"api:{api_key}"
+            return f"api:{_token_fingerprint(api_key)}"
         client_ip = request.client.host if request.client else "unknown"
         return f"ip:{client_ip}"
 
@@ -127,11 +145,7 @@ class RedisRateLimiter(BaseHTTPMiddleware):  # pragma: no cover
         if not settings.rate_limit_enabled:
             return await call_next(request)
 
-        if (
-            request.url.path.startswith("/api/v1/health")
-            or request.url.path.startswith("/api/v1/ready")
-            or request.url.path.startswith("/api/v1/live")
-        ):
+        if _is_exempt_path(request.url.path):
             return await call_next(request)
 
         key = self._get_key(request)

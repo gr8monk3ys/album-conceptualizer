@@ -54,6 +54,11 @@ def parse_args() -> argparse.Namespace:
         default=25.0,
         help="HTTP timeout in seconds (default: %(default)s)",
     )
+    parser.add_argument(
+        "--insecure",
+        action="store_true",
+        help="Disable TLS certificate verification (useful for local self-signed HTTPS).",
+    )
     return parser.parse_args()
 
 
@@ -66,7 +71,11 @@ def main() -> int:
     headers = {"X-API-Key": args.api_key}
     created_album_id: str | None = None
 
-    with httpx.Client(timeout=args.timeout) as client:
+    with httpx.Client(
+        timeout=args.timeout,
+        follow_redirects=True,
+        verify=not args.insecure,
+    ) as client:
         print("[STEP] Health check")
         health = request_json(client, "GET", f"{base_url}/api/v1/health", expected_status=200)
         if health is None:
@@ -603,11 +612,18 @@ def main() -> int:
 
     if created_album_id:
         # Best-effort cleanup outside main flow so success can still be reported.
-        with httpx.Client(timeout=args.timeout) as cleanup_client:
-            cleanup_client.delete(
-                f"{base_url}/api/v1/albums/{created_album_id}",
-                headers=headers,
-            )
+        try:
+            with httpx.Client(
+                timeout=args.timeout,
+                follow_redirects=True,
+                verify=not args.insecure,
+            ) as cleanup_client:
+                cleanup_client.delete(
+                    f"{base_url}/api/v1/albums/{created_album_id}",
+                    headers=headers,
+                )
+        except Exception as exc:
+            print(f"[WARN] Cleanup request failed: {exc}")
 
     return 0
 

@@ -1,10 +1,5 @@
 """Extended tests for ChordPro export — covers uncovered paths in chordpro.py."""
 
-import tempfile
-from pathlib import Path
-
-import pytest
-
 from album_conceptualizer.export.chordpro import (
     ChordProExporter,
     format_chordpro,
@@ -80,9 +75,7 @@ class TestChordProExporterExportSong:
         """Covers line 130->133 (time_signature truthy path when no time_sig)
         and also the time_signature set path."""
         song = Song(title="Metered Song", track_number=1, time_signature="6/8")
-        song.sections = [
-            Section(section_type=SectionType.VERSE, order=1, lyrics="La la la")
-        ]
+        song.sections = [Section(section_type=SectionType.VERSE, order=1, lyrics="La la la")]
         exporter = ChordProExporter()
         path = exporter.export_song(song, tmp_path / "metered.cho")
         content = path.read_text()

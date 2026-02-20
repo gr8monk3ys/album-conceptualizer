@@ -119,9 +119,7 @@ class TestChordSuggestionEndpoint:
         assert len(data["suggestions"]) > 0
 
     def test_suggest_with_key_context(self, client):
-        resp = client.get(
-            "/api/v1/theory/progression/suggest?current=C&key=C+major&style=pop"
-        )
+        resp = client.get("/api/v1/theory/progression/suggest?current=C&key=C+major&style=pop")
         assert resp.status_code == 200
 
 

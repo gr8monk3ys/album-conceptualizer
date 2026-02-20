@@ -1,6 +1,5 @@
 """Extended tests for InMemoryQuota middleware."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 from album_conceptualizer.api.app import create_app
@@ -50,6 +49,17 @@ class TestInMemoryQuotaMiddleware:
             resp = client.get("/api/v1/live")
         reset_settings()
         assert resp.status_code == 200
+
+    def test_root_probe_endpoints_exempt_from_quota(self, monkeypatch):
+        with _make_quota_client(monkeypatch, daily_limit=1) as client:
+            client.get("/api/v1/albums")
+            health_resp = client.get("/health")
+            ready_resp = client.get("/ready")
+            live_resp = client.get("/live")
+        reset_settings()
+        assert health_resp.status_code == 200
+        assert ready_resp.status_code == 200
+        assert live_resp.status_code == 200
 
     def test_quota_remaining_header_present(self, monkeypatch):
         """The X-Quota-Remaining header should be included in successful responses."""
