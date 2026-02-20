@@ -56,7 +56,6 @@
   "overrides": {
     "hono": ">=4.11.7",
     "lodash": ">=4.17.23",
-    "minimatch": ">=10.2.1",
-    "ajv": ">=8.18.0"
+    "minimatch": ">=10.2.1"
   }
 }
