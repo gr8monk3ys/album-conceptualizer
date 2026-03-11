@@ -2,12 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AlbumDangerZone } from "@/components/album-danger-zone";
+import { FirstProjectChecklist } from "@/components/first-project-checklist";
 import { PublishAlbumButton } from "@/components/publish-album-button";
 import { ShareAlbumButton } from "@/components/share-album-button";
 import { getAlbum } from "@/server/albums";
 import { analyzeAlbumCoherence } from "@/server/coherence";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { getAlbumOnboardingSummary } from "@/server/onboarding";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
@@ -35,26 +37,39 @@ function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; tit
 
 export default async function AlbumDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ albumId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { albumId } = await params;
+  const query = await searchParams;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
 
   const prisma = getPrisma();
-  const shareLink = await prisma.albumShareLink.findUnique({
-    where: { albumId: album.id },
-    select: { token: true, revokedAt: true },
-  });
+  const [shareLink, onboarding] = await Promise.all([
+    prisma.albumShareLink.findUnique({
+      where: { albumId: album.id },
+      select: { token: true, revokedAt: true },
+    }),
+    getAlbumOnboardingSummary({
+      workspaceId: workspace.id,
+      albumId: album.id,
+      data: album.data,
+      isPublic: album.isPublic,
+    }),
+  ]);
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const initialShareLink =
     shareLink && !shareLink.revokedAt ? `${appUrl}/share/${shareLink.token}` : null;
 
   const songs = getSongsFromAlbumData(album.data);
   const coherence = analyzeAlbumCoherence(album.data);
+  const showOnboarding =
+    onboarding.completeCount < onboarding.totalCount || query.welcome === "1";
 
   return (
     <div className="flex flex-col gap-6">
@@ -158,6 +173,8 @@ export default async function AlbumDetailPage({
         </section>
 
         <aside className="space-y-3">
+          {showOnboarding ? <FirstProjectChecklist summary={onboarding} title={album.title} /> : null}
+
           <Link
             href={`/app/albums/${album.id}/coherence`}
             className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"

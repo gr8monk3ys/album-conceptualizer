@@ -7,6 +7,7 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { engineFetch } from "@/server/engine";
 import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
 import { getCreditsStatus, InsufficientCreditsError, spendCredits } from "@/server/credits";
+import { trackProductEventSafe } from "@/server/analytics";
 
 export const runtime = "nodejs";
 
@@ -106,6 +107,18 @@ export async function GET(
   const headers = new Headers(engineResponse.headers);
   headers.set("content-type", "application/zip");
   headers.set("content-disposition", `attachment; filename="${filename}"`);
+
+  await trackProductEventSafe({
+    name: "album_export_requested",
+    workspaceId: workspace.id,
+    userId,
+    albumId,
+    path: `/api/albums/${albumId}/export`,
+    metadata: {
+      formats: formatsParsed.data,
+      includeProductionNotes,
+    },
+  });
 
   return new Response(engineResponse.body, {
     status: 200,

@@ -21,11 +21,15 @@ function clampIndex(value: number, max: number) {
 }
 
 function newId() {
-  // crypto.randomUUID is supported in modern browsers. Keep a safe fallback for tests.
+  // Keep generated ids export-safe even in older browsers and test environments.
   try {
     return crypto.randomUUID();
   } catch {
-    return `id_${Math.random().toString(36).slice(2)}`;
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+      const random = Math.floor(Math.random() * 16);
+      const value = char === "x" ? random : (random & 0x3) | 0x8;
+      return value.toString(16);
+    });
   }
 }
 

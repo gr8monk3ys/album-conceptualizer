@@ -28,6 +28,7 @@ model User {
   notificationsSent Notification[] @relation("NotificationActor")
   tasksCreated AlbumTask[] @relation("TaskCreator")
   tasksAssigned AlbumTask[] @relation("TaskAssignee")
+  analyticsEvents AnalyticsEvent[]
   @@schema("album_conceptualizer")
 }
 
@@ -85,6 +86,7 @@ model Workspace {
   creditLedger CreditLedgerEntry[]
   challengeCompletions ChallengeCompletion[]
   notifications Notification[]
+  analyticsEvents AnalyticsEvent[]
   @@schema("album_conceptualizer")
 }
 
@@ -129,6 +131,7 @@ model Album {
   sectionComments AlbumSectionComment[]
   tasks     AlbumTask[]
   notifications Notification[]
+  analyticsEvents AnalyticsEvent[]
   @@schema("album_conceptualizer")
 }
 
@@ -351,5 +354,28 @@ model Notification {
   @@index([workspaceId, userId, createdAt])
   @@index([userId, readAt, createdAt])
   @@index([albumId, createdAt])
+  @@schema("album_conceptualizer")
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  workspaceId String?
+  userId     String?
+  albumId    String?
+  sessionId  String?
+  event      String
+  source     String   @default("server")
+  path       String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  album     Album?     @relation(fields: [albumId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, event, createdAt])
+  @@index([userId, event, createdAt])
+  @@index([albumId, event, createdAt])
+  @@index([sessionId, event, createdAt])
   @@schema("album_conceptualizer")
 }

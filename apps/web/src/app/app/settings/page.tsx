@@ -14,7 +14,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
           <div className="text-sm font-semibold text-[var(--text)]">Billing</div>
           <div className="mt-1 text-sm text-[var(--muted)]">
@@ -41,8 +41,22 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+          <div className="text-sm font-semibold text-[var(--text)]">Analytics</div>
+          <div className="mt-1 text-sm text-[var(--muted)]">
+            Review project creation, activation, export, publish, and billing funnel events.
+          </div>
+          <div className="mt-3">
+            <Link
+              href="/app/settings/analytics"
+              className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
+            >
+              Open analytics
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-

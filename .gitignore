@@ -89,6 +89,7 @@ chroma/
 *.log
 
 # Secrets
+.claude/settings.local.json
 .env.local
 .env.*.local
 secrets.yaml

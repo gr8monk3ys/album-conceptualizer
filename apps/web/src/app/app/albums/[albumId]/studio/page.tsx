@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AlbumStudio } from "@/components/album-studio";
 import { getAlbum } from "@/server/albums";
+import { trackProductEventSafe } from "@/server/analytics";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
@@ -26,6 +27,14 @@ export default async function AlbumStudioPage({
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
+
+  await trackProductEventSafe({
+    name: "album_studio_viewed",
+    workspaceId: workspace.id,
+    userId,
+    albumId: album.id,
+    path: `/app/albums/${album.id}/studio`,
+  });
 
   return (
     <div className="flex flex-col gap-4">

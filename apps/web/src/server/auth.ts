@@ -6,6 +6,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 
 import { getPrisma } from "@/server/db";
+import { trackProductEventSafe } from "@/server/analytics";
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
@@ -123,7 +124,7 @@ export function buildAuthOptions(): NextAuthOptions {
       createUser: async ({ user }) => {
         // Bootstrap a personal workspace on first sign-in.
         // This keeps the rest of the app logic simple.
-        await prisma.workspace.create({
+        const workspace = await prisma.workspace.create({
           data: {
             name: user.name ? `${user.name}'s Workspace` : "My Workspace",
             ownerId: user.id,
@@ -139,6 +140,17 @@ export function buildAuthOptions(): NextAuthOptions {
                 status: "inactive",
               },
             },
+          },
+        });
+
+        await trackProductEventSafe({
+          name: "user_signed_up",
+          workspaceId: workspace.id,
+          userId: user.id,
+          source: "auth",
+          path: "/api/auth/[...nextauth]",
+          metadata: {
+            email: user.email ?? null,
           },
         });
       },

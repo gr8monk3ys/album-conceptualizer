@@ -17,6 +17,20 @@ async function devLogin(page: import("@playwright/test").Page) {
   await page.waitForURL("**/app");
 }
 
+async function createAlbumFromWizard(
+  page: import("@playwright/test").Page,
+  input: { title: string; artist: string; concept: string },
+) {
+  await page.goto("/app/create");
+  await page.getByLabel("Album title").fill(input.title);
+  await page.getByLabel("Artist").fill(input.artist);
+  await page.getByLabel("Concept summary").fill(input.concept);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.waitForURL("**/app/albums/**");
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -26,27 +40,26 @@ test.describe("Album Management", () => {
     await devLogin(page);
 
     const title = `Create Test ${randomSuffix()}`;
-    await page.goto("/app/create");
-    await page.getByLabel("Album title").fill(title);
-    await page.getByLabel("Artist").fill("Test Band");
-    await page.getByRole("button", { name: "Generate album.json" }).click();
-    await page.getByRole("button", { name: "Save" }).click();
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Test Band",
+      concept: "A late-summer record about memory, heat, and unfinished goodbyes.",
+    });
 
-    await page.waitForURL("**/app/albums/**");
     await expect(page.getByText(title).first()).toBeVisible();
+    await expect(page.getByText("Blueprint saved")).toBeVisible();
   });
 
   test("created album appears in Recent projects on dashboard", async ({ page }) => {
     await devLogin(page);
 
     const title = `Dashboard Album ${randomSuffix()}`;
-    await page.goto("/app/create");
-    await page.getByLabel("Album title").fill(title);
-    await page.getByLabel("Artist").fill("Dashboard Band");
-    await page.getByRole("button", { name: "Generate album.json" }).click();
-    await page.getByRole("button", { name: "Save" }).click();
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Dashboard Band",
+      concept: "An album about driving at night and trying not to go home yet.",
+    });
 
-    await page.waitForURL("**/app/albums/**");
     await page.goto("/app");
     await expect(page.getByRole("link", { name: title }).first()).toBeVisible();
   });
@@ -55,14 +68,13 @@ test.describe("Album Management", () => {
     await devLogin(page);
 
     const title = `Studio Link ${randomSuffix()}`;
-    await page.goto("/app/create");
-    await page.getByLabel("Album title").fill(title);
-    await page.getByLabel("Artist").fill("Linker");
-    await page.getByRole("button", { name: "Generate album.json" }).click();
-    await page.getByRole("button", { name: "Save" }).click();
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Linker",
+      concept: "A winter-to-spring arc told through one apartment building.",
+    });
 
-    await page.waitForURL("**/app/albums/**");
-    await page.getByRole("main").getByRole("link", { name: "Studio" }).click();
+    await page.getByRole("main").getByRole("link", { name: "Studio", exact: true }).click();
     await page.waitForURL("**/studio");
     await expect(page).toHaveURL(/studio/);
   });
@@ -71,15 +83,31 @@ test.describe("Album Management", () => {
     await devLogin(page);
 
     const title = `Export Link ${randomSuffix()}`;
-    await page.goto("/app/create");
-    await page.getByLabel("Album title").fill(title);
-    await page.getByLabel("Artist").fill("Exporter");
-    await page.getByRole("button", { name: "Generate album.json" }).click();
-    await page.getByRole("button", { name: "Save" }).click();
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Exporter",
+      concept: "A concept record about leaving a coastal town for the city.",
+    });
 
-    await page.waitForURL("**/app/albums/**");
-    await page.getByRole("main").getByRole("link", { name: "Export" }).click();
+    await page.getByRole("main").getByRole("link", { name: "Export", exact: true }).click();
     await page.waitForURL("**/export");
     await expect(page).toHaveURL(/export/);
+  });
+
+  test("analytics page shows the new project in the workspace funnel", async ({ page }) => {
+    await devLogin(page);
+
+    const title = `Analytics ${randomSuffix()}`;
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Metrics Club",
+      concept: "A concept album about trying to measure a relationship after it is over.",
+    });
+
+    await page.goto("/app/settings/analytics");
+    await expect(page.locator("main").getByText("Workspace funnel").first()).toBeVisible();
+    await expect(page.getByText("Last 30 days")).toBeVisible();
+    await expect(page.getByText("Album created")).toBeVisible();
+    await expect(page.getByRole("link", { name: title })).toBeVisible();
   });
 });

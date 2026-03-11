@@ -4,6 +4,7 @@ import { Fragment } from "react";
 
 import { BibleActions } from "@/components/bible-actions";
 import { getAlbum } from "@/server/albums";
+import { trackProductEventSafe } from "@/server/analytics";
 import { buildAlbumBible } from "@/server/bible";
 import { buildMotifCharacterGraph, type MotifCharacterGraph } from "@/server/bible-relationships";
 import { requireUser } from "@/server/identity";
@@ -165,6 +166,14 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
+
+  await trackProductEventSafe({
+    name: "album_bible_viewed",
+    workspaceId: workspace.id,
+    userId,
+    albumId: album.id,
+    path: `/app/albums/${album.id}/bible`,
+  });
 
   const bible = buildAlbumBible(album.data);
   const graph = buildMotifCharacterGraph(bible, { maxCharacters: 10, maxMotifs: 10, minEdgeWeight: 1 });

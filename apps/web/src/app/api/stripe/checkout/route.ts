@@ -4,6 +4,7 @@ import { getStripe } from "@/server/stripe";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
+import { trackProductEventSafe } from "@/server/analytics";
 
 type CheckoutBody = {
   plan?: "free" | "pro" | "team";
@@ -87,6 +88,17 @@ export async function POST(request: Request) {
           userId,
           plan,
         },
+      },
+    });
+
+    await trackProductEventSafe({
+      name: "billing_checkout_started",
+      workspaceId: workspace.id,
+      userId,
+      path: "/api/stripe/checkout",
+      metadata: {
+        plan,
+        sessionId: checkoutSession.id,
       },
     });
 

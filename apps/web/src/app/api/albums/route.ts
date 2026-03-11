@@ -8,6 +8,7 @@ import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
 import { AlbumJsonSchema } from "@/server/album-json";
 import { buildAlbumMutationData } from "@/server/album-sync";
 import { InsufficientCreditsError, spendCredits } from "@/server/credits";
+import { trackProductEventSafe } from "@/server/analytics";
 
 export const runtime = "nodejs";
 
@@ -83,6 +84,19 @@ export async function POST(request: Request) {
       ...mutation,
     },
     select: { id: true },
+  });
+
+  await trackProductEventSafe({
+    name: "album_created",
+    workspaceId: workspace.id,
+    userId,
+    albumId: created.id,
+    path: "/api/albums",
+    metadata: {
+      title: album.title,
+      trackCount: album.songs.length,
+      narrativeStructure: album.narrative_structure ?? null,
+    },
   });
 
   return NextResponse.json({ id: created.id }, { status: 201 });
