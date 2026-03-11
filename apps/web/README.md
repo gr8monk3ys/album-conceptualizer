@@ -106,3 +106,5 @@ High level:
 6. Verify the deployment gate:
    - `GET /api/health` should return `200` with `checks.config=true`
    - `npm run test:e2e:prod-smoke` against the deployed base URL
+   - `ALBUM_CONCEPTUALIZER_WEB_BASE_URL=https://yourdomain.com bash ../../scripts/web-staging-smoke.sh`
+   - follow `../../docs/getting-started/web-staging-checklist.md` for live auth, billing, and export validation

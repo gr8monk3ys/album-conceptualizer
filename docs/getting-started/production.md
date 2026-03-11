@@ -209,6 +209,24 @@ bash scripts/ui-playwright-smoke.sh
 bash scripts/ui-e2e-playwright.sh
 ```
 
+## Web Staging Smoke
+- Use `scripts/web-staging-smoke.sh` for the deployed Next.js surface.
+- It verifies:
+  - `/api/health`
+  - `/api/auth/providers`
+  - Playwright unauthenticated prod smoke against the deployed web URL
+- Required env var:
+  - `ALBUM_CONCEPTUALIZER_WEB_BASE_URL=https://staging.yourdomain.com`
+- Optional env var:
+  - `ALBUM_CONCEPTUALIZER_INSECURE=true` for self-signed staging TLS
+- Run:
+```bash
+ALBUM_CONCEPTUALIZER_WEB_BASE_URL=https://staging.yourdomain.com \
+bash scripts/web-staging-smoke.sh
+```
+- For the full human validation sequence, use:
+  - [`docs/getting-started/web-staging-checklist.md`](web-staging-checklist.md)
+
 ## Rate Limiting
 - Enable with `ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED=true`.
 - Configure throughput with `ALBUM_CONCEPTUALIZER_RATE_LIMIT_PER_MINUTE`.
