@@ -2,9 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fragment } from "react";
 
+import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { BibleActions } from "@/components/bible-actions";
 import { getAlbum } from "@/server/albums";
-import { trackProductEventSafe } from "@/server/analytics";
 import { buildAlbumBible } from "@/server/bible";
 import { buildMotifCharacterGraph, type MotifCharacterGraph } from "@/server/bible-relationships";
 import { requireUser } from "@/server/identity";
@@ -167,14 +167,6 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
 
-  await trackProductEventSafe({
-    name: "album_bible_viewed",
-    workspaceId: workspace.id,
-    userId,
-    albumId: album.id,
-    path: `/app/albums/${album.id}/bible`,
-  });
-
   const bible = buildAlbumBible(album.data);
   const graph = buildMotifCharacterGraph(bible, { maxCharacters: 10, maxMotifs: 10, minEdgeWeight: 1 });
   const gridCols =
@@ -187,6 +179,11 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
 
   return (
     <div className="flex flex-col gap-5">
+      <AlbumPageViewTracker
+        albumId={album.id}
+        event="album_bible_viewed"
+        path={`/app/albums/${album.id}/bible`}
+      />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs text-[var(--muted2)]">Bible</div>

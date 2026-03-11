@@ -23,6 +23,7 @@ type TrackProductEventInput = {
   workspaceId?: string | null;
   userId?: string | null;
   albumId?: string | null;
+  albumKey?: string | null;
   sessionId?: string | null;
   source?: "server" | "auth" | "client";
   path?: string | null;
@@ -56,6 +57,7 @@ export async function trackProductEvent(input: TrackProductEventInput) {
       workspaceId: input.workspaceId ?? null,
       userId: input.userId ?? null,
       albumId: input.albumId ?? null,
+      albumKey: input.albumKey ?? input.albumId ?? null,
       sessionId: input.sessionId ?? null,
       event: input.name,
       source: input.source ?? "server",
@@ -83,11 +85,11 @@ async function countDistinctAlbumEvents(input: {
     where: {
       workspaceId: input.workspaceId,
       event: { in: [...input.events] },
-      albumId: { not: null },
+      albumKey: { not: null },
       createdAt: { gte: input.since },
     },
-    distinct: ["albumId"],
-    select: { albumId: true },
+    distinct: ["albumKey"],
+    select: { albumKey: true },
   });
   return rows.length;
 }

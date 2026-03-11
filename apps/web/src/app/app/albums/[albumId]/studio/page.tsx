@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { AlbumStudio } from "@/components/album-studio";
 import { getAlbum } from "@/server/albums";
-import { trackProductEventSafe } from "@/server/analytics";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
@@ -28,16 +28,13 @@ export default async function AlbumStudioPage({
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
 
-  await trackProductEventSafe({
-    name: "album_studio_viewed",
-    workspaceId: workspace.id,
-    userId,
-    albumId: album.id,
-    path: `/app/albums/${album.id}/studio`,
-  });
-
   return (
     <div className="flex flex-col gap-4">
+      <AlbumPageViewTracker
+        albumId={album.id}
+        event="album_studio_viewed"
+        path={`/app/albums/${album.id}/studio`}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-xs text-[var(--muted2)]">Studio</div>

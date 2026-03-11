@@ -362,6 +362,7 @@ model AnalyticsEvent {
   workspaceId String?
   userId     String?
   albumId    String?
+  albumKey   String?
   sessionId  String?
   event      String
   source     String   @default("server")
@@ -376,6 +377,7 @@ model AnalyticsEvent {
   @@index([workspaceId, event, createdAt])
   @@index([userId, event, createdAt])
   @@index([albumId, event, createdAt])
+  @@index([workspaceId, albumKey, event, createdAt])
   @@index([sessionId, event, createdAt])
   @@schema("album_conceptualizer")
 }
