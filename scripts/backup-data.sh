@@ -18,8 +18,13 @@ mkdir -p "${BACKUP_ROOT}"
 copy_into_backup() {
   local source_path="$1"
   local target_path="$2"
+  local required="${3:-false}"
 
   if [[ ! -e "${source_path}" ]]; then
+    if [[ "${required}" == "true" ]]; then
+      echo "Missing required backup path: ${source_path}" >&2
+      exit 1
+    fi
     return
   fi
 
@@ -27,8 +32,8 @@ copy_into_backup() {
   cp -R "${source_path}" "${target_path}"
 }
 
-copy_into_backup "output" "${WORK_DIR}/output"
-copy_into_backup "data" "${WORK_DIR}/data"
+copy_into_backup "output" "${WORK_DIR}/output" "true"
+copy_into_backup "data" "${WORK_DIR}/data" "true"
 copy_into_backup ".env.example" "${WORK_DIR}/.env.example"
 copy_into_backup "docs/getting-started/production.md" "${WORK_DIR}/docs/getting-started/production.md"
 

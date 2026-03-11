@@ -15,11 +15,14 @@ type RateLimitResult = {
 };
 
 let redis: Redis | null = null;
+let rateLimitInitializationIssue: string | null = null;
 try {
   if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
     redis = Redis.fromEnv();
   }
-} catch {
+} catch (err) {
+  rateLimitInitializationIssue =
+    err instanceof Error ? err.message : "Unable to initialize Upstash Redis.";
   redis = null;
 }
 
@@ -68,6 +71,8 @@ const limiters: Record<LimiterName, Ratelimit | null> = {
 
 const STRICT_PRODUCTION_RATE_LIMIT_MESSAGE =
   "Rate limiting is not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.";
+const STRICT_PRODUCTION_RATE_LIMIT_INIT_MESSAGE =
+  "Rate limiting is misconfigured. Upstash Redis could not be initialized.";
 
 export function getRateLimitHeaders(result: RateLimitResult) {
   if (!result.limit) return {};
@@ -82,6 +87,10 @@ export function getRateLimitHeaders(result: RateLimitResult) {
     headers["retry-after"] = String(retryAfterSeconds);
   }
   return headers;
+}
+
+export function getRateLimitInitializationIssue() {
+  return rateLimitInitializationIssue;
 }
 
 export function getRateLimitFailure(rate: RateLimitResult, fallbackMessage: string) {
@@ -106,10 +115,12 @@ export function getRateLimitFailure(rate: RateLimitResult, fallbackMessage: stri
 export async function checkRateLimit(name: LimiterName, key: string): Promise<RateLimitResult> {
   const limiter = limiters[name];
   if (!limiter) {
-    if (isStrictProductionRuntime() && !hasWebRateLimitingConfigured()) {
+    if (isStrictProductionRuntime()) {
       return {
         ok: false,
-        error: STRICT_PRODUCTION_RATE_LIMIT_MESSAGE,
+        error: hasWebRateLimitingConfigured()
+          ? `${STRICT_PRODUCTION_RATE_LIMIT_INIT_MESSAGE} ${rateLimitInitializationIssue ?? ""}`.trim()
+          : STRICT_PRODUCTION_RATE_LIMIT_MESSAGE,
         status: 503,
       };
     }

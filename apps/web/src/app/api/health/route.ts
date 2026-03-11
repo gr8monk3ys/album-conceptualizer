@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@/server/db";
 import { engineFetch } from "@/server/engine";
 import { getProductionConfigIssues, isStrictProductionRuntime } from "@/server/production";
+import { getRateLimitInitializationIssue } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,14 @@ export async function GET() {
   if (configIssues.length > 0) {
     checks.config = false;
     errors.config = configIssues.join(" ");
+  }
+
+  const rateLimitIssue = getRateLimitInitializationIssue();
+  if (isStrictProductionRuntime() && rateLimitIssue) {
+    checks.config = false;
+    errors.config = [errors.config, `Upstash Redis initialization failed: ${rateLimitIssue}`]
+      .filter(Boolean)
+      .join(" ");
   }
 
   try {
