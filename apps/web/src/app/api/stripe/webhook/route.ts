@@ -38,7 +38,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  // Minimal scaffold: store enough subscription state to gate features/credits.
   try {
     const prisma = getPrisma();
 
@@ -92,9 +91,9 @@ export async function POST(request: Request) {
       });
     }
   } catch (err) {
-    // We still acknowledge to prevent retries during early scaffolding,
-    // but log in Vercel/console for debugging.
     console.error("stripe_webhook_error", err);
+    const message = err instanceof Error ? err.message : "Webhook processing failed.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   return NextResponse.json({ received: true, type: event.type });

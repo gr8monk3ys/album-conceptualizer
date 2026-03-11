@@ -4,7 +4,7 @@ import { getAuthSession } from "@/server/auth";
 import { getPrisma } from "@/server/db";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { getStripe } from "@/server/stripe";
-import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
+import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -20,11 +20,15 @@ export async function POST() {
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
   const rate = await checkRateLimit("stripe", `user:${userId}`);
-  if (!rate.ok) {
-    return NextResponse.json(
-      { error: "Too many billing attempts. Please wait a bit and try again." },
-      { status: 429, headers: getRateLimitHeaders(rate) },
-    );
+  const rateFailure = getRateLimitFailure(
+    rate,
+    "Too many billing attempts. Please wait a bit and try again.",
+  );
+  if (rateFailure) {
+    return NextResponse.json(rateFailure.body, {
+      status: rateFailure.status,
+      headers: rateFailure.headers,
+    });
   }
 
   const workspace = await getActiveWorkspaceForUser(userId);

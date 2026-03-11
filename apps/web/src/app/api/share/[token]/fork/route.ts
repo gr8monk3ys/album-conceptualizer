@@ -6,7 +6,7 @@ import { forkAlbumJson } from "@/server/album-fork";
 import { getAuthSession } from "@/server/auth";
 import { getPrisma } from "@/server/db";
 import { buildAlbumMutationData } from "@/server/album-sync";
-import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
+import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { InsufficientCreditsError, spendCredits } from "@/server/credits";
 
@@ -21,11 +21,15 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
   const rate = await checkRateLimit("albums_create", `user:${userId}`);
-  if (!rate.ok) {
-    return NextResponse.json(
-      { error: "Too many project creations. Please wait a bit and try again." },
-      { status: 429, headers: getRateLimitHeaders(rate) },
-    );
+  const rateFailure = getRateLimitFailure(
+    rate,
+    "Too many project creations. Please wait a bit and try again.",
+  );
+  if (rateFailure) {
+    return NextResponse.json(rateFailure.body, {
+      status: rateFailure.status,
+      headers: rateFailure.headers,
+    });
   }
 
   const { token } = await params;

@@ -37,7 +37,7 @@ cp .env.example .env.local
 
 Minimum for local E2E:
 
-- `DATABASE_URL=postgresql://postgres:postgres@localhost:5433/album_conceptualizer?schema=public`
+- `DATABASE_URL=postgresql://postgres:postgres@localhost:5433/album_conceptualizer?schema=album_conceptualizer`
 - `PRISMA_ADAPTER=pg`
 - `NEXTAUTH_SECRET=dev-secret`
 - `NEXTAUTH_URL=http://localhost:3002`
@@ -45,6 +45,7 @@ Minimum for local E2E:
 - `ENABLE_DEV_LOGIN=1`
 - `NEXT_PUBLIC_ENABLE_DEV_LOGIN=1`
 - `ENGINE_API_URL=http://127.0.0.1:8000/api/v1`
+- `ENGINE_API_KEY=<same key as ALBUM_CONCEPTUALIZER_API_KEY>` when the Python engine is protected
 
 ### 3) Install deps + migrate DB
 
@@ -98,6 +99,10 @@ High level:
    - GitHub OAuth: `GITHUB_ID`, `GITHUB_SECRET`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET` (or `AUTH_SECRET`), or
    - Email magic links: `EMAIL_SERVER` + `EMAIL_FROM` (or `RESEND_API_KEY` + `RESEND_FROM`), plus `NEXTAUTH_SECRET` (or `AUTH_SECRET`).
 3. Configure Stripe and set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and price ids.
-4. Deploy the Python engine somewhere reachable from Vercel and set:
+4. Configure Upstash Redis and set `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN`.
+5. Deploy the Python engine somewhere reachable from Vercel and set:
    - `ENGINE_API_URL=https://<engine-host>/api/v1`
    - `ENGINE_API_KEY=<shared-api-key>` (recommended)
+6. Verify the deployment gate:
+   - `GET /api/health` should return `200` with `checks.config=true`
+   - `npm run test:e2e:prod-smoke` against the deployed base URL

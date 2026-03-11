@@ -1,6 +1,8 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
+import { hasWebRateLimitingConfigured, isStrictProductionRuntime } from "@/server/production";
+
 type LimiterName = "albums_create" | "export_zip" | "preview_midi" | "preview_audio" | "stripe";
 
 type RateLimitResult = {
@@ -8,14 +10,19 @@ type RateLimitResult = {
   limit?: number;
   remaining?: number;
   reset?: number;
+  error?: string;
+  status?: number;
 };
 
 let redis: Redis | null = null;
+let rateLimitInitializationIssue: string | null = null;
 try {
   if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
     redis = Redis.fromEnv();
   }
-} catch {
+} catch (err) {
+  rateLimitInitializationIssue =
+    err instanceof Error ? err.message : "Unable to initialize Upstash Redis.";
   redis = null;
 }
 
@@ -62,6 +69,11 @@ const limiters: Record<LimiterName, Ratelimit | null> = {
     : null,
 };
 
+const STRICT_PRODUCTION_RATE_LIMIT_MESSAGE =
+  "Rate limiting is not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.";
+const STRICT_PRODUCTION_RATE_LIMIT_INIT_MESSAGE =
+  "Rate limiting is misconfigured. Upstash Redis could not be initialized.";
+
 export function getRateLimitHeaders(result: RateLimitResult) {
   if (!result.limit) return {};
   const headers: Record<string, string> = {
@@ -77,9 +89,43 @@ export function getRateLimitHeaders(result: RateLimitResult) {
   return headers;
 }
 
+export function getRateLimitInitializationIssue() {
+  return rateLimitInitializationIssue;
+}
+
+export function getRateLimitFailure(rate: RateLimitResult, fallbackMessage: string) {
+  if (rate.error) {
+    return {
+      body: { error: rate.error },
+      status: rate.status ?? 503,
+    };
+  }
+
+  if (!rate.ok) {
+    return {
+      body: { error: fallbackMessage },
+      headers: getRateLimitHeaders(rate),
+      status: 429,
+    };
+  }
+
+  return null;
+}
+
 export async function checkRateLimit(name: LimiterName, key: string): Promise<RateLimitResult> {
   const limiter = limiters[name];
-  if (!limiter) return { ok: true };
+  if (!limiter) {
+    if (isStrictProductionRuntime()) {
+      return {
+        ok: false,
+        error: hasWebRateLimitingConfigured()
+          ? `${STRICT_PRODUCTION_RATE_LIMIT_INIT_MESSAGE} ${rateLimitInitializationIssue ?? ""}`.trim()
+          : STRICT_PRODUCTION_RATE_LIMIT_MESSAGE,
+        status: 503,
+      };
+    }
+    return { ok: true };
+  }
 
   const result = await limiter.limit(key);
   return {

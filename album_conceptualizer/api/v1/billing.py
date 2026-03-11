@@ -10,7 +10,7 @@ from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from album_conceptualizer.api.deps import extract_auth_token, resolve_subscription_subject
-from album_conceptualizer.config import get_settings
+from album_conceptualizer.config import Settings, get_settings
 from album_conceptualizer.models.subscription import (
     AccountSubscription,
     BillingPlan,
@@ -109,7 +109,7 @@ def _status_from_stripe(status_text: str | None) -> SubscriptionStatus:
     return mapping.get(status_text, SubscriptionStatus.INACTIVE)
 
 
-def _plan_price_id_for(settings, plan: BillingPlan) -> str | None:
+def _plan_price_id_for(settings: Settings, plan: BillingPlan) -> str | None:
     if plan == BillingPlan.PRO:
         return settings.stripe_price_id_pro
     if plan == BillingPlan.TEAM:
