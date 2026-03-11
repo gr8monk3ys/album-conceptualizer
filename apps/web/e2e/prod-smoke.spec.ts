@@ -15,6 +15,13 @@ test.describe("Production smoke", () => {
   test("core unauthenticated APIs respond", async ({ request }) => {
     const health = await request.get("/api/health");
     expect(health.ok()).toBeTruthy();
+    const healthJson = (await health.json()) as {
+      ok?: boolean;
+      checks?: { config?: boolean; db?: boolean; engine?: boolean };
+    };
+    expect(healthJson.ok).toBeTruthy();
+    expect(healthJson.checks?.config).toBeTruthy();
+    expect(healthJson.checks?.db).toBeTruthy();
 
     const providers = await request.get("/api/auth/providers");
     expect(providers.ok()).toBeTruthy();
@@ -22,4 +29,3 @@ test.describe("Production smoke", () => {
     expect(Object.keys(providersJson).length).toBeGreaterThan(0);
   });
 });
-

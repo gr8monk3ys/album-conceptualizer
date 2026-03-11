@@ -70,6 +70,17 @@ Use `docker compose logs -f` to tail logs and `docker compose down` to stop.
 - Launch the UI:
   - `make ui`
 
+## Railway (API Only)
+- `railway.json` and `Dockerfile.railway` are for the FastAPI service only.
+- The image now defaults to strict production validation and persistent `/data` paths.
+- Attach a Railway volume at `/data`, or explicitly override:
+  - `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=sqlite`
+  - `ALBUM_CONCEPTUALIZER_STORAGE_DB=/data/album_conceptualizer.db`
+  - `DATA_DIR=/data`
+  - `OUTPUT_DIR=/data/output`
+  - `CACHE_DIR=/data/cache`
+- Railway health checks should target `/ready`, not `/api/v1/health`.
+
 ## Reverse Proxy (TLS + Single Domain)
 This repo includes a `Caddyfile` to terminate TLS and route both the API and UI.
 - Set a domain:
@@ -255,26 +266,30 @@ bash scripts/ui-e2e-playwright.sh
   - Set `ALBUM_CONCEPTUALIZER_API_KEY(S)` for API access.
 
 ## Backup Script
-- `scripts/backup-data.sh` creates a timestamped archive of `output/` and `data/`.
+- `scripts/backup-data.sh` creates a timestamped archive of `output/`, `data/`, and, when `WEB_DATABASE_URL` or `DATABASE_URL` is set, a `web-postgres.dump` for the Next.js app.
 - Set a custom destination with `BACKUP_ROOT=/path/to/backups`.
+- Set `INCLUDE_WEB_DB_BACKUP=required` to fail the backup if the web database dump is missing.
 
 Example:
 ```bash
-BACKUP_ROOT=./backups ./scripts/backup-data.sh
+BACKUP_ROOT=./backups INCLUDE_WEB_DB_BACKUP=required WEB_DATABASE_URL="$DATABASE_URL" ./scripts/backup-data.sh
 ```
 
 ## Restore Drill
 - Restore into a staging directory and validate the UI/API before swapping.
 - Use `DRY_RUN=true` to list archive contents.
+- To restore the web Postgres dump, set `RESTORE_WEB_DB=true`, point `WEB_DATABASE_URL` at the target DB, and confirm with `CONFIRM_WEB_DB_RESTORE=1`.
 
 Example:
 ```bash
 DRY_RUN=true ./scripts/restore-backup.sh ./backups/album-conceptualizer-YYYYMMDD-HHMMSS.tar.gz
 RESTORE_ROOT=./restore-test ./scripts/restore-backup.sh ./backups/album-conceptualizer-YYYYMMDD-HHMMSS.tar.gz
+RESTORE_ROOT=./restore-test RESTORE_WEB_DB=true CONFIRM_WEB_DB_RESTORE=1 WEB_DATABASE_URL="$DATABASE_URL" ./scripts/restore-backup.sh ./backups/album-conceptualizer-YYYYMMDD-HHMMSS.tar.gz
 ```
 
 Quick verification checklist:
 - Start API/UI against `./restore-test`.
+- Validate the restored web DB dump on a staging Postgres instance before pointing production at it.
 - Create a new album and verify it persists.
 - Export a sample album and download ZIP.
 - Confirm `/api/v1/health` and `/api/v1/metrics` respond.

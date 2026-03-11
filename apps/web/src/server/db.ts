@@ -4,6 +4,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import ws from "ws";
 
+const DEFAULT_DB_SCHEMA = "album_conceptualizer";
+
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function withSchemaParam(connectionString: string, schema: string): string {
@@ -20,7 +22,7 @@ function withSchemaParam(connectionString: string, schema: string): string {
 
 function createPrismaClient() {
   const rawConnectionString = process.env.DATABASE_URL;
-  const schema = process.env.PRISMA_DB_SCHEMA?.trim();
+  const schema = process.env.PRISMA_DB_SCHEMA?.trim() || DEFAULT_DB_SCHEMA;
   const connectionString =
     rawConnectionString && schema ? withSchemaParam(rawConnectionString, schema) : rawConnectionString;
   if (!connectionString) {
@@ -58,6 +60,8 @@ export function getPrisma() {
   if (globalForPrisma.prisma) return globalForPrisma.prisma;
 
   const prisma = createPrismaClient();
-  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+  // Reuse a single client per process to avoid exhausting Postgres connections
+  // during concurrent auth and E2E traffic in long-lived Node runtimes.
+  globalForPrisma.prisma = prisma;
   return prisma;
 }

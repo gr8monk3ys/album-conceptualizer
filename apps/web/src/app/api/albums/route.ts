@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getPrisma } from "@/server/db";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
-import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
+import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
 import { AlbumJsonSchema } from "@/server/album-json";
 import { buildAlbumMutationData } from "@/server/album-sync";
 import { InsufficientCreditsError, spendCredits } from "@/server/credits";
@@ -23,11 +23,15 @@ export async function POST(request: Request) {
   }
 
   const rate = await checkRateLimit("albums_create", `user:${userId}`);
-  if (!rate.ok) {
-    return NextResponse.json(
-      { error: "Too many project creations. Please wait a bit and try again." },
-      { status: 429, headers: getRateLimitHeaders(rate) },
-    );
+  const rateFailure = getRateLimitFailure(
+    rate,
+    "Too many project creations. Please wait a bit and try again.",
+  );
+  if (rateFailure) {
+    return NextResponse.json(rateFailure.body, {
+      status: rateFailure.status,
+      headers: rateFailure.headers,
+    });
   }
 
   const payload = BodySchema.safeParse(await request.json().catch(() => null));

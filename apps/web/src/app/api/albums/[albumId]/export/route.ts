@@ -5,7 +5,7 @@ import { getPrisma } from "@/server/db";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { engineFetch } from "@/server/engine";
-import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
+import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
 import { getCreditsStatus, InsufficientCreditsError, spendCredits } from "@/server/credits";
 
 export const runtime = "nodejs";
@@ -30,11 +30,12 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
   const rate = await checkRateLimit("export_zip", `user:${userId}`);
-  if (!rate.ok) {
-    return NextResponse.json(
-      { error: "Too many exports. Please wait a bit and try again." },
-      { status: 429, headers: getRateLimitHeaders(rate) },
-    );
+  const rateFailure = getRateLimitFailure(rate, "Too many exports. Please wait a bit and try again.");
+  if (rateFailure) {
+    return NextResponse.json(rateFailure.body, {
+      status: rateFailure.status,
+      headers: rateFailure.headers,
+    });
   }
 
   const { albumId } = await params;

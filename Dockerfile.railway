@@ -25,11 +25,14 @@ COPY album_conceptualizer/ ./album_conceptualizer/
 RUN uv pip install --system -e ".[music]" "redis>=5.0.0"
 
 ENV AC_SOUNDFONT_PATH=/usr/share/sounds/sf2/FluidR3_GM.sf2 \
-    ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=memory \
-    DATA_DIR=/tmp/data \
-    CACHE_DIR=/tmp/cache \
-    OUTPUT_DIR=/tmp/output \
-    ALBUM_CONCEPTUALIZER_STORAGE_DB=/tmp/album_conceptualizer.db
+    ALBUM_CONCEPTUALIZER_STRICT_PRODUCTION=true \
+    ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=sqlite \
+    DATA_DIR=/data \
+    CACHE_DIR=/data/cache \
+    OUTPUT_DIR=/data/output \
+    ALBUM_CONCEPTUALIZER_STORAGE_DB=/data/album_conceptualizer.db
+
+VOLUME ["/data"]
 
 EXPOSE 8000
 

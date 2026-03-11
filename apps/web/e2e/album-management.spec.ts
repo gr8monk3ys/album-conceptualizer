@@ -33,7 +33,7 @@ test.describe("Album Management", () => {
     await page.getByRole("button", { name: "Save" }).click();
 
     await page.waitForURL("**/app/albums/**");
-    await expect(page.getByText(title)).toBeVisible();
+    await expect(page.getByText(title).first()).toBeVisible();
   });
 
   test("created album appears in Recent projects on dashboard", async ({ page }) => {

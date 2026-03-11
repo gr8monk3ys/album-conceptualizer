@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke
+.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke backup-data restore-backup web-db-backup web-db-restore
 
 # Default target
 help:
@@ -46,6 +46,12 @@ help:
 	@echo "Maintenance:"
 	@echo "  make clean         Remove build artifacts"
 	@echo "  make build         Build package"
+	@echo "  make backup-data   Create an application backup archive"
+	@echo "  make restore-backup ARCHIVE=/path/to/archive.tar.gz"
+	@echo "                     Restore an application backup archive"
+	@echo "  make web-db-backup Create a Postgres dump for the Next.js app"
+	@echo "  make web-db-restore DUMP=/path/to/web-postgres.dump"
+	@echo "                     Restore a Postgres dump for the Next.js app"
 	@echo "  make pre-commit    Run pre-commit hooks"
 
 # =============================================================================
@@ -281,6 +287,26 @@ ui-e2e:
 
 email-smoke:
 	.venv/bin/python scripts/email-smoke.py
+
+backup-data:
+	./scripts/backup-data.sh
+
+restore-backup:
+	@if [ -z "$(ARCHIVE)" ]; then \
+		echo "Usage: make restore-backup ARCHIVE=/path/to/archive.tar.gz" ; \
+		exit 1 ; \
+	fi
+	./scripts/restore-backup.sh "$(ARCHIVE)"
+
+web-db-backup:
+	./scripts/web-db-backup.sh
+
+web-db-restore:
+	@if [ -z "$(DUMP)" ]; then \
+		echo "Usage: make web-db-restore DUMP=/path/to/web-postgres.dump" ; \
+		exit 1 ; \
+	fi
+	./scripts/web-db-restore.sh "$(DUMP)"
 
 # Update dependencies
 update:
