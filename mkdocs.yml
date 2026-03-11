@@ -89,5 +89,7 @@ nav:
       - Installation: getting-started/installation.md
       - Production: getting-started/production.md
       - Paid Launch Roadmap: getting-started/paid-launch-roadmap.md
+      - Pricing & Packaging: getting-started/pricing-packaging.md
+      - 10-User Paid Alpha Plan: getting-started/paid-alpha-plan.md
   - API Reference:
       - REST API: api/rest-api.md
