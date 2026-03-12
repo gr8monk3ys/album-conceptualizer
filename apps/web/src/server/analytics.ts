@@ -2,13 +2,13 @@ import type { Prisma } from "@prisma/client";
 
 import { getPrisma } from "@/server/db";
 
-export const ACTIVATION_EVENTS = [
+const ACTIVATION_EVENTS = [
   "album_bible_viewed",
   "album_studio_viewed",
   "album_saved",
 ] as const;
 
-export type ProductEventName =
+type ProductEventName =
   | "user_signed_up"
   | "album_created"
   | "album_bible_viewed"
@@ -50,7 +50,7 @@ export type WorkspaceFunnelSummary = {
   }>;
 };
 
-export async function trackProductEvent(input: TrackProductEventInput) {
+async function trackProductEvent(input: TrackProductEventInput) {
   const prisma = getPrisma();
   await prisma.analyticsEvent.create({
     data: {

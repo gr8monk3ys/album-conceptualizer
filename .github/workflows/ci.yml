@@ -180,10 +180,78 @@ jobs:
             output/playwright/
             .playwright-cli/
 
+  web-lighthouse:
+    name: Web Lighthouse
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: album_conceptualizer
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d album_conceptualizer"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/album_conceptualizer?schema=album_conceptualizer
+      PRISMA_ADAPTER: pg
+      NEXTAUTH_SECRET: dev-secret
+      AUTH_SECRET: dev-secret
+      ENABLE_DEV_LOGIN: "1"
+      NEXT_PUBLIC_ENABLE_DEV_LOGIN: "1"
+      AC_E2E: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Set up Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Apply Prisma migrations
+        working-directory: apps/web
+        run: npm run prisma:migrate:deploy
+
+      - name: Run public Lighthouse audit
+        env:
+          LIGHTHOUSE_PORT: "3300"
+          ALBUM_CONCEPTUALIZER_WEB_BASE_URL: http://127.0.0.1:3300
+          NEXTAUTH_URL: http://127.0.0.1:3300
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3300
+        run: bash scripts/web-lighthouse-public.sh
+
+      - name: Run authenticated Lighthouse audit
+        env:
+          LIGHTHOUSE_PORT: "3301"
+          ALBUM_CONCEPTUALIZER_WEB_BASE_URL: http://127.0.0.1:3301
+          NEXTAUTH_URL: http://127.0.0.1:3301
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3301
+        run: bash scripts/web-lighthouse-auth.sh
+
+      - name: Upload Lighthouse artifacts
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: web-lighthouse
+          path: |
+            output/lighthouse/public/
+            output/lighthouse/auth/
+
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [lint, test, type-check, security, optional-stack, ui-e2e]
+    needs: [lint, test, type-check, security, optional-stack, ui-e2e, web-lighthouse]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
@@ -207,7 +275,7 @@ jobs:
   docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: [lint, test, type-check, security, optional-stack, ui-e2e]
+    needs: [lint, test, type-check, security, optional-stack, ui-e2e, web-lighthouse]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd

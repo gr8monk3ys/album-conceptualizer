@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Heart, Music2, Sparkles } from "lucide-react";
 
+const publishedDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
 type DiscoverAlbum = {
   id: string;
   title: string;
@@ -89,7 +95,8 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted2)]">
             <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.03)] px-3 py-1">
               <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
-              Published {album.publishedAt ? new Date(album.publishedAt).toLocaleDateString() : ""}
+              Published{" "}
+              {album.publishedAt ? publishedDateFormatter.format(new Date(album.publishedAt)) : ""}
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.03)] px-3 py-1">
               <Heart className="h-3.5 w-3.5" />
@@ -121,7 +128,11 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
         </div>
       </div>
 
-      {error ? <div className="mt-3 text-xs text-[var(--muted)]">{error}</div> : null}
+      {error ? (
+        <div className="mt-3 text-xs text-[var(--muted)]" aria-live="polite">
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

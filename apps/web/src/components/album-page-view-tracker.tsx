@@ -34,13 +34,10 @@ export function AlbumPageViewTracker({ albumId, event, path }: AlbumPageViewTrac
       }
     }
 
-    void fetch("/api/analytics/album-view", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body,
-      cache: "no-store",
-      keepalive: true,
-    });
+    const request = new XMLHttpRequest();
+    request.open("POST", "/api/analytics/album-view", true);
+    request.setRequestHeader("content-type", "application/json");
+    request.send(body);
   }, [albumId, event, path]);
 
   return null;

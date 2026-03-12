@@ -90,6 +90,43 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+## Lighthouse Quality Gate
+
+Public-entry Lighthouse is enforced against the production build for:
+
+- `/`
+- `/sign-in`
+
+The wrapper starts a fresh production server on a free local port automatically.
+
+Run the end-to-end local audit from the repo root:
+
+```bash
+bash scripts/web-lighthouse-public.sh
+```
+
+Reports are written to `output/lighthouse/public/`.
+
+There is also an authenticated Lighthouse audit for the protected shell:
+
+- `/app/settings`
+
+It uses the local DEV login provider, so it requires Postgres plus:
+
+- `ENABLE_DEV_LOGIN=1`
+- `NEXT_PUBLIC_ENABLE_DEV_LOGIN=1`
+
+This authenticated audit uses Lighthouse's desktop preset because the protected workspace is a
+desktop-first interface.
+
+Run it from the repo root:
+
+```bash
+bash scripts/web-lighthouse-auth.sh
+```
+
+Reports are written to `output/lighthouse/auth/`.
+
 ## Deploy (Vercel + Neon)
 
 High level:
