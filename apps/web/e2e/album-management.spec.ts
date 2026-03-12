@@ -94,6 +94,25 @@ test.describe("Album Management", () => {
     await expect(page).toHaveURL(/export/);
   });
 
+  test("coherence report shows breakdown and next actions", async ({ page }) => {
+    await devLogin(page);
+
+    const title = `Coherence ${randomSuffix()}`;
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Arc Runner",
+      concept: "A concept album about city lights, false exits, and trying to reconnect.",
+    });
+
+    await page.getByRole("main").getByRole("link", { name: "View report" }).click();
+    await page.waitForURL("**/coherence");
+    await expect(page.getByText("Coherence report v2")).toBeVisible();
+    await expect(page.getByText("Next actions")).toBeVisible();
+    await expect(page.getByText("Narrative").first()).toBeVisible();
+    await expect(page.getByText("Lyrics").first()).toBeVisible();
+    await expect(page.getByText("Harmony").first()).toBeVisible();
+  });
+
   test("analytics page shows the new project in the workspace funnel", async ({ page }) => {
     await devLogin(page);
 

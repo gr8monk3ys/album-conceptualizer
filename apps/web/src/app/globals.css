@@ -13,6 +13,7 @@
   --accent2: #6d5efc;
   --ok: #32d583;
   --warn: #f79009;
+  --bad: #ff6b6b;
 }
 
 @theme inline {
