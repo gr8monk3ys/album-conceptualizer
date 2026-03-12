@@ -37,12 +37,12 @@ export default function SettingsPage() {
             app.
           </div>
           <div className="mt-3">
-            <Link
+            <a
               href="/api/health"
               className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
             >
               Open Health
-            </Link>
+            </a>
           </div>
         </div>
 
