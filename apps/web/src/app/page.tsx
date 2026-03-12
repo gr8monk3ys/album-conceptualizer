@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export const metadata = {
   title: "Album Conceptualizer",
   description:
@@ -122,6 +124,15 @@ export default function HomePage() {
         <footer className="mt-12 flex items-center justify-between gap-4 text-xs text-[var(--muted2)]">
           <div>Built for artists, producers, and bands who care about coherence.</div>
           <div className="flex items-center gap-3">
+            <Link href="/terms" className="hover:text-[var(--text)]">
+              Terms
+            </Link>
+            <Link href="/privacy" className="hover:text-[var(--text)]">
+              Privacy
+            </Link>
+            <Link href="/support" className="hover:text-[var(--text)]">
+              Support
+            </Link>
             <form action="/sign-in">
               <button type="submit" className="hover:text-[var(--text)]">
                 Sign in
