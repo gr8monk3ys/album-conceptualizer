@@ -190,8 +190,20 @@ export default async function AlbumDetailPage({
                 View report
               </div>
             </div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
-              {coherence.issues[0]?.title ?? "No issues detected."}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {coherence.breakdown.map((item) => (
+                <div
+                  key={item.key}
+                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                >
+                  {item.label} {item.score}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-[var(--muted2)]">
+              {coherence.nextActions[0]?.title ??
+                coherence.issues[0]?.title ??
+                "No issues detected."}
             </div>
           </Link>
 

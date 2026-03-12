@@ -2,7 +2,10 @@
 
 import { useEffect } from "react";
 
-type AlbumPageViewEvent = "album_bible_viewed" | "album_studio_viewed";
+type AlbumPageViewEvent =
+  | "album_bible_viewed"
+  | "album_studio_viewed"
+  | "album_coherence_viewed";
 
 type AlbumPageViewTrackerProps = {
   albumId: string;

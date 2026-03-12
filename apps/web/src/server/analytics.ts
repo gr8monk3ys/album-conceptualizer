@@ -5,6 +5,7 @@ import { getPrisma } from "@/server/db";
 const ACTIVATION_EVENTS = [
   "album_bible_viewed",
   "album_studio_viewed",
+  "album_coherence_viewed",
   "album_saved",
 ] as const;
 
@@ -13,6 +14,7 @@ type ProductEventName =
   | "album_created"
   | "album_bible_viewed"
   | "album_studio_viewed"
+  | "album_coherence_viewed"
   | "album_saved"
   | "album_export_requested"
   | "album_published"
@@ -192,6 +194,7 @@ export async function getAlbumTrackedEvents(workspaceId: string, albumId: string
           "album_created",
           "album_bible_viewed",
           "album_studio_viewed",
+          "album_coherence_viewed",
           "album_saved",
           "album_export_requested",
           "album_published",
