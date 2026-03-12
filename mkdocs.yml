@@ -1,5 +1,5 @@
 site_name: Album Conceptualizer
-site_description: A RAG-powered concept album ideation system with multi-agent orchestration
+site_description: A full-stack workspace for building coherent concept albums
 site_author: Lorenzo
 site_url: https://gr8monk3ys.github.io/album-conceptualizer
 
@@ -86,10 +86,27 @@ extra:
 nav:
   - Home: index.md
   - Getting Started:
+      - Quickstart: getting-started/quickstart.md
       - Installation: getting-started/installation.md
       - Production: getting-started/production.md
       - Web Staging Checklist: getting-started/web-staging-checklist.md
+  - Product:
+      - What This Repo Does: product/what-it-does.md
+  - Developer Guide:
+      - Repo Map: developer/repo-map.md
+      - Web Route Reference: developer/web-route-reference.md
+      - Web API Examples: developer/web-api-examples.md
+      - Architecture: developer/architecture.md
+      - Data Model: developer/data-model.md
+      - Architecture Decisions: developer/architecture-decisions.md
+      - Local Development: developer/local-development.md
+      - Testing & Quality: developer/testing-and-quality.md
+  - Operations:
+      - Runbooks: operations/runbooks.md
+  - Launch:
       - Paid Launch Roadmap: getting-started/paid-launch-roadmap.md
+      - Paid Alpha Execution Plan: getting-started/paid-alpha-execution-plan.md
+      - Launch Copy Kit: getting-started/launch-copy-kit.md
       - Pricing & Packaging: getting-started/pricing-packaging.md
       - 10-User Paid Alpha Plan: getting-started/paid-alpha-plan.md
   - API Reference:
