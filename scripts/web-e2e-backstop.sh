@@ -128,7 +128,7 @@ wait_for_url "${API_BASE_URL}/api/v1/health" 90 || {
   fail "API server did not become ready."
 }
 
-printf '[STEP] Starting production web server on %s\n' "${WEB_BASE_URL}"
+printf '[STEP] Building production web app for %s\n' "${WEB_BASE_URL}"
 (
   cd "${WEB_DIR}"
   DATABASE_URL="${WEB_E2E_DATABASE_URL}" \
@@ -144,6 +144,14 @@ printf '[STEP] Starting production web server on %s\n' "${WEB_BASE_URL}"
   ENGINE_API_KEY="${WEB_E2E_API_KEY}" \
   AC_E2E=1 \
   npm run build
+) >"${ARTIFACT_DIR}/web-build.log" 2>&1 || {
+  cat "${ARTIFACT_DIR}/web-build.log" >&2
+  fail "Production web build failed."
+}
+
+printf '[STEP] Starting production web server on %s\n' "${WEB_BASE_URL}"
+(
+  cd "${WEB_DIR}"
   DATABASE_URL="${WEB_E2E_DATABASE_URL}" \
   PRISMA_ADAPTER=pg \
   PRISMA_DB_SCHEMA="${WEB_E2E_SCHEMA}" \

@@ -113,6 +113,39 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Harmony").first()).toBeVisible();
   });
 
+  test("reference workspace saves a track reference and reflects it on the album page", async ({
+    page,
+  }) => {
+    await devLogin(page);
+
+    const title = `References ${randomSuffix()}`;
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Reference Club",
+      concept: "A concept album about train stations, detours, and messages that arrive too late.",
+    });
+
+    await page.getByRole("main").getByRole("link", { name: "References", exact: true }).click();
+    await page.waitForURL("**/references");
+    await page.getByLabel("Reference title").fill("Dreams Tonite");
+    await page.getByLabel("Artist").fill("Alvvays");
+    await page.getByLabel("Target role").selectOption("chorus-energy");
+    await page.getByLabel("Song target").selectOption({ index: 1 });
+    await page.getByLabel("Mood tags").fill("shimmering, bittersweet");
+    await page.getByLabel("Arrangement tags").fill("stacked vocals, punchy drums");
+    await page
+      .getByLabel("Why this reference matters")
+      .fill("Use this as the benchmark for chorus lift and vocal blend.");
+    await page.getByRole("button", { name: "Add reference" }).click();
+
+    await expect(page.getByText("Reference added.")).toBeVisible();
+    await expect(page.getByText("Dreams Tonite").first()).toBeVisible();
+
+    await page.getByRole("link", { name: "Back" }).click();
+    await expect(page.getByRole("main").getByText("Reference tracks")).toBeVisible();
+    await expect(page.getByText("Dreams Tonite · Alvvays")).toBeVisible();
+  });
+
   test("analytics page shows the new project in the workspace funnel", async ({ page }) => {
     await devLogin(page);
 

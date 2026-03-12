@@ -8,6 +8,7 @@ import { ShareAlbumButton } from "@/components/share-album-button";
 import { getAlbum } from "@/server/albums";
 import { analyzeAlbumCoherence } from "@/server/coherence";
 import { getPrisma } from "@/server/db";
+import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
 import { getAlbumOnboardingSummary } from "@/server/onboarding";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
@@ -50,7 +51,7 @@ export default async function AlbumDetailPage({
   if (!album) notFound();
 
   const prisma = getPrisma();
-  const [shareLink, onboarding] = await Promise.all([
+  const [shareLink, onboarding, references] = await Promise.all([
     prisma.albumShareLink.findUnique({
       where: { albumId: album.id },
       select: { token: true, revokedAt: true },
@@ -61,6 +62,7 @@ export default async function AlbumDetailPage({
       data: album.data,
       isPublic: album.isPublic,
     }),
+    listAlbumReferences(workspace.id, album.id),
   ]);
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const initialShareLink =
@@ -113,6 +115,12 @@ export default async function AlbumDetailPage({
             className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
           >
             Inbox
+          </Link>
+          <Link
+            href={`/app/albums/${album.id}/references`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            References
           </Link>
           <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
           <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
@@ -214,6 +222,42 @@ export default async function AlbumDetailPage({
               Updated {album.updatedAt.toLocaleString()}
             </div>
           </div>
+
+          <Link
+            href={`/app/albums/${album.id}/references`}
+            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-[var(--muted2)]">Reference tracks</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  {references.length} saved
+                </div>
+              </div>
+              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
+                Open workspace
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {references.slice(0, 3).map((reference) => (
+                <div
+                  key={reference.id}
+                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                >
+                  {reference.targetRole
+                    ? reference.targetRole.replace(/-/g, " ")
+                    : reference.songTitle
+                      ? `track ${reference.songTrackNumber}`
+                      : "album wide"}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-[var(--muted2)]">
+              {references[0]
+                ? `${references[0].title}${references[0].artist ? ` · ${references[0].artist}` : ""}`
+                : "Capture opener, closer, vocal, and mix references before exporting."}
+            </div>
+          </Link>
 
           <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
             <div className="text-xs text-[var(--muted2)]">Next steps</div>

@@ -209,6 +209,12 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
           >
             Studio
           </Link>
+          <Link
+            href={`/app/albums/${album.id}/references`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            References
+          </Link>
           <BibleActions albumId={album.id} />
         </div>
       </div>
