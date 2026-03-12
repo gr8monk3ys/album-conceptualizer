@@ -17,6 +17,10 @@ type QuickStartFormState = {
 };
 
 type StatusTone = "error" | "success" | "info";
+type SetQuickStartField = <K extends keyof QuickStartFormState>(
+  key: K,
+  value: QuickStartFormState[K],
+) => void;
 
 type WizardStep = {
   key: string;
@@ -205,6 +209,285 @@ function getStatusClassName(tone: StatusTone) {
   return "text-[var(--muted2)]";
 }
 
+function WizardProgress({
+  step,
+  onStepSelect,
+}: {
+  step: number;
+  onStepSelect: (step: number) => void;
+}) {
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      {WIZARD_STEPS.map((item, index) => {
+        const active = index === step;
+        const complete = index < step;
+        return (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => onStepSelect(index)}
+            className={`rounded-2xl border px-3 py-3 text-left ${
+              active
+                ? "border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)]"
+                : "border-[var(--border)] bg-[rgba(255,255,255,0.02)]"
+            }`}
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--muted2)]">
+              {complete ? "Done" : `0${index + 1}`}
+            </div>
+            <div className="mt-2 text-sm font-semibold text-[var(--text)]">{item.title}</div>
+            <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{item.detail}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function QuickStartStepFields({
+  step,
+  form,
+  setField,
+}: {
+  step: number;
+  form: QuickStartFormState;
+  setField: SetQuickStartField;
+}) {
+  if (step === 0) {
+    return (
+      <>
+        <label className="block">
+          <div className="text-xs font-semibold text-[var(--text)]">Album title</div>
+          <input
+            value={form.title}
+            onChange={(event) => setField("title", event.target.value)}
+            className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            placeholder="e.g., The Last Summer"
+            autoComplete="off"
+          />
+        </label>
+
+        <label className="block">
+          <div className="text-xs font-semibold text-[var(--text)]">Artist</div>
+          <input
+            value={form.artist}
+            onChange={(event) => setField("artist", event.target.value)}
+            className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            placeholder="e.g., The Storytellers"
+            autoComplete="off"
+          />
+        </label>
+
+        <label className="block">
+          <div className="text-xs font-semibold text-[var(--text)]">Concept summary</div>
+          <textarea
+            value={form.conceptSummary}
+            onChange={(event) => setField("conceptSummary", event.target.value)}
+            className="mt-2 min-h-[130px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            placeholder="What is the emotional or narrative spine of this album?"
+          />
+        </label>
+      </>
+    );
+  }
+
+  if (step === 1) {
+    return (
+      <>
+        <div>
+          <div className="text-xs font-semibold text-[var(--text)]">Narrative structure</div>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {NARRATIVE_OPTIONS.map((option) => {
+              const selected = option.key === form.narrativeStructure;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setField("narrativeStructure", option.key)}
+                  className={`rounded-2xl border px-4 py-3 text-left ${
+                    selected
+                      ? "border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)]"
+                      : "border-[var(--border)] bg-[rgba(255,255,255,0.03)]"
+                  }`}
+                >
+                  <div className="text-sm font-semibold text-[var(--text)]">{option.label}</div>
+                  <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                    {option.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <label className="block">
+          <div className="text-xs font-semibold text-[var(--text)]">Central themes</div>
+          <textarea
+            value={form.centralThemesRaw}
+            onChange={(event) => setField("centralThemesRaw", event.target.value)}
+            className="mt-2 min-h-[100px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            placeholder="memory, loss, rebirth"
+          />
+        </label>
+
+        <label className="block">
+          <div className="text-xs font-semibold text-[var(--text)]">Reference albums</div>
+          <textarea
+            value={form.referenceAlbumsRaw}
+            onChange={(event) => setField("referenceAlbumsRaw", event.target.value)}
+            className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            placeholder="One per line or comma-separated"
+          />
+        </label>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <label htmlFor="quickstart-track-count" className="block">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold text-[var(--text)]">Track count</div>
+          <div className="text-xs text-[var(--muted)]">{form.trackCount}</div>
+        </div>
+        <input
+          id="quickstart-track-count"
+          type="range"
+          min={4}
+          max={20}
+          value={form.trackCount}
+          onChange={(event) => setField("trackCount", Number(event.target.value))}
+          aria-label="Track count"
+          className="mt-2 w-full accent-[var(--accent)]"
+        />
+      </label>
+
+      <label className="block">
+        <div className="text-xs font-semibold text-[var(--text)]">Track names (optional)</div>
+        <textarea
+          value={form.trackNamesRaw}
+          onChange={(event) => setField("trackNamesRaw", event.target.value)}
+          className="mt-2 min-h-[120px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+          placeholder="One per line or comma-separated"
+        />
+      </label>
+
+      <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
+        <div className="text-xs text-[var(--muted2)]">After you save</div>
+        <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
+          <div>1. Review the Bible to see themes and story structure across tracks.</div>
+          <div>2. Make one Studio pass and save your first real edits.</div>
+          <div>3. Export a handoff pack or publish the blueprint for remix.</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PreviewStatCard({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
+      <div className="text-xs text-[var(--muted2)]">{label}</div>
+      <div className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)]">{value}</div>
+    </div>
+  );
+}
+
+function BlueprintPreview({
+  draftAlbum,
+  form,
+  trackNames,
+  jsonText,
+  onCopy,
+  onDownload,
+}: {
+  draftAlbum: ReturnType<typeof buildAlbumJson> | null;
+  form: QuickStartFormState;
+  trackNames: string[];
+  jsonText: string;
+  onCopy: () => void;
+  onDownload: () => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-xs text-[var(--muted2)]">Blueprint preview</div>
+          <div className="text-sm font-semibold text-[var(--text)]">album.json</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onCopy}
+            disabled={!draftAlbum}
+            className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs text-[var(--muted)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            onClick={onDownload}
+            disabled={!draftAlbum}
+            className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.12)] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Download
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <PreviewStatCard label="Tracks" value={form.trackCount} />
+        <PreviewStatCard label="Themes" value={splitListInput(form.centralThemesRaw).length} />
+        <PreviewStatCard
+          label="References"
+          value={splitListInput(form.referenceAlbumsRaw).length}
+        />
+        <PreviewStatCard
+          label="Arc"
+          value={
+            <span className="text-sm">
+              {NARRATIVE_OPTIONS.find((option) => option.key === form.narrativeStructure)?.label}
+            </span>
+          }
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
+          <div className="text-xs text-[var(--muted2)]">Track preview</div>
+          <div className="mt-3 space-y-2">
+            {Array.from({ length: form.trackCount }, (_, index) => {
+              const title = trackNames[index] || `Track ${index + 1}`;
+              return (
+                <div
+                  key={`${index + 1}-${title}`}
+                  className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-3 py-2"
+                >
+                  <div className="text-[10px] text-[var(--muted2)]">
+                    {String(index + 1).padStart(2, "0")}
+                  </div>
+                  <div className="text-sm font-semibold text-[var(--text)]">{title}</div>
+                </div>
+              );
+            }).slice(0, 6)}
+            {form.trackCount > 6 ? (
+              <div className="text-xs text-[var(--muted2)]">
+                + {form.trackCount - 6} more tracks in the generated scaffold
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(0,0,0,0.35)] p-3">
+          <pre className="max-h-[620px] overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-[var(--muted)]">
+            {jsonText || "Add an album title to see the live blueprint preview."}
+          </pre>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function QuickStartComposer() {
   const router = useRouter();
   const draftIdsRef = useRef<DraftAlbumIds>({
@@ -343,159 +626,10 @@ export function QuickStartComposer() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {WIZARD_STEPS.map((item, index) => {
-            const active = index === step;
-            const complete = index < step;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setStep(index)}
-                className={`rounded-2xl border px-3 py-3 text-left ${
-                  active
-                    ? "border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)]"
-                    : "border-[var(--border)] bg-[rgba(255,255,255,0.02)]"
-                }`}
-              >
-                <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--muted2)]">
-                  {complete ? "Done" : `0${index + 1}`}
-                </div>
-                <div className="mt-2 text-sm font-semibold text-[var(--text)]">{item.title}</div>
-                <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{item.detail}</div>
-              </button>
-            );
-          })}
-        </div>
+        <WizardProgress step={step} onStepSelect={setStep} />
 
         <div className="mt-5 space-y-4">
-          {step === 0 ? (
-            <>
-              <label className="block">
-                <div className="text-xs font-semibold text-[var(--text)]">Album title</div>
-                <input
-                  value={form.title}
-                  onChange={(event) => setField("title", event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                  placeholder="e.g., The Last Summer"
-                  autoComplete="off"
-                />
-              </label>
-
-              <label className="block">
-                <div className="text-xs font-semibold text-[var(--text)]">Artist</div>
-                <input
-                  value={form.artist}
-                  onChange={(event) => setField("artist", event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                  placeholder="e.g., The Storytellers"
-                  autoComplete="off"
-                />
-              </label>
-
-              <label className="block">
-                <div className="text-xs font-semibold text-[var(--text)]">Concept summary</div>
-                <textarea
-                  value={form.conceptSummary}
-                  onChange={(event) => setField("conceptSummary", event.target.value)}
-                  className="mt-2 min-h-[130px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                  placeholder="What is the emotional or narrative spine of this album?"
-                />
-              </label>
-            </>
-          ) : null}
-
-          {step === 1 ? (
-            <>
-              <div>
-                <div className="text-xs font-semibold text-[var(--text)]">Narrative structure</div>
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {NARRATIVE_OPTIONS.map((option) => {
-                    const selected = option.key === form.narrativeStructure;
-                    return (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => setField("narrativeStructure", option.key)}
-                        className={`rounded-2xl border px-4 py-3 text-left ${
-                          selected
-                            ? "border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)]"
-                            : "border-[var(--border)] bg-[rgba(255,255,255,0.03)]"
-                        }`}
-                      >
-                        <div className="text-sm font-semibold text-[var(--text)]">
-                          {option.label}
-                        </div>
-                        <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                          {option.description}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <label className="block">
-                <div className="text-xs font-semibold text-[var(--text)]">Central themes</div>
-                <textarea
-                  value={form.centralThemesRaw}
-                  onChange={(event) => setField("centralThemesRaw", event.target.value)}
-                  className="mt-2 min-h-[100px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                  placeholder="memory, loss, rebirth"
-                />
-              </label>
-
-              <label className="block">
-                <div className="text-xs font-semibold text-[var(--text)]">Reference albums</div>
-                <textarea
-                  value={form.referenceAlbumsRaw}
-                  onChange={(event) => setField("referenceAlbumsRaw", event.target.value)}
-                  className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                  placeholder="One per line or comma-separated"
-                />
-              </label>
-            </>
-          ) : null}
-
-          {step === 2 ? (
-            <>
-              <label htmlFor="quickstart-track-count" className="block">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-semibold text-[var(--text)]">Track count</div>
-                  <div className="text-xs text-[var(--muted)]">{form.trackCount}</div>
-                </div>
-                <input
-                  id="quickstart-track-count"
-                  type="range"
-                  min={4}
-                  max={20}
-                  value={form.trackCount}
-                  onChange={(event) => setField("trackCount", Number(event.target.value))}
-                  aria-label="Track count"
-                  className="mt-2 w-full accent-[var(--accent)]"
-                />
-              </label>
-
-              <label className="block">
-                <div className="text-xs font-semibold text-[var(--text)]">Track names (optional)</div>
-                <textarea
-                  value={form.trackNamesRaw}
-                  onChange={(event) => setField("trackNamesRaw", event.target.value)}
-                  className="mt-2 min-h-[120px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                  placeholder="One per line or comma-separated"
-                />
-              </label>
-
-              <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
-                <div className="text-xs text-[var(--muted2)]">After you save</div>
-                <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
-                  <div>1. Review the Bible to see themes and story structure across tracks.</div>
-                  <div>2. Make one Studio pass and save your first real edits.</div>
-                  <div>3. Export a handoff pack or publish the blueprint for remix.</div>
-                </div>
-              </div>
-            </>
-          ) : null}
+          <QuickStartStepFields step={step} form={form} setField={setField} />
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -535,92 +669,14 @@ export function QuickStartComposer() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-xs text-[var(--muted2)]">Blueprint preview</div>
-            <div className="text-sm font-semibold text-[var(--text)]">album.json</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={copyToClipboard}
-              disabled={!draftAlbum}
-              className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs text-[var(--muted)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Copy
-            </button>
-            <button
-              type="button"
-              onClick={downloadAlbumJson}
-              disabled={!draftAlbum}
-              className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.12)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Download
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Tracks</div>
-            <div className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)]">
-              {form.trackCount}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Themes</div>
-            <div className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)]">
-              {splitListInput(form.centralThemesRaw).length}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
-            <div className="text-xs text-[var(--muted2)]">References</div>
-            <div className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)]">
-              {splitListInput(form.referenceAlbumsRaw).length}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Arc</div>
-            <div className="mt-2 text-sm font-semibold text-[var(--text)]">
-              {NARRATIVE_OPTIONS.find((option) => option.key === form.narrativeStructure)?.label}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Track preview</div>
-            <div className="mt-3 space-y-2">
-              {Array.from({ length: form.trackCount }, (_, index) => {
-                const title = trackNames[index] || `Track ${index + 1}`;
-                return (
-                  <div
-                    key={`${index + 1}-${title}`}
-                    className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-3 py-2"
-                  >
-                    <div className="text-[10px] text-[var(--muted2)]">
-                      {String(index + 1).padStart(2, "0")}
-                    </div>
-                    <div className="text-sm font-semibold text-[var(--text)]">{title}</div>
-                  </div>
-                );
-              }).slice(0, 6)}
-              {form.trackCount > 6 ? (
-                <div className="text-xs text-[var(--muted2)]">
-                  + {form.trackCount - 6} more tracks in the generated scaffold
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(0,0,0,0.35)] p-3">
-            <pre className="max-h-[620px] overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-[var(--muted)]">
-              {jsonText || "Add an album title to see the live blueprint preview."}
-            </pre>
-          </div>
-        </div>
-      </section>
+      <BlueprintPreview
+        draftAlbum={draftAlbum}
+        form={form}
+        trackNames={trackNames}
+        jsonText={jsonText}
+        onCopy={() => void copyToClipboard()}
+        onDownload={downloadAlbumJson}
+      />
     </div>
   );
 }

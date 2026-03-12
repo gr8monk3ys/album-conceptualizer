@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, MoreHorizontal, Play } from "lucide-react";
+import { Play } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -43,7 +43,7 @@ export function AlbumCard({
           <div className="absolute inset-0 bg-black/35" />
           <div className="absolute inset-0 grid place-items-center">
             <div className="grid h-10 w-10 place-items-center rounded-full bg-white text-black">
-              <Play className="h-4 w-4" />
+              <Play className="h-4 w-4" aria-hidden="true" />
             </div>
           </div>
         </div>
@@ -67,30 +67,11 @@ export function AlbumCard({
         </div>
         <div className="truncate text-xs text-[var(--muted2)]">{album.subtitle}</div>
       </div>
-
-      <div className="flex items-center gap-1 text-[var(--muted)]">
-        <button
-          type="button"
-          className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)]"
-          aria-label="Like"
-          onClick={(event) => event.preventDefault()}
-        >
-          <Heart className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)]"
-          aria-label="More"
-          onClick={(event) => event.preventDefault()}
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
-      </div>
     </>
   );
 
   const wrapperClassName = cn(
-    "group flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)] hover:bg-[rgba(255,255,255,0.05)]",
+    "group flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)] transition-colors hover:bg-[rgba(255,255,255,0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.35)]",
     className,
   );
 

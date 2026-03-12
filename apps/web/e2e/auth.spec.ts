@@ -52,10 +52,31 @@ test.describe("Authentication", () => {
     await expect(page.getByText("Recent projects")).toBeVisible();
   });
 
-  test("authenticated user can navigate to settings", async ({ page }) => {
+  test("authenticated user can navigate to settings from the shell", async ({ page }) => {
     await devLogin(page);
-    await page.goto("/app/settings");
-    // Should not redirect to sign-in
-    await expect(page).not.toHaveURL(/sign-in/);
+
+    const width = page.viewportSize()?.width ?? 1024;
+    if (width < 768) {
+      await page.getByRole("button", { name: "Open navigation menu" }).click();
+      await page.getByRole("link", { name: "Settings" }).click();
+    } else {
+      await page.getByRole("link", { name: "Settings" }).first().click();
+    }
+
+    await expect(page).toHaveURL(/\/app\/settings$/);
+  });
+
+  test("topbar search routes into workspace search", async ({ page }) => {
+    await devLogin(page);
+
+    const width = page.viewportSize()?.width ?? 1024;
+    if (width < 768) {
+      await page.getByRole("link", { name: "Open search" }).click();
+    } else {
+      await page.getByRole("searchbox", { name: "Search workspace" }).fill("memory");
+      await page.keyboard.press("Enter");
+    }
+
+    await expect(page).toHaveURL(/\/app\/search/);
   });
 });
