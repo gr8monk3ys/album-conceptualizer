@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEB_DIR="${ROOT_DIR}/apps/web"
 REPORT_DIR="${LIGHTHOUSE_REPORT_DIR:-${ROOT_DIR}/output/lighthouse/public}"
 SERVER_LOG="${REPORT_DIR}/server.log"
+SERVER_PID=""
 
 pick_free_port() {
   python3 - <<'PY'
@@ -18,10 +19,11 @@ PY
 
 if [[ -n "${ALBUM_CONCEPTUALIZER_WEB_BASE_URL:-}" ]]; then
   BASE_URL="${ALBUM_CONCEPTUALIZER_WEB_BASE_URL%/}"
-  PORT="${LIGHTHOUSE_PORT:-}"
+  START_LOCAL_SERVER=false
 else
   PORT="${LIGHTHOUSE_PORT:-$(pick_free_port)}"
   BASE_URL="http://127.0.0.1:${PORT}"
+  START_LOCAL_SERVER=true
 fi
 
 mkdir -p "${REPORT_DIR}"
@@ -40,13 +42,14 @@ export ENABLE_DEV_LOGIN="${ENABLE_DEV_LOGIN:-1}"
 export NEXT_PUBLIC_ENABLE_DEV_LOGIN="${NEXT_PUBLIC_ENABLE_DEV_LOGIN:-1}"
 
 cd "${WEB_DIR}"
-npm run build
-
-npm run start -- -p "${PORT}" >"${SERVER_LOG}" 2>&1 &
-SERVER_PID=$!
+if [[ "${START_LOCAL_SERVER}" == "true" ]]; then
+  npm run build
+  npm run start -- -p "${PORT}" >"${SERVER_LOG}" 2>&1 &
+  SERVER_PID=$!
+fi
 
 cleanup() {
-  if kill -0 "${SERVER_PID}" >/dev/null 2>&1; then
+  if [[ -n "${SERVER_PID}" ]] && kill -0 "${SERVER_PID}" >/dev/null 2>&1; then
     kill "${SERVER_PID}" >/dev/null 2>&1 || true
     wait "${SERVER_PID}" 2>/dev/null || true
   fi
@@ -54,7 +57,7 @@ cleanup() {
 trap cleanup EXIT
 
 for _ in $(seq 1 60); do
-  if ! kill -0 "${SERVER_PID}" >/dev/null 2>&1; then
+  if [[ -n "${SERVER_PID}" ]] && ! kill -0 "${SERVER_PID}" >/dev/null 2>&1; then
     cat "${SERVER_LOG}" >&2
     exit 1
   fi
