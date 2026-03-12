@@ -118,3 +118,4 @@ site/
 # Playwright CLI artifacts
 .playwright-cli/
 .vercel
+apps/web/.lighthouseci/
