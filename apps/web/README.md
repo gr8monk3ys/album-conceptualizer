@@ -90,6 +90,27 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+## Local E2E Backstop
+
+If preview/staging is down or you want a single backup path that does not depend on external
+services, run the repo-level backstop from the repo root:
+
+```bash
+make web-e2e-backstop
+```
+
+It will:
+
+- start local Postgres and Redis
+- apply Prisma migrations
+- start the Python API on a free local port
+- start the production Next.js app on a free local port
+- run the Python API smoke flow
+- run the web smoke flow
+- run the full Playwright web suite
+
+Logs are written to `output/web-e2e-backstop/`.
+
 ## Lighthouse Quality Gate
 
 Public-entry Lighthouse is enforced against the production build for:

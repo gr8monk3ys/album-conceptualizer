@@ -62,6 +62,24 @@ npm run test:e2e
 
 This covers the core web user flows.
 
+### Local E2E Backstop
+
+If the deployed environment is unavailable or you want one command that recreates the modern local
+stack and runs the critical smoke paths, use:
+
+```bash
+make web-e2e-backstop
+```
+
+This starts local Postgres/Redis, applies Prisma migrations, starts the Python API and production
+web app on free local ports, then runs:
+
+- `scripts/staging-e2e.py`
+- `scripts/web-staging-smoke.sh`
+- `apps/web npm run test:e2e`
+
+Artifacts are written to `output/web-e2e-backstop/`.
+
 ## Lighthouse
 
 The repo has two hard Lighthouse audits.
@@ -193,6 +211,12 @@ Also run the relevant smoke scripts:
 - `scripts/staging-e2e.py`
 - `scripts/stripe-billing-smoke.py`
 - `scripts/web-staging-smoke.sh`
+
+### If You Need A Backup E2E Path
+
+Run:
+
+- `make web-e2e-backstop`
 
 ## CI Expectations
 

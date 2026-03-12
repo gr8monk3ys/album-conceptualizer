@@ -134,6 +134,12 @@ bash scripts/web-lighthouse-public.sh
 bash scripts/web-lighthouse-auth.sh
 ```
 
+If you want a single backup command that brings the stack up and runs the modern API/web E2E path:
+
+```bash
+make web-e2e-backstop
+```
+
 ## Optional: Run The Legacy Gradio UI
 
 If you want the older UI surface:

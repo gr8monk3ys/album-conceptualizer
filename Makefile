@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke backup-data restore-backup web-db-backup web-db-restore web-lighthouse-public web-lighthouse-auth
+.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke backup-data restore-backup web-db-backup web-db-restore web-lighthouse-public web-lighthouse-auth web-e2e-backstop
 
 PY_DEV = uv run --python 3.11 --with '.[dev,music]'
 PY_UI = uv run --python 3.11 --with '.[dev,ui,music]'
@@ -35,6 +35,7 @@ help:
 	@echo "  make email-smoke   Send onboarding email smoke test"
 	@echo "  make web-lighthouse-public  Run the public Lighthouse 100/100 audit"
 	@echo "  make web-lighthouse-auth  Run the authenticated Lighthouse 100/100 audit"
+	@echo "  make web-e2e-backstop  Bring up the local stack and run API/web E2E fallback checks"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  make docs          Build documentation"
@@ -262,6 +263,9 @@ web-lighthouse-public:
 
 web-lighthouse-auth:
 	bash scripts/web-lighthouse-auth.sh
+
+web-e2e-backstop:
+	bash scripts/web-e2e-backstop.sh
 
 backup-data:
 	./scripts/backup-data.sh
