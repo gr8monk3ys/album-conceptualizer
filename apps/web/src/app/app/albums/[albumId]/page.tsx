@@ -11,6 +11,7 @@ import { getPrisma } from "@/server/db";
 import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
 import { getAlbumOnboardingSummary } from "@/server/onboarding";
+import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +71,8 @@ export default async function AlbumDetailPage({
 
   const songs = getSongsFromAlbumData(album.data);
   const coherence = analyzeAlbumCoherence(album.data);
+  const styleBible = getAlbumStyleBible(album.data);
+  const styleSummary = summarizeStyleBible(styleBible, references);
   const showOnboarding =
     onboarding.completeCount < onboarding.totalCount || query.welcome === "1";
 
@@ -121,6 +124,12 @@ export default async function AlbumDetailPage({
             className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
           >
             References
+          </Link>
+          <Link
+            href={`/app/albums/${album.id}/style`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            Style
           </Link>
           <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
           <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
@@ -256,6 +265,38 @@ export default async function AlbumDetailPage({
               {references[0]
                 ? `${references[0].title}${references[0].artist ? ` · ${references[0].artist}` : ""}`
                 : "Capture opener, closer, vocal, and mix references before exporting."}
+            </div>
+          </Link>
+
+          <Link
+            href={`/app/albums/${album.id}/style`}
+            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-[var(--muted2)]">Voice / style bible</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  {styleSummary.score}/100
+                </div>
+              </div>
+              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
+                Open workspace
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {styleSummary.highlightTags.slice(0, 3).map((item) => (
+                <div
+                  key={item}
+                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-[var(--muted2)]">
+              {styleBible.lead_voice
+                ? styleBible.lead_voice
+                : "Define the vocal identity, palette, and mix constraints before export."}
             </div>
           </Link>
 

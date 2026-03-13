@@ -1,4 +1,6 @@
 import { AlbumJsonSchema } from "@/server/album-json";
+import { normalizeStyleBible } from "@/server/style-bible";
+import type { AlbumStyleBible } from "@/server/album-json";
 
 export type BibleIssue = {
   level: "info" | "warn";
@@ -37,6 +39,7 @@ export type AlbumBible = {
   artist: string | null;
   primaryGenre: string | null;
   conceptSummary: string | null;
+  styleBible: Required<AlbumStyleBible>;
   centralThemes: string[];
   recurringMotifs: string[];
   tracks: BibleTrack[];
@@ -110,6 +113,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       artist: null,
       primaryGenre: null,
       conceptSummary: null,
+      styleBible: normalizeStyleBible(null),
       centralThemes: [],
       recurringMotifs: [],
       tracks: [],
@@ -129,6 +133,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
 
   const album = parsed.data;
   const issues: BibleIssue[] = [];
+  const styleBible = normalizeStyleBible(album.style_bible);
 
   const tracks: BibleTrack[] = album.songs
     .slice()
@@ -187,6 +192,30 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       detail: topMotifs.length
         ? `Motifs detected in tracks: ${topMotifs.join(", ")}. Consider elevating 1-3 to album-level motifs.`
         : "Add 1-3 recurring motifs to tighten cohesion (sonic texture, symbols, chord devices).",
+    });
+  }
+
+  if (!styleBible.lead_voice) {
+    issues.push({
+      level: "info",
+      title: "No lead voice brief set",
+      detail: "Define the vocal identity so collaborators and reference packs aim at the same singer perspective.",
+    });
+  }
+
+  if (!styleBible.sonic_palette.length) {
+    issues.push({
+      level: "info",
+      title: "No sonic palette locked yet",
+      detail: "Add 3-6 palette anchors so arrangement and production choices stay consistent across tracks.",
+    });
+  }
+
+  if (!styleBible.mix_priorities.length) {
+    issues.push({
+      level: "info",
+      title: "Mix priorities are still blank",
+      detail: "Call out what should stay forward, wide, or restrained before export or handoff.",
     });
   }
 
@@ -293,6 +322,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
     artist: album.artist ?? null,
     primaryGenre: album.primary_genre ?? null,
     conceptSummary: album.concept_summary ?? null,
+    styleBible,
     centralThemes,
     recurringMotifs,
     tracks,

@@ -1,5 +1,6 @@
 import { AlbumJsonSchema } from "@/server/album-json";
 import { getAlbumTrackedEvents } from "@/server/analytics";
+import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 
 export type AlbumOnboardingStep = {
   key: string;
@@ -26,6 +27,11 @@ function hasDirectionLocked(data: unknown) {
         album.central_themes.length > 0 ||
         album.reference_albums.length > 0),
   );
+}
+
+function hasStyleBibleLocked(data: unknown) {
+  const summary = summarizeStyleBible(getAlbumStyleBible(data));
+  return summary.filledCount >= 3;
 }
 
 export async function getAlbumOnboardingSummary(input: {
@@ -57,6 +63,13 @@ export async function getAlbumOnboardingSummary(input: {
       description: "Check the album-level themes, motifs, and story map.",
       href: `/app/albums/${input.albumId}/bible`,
       complete: trackedEvents.has("album_bible_viewed"),
+    },
+    {
+      key: "style_bible_locked",
+      label: "Lock the voice + style",
+      description: "Set the singer brief, palette, and mix priorities before handoff.",
+      href: `/app/albums/${input.albumId}/style`,
+      complete: trackedEvents.has("album_style_bible_saved") || hasStyleBibleLocked(input.data),
     },
     {
       key: "studio_saved",

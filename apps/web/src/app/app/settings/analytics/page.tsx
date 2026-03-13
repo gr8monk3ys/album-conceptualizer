@@ -13,6 +13,8 @@ const EVENT_LABELS: Record<string, string> = {
   album_bible_viewed: "Bible reviewed",
   album_studio_viewed: "Studio opened",
   album_coherence_viewed: "Coherence reviewed",
+  album_style_bible_viewed: "Style bible opened",
+  album_style_bible_saved: "Style bible saved",
   album_reference_added: "Reference added",
   album_reference_updated: "Reference updated",
   album_reference_deleted: "Reference deleted",

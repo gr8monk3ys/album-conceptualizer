@@ -10,7 +10,12 @@ export const runtime = "nodejs";
 
 const BodySchema = z.object({
   albumId: z.string().min(1),
-  event: z.enum(["album_bible_viewed", "album_studio_viewed", "album_coherence_viewed"]),
+  event: z.enum([
+    "album_bible_viewed",
+    "album_studio_viewed",
+    "album_coherence_viewed",
+    "album_style_bible_viewed",
+  ]),
   path: z.string().min(1).max(300),
 });
 

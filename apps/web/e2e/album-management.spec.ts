@@ -146,6 +146,41 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Dreams Tonite · Alvvays")).toBeVisible();
   });
 
+  test("style bible saves voice and palette guidance and reflects it on the album page", async ({
+    page,
+  }) => {
+    await devLogin(page);
+
+    const title = `Style Bible ${randomSuffix()}`;
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Palette Club",
+      concept: "A concept album about hotel hallways, missed calls, and one long overnight drive.",
+    });
+
+    await page.getByRole("main").getByRole("link", { name: "Style", exact: true }).click();
+    await page.waitForURL("**/style");
+    await page
+      .getByLabel("Lead voice brief")
+      .fill("Close-mic alto with hushed verses and a brighter chorus lift.");
+    await page
+      .getByLabel("Sonic palette")
+      .fill("chorused guitars, dry drum room, soft synth haze");
+    await page
+      .getByLabel("Mix priorities")
+      .fill("lead vocal forward, bass warm not boomy, choruses widen hard");
+    await page
+      .getByLabel("Reference strategy")
+      .fill("Use references to keep the opener intimate and the choruses wider without going glossy.");
+    await page.getByRole("button", { name: "Save style bible" }).click();
+
+    await expect(page.getByText("Style bible saved.")).toBeVisible();
+
+    await page.getByRole("link", { name: "Back" }).click();
+    await expect(page.getByRole("main").getByText("Voice / Style Bible").first()).toBeVisible();
+    await expect(page.getByText("Close-mic alto with hushed verses").first()).toBeVisible();
+  });
+
   test("analytics page shows the new project in the workspace funnel", async ({ page }) => {
     await devLogin(page);
 

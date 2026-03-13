@@ -5,7 +5,8 @@ import { useEffect } from "react";
 type AlbumPageViewEvent =
   | "album_bible_viewed"
   | "album_studio_viewed"
-  | "album_coherence_viewed";
+  | "album_coherence_viewed"
+  | "album_style_bible_viewed";
 
 type AlbumPageViewTrackerProps = {
   albumId: string;
