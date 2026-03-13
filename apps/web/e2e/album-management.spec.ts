@@ -94,6 +94,27 @@ test.describe("Album Management", () => {
     await expect(page).toHaveURL(/export/);
   });
 
+  test("export page downloads a Suno handoff pack", async ({ page }) => {
+    await devLogin(page);
+
+    const title = `Handoff ${randomSuffix()}`;
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Prompt Club",
+      concept: "A concept album about airport hotels, rerouted flights, and the last message before sunrise.",
+    });
+
+    await page.getByRole("main").getByRole("link", { name: "Export", exact: true }).click();
+    await page.waitForURL("**/export");
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("link", { name: "Download Suno brief" }).click(),
+    ]);
+
+    expect(download.suggestedFilename()).toContain("suno_handoff_pack");
+  });
+
   test("coherence report shows breakdown and next actions", async ({ page }) => {
     await devLogin(page);
 

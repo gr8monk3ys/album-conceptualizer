@@ -18,6 +18,7 @@ const EVENT_LABELS: Record<string, string> = {
   album_reference_added: "Reference added",
   album_reference_updated: "Reference updated",
   album_reference_deleted: "Reference deleted",
+  album_handoff_downloaded: "Handoff pack downloaded",
   album_saved: "Studio saved",
   album_export_requested: "Export completed",
   album_published: "Published to Discover",
