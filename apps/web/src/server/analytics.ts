@@ -22,6 +22,7 @@ type ProductEventName =
   | "album_reference_added"
   | "album_reference_updated"
   | "album_reference_deleted"
+  | "album_handoff_downloaded"
   | "album_saved"
   | "album_export_requested"
   | "album_published"
