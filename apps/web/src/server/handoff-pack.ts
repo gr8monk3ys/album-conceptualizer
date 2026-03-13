@@ -175,6 +175,10 @@ function buildDawObjective(input: {
   return lines.length ? lines.map((line) => `- ${line}`).join("\n") : "- No DAW notes yet.";
 }
 
+function formatSectionOrdinal(order: number) {
+  return order >= 1 ? order : order + 1;
+}
+
 function buildSectionLines(
   sections: Array<{
     section_type: string;
@@ -192,7 +196,7 @@ function buildSectionLines(
     .sort((left, right) => left.order - right.order)
     .map((section) => {
       const bits = [
-        `${section.section_type} #${section.order + 1}`,
+        `${section.section_type} #${formatSectionOrdinal(section.order)}`,
         section.narrative_function ?? null,
         section.emotional_arc ?? null,
         section.duration_bars ? `${section.duration_bars} bars` : null,
