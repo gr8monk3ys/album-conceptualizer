@@ -96,6 +96,46 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
   if (bible.recurringMotifs.length) writeBullets(doc, bible.recurringMotifs);
   else writeParagraph(doc, "No album-level motifs set.", { color: "#555555" });
 
+  writeHeading(doc, "Voice / Style Bible", { size: 14 });
+  writeParagraph(
+    doc,
+    bible.styleBible.lead_voice?.trim() || "No lead voice brief set.",
+    { color: bible.styleBible.lead_voice ? "#222222" : "#555555" },
+  );
+  if (bible.styleBible.narrator_perspective) {
+    writeParagraph(doc, `Narrator perspective: ${bible.styleBible.narrator_perspective}`, {
+      color: "#555555",
+      size: 10,
+      spacing: 0.2,
+    });
+  }
+  const styleLines = [
+    bible.styleBible.vocal_attributes.length
+      ? `Vocal attributes: ${bible.styleBible.vocal_attributes.join(", ")}`
+      : null,
+    bible.styleBible.sonic_palette.length
+      ? `Sonic palette: ${bible.styleBible.sonic_palette.join(", ")}`
+      : null,
+    bible.styleBible.arrangement_rules.length
+      ? `Arrangement rules: ${bible.styleBible.arrangement_rules.join(", ")}`
+      : null,
+    bible.styleBible.mix_priorities.length
+      ? `Mix priorities: ${bible.styleBible.mix_priorities.join(", ")}`
+      : null,
+    bible.styleBible.avoid_list.length ? `Avoid list: ${bible.styleBible.avoid_list.join(", ")}` : null,
+    bible.styleBible.emotional_targets.length
+      ? `Emotional targets: ${bible.styleBible.emotional_targets.join(", ")}`
+      : null,
+  ].filter((line): line is string => Boolean(line));
+  if (styleLines.length) writeBullets(doc, styleLines);
+  else writeParagraph(doc, "No style constraints or palette anchors set.", { color: "#555555" });
+  if (bible.styleBible.reference_strategy) {
+    writeParagraph(doc, `Reference strategy: ${bible.styleBible.reference_strategy}`, {
+      color: "#555555",
+      size: 10,
+    });
+  }
+
   const warnings = bible.issues.filter((i) => i.level === "warn");
   const infos = bible.issues.filter((i) => i.level === "info");
 
@@ -182,4 +222,3 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
   const filename = sanitizeFilename(`${bible.title}_album_bible`) + ".pdf";
   return { buffer, filename };
 }
-

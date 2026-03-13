@@ -50,6 +50,30 @@ export function buildBibleMarkdown(bible: AlbumBible) {
   lines.push(mdList(bible.recurringMotifs, "_No album-level motifs set._"));
   lines.push("");
 
+  lines.push("## Voice / Style Bible");
+  lines.push(
+    bible.styleBible.lead_voice?.trim()
+      ? `**Lead voice:** ${lineWrap(bible.styleBible.lead_voice)}`
+      : "_No lead voice brief set._",
+  );
+  if (bible.styleBible.narrator_perspective) {
+    lines.push(`**Narrator perspective:** ${lineWrap(bible.styleBible.narrator_perspective)}`);
+  }
+  lines.push(`**Vocal attributes:** ${bible.styleBible.vocal_attributes.length ? bible.styleBible.vocal_attributes.join(", ") : "_none_"}`);
+  lines.push(`**Sonic palette:** ${bible.styleBible.sonic_palette.length ? bible.styleBible.sonic_palette.join(", ") : "_none_"}`);
+  lines.push(`**Arrangement rules:** ${bible.styleBible.arrangement_rules.length ? bible.styleBible.arrangement_rules.join(", ") : "_none_"}`);
+  lines.push(`**Mix priorities:** ${bible.styleBible.mix_priorities.length ? bible.styleBible.mix_priorities.join(", ") : "_none_"}`);
+  lines.push(`**Avoid list:** ${bible.styleBible.avoid_list.length ? bible.styleBible.avoid_list.join(", ") : "_none_"}`);
+  lines.push(`**Emotional targets:** ${bible.styleBible.emotional_targets.length ? bible.styleBible.emotional_targets.join(", ") : "_none_"}`);
+  lines.push(
+    `**Reference strategy:** ${
+      bible.styleBible.reference_strategy?.trim()
+        ? lineWrap(bible.styleBible.reference_strategy)
+        : "_none_"
+    }`,
+  );
+  lines.push("");
+
   const warnings = bible.issues.filter((i) => i.level === "warn");
   const infos = bible.issues.filter((i) => i.level === "info");
 
@@ -140,4 +164,3 @@ export function buildBibleMarkdown(bible: AlbumBible) {
 
   return lines.join("\n");
 }
-
