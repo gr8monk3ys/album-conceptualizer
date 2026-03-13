@@ -11,6 +11,7 @@ import { getPrisma } from "@/server/db";
 import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
 import { getAlbumOnboardingSummary } from "@/server/onboarding";
+import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
@@ -52,7 +53,7 @@ export default async function AlbumDetailPage({
   if (!album) notFound();
 
   const prisma = getPrisma();
-  const [shareLink, onboarding, references] = await Promise.all([
+  const [shareLink, onboarding, references, roughDemos] = await Promise.all([
     prisma.albumShareLink.findUnique({
       where: { albumId: album.id },
       select: { token: true, revokedAt: true },
@@ -64,6 +65,7 @@ export default async function AlbumDetailPage({
       isPublic: album.isPublic,
     }),
     listAlbumReferences(workspace.id, album.id),
+    Promise.resolve(listAlbumRoughDemos(album.data)),
   ]);
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const initialShareLink =
@@ -73,6 +75,7 @@ export default async function AlbumDetailPage({
   const coherence = analyzeAlbumCoherence(album.data);
   const styleBible = getAlbumStyleBible(album.data);
   const styleSummary = summarizeStyleBible(styleBible, references);
+  const demoSummary = summarizeRoughDemos(roughDemos);
   const showOnboarding =
     onboarding.completeCount < onboarding.totalCount || query.welcome === "1";
 
@@ -130,6 +133,12 @@ export default async function AlbumDetailPage({
             className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
           >
             Style
+          </Link>
+          <Link
+            href={`/app/albums/${album.id}/demos`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            Demos
           </Link>
           <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
           <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
@@ -297,6 +306,38 @@ export default async function AlbumDetailPage({
               {styleBible.lead_voice
                 ? styleBible.lead_voice
                 : "Define the vocal identity, palette, and mix constraints before export."}
+            </div>
+          </Link>
+
+          <Link
+            href={`/app/albums/${album.id}/demos`}
+            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-[var(--muted2)]">Rough demos</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  {demoSummary.count} captured
+                </div>
+              </div>
+              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
+                Open workspace
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {demoSummary.sourceKinds.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                >
+                  {item.replace(/-/g, " ")}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-[var(--muted2)]">
+              {demoSummary.latestTitle
+                ? demoSummary.latestTitle
+                : "Capture the memo, rehearsal, or riff sketch before it disappears."}
             </div>
           </Link>
 

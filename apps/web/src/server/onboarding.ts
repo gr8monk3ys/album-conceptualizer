@@ -1,5 +1,6 @@
 import { AlbumJsonSchema } from "@/server/album-json";
 import { getAlbumTrackedEvents } from "@/server/analytics";
+import { listAlbumRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 
 export type AlbumOnboardingStep = {
@@ -32,6 +33,10 @@ function hasDirectionLocked(data: unknown) {
 function hasStyleBibleLocked(data: unknown) {
   const summary = summarizeStyleBible(getAlbumStyleBible(data));
   return summary.filledCount >= 3;
+}
+
+function hasRoughDemoCaptured(data: unknown) {
+  return listAlbumRoughDemos(data).length > 0;
 }
 
 export async function getAlbumOnboardingSummary(input: {
@@ -70,6 +75,13 @@ export async function getAlbumOnboardingSummary(input: {
       description: "Set the singer brief, palette, and mix priorities before handoff.",
       href: `/app/albums/${input.albumId}/style`,
       complete: trackedEvents.has("album_style_bible_saved") || hasStyleBibleLocked(input.data),
+    },
+    {
+      key: "rough_demo_captured",
+      label: "Capture a rough demo",
+      description: "Save one memo, rehearsal take, or riff sketch while the idea is fresh.",
+      href: `/app/albums/${input.albumId}/demos`,
+      complete: trackedEvents.has("album_demo_added") || hasRoughDemoCaptured(input.data),
     },
     {
       key: "studio_saved",

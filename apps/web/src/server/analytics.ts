@@ -8,6 +8,8 @@ const ACTIVATION_EVENTS = [
   "album_coherence_viewed",
   "album_style_bible_viewed",
   "album_style_bible_saved",
+  "album_rough_demos_viewed",
+  "album_demo_added",
   "album_saved",
 ] as const;
 
@@ -19,6 +21,10 @@ type ProductEventName =
   | "album_coherence_viewed"
   | "album_style_bible_viewed"
   | "album_style_bible_saved"
+  | "album_rough_demos_viewed"
+  | "album_demo_added"
+  | "album_demo_updated"
+  | "album_demo_deleted"
   | "album_reference_added"
   | "album_reference_updated"
   | "album_reference_deleted"
@@ -205,6 +211,8 @@ export async function getAlbumTrackedEvents(workspaceId: string, albumId: string
           "album_coherence_viewed",
           "album_style_bible_viewed",
           "album_style_bible_saved",
+          "album_rough_demos_viewed",
+          "album_demo_added",
           "album_saved",
           "album_export_requested",
           "album_published",
