@@ -91,6 +91,12 @@ def require_api_key(
     settings = get_settings()
     allowed_keys = settings.api_keys or ([settings.api_key] if settings.api_key else [])
     if not allowed_keys:
+        logger.warning(
+            "api_key_auth_disabled",
+            extra={
+                "reason": "No ALBUM_CONCEPTUALIZER_API_KEY or ALBUM_CONCEPTUALIZER_API_KEYS configured"
+            },
+        )
         return
 
     token = extract_auth_token(x_api_key, authorization)

@@ -36,7 +36,10 @@ function getConfiguredEmailFrom(): string {
   return "onboarding@resend.dev";
 }
 
+let _cachedAuthOptions: NextAuthOptions | null = null;
+
 export function buildAuthOptions(): NextAuthOptions {
+  if (_cachedAuthOptions) return _cachedAuthOptions;
   const prisma = getPrisma();
   const authSecret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
   if (!authSecret) {
@@ -105,7 +108,7 @@ export function buildAuthOptions(): NextAuthOptions {
     );
   }
 
-  return {
+  const options: NextAuthOptions = {
     adapter: PrismaAdapter(prisma),
     secret: authSecret,
     session: { strategy: "jwt" },
@@ -156,6 +159,9 @@ export function buildAuthOptions(): NextAuthOptions {
       },
     },
   };
+
+  _cachedAuthOptions = options;
+  return options;
 }
 
 export async function getAuthSession() {

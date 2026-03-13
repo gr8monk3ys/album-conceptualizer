@@ -6,9 +6,24 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from album_conceptualizer.logging import get_logger
 from album_conceptualizer.models.album import Album
 from album_conceptualizer.models.album_bible import AlbumBible
 from album_conceptualizer.models.subscription import AccountSubscription
+
+
+logger = get_logger("album_conceptualizer.storage")
+
+
+def _safe_child(root: Path, filename: str) -> Path:
+    """Resolve *filename* under *root* and verify it stays within the directory.
+
+    Raises ``ValueError`` if the resolved path escapes *root* (path traversal).
+    """
+    target = (root / filename).resolve()
+    if not target.is_relative_to(root.resolve()):
+        raise ValueError(f"Path traversal detected in ID: {filename!r}")
+    return target
 
 
 class AlbumStore:
@@ -123,7 +138,7 @@ class FileAlbumStore(AlbumStore):
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path_for(self, album_id: str) -> Path:
-        return self.root / f"{album_id}.json"
+        return _safe_child(self.root, f"{album_id}.json")
 
     def list(self) -> list[Album]:
         albums: list[Album] = []
@@ -131,6 +146,7 @@ class FileAlbumStore(AlbumStore):
             try:
                 albums.append(Album.model_validate_json(path.read_text()))
             except Exception:
+                logger.warning("album_deserialize_failed", extra={"path": str(path)}, exc_info=True)
                 continue
         return albums
 
@@ -160,7 +176,7 @@ class FileBibleStore(BibleStore):
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path_for(self, album_id: str) -> Path:
-        return self.root / f"{album_id}.json"
+        return _safe_child(self.root, f"{album_id}.json")
 
     def get(self, album_id: str) -> AlbumBible | None:
         path = self._path_for(album_id)
@@ -188,7 +204,7 @@ class FileSubscriptionStore(SubscriptionStore):
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path_for(self, api_key_hash: str) -> Path:
-        return self.root / f"{api_key_hash}.json"
+        return _safe_child(self.root, f"{api_key_hash}.json")
 
     def list(self) -> list[AccountSubscription]:
         items: list[AccountSubscription] = []
@@ -196,6 +212,9 @@ class FileSubscriptionStore(SubscriptionStore):
             try:
                 items.append(AccountSubscription.model_validate_json(path.read_text()))
             except Exception:
+                logger.warning(
+                    "subscription_deserialize_failed", extra={"path": str(path)}, exc_info=True
+                )
                 continue
         return items
 
@@ -236,6 +255,7 @@ class SQLiteAlbumStore(AlbumStore):
             try:
                 albums.append(Album.model_validate_json(payload))
             except Exception:
+                logger.warning("album_deserialize_failed", extra={"store": "sqlite"}, exc_info=True)
                 continue
         return albums
 
@@ -320,6 +340,9 @@ class SQLiteSubscriptionStore(SubscriptionStore):
             try:
                 items.append(AccountSubscription.model_validate_json(payload))
             except Exception:
+                logger.warning(
+                    "subscription_deserialize_failed", extra={"store": "sqlite"}, exc_info=True
+                )
                 continue
         return items
 

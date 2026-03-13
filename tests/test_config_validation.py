@@ -19,7 +19,8 @@ class TestProductionIssues:
         reset_settings()
         settings = Settings()
         issues = settings.production_issues()
-        assert any("CORS" in i for i in issues)
+        # CORS now defaults to localhost-only (secure), so no CORS issue expected
+        assert not any("CORS" in i for i in issues)
         assert any("API_KEY" in i for i in issues)
         # sqlite is the safe default — no storage issue expected
         assert not any("STORAGE_BACKEND" in i for i in issues)
@@ -187,16 +188,18 @@ class TestParseCorsOrigins:
         assert settings.cors_origins == []
         reset_settings()
 
-    def test_default_cors_origins_is_wildcard(self, monkeypatch):
+    def test_default_cors_origins_is_localhost_only(self, monkeypatch):
         monkeypatch.delenv("ALBUM_CONCEPTUALIZER_CORS_ORIGINS", raising=False)
         reset_settings()
         settings = Settings()
-        assert "*" in settings.cors_origins
+        assert "*" not in settings.cors_origins
+        assert "http://localhost:3000" in settings.cors_origins
+        assert "http://localhost:7860" in settings.cors_origins
         reset_settings()
 
     def test_wildcard_cors_flagged_in_production_issues(self, monkeypatch):
         """When cors_origins contains '*', production_issues should flag it."""
-        monkeypatch.delenv("ALBUM_CONCEPTUALIZER_CORS_ORIGINS", raising=False)
+        monkeypatch.setenv("ALBUM_CONCEPTUALIZER_CORS_ORIGINS", '["*"]')
         reset_settings()
         settings = Settings()
         issues = settings.production_issues()
@@ -363,8 +366,10 @@ class TestStripePriceIdAliases:
 
 
 class TestDirectValidatorCoverage:
-    def test_parse_cors_origins_none_defaults_to_wildcard(self):
-        assert Settings._parse_cors_origins(None) == ["*"]
+    def test_parse_cors_origins_none_defaults_to_localhost(self):
+        result = Settings._parse_cors_origins(None)
+        assert "http://localhost:3000" in result
+        assert "*" not in result
 
     def test_parse_cors_origins_string_branches(self):
         assert Settings._parse_cors_origins("https://a.com, https://b.com") == [
@@ -373,7 +378,8 @@ class TestDirectValidatorCoverage:
         ]
         assert Settings._parse_cors_origins('["https://json.example"]') == ["https://json.example"]
         assert Settings._parse_cors_origins("[not-valid-json]") == ["[not-valid-json]"]
-        assert Settings._parse_cors_origins(123) == ["*"]
+        with pytest.raises(ValueError, match="must be a JSON array or comma-separated string"):
+            Settings._parse_cors_origins(123)
 
     def test_parse_api_keys_none_and_string_branches(self):
         assert Settings._parse_api_keys(None) == []

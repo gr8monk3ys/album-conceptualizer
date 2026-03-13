@@ -8,6 +8,7 @@ import { engineFetch } from "@/server/engine";
 import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
 import { getCreditsStatus, InsufficientCreditsError, spendCredits } from "@/server/credits";
 import { trackProductEventSafe } from "@/server/analytics";
+import { contentDisposition } from "@/server/headers";
 
 export const runtime = "nodejs";
 
@@ -106,7 +107,7 @@ export async function GET(
   const filename = `${album.title.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "album"}_export.zip`;
   const headers = new Headers(engineResponse.headers);
   headers.set("content-type", "application/zip");
-  headers.set("content-disposition", `attachment; filename="${filename}"`);
+  headers.set("content-disposition", contentDisposition(filename));
 
   await trackProductEventSafe({
     name: "album_export_requested",

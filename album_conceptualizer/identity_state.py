@@ -9,6 +9,7 @@ from threading import RLock
 from typing import Protocol
 from uuid import UUID
 
+from album_conceptualizer.logging import get_logger
 from album_conceptualizer.models.identity import (
     Account,
     EmailChallenge,
@@ -16,6 +17,17 @@ from album_conceptualizer.models.identity import (
     WorkspaceInvite,
     WorkspaceSession,
 )
+
+
+logger = get_logger("album_conceptualizer.identity_state")
+
+
+def _safe_child(root: Path, filename: str) -> Path:
+    """Resolve *filename* under *root* and verify it stays within the directory."""
+    target = (root / filename).resolve()
+    if not target.is_relative_to(root.resolve()):
+        raise ValueError(f"Path traversal detected: {filename!r}")
+    return target
 
 
 class IdentityStateStore(Protocol):
@@ -180,10 +192,10 @@ class FileIdentityStateStore:
         return self.root / "workspaces" / f"{workspace_id}.json"
 
     def _session_path(self, token_hash: str) -> Path:
-        return self.root / "sessions" / f"{token_hash}.json"
+        return _safe_child(self.root / "sessions", f"{token_hash}.json")
 
     def _challenge_path(self, token_hash: str) -> Path:
-        return self.root / "challenges" / f"{token_hash}.json"
+        return _safe_child(self.root / "challenges", f"{token_hash}.json")
 
     def _invite_path(self, invite_id: UUID) -> Path:
         return self.root / "invites" / f"{invite_id}.json"
@@ -196,6 +208,11 @@ class FileIdentityStateStore:
             try:
                 return Account.model_validate_json(path.read_text())
             except Exception:
+                logger.warning(
+                    "account_deserialize_failed",
+                    extra={"account_id": str(account_id), "path": str(path)},
+                    exc_info=True,
+                )
                 return None
 
     def get_account_by_email(self, email: str) -> Account | None:
@@ -205,6 +222,9 @@ class FileIdentityStateStore:
                 try:
                     account = Account.model_validate_json(path.read_text())
                 except Exception:
+                    logger.warning(
+                        "account_deserialize_failed", extra={"path": str(path)}, exc_info=True
+                    )
                     continue
                 if account.email.strip().lower() == normalized:
                     return account
@@ -222,6 +242,11 @@ class FileIdentityStateStore:
             try:
                 return Workspace.model_validate_json(path.read_text())
             except Exception:
+                logger.warning(
+                    "workspace_deserialize_failed",
+                    extra={"workspace_id": str(workspace_id), "path": str(path)},
+                    exc_info=True,
+                )
                 return None
 
     def list_workspaces_for_account(self, account_id: UUID) -> list[Workspace]:
@@ -231,6 +256,9 @@ class FileIdentityStateStore:
                 try:
                     workspace = Workspace.model_validate_json(path.read_text())
                 except Exception:
+                    logger.warning(
+                        "workspace_deserialize_failed", extra={"path": str(path)}, exc_info=True
+                    )
                     continue
                 if any(member.account_id == account_id for member in workspace.members):
                     result.append(workspace)
@@ -248,6 +276,11 @@ class FileIdentityStateStore:
             try:
                 return WorkspaceSession.model_validate_json(path.read_text())
             except Exception:
+                logger.warning(
+                    "session_deserialize_failed",
+                    extra={"token_hash": token_hash, "path": str(path)},
+                    exc_info=True,
+                )
                 return None
 
     def save_session(self, session: WorkspaceSession) -> None:
@@ -268,6 +301,11 @@ class FileIdentityStateStore:
             try:
                 return EmailChallenge.model_validate_json(path.read_text())
             except Exception:
+                logger.warning(
+                    "email_challenge_deserialize_failed",
+                    extra={"token_hash": token_hash, "path": str(path)},
+                    exc_info=True,
+                )
                 return None
 
     def save_email_challenge(self, challenge: EmailChallenge) -> None:
@@ -284,6 +322,11 @@ class FileIdentityStateStore:
             try:
                 return WorkspaceInvite.model_validate_json(path.read_text())
             except Exception:
+                logger.warning(
+                    "invite_deserialize_failed",
+                    extra={"invite_id": str(invite_id), "path": str(path)},
+                    exc_info=True,
+                )
                 return None
 
     def get_invite_by_token_hash(self, token_hash: str) -> WorkspaceInvite | None:
@@ -292,6 +335,9 @@ class FileIdentityStateStore:
                 try:
                     invite = WorkspaceInvite.model_validate_json(path.read_text())
                 except Exception:
+                    logger.warning(
+                        "invite_deserialize_failed", extra={"path": str(path)}, exc_info=True
+                    )
                     continue
                 if invite.token_hash == token_hash:
                     return invite
@@ -304,6 +350,9 @@ class FileIdentityStateStore:
                 try:
                     invite = WorkspaceInvite.model_validate_json(path.read_text())
                 except Exception:
+                    logger.warning(
+                        "invite_deserialize_failed", extra={"path": str(path)}, exc_info=True
+                    )
                     continue
                 if invite.workspace_id == workspace_id:
                     result.append(invite)
@@ -380,6 +429,11 @@ class SQLiteIdentityStateStore:
         try:
             return Account.model_validate_json(row[0])
         except Exception:
+            logger.warning(
+                "account_deserialize_failed",
+                extra={"account_id": str(account_id), "store": "sqlite"},
+                exc_info=True,
+            )
             return None
 
     def get_account_by_email(self, email: str) -> Account | None:
@@ -394,6 +448,11 @@ class SQLiteIdentityStateStore:
         try:
             return Account.model_validate_json(row[0])
         except Exception:
+            logger.warning(
+                "account_deserialize_failed",
+                extra={"email": normalized, "store": "sqlite"},
+                exc_info=True,
+            )
             return None
 
     def save_account(self, account: Account) -> None:
@@ -416,6 +475,11 @@ class SQLiteIdentityStateStore:
         try:
             return Workspace.model_validate_json(row[0])
         except Exception:
+            logger.warning(
+                "workspace_deserialize_failed",
+                extra={"workspace_id": str(workspace_id), "store": "sqlite"},
+                exc_info=True,
+            )
             return None
 
     def list_workspaces_for_account(self, account_id: UUID) -> list[Workspace]:
@@ -426,6 +490,9 @@ class SQLiteIdentityStateStore:
             try:
                 workspace = Workspace.model_validate_json(payload)
             except Exception:
+                logger.warning(
+                    "workspace_deserialize_failed", extra={"store": "sqlite"}, exc_info=True
+                )
                 continue
             if any(member.account_id == account_id for member in workspace.members):
                 result.append(workspace)
@@ -451,6 +518,11 @@ class SQLiteIdentityStateStore:
         try:
             return WorkspaceSession.model_validate_json(row[0])
         except Exception:
+            logger.warning(
+                "session_deserialize_failed",
+                extra={"token_hash": token_hash, "store": "sqlite"},
+                exc_info=True,
+            )
             return None
 
     def save_session(self, session: WorkspaceSession) -> None:
@@ -481,6 +553,11 @@ class SQLiteIdentityStateStore:
         try:
             return EmailChallenge.model_validate_json(row[0])
         except Exception:
+            logger.warning(
+                "email_challenge_deserialize_failed",
+                extra={"token_hash": token_hash, "store": "sqlite"},
+                exc_info=True,
+            )
             return None
 
     def save_email_challenge(self, challenge: EmailChallenge) -> None:
@@ -503,6 +580,11 @@ class SQLiteIdentityStateStore:
         try:
             return WorkspaceInvite.model_validate_json(row[0])
         except Exception:
+            logger.warning(
+                "invite_deserialize_failed",
+                extra={"invite_id": str(invite_id), "store": "sqlite"},
+                exc_info=True,
+            )
             return None
 
     def get_invite_by_token_hash(self, token_hash: str) -> WorkspaceInvite | None:
@@ -516,6 +598,11 @@ class SQLiteIdentityStateStore:
         try:
             return WorkspaceInvite.model_validate_json(row[0])
         except Exception:
+            logger.warning(
+                "invite_deserialize_failed",
+                extra={"token_hash": token_hash, "store": "sqlite"},
+                exc_info=True,
+            )
             return None
 
     def list_invites_for_workspace(self, workspace_id: UUID) -> list[WorkspaceInvite]:
@@ -529,6 +616,11 @@ class SQLiteIdentityStateStore:
             try:
                 result.append(WorkspaceInvite.model_validate_json(payload))
             except Exception:
+                logger.warning(
+                    "invite_deserialize_failed",
+                    extra={"workspace_id": str(workspace_id), "store": "sqlite"},
+                    exc_info=True,
+                )
                 continue
         return result
 

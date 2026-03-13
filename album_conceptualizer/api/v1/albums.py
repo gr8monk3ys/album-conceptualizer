@@ -168,11 +168,10 @@ async def update_album(request: Request, album_id: str, data: AlbumUpdate) -> Al
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
-    # Update fields
+    # Apply only explicitly-provided fields (null clears a field).
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
-        if value is not None:
-            setattr(album, field, value)
+        setattr(album, field, value)
 
     store.save(album)
     return _album_to_response(album)

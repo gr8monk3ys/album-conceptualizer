@@ -6,7 +6,7 @@ import csv
 import json
 import zipfile
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from statistics import median
 from typing import Annotated, Any, cast
@@ -338,7 +338,7 @@ class CollabParticipant(BaseModel):
 
     alias: str
     role: str = "member"
-    joined_at: datetime = Field(default_factory=datetime.utcnow)
+    joined_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CollabComment(BaseModel):
@@ -347,7 +347,7 @@ class CollabComment(BaseModel):
     alias: str
     message: str
     track_number: int | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CollabSnapshot(BaseModel):
@@ -355,7 +355,7 @@ class CollabSnapshot(BaseModel):
 
     alias: str
     summary: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CollabBoardVote(BaseModel):
@@ -363,7 +363,7 @@ class CollabBoardVote(BaseModel):
 
     alias: str
     value: int = Field(default=1, ge=-1, le=1)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CollabBoardItem(BaseModel):
@@ -378,8 +378,8 @@ class CollabBoardItem(BaseModel):
     votes: list[CollabBoardVote] = Field(default_factory=list)
     vote_score: int = 0
     voter_count: int = 0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CollabRoom(BaseModel):
@@ -394,8 +394,8 @@ class CollabRoom(BaseModel):
     comments: list[CollabComment] = Field(default_factory=list)
     snapshots: list[CollabSnapshot] = Field(default_factory=list)
     board_items: list[CollabBoardItem] = Field(default_factory=list)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CreateCollabRoomRequest(BaseModel):
@@ -746,7 +746,7 @@ class CreatorMemoryEvent(BaseModel):
     label: str
     album_id: str | None = None
     metadata: dict[str, str] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ChallengeProfile(BaseModel):
@@ -818,7 +818,7 @@ class RemixBattleVote(BaseModel):
 
     alias: str
     score: int = Field(ge=1, le=5)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class RemixBattleSubmission(BaseModel):
@@ -829,7 +829,7 @@ class RemixBattleSubmission(BaseModel):
     title: str
     concept: str
     preview_hook: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     votes: list[RemixBattleVote] = Field(default_factory=list)
     average_score: float = Field(default=0.0, ge=0.0, le=5.0)
     vote_count: int = Field(default=0, ge=0)
@@ -846,8 +846,8 @@ class RemixBattle(BaseModel):
     created_by: str
     share_slug: str
     submissions: list[RemixBattleSubmission] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CreateRemixBattleRequest(BaseModel):
@@ -1359,7 +1359,7 @@ def _find_board_item(room: CollabRoom, item_id: str) -> CollabBoardItem:
 def _refresh_board_item_votes(item: CollabBoardItem) -> None:
     item.vote_score = sum(vote.value for vote in item.votes)
     item.voter_count = len(item.votes)
-    item.updated_at = datetime.utcnow()
+    item.updated_at = datetime.now(UTC)
 
 
 def _profile_display_name(profile: ChallengeProfile) -> str:
@@ -1647,8 +1647,6 @@ def _remix_leaderboard_summary(battle: RemixBattle) -> list[str]:
             f"({submission.average_score:.2f}/5 from {submission.vote_count} votes)"
         )
     return summary
-
-
 
 
 @router.get("/experience/prompt-packs", response_model=list[PromptPack])
@@ -1992,7 +1990,7 @@ async def export_release_kit(
     release_kit = _compose_release_kit_payload(album, bible, data.platform)
     campaign = _compose_release_campaign_payload(album, launch, data.duration_days)
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     slug = _safe_slug(album.title)
     bundle_dir = Path("output/release_kits") / str(album.id) / f"{slug}_{timestamp}"
     bundle_dir.mkdir(parents=True, exist_ok=True)
@@ -2040,7 +2038,7 @@ async def export_release_kit(
         manifest: dict[str, Any] = {
             "album_id": str(album.id),
             "album_title": album.title,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "platform": data.platform,
             "release_kit": release_kit.model_dump(mode="json"),
             "campaign": campaign.model_dump(mode="json"),
@@ -2104,7 +2102,7 @@ async def generate_daw_handoff_pack(
             int(median(tempo_votes)) if tempo_votes else 120
         )
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     package_label = data.package_name or f"{album.title}_handoff"
     bundle_dir = (
         Path("output/daw_handoff") / str(album.id) / f"{_safe_slug(package_label)}_{timestamp}"
@@ -2128,7 +2126,7 @@ async def generate_daw_handoff_pack(
             f"DAW Handoff Pack for {album.title}\n"
             f"Targets: {', '.join(requested_targets)}\n"
             f"Recommended BPM: {recommended_tempo}\n"
-            f"Generated: {datetime.utcnow().isoformat()}\n"
+            f"Generated: {datetime.now(UTC).isoformat()}\n"
         ),
     )
     _write_json("release_kit.json", release_kit.model_dump(mode="json"))
@@ -2380,7 +2378,7 @@ async def collab_room_realtime_ws(
 
     cleaned_alias = alias.strip()
     _ensure_participant(room, cleaned_alias, role="guest")
-    room.updated_at = datetime.utcnow()
+    room.updated_at = datetime.now(UTC)
     store.save_room(album_id, room_id, room.model_dump(mode="json"))
 
     await websocket.accept()
@@ -2417,7 +2415,7 @@ async def join_collab_room(
     room = _get_room(request, album_id, room_id)
     alias = data.alias.strip()
     _ensure_participant(room, alias, role=data.role.strip() or "member")
-    room.updated_at = datetime.utcnow()
+    room.updated_at = datetime.now(UTC)
     _save_room(request, room)
     return room
 
@@ -2444,7 +2442,7 @@ async def add_collab_comment(
             track_number=data.track_number,
         )
     )
-    room.updated_at = datetime.utcnow()
+    room.updated_at = datetime.now(UTC)
     _save_room(request, room)
     return room
 
@@ -2468,7 +2466,7 @@ async def save_collab_snapshot(
             summary=data.summary.strip(),
         )
     )
-    room.updated_at = datetime.utcnow()
+    room.updated_at = datetime.now(UTC)
     _save_room(request, room)
     return room
 
@@ -2500,7 +2498,7 @@ async def add_collab_board_item(
     room.board_items.sort(
         key=lambda board_item: (board_item.vote_score, board_item.created_at), reverse=True
     )
-    room.updated_at = datetime.utcnow()
+    room.updated_at = datetime.now(UTC)
     _save_room(request, room)
     return room
 
@@ -2541,7 +2539,7 @@ async def vote_collab_board_item(
     room.board_items.sort(
         key=lambda board_item: (board_item.vote_score, board_item.created_at), reverse=True
     )
-    room.updated_at = datetime.utcnow()
+    room.updated_at = datetime.now(UTC)
     _save_room(request, room)
     return room
 
@@ -2608,7 +2606,7 @@ async def submit_remix_battle_entry(
         existing.title = data.title.strip()
         existing.concept = data.concept.strip()
         existing.preview_hook = data.preview_hook.strip() if data.preview_hook else None
-        existing.created_at = datetime.utcnow()
+        existing.created_at = datetime.now(UTC)
     else:
         battle.submissions.append(
             RemixBattleSubmission(
@@ -2622,7 +2620,7 @@ async def submit_remix_battle_entry(
     for submission in battle.submissions:
         _refresh_remix_submission(submission)
     battle.submissions = _sort_remix_submissions(battle.submissions)
-    battle.updated_at = datetime.utcnow()
+    battle.updated_at = datetime.now(UTC)
     _save_remix_battle(request, battle)
     return battle
 
@@ -2664,7 +2662,7 @@ async def vote_remix_battle_submission(
         submission.votes[prior_vote_index] = vote
     _refresh_remix_submission(submission)
     battle.submissions = _sort_remix_submissions(battle.submissions)
-    battle.updated_at = datetime.utcnow()
+    battle.updated_at = datetime.now(UTC)
     _save_remix_battle(request, battle)
     return battle
 
@@ -2687,7 +2685,7 @@ async def close_remix_battle(
     if data.alias.strip().lower() != battle.created_by.lower():
         raise HTTPException(status_code=403, detail="Only the battle creator can close this battle")
     battle.status = "closed"
-    battle.updated_at = datetime.utcnow()
+    battle.updated_at = datetime.now(UTC)
     _save_remix_battle(request, battle)
     return battle
 
@@ -3077,7 +3075,7 @@ async def build_audio_preview(
     preview_dir = Path("output/previews") / str(album.id)
     preview_dir.mkdir(parents=True, exist_ok=True)
     preview_name = (
-        f"{_safe_slug(album.title)}_preview_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.mid"
+        f"{_safe_slug(album.title)}_preview_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.mid"
     )
     preview_path = preview_dir / preview_name
 

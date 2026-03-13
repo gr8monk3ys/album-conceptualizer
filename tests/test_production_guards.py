@@ -63,6 +63,7 @@ def test_strict_production_accepts_secure_configuration(
     monkeypatch.setenv("ALBUM_CONCEPTUALIZER_CORS_ORIGINS", '["https://app.example.com"]')
     monkeypatch.setenv("ALBUM_CONCEPTUALIZER_STORAGE_BACKEND", "sqlite")
     monkeypatch.setenv("ALBUM_CONCEPTUALIZER_STORAGE_DB", str(tmp_path / "prod.db"))
+    monkeypatch.setenv("ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED", "true")
     reset_settings()
 
     app = create_app()

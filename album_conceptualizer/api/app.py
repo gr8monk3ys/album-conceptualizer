@@ -111,7 +111,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 embedding_model=embedding_model,
                 persist_directory=settings.chroma_persist_directory,
             )
+        except ImportError:
+            app.state.vector_store = None
         except Exception:
+            from album_conceptualizer.logging import get_logger
+
+            _logger = get_logger("album_conceptualizer.api")
+            _logger.exception(
+                "rag_initialization_failed",
+                exc_info=True,
+                extra={"chroma_dir": str(settings.chroma_persist_directory)},
+            )
             app.state.vector_store = None
 
     yield
@@ -163,9 +173,9 @@ def create_app(
         version=version,
         debug=debug,
         lifespan=lifespan,
-        docs_url="/docs",
-        redoc_url="/redoc",
-        openapi_url="/openapi.json",
+        docs_url=None if settings.strict_production else "/docs",
+        redoc_url=None if settings.strict_production else "/redoc",
+        openapi_url=None if settings.strict_production else "/openapi.json",
         openapi_tags=[
             {"name": "albums", "description": "Album management operations"},
             {"name": "songs", "description": "Song management within albums"},
@@ -251,6 +261,14 @@ def create_app(
     # Global exception handler
     @app.exception_handler(Exception)
     async def global_exception_handler(request, exc):
+        from album_conceptualizer.logging import get_logger
+
+        _logger = get_logger("album_conceptualizer.api")
+        _logger.exception(
+            "unhandled_exception",
+            exc_info=exc,
+            extra={"path": str(getattr(request, "url", "unknown"))},
+        )
         metrics: MetricsRegistry | None = getattr(request.app.state, "metrics", None)
         if metrics:
             metrics.record_error()
@@ -258,7 +276,6 @@ def create_app(
             status_code=500,
             content={
                 "detail": "Internal server error",
-                "type": type(exc).__name__,
             },
         )
 
