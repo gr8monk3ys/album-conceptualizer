@@ -233,6 +233,8 @@ test.describe("Album Management", () => {
 
     await expect(page.getByText("Demo added.")).toBeVisible();
     await expect(page.getByText("Hallway chorus memo").first()).toBeVisible();
+    await expect(page.getByText("Structured review").first()).toBeVisible();
+    await expect(page.getByText("Chorus or post-chorus candidate").first()).toBeVisible();
 
     await page.getByRole("link", { name: "Back" }).click();
     await expect(page.getByRole("main").getByText("Rough demos").first()).toBeVisible();

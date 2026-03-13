@@ -6,7 +6,7 @@ import { AlbumRoughDemoWorkspace } from "@/components/album-rough-demo-workspace
 import { getAlbum } from "@/server/albums";
 import { getAlbumSongOptions } from "@/server/album-songs";
 import { requireUser } from "@/server/identity";
-import { listAlbumRoughDemos } from "@/server/rough-demos";
+import { buildRoughDemoCollection } from "@/server/rough-demo-review";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export default async function AlbumRoughDemosPage({
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
 
-  const demos = listAlbumRoughDemos(album.data);
+  const { demos, reviews } = buildRoughDemoCollection(album.data);
   const songOptions = getAlbumSongOptions(album.data);
 
   return (
@@ -72,6 +72,7 @@ export default async function AlbumRoughDemosPage({
       <AlbumRoughDemoWorkspace
         albumId={album.id}
         initialDemos={demos}
+        initialReviews={reviews}
         songOptions={songOptions}
       />
     </div>

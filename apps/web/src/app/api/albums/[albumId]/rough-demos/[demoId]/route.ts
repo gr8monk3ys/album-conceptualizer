@@ -6,6 +6,7 @@ import { RoughDemoFileSchema } from "@/server/album-json";
 import { buildAlbumMutationData } from "@/server/album-sync";
 import { trackProductEventSafe } from "@/server/analytics";
 import { getPrisma } from "@/server/db";
+import { buildRoughDemoCollection } from "@/server/rough-demo-review";
 import {
   listAlbumRoughDemos,
   normalizeRoughDemo,
@@ -104,7 +105,7 @@ export async function PATCH(
     },
   });
 
-  return NextResponse.json({ demo });
+  return NextResponse.json(buildRoughDemoCollection(nextAlbum));
 }
 
 export async function DELETE(
@@ -165,5 +166,5 @@ export async function DELETE(
     },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(buildRoughDemoCollection(nextAlbum));
 }

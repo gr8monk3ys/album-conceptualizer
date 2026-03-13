@@ -11,6 +11,7 @@ import { getPrisma } from "@/server/db";
 import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
 import { getAlbumOnboardingSummary } from "@/server/onboarding";
+import { analyzeAlbumRoughDemos, summarizeRoughDemoReviews } from "@/server/rough-demo-review";
 import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
@@ -76,6 +77,7 @@ export default async function AlbumDetailPage({
   const styleBible = getAlbumStyleBible(album.data);
   const styleSummary = summarizeStyleBible(styleBible, references);
   const demoSummary = summarizeRoughDemos(roughDemos);
+  const demoReviewSummary = summarizeRoughDemoReviews(analyzeAlbumRoughDemos(album.data));
   const showOnboarding =
     onboarding.completeCount < onboarding.totalCount || query.welcome === "1";
 
@@ -317,7 +319,7 @@ export default async function AlbumDetailPage({
               <div>
                 <div className="text-xs text-[var(--muted2)]">Rough demos</div>
                 <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-                  {demoSummary.count} captured
+                  {demoSummary.count} captured · {demoReviewSummary.readyCount} ready
                 </div>
               </div>
               <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
@@ -335,8 +337,10 @@ export default async function AlbumDetailPage({
               ))}
             </div>
             <div className="mt-3 text-xs text-[var(--muted2)]">
-              {demoSummary.latestTitle
-                ? demoSummary.latestTitle
+              {demoReviewSummary.topHeadline
+                ? demoReviewSummary.topHeadline
+                : demoSummary.latestTitle
+                  ? demoSummary.latestTitle
                 : "Capture the memo, rehearsal, or riff sketch before it disappears."}
             </div>
           </Link>

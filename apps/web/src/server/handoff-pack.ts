@@ -2,6 +2,7 @@ import { AlbumJsonSchema } from "@/server/album-json";
 import { buildAlbumBible } from "@/server/bible";
 import { analyzeAlbumCoherence } from "@/server/coherence";
 import type { AlbumReferenceRecord } from "@/server/references";
+import { analyzeAlbumRoughDemos } from "@/server/rough-demo-review";
 import { getRoughDemoSourceLabel, listAlbumRoughDemos } from "@/server/rough-demos";
 
 export type HandoffTarget = "suno" | "udio" | "daw";
@@ -224,6 +225,10 @@ export function buildHandoffPackMarkdown(input: {
   const bible = buildAlbumBible(album);
   const coherence = analyzeAlbumCoherence(album);
   const roughDemos = listAlbumRoughDemos(album);
+  const roughDemoReviews = analyzeAlbumRoughDemos(album);
+  const roughDemoReviewMap = new Map(
+    roughDemoReviews.map((review) => [review.demoId, review] as const),
+  );
   const config = TARGET_CONFIG[input.target];
 
   const referencesByTrack = new Map<number, AlbumReferenceRecord[]>();
@@ -329,17 +334,30 @@ export function buildHandoffPackMarkdown(input: {
   lines.push("## Rough demo captures");
   if (roughDemos.length) {
     for (const demo of roughDemos.slice(0, 8)) {
+      const review = roughDemoReviewMap.get(demo.id);
       lines.push(
         `- **${demo.title}** · ${getRoughDemoSourceLabel(demo.source_kind)}${
           demo.song_track_number ? ` · Track ${demo.song_track_number}` : " · Album-wide"
         }`,
       );
+      if (review) {
+        lines.push(`  - Review: ${review.headline}`);
+        lines.push(`  - Suggested placement: ${review.suggestedPlacement}`);
+        if (review.recommendedTrack) {
+          lines.push(
+            `  - Track fit: Track ${review.recommendedTrack.trackNumber} · ${review.recommendedTrack.title}`,
+          );
+        }
+      }
       if (demo.capture_notes) lines.push(`  - Capture: ${demo.capture_notes}`);
       if (demo.sonic_traits.length) lines.push(`  - Sonic traits: ${demo.sonic_traits.join(", ")}`);
       if (demo.lyrical_fragments.length) {
         lines.push(`  - Lyrical fragments: ${demo.lyrical_fragments.join(", ")}`);
       }
       if (demo.next_actions.length) lines.push(`  - Next moves: ${demo.next_actions.join(", ")}`);
+      if (review?.nextMoves.length) {
+        lines.push(`  - Review next moves: ${review.nextMoves.join(", ")}`);
+      }
       if (demo.local_file?.name) lines.push(`  - Local file: ${demo.local_file.name}`);
       if (demo.external_url) lines.push(`  - URL: ${demo.external_url}`);
     }

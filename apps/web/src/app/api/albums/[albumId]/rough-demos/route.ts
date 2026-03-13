@@ -6,11 +6,8 @@ import { RoughDemoFileSchema } from "@/server/album-json";
 import { buildAlbumMutationData } from "@/server/album-sync";
 import { trackProductEventSafe } from "@/server/analytics";
 import { getPrisma } from "@/server/db";
-import {
-  listAlbumRoughDemos,
-  normalizeRoughDemo,
-  patchAlbumRoughDemos,
-} from "@/server/rough-demos";
+import { buildRoughDemoCollection } from "@/server/rough-demo-review";
+import { normalizeRoughDemo, patchAlbumRoughDemos } from "@/server/rough-demos";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const runtime = "nodejs";
@@ -51,7 +48,7 @@ export async function GET(
   });
   if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
-  return NextResponse.json({ demos: listAlbumRoughDemos(album.data) });
+  return NextResponse.json(buildRoughDemoCollection(album.data));
 }
 
 export async function POST(
@@ -114,5 +111,5 @@ export async function POST(
     },
   });
 
-  return NextResponse.json({ demo });
+  return NextResponse.json(buildRoughDemoCollection(nextAlbum));
 }
