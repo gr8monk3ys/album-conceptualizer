@@ -28,10 +28,12 @@ Jobs run in background threads (`threading.Thread`) because CrewAI's `crew.kicko
 All under `/api/v1/agents/`, behind `subscription_router` (API key + active subscription required).
 
 ```
-POST /api/v1/agents/ideation         Start album ideation crew
-POST /api/v1/agents/song-development Start song development crew
-POST /api/v1/agents/coherence-review Start coherence review crew
-GET  /api/v1/agents/jobs/{job_id}    Poll job status and result
+POST   /api/v1/agents/ideation         Start album ideation crew
+POST   /api/v1/agents/song-development Start song development crew
+POST   /api/v1/agents/coherence-review Start coherence review crew
+GET    /api/v1/agents/jobs             List jobs (optional ?status= filter)
+GET    /api/v1/agents/jobs/{job_id}    Poll job status and result
+DELETE /api/v1/agents/jobs/{job_id}    Remove completed/failed job
 ```
 
 ### Request Models
@@ -96,7 +98,9 @@ class JobStore:
 
     def create(self, crew_type: str) -> Job: ...
     def get(self, job_id: str) -> Job | None: ...
+    def list(self, status: JobStatus | None = None) -> list[Job]: ...
     def update(self, job_id: str, **kwargs) -> None: ...
+    def delete(self, job_id: str) -> bool: ...
     def _evict_stale(self) -> None: ...
 ```
 
@@ -127,13 +131,65 @@ def _run_crew_in_thread(job_store: JobStore, job_id: str, crew: Crew) -> None:
 
 Each POST endpoint:
 1. Validates the request
-2. Fetches any required data from storage (album, bible)
-3. Creates the appropriate crew
-4. Creates a job in the job store
-5. Spawns a background thread
-6. Returns immediately with job ID (202 Accepted)
+2. Checks `ANTHROPIC_API_KEY` is configured — returns 503 with clear message if missing
+3. Fetches required data from storage **synchronously in the request handler** (not in the thread) — returns 404 if album/bible not found
+4. Creates the appropriate crew, passing fetched data
+5. Creates a job in the job store
+6. Spawns a background thread with the crew (no storage access in thread)
+7. Returns immediately with job ID (202 Accepted)
+
+This pattern ensures storage reads happen on the main thread (avoiding thread-safety issues with in-memory stores) and validation errors are returned synchronously.
+
+#### Crew parameter mapping
+
+**Ideation:**
+```python
+crew = create_album_ideation_crew(
+    concept=req.concept,
+    references=req.references,
+    themes=req.themes,
+    track_count=req.track_count,
+)
+```
+
+**Song development:**
+```python
+bible = bible_store.get(req.album_id)  # 404 if None
+album = album_store.get(req.album_id)  # 404 if None
+crew = create_song_development_crew(
+    song_title=req.song_title,
+    track_number=req.track_number,
+    album_bible=bible,
+    mood=req.mood,
+    style_reference=req.style_reference,
+    song_structure=req.song_structure,
+)
+```
+Note: An `AlbumBible` must exist for the album before song development can run. The ideation workflow produces a vision document; the user must save it as an `AlbumBible` via the existing bible CRUD endpoints before developing songs.
+
+**Coherence review:**
+```python
+album = album_store.get(req.album_id)  # 404 if None
+bible = bible_store.get(req.album_id)  # 404 if None
+
+# Assemble album_content from stored songs
+album_content = "\n\n".join(
+    f"Track {song.track_number}: {song.title}\n"
+    + "\n".join(
+        f"[{s.section_type.value}] {s.lyrics or ''}"
+        for s in (song.sections or [])
+    )
+    for song in album.songs
+)
+
+crew = create_coherence_review_crew(
+    album_bible=bible,
+    album_content=album_content,
+)
+```
 
 The GET endpoint returns current job status, result if completed, error if failed.
+The DELETE endpoint removes a completed or failed job from the store (cleanup).
 
 ### App State Integration
 
@@ -160,7 +216,10 @@ All tests mock the crew execution (no real LLM calls). Test:
 - Job creation and polling lifecycle (pending -> running -> completed)
 - Job failure handling (pending -> running -> failed)
 - Request validation (missing fields, invalid album_id)
+- 404 when album or bible not found for song-development/coherence-review
+- 503 when ANTHROPIC_API_KEY is not configured
 - Job TTL eviction
+- Job list and delete endpoints
 - 404 for unknown job IDs
 - Auth gating (requires API key + subscription)
 
