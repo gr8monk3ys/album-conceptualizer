@@ -207,9 +207,7 @@ def start_coherence_review(req: CoherenceReviewRequest, request: Request) -> Job
     # Assemble album content from stored songs
     album_content = "\n\n".join(
         f"Track {song.track_number}: {song.title}\n"
-        + "\n".join(
-            f"[{s.section_type}] {s.lyrics or ''}" for s in (song.sections or [])
-        )
+        + "\n".join(f"[{s.section_type}] {s.lyrics or ''}" for s in (song.sections or []))
         for song in album.songs
     )
 
