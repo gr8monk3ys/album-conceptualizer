@@ -1,10 +1,9 @@
-# tests/test_jobs.py
 """Tests for the in-memory job store."""
 
 import threading
 import time
 
-from album_conceptualizer.api.jobs import Job, JobStatus, JobStore  # noqa: F401
+from album_conceptualizer.api.jobs import JobStatus, JobStore
 
 
 class TestJobStore:

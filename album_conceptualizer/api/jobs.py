@@ -1,4 +1,3 @@
-# album_conceptualizer/api/jobs.py
 """In-memory job store for async agent workflows."""
 
 from __future__ import annotations
