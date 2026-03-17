@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import threading
 import time
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from album_conceptualizer.api.jobs import JobStatus, JobStore
+from album_conceptualizer.api.jobs import Job, JobStatus, JobStore
 from album_conceptualizer.config import get_settings
 
 
@@ -18,6 +19,7 @@ try:
         create_coherence_review_crew,
         create_song_development_crew,
     )
+
 except ImportError:  # crewai not installed ([ai] extra)
     create_album_ideation_crew = None  # type: ignore[assignment]
     create_song_development_crew = None  # type: ignore[assignment]
@@ -74,7 +76,16 @@ def _require_anthropic_key() -> None:
         )
 
 
-def _run_crew_in_thread(job_store: JobStore, job_id: str, crew: object) -> None:
+def _require_crew_function(fn: Any) -> None:
+    if fn is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Agent workflows require the [ai] extra. "
+            "Install with: pip install album-conceptualizer[ai]",
+        )
+
+
+def _run_crew_in_thread(job_store: JobStore, job_id: str, crew: Any) -> None:
     """Execute a CrewAI crew in a background thread."""
     job_store.update(job_id, status=JobStatus.RUNNING)
     try:
@@ -94,7 +105,7 @@ def _run_crew_in_thread(job_store: JobStore, job_id: str, crew: object) -> None:
         )
 
 
-def _job_to_response(job) -> JobResponse:
+def _job_to_response(job: Job) -> JobResponse:
     return JobResponse(
         job_id=job.id,
         status=job.status,
@@ -113,6 +124,7 @@ def _job_to_response(job) -> JobResponse:
 @router.post("/ideation", status_code=202)
 def start_ideation(req: IdeationRequest, request: Request) -> JobResponse:
     _require_anthropic_key()
+    _require_crew_function(create_album_ideation_crew)
 
     crew = create_album_ideation_crew(
         concept=req.concept,
@@ -147,6 +159,8 @@ def start_song_development(req: SongDevelopmentRequest, request: Request) -> Job
             status_code=404,
             detail="Album bible not found. Create one before running song development.",
         )
+
+    _require_crew_function(create_song_development_crew)
 
     kwargs: dict = {}
     if req.mood is not None:
@@ -198,6 +212,8 @@ def start_coherence_review(req: CoherenceReviewRequest, request: Request) -> Job
         )
         for song in album.songs
     )
+
+    _require_crew_function(create_coherence_review_crew)
 
     crew = create_coherence_review_crew(
         album_bible=bible,
