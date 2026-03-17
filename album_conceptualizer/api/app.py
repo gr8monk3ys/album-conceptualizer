@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from album_conceptualizer.api.jobs import JobStore
 from album_conceptualizer.api.metrics import MetricsRegistry
 from album_conceptualizer.api.middleware import MetricsMiddleware, RequestLoggingMiddleware
 from album_conceptualizer.api.quota import InMemoryQuota, QuotaConfig, RedisQuota
@@ -88,6 +89,7 @@ def _initialize_state(app: FastAPI) -> None:
         app.state.subscription_store = InMemorySubscriptionStore()
         app.state.experience_store = InMemoryExperienceStateStore()
         app.state.identity_store = InMemoryIdentityStateStore()
+    app.state.job_store = JobStore()
 
 
 @asynccontextmanager
