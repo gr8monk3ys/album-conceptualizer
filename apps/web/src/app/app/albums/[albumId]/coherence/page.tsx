@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
+import { CoherenceAiReview } from "@/components/coherence-ai-review";
 import { analyzeAlbumCoherence } from "@/server/coherence";
 import { getAlbum } from "@/server/albums";
 import { requireUser } from "@/server/identity";
@@ -68,6 +69,7 @@ export default async function CoherencePage({
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
+          <CoherenceAiReview albumId={album.id} />
           <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
             <div className="text-xs text-[var(--muted2)]">Overall score</div>
             <div className="mt-2 flex items-end justify-between gap-3">
