@@ -36,7 +36,15 @@ const CoherenceReviewSchema = z.object({
   album_id: z.string().min(1),
 });
 
-type ActionParams = { action: "ideation" | "song-development" | "coherence-review" };
+type AgentAction = "ideation" | "song-development" | "coherence-review";
+const AGENT_ACTIONS: readonly AgentAction[] = [
+  "ideation",
+  "song-development",
+  "coherence-review",
+] as const;
+function isAgentAction(value: string): value is AgentAction {
+  return (AGENT_ACTIONS as readonly string[]).includes(value);
+}
 
 function engineErrorResponse(err: EngineError) {
   const upstream = err.status >= 400 && err.status < 500 ? err.status : 502;
@@ -61,18 +69,14 @@ async function ensureAlbumOwned(workspaceId: string, albumId: string): Promise<b
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<ActionParams> },
+  { params }: { params: Promise<{ action: string }> },
 ) {
   const session = await getAuthSession();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
   const { action } = await params;
-  if (
-    action !== "ideation" &&
-    action !== "song-development" &&
-    action !== "coherence-review"
-  ) {
+  if (!isAgentAction(action)) {
     return NextResponse.json({ error: "Unknown agent action." }, { status: 404 });
   }
 
