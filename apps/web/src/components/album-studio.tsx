@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, Download, Play, Plus, Save, Trash2 } from "lucide-r
 
 import type { AlbumJson } from "@/server/album-json";
 import { SectionComments } from "@/components/section-comments";
+import { SongDevelopmentAi } from "@/components/song-development-ai";
 import { usePlayer } from "@/components/player/player-provider";
 
 type SelectionInput = {
@@ -638,6 +639,11 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <SongDevelopmentAi
+                  albumId={albumId}
+                  songTitle={activeSong?.title ?? `Track ${activeSong?.track_number ?? 1}`}
+                  trackNumber={activeSong?.track_number ?? 1}
+                />
                 <button
                   type="button"
                   onClick={() => void previewSong()}
