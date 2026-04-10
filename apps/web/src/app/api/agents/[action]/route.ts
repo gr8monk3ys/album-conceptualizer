@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getAuthSession } from "@/server/auth";
+import { getCreditsStatus, InsufficientCreditsError, spendCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
@@ -54,7 +55,32 @@ function engineErrorResponse(err: EngineError) {
   );
 }
 
-function jobResponse(job: AgentJob) {
+const AGENT_CREDIT_COST = 5;
+
+async function jobResponseWithCredits(
+  job: AgentJob,
+  workspaceId: string,
+  plan: string,
+  action: string,
+) {
+  try {
+    await spendCredits({
+      workspaceId,
+      plan,
+      amount: AGENT_CREDIT_COST,
+      reason: `agent_${action}`,
+      metadata: { jobId: job.job_id, action },
+    });
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      return NextResponse.json(
+        { error: "Not enough credits to run an agent workflow." },
+        { status: 402 },
+      );
+    }
+    // Credit deduction failed but job already started — log and continue.
+    // The job is valuable even if we couldn't charge for it.
+  }
   return NextResponse.json(job, { status: 202 });
 }
 
@@ -97,6 +123,15 @@ export async function POST(
   }
 
   const workspace = await getActiveWorkspaceForUser(userId);
+  const plan = workspace.subscription?.plan ?? "free";
+
+  const creditStatus = await getCreditsStatus({ workspaceId: workspace.id, plan });
+  if (creditStatus.remaining < 5) {
+    return NextResponse.json(
+      { error: "Not enough credits to run an agent workflow. Complete challenges or upgrade." },
+      { status: 402 },
+    );
+  }
 
   if (action === "ideation") {
     const parsed = IdeationSchema.safeParse(body);
@@ -108,7 +143,7 @@ export async function POST(
     }
     const result = await startIdeation(parsed.data);
     if (isEngineError(result)) return engineErrorResponse(result);
-    return jobResponse(result);
+    return jobResponseWithCredits(result, workspace.id, plan, action);
   }
 
   if (action === "song-development") {
@@ -123,7 +158,7 @@ export async function POST(
     if (!owned) return NextResponse.json({ error: "Album not found." }, { status: 404 });
     const result = await startSongDevelopment(parsed.data);
     if (isEngineError(result)) return engineErrorResponse(result);
-    return jobResponse(result);
+    return jobResponseWithCredits(result, workspace.id, plan, action);
   }
 
   // coherence-review
@@ -138,5 +173,5 @@ export async function POST(
   if (!owned) return NextResponse.json({ error: "Album not found." }, { status: 404 });
   const result = await startCoherenceReview(parsed.data);
   if (isEngineError(result)) return engineErrorResponse(result);
-  return jobResponse(result);
+  return jobResponseWithCredits(result, workspace.id, plan, action);
 }

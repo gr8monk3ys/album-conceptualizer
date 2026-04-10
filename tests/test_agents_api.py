@@ -281,3 +281,59 @@ class TestCrewFailure:
         data = poll.json()
         assert data["status"] == "failed"
         assert "LLM error" in data["error"]
+
+
+class TestCrewTimeout:
+    @patch("album_conceptualizer.api.v1.agents.CREW_TIMEOUT_SECONDS", 1)
+    @patch("album_conceptualizer.api.v1.agents.create_album_ideation_crew")
+    def test_slow_crew_times_out(self, mock_create, agent_client):
+        """A crew that takes longer than the timeout should produce a FAILED job."""
+        crew = MagicMock()
+        crew.kickoff.side_effect = lambda: time.sleep(5) or "done"
+        mock_create.return_value = crew
+        resp = agent_client.post(
+            "/api/v1/agents/ideation",
+            json={"concept": "Slow album"},
+        )
+        assert resp.status_code == 202
+        job_id = resp.json()["job_id"]
+        # Wait for the timeout (set to 1s) + some margin.
+        for _ in range(30):
+            poll = agent_client.get(f"/api/v1/agents/jobs/{job_id}")
+            if poll.json()["status"] in ("completed", "failed"):
+                break
+            time.sleep(0.2)
+        data = poll.json()
+        assert data["status"] == "failed"
+        assert "Timed out" in data["error"]
+
+
+class TestConcurrencyLimit:
+    @patch("album_conceptualizer.api.v1.agents.MAX_ACTIVE_JOBS", 2)
+    @patch("album_conceptualizer.api.v1.agents.create_album_ideation_crew")
+    def test_third_job_rejected_when_two_active(self, mock_create, agent_client):
+        """When the active-job limit is reached, new jobs should get 429."""
+        # Create a crew that never finishes so jobs stay active.
+        crew = MagicMock()
+        crew.kickoff.side_effect = lambda: time.sleep(10)
+        mock_create.return_value = crew
+
+        resp1 = agent_client.post(
+            "/api/v1/agents/ideation",
+            json={"concept": "Album 1"},
+        )
+        assert resp1.status_code == 202
+
+        resp2 = agent_client.post(
+            "/api/v1/agents/ideation",
+            json={"concept": "Album 2"},
+        )
+        assert resp2.status_code == 202
+
+        # Third should be rejected.
+        resp3 = agent_client.post(
+            "/api/v1/agents/ideation",
+            json={"concept": "Album 3"},
+        )
+        assert resp3.status_code == 429
+        assert "Too many active agent jobs" in resp3.json()["detail"]

@@ -31,6 +31,18 @@ class MetricsRegistry:
     total_duration_ms: float = 0.0
     path_duration_ms: dict[str, float] = field(default_factory=lambda: defaultdict(float))
     _latencies: deque[float] = field(default_factory=lambda: deque(maxlen=_HISTOGRAM_MAX_SAMPLES))
+    agent_jobs_started: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    agent_jobs_completed: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    agent_jobs_failed: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+
+    def record_agent_start(self, workflow: str) -> None:
+        self.agent_jobs_started[workflow] += 1
+
+    def record_agent_complete(self, workflow: str) -> None:
+        self.agent_jobs_completed[workflow] += 1
+
+    def record_agent_failure(self, workflow: str, reason: str) -> None:
+        self.agent_jobs_failed[f"{workflow}:{reason}"] += 1
 
     def record(self, path: str, status: int, duration_ms: float | None = None) -> None:
         self.request_count += 1
@@ -70,4 +82,7 @@ class MetricsRegistry:
             "path_duration_ms": {
                 path: round(value, 2) for path, value in self.path_duration_ms.items()
             },
+            "agent_jobs_started": dict(self.agent_jobs_started),
+            "agent_jobs_completed": dict(self.agent_jobs_completed),
+            "agent_jobs_failed": dict(self.agent_jobs_failed),
         }

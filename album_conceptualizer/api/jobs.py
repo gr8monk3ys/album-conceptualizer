@@ -25,6 +25,7 @@ class Job:
     completed_at: float | None = None
     result: dict | None = None
     error: str | None = None
+    owner_id: str | None = None
 
 
 class JobStore:
@@ -35,11 +36,22 @@ class JobStore:
         self._ttl = ttl_seconds
         self._lock = threading.Lock()
 
-    def create(self, crew_type: str) -> Job:
-        job = Job(id=uuid4().hex, crew_type=crew_type)
+    def create(self, crew_type: str, owner_id: str | None = None) -> Job:
+        job = Job(id=uuid4().hex, crew_type=crew_type, owner_id=owner_id)
         with self._lock:
             self._jobs[job.id] = job
         return job
+
+    def count_active(self, owner_id: str | None = None) -> int:
+        """Count jobs with PENDING or RUNNING status, optionally filtered by owner."""
+        with self._lock:
+            self._evict_stale()
+            return sum(
+                1
+                for job in self._jobs.values()
+                if job.status in (JobStatus.PENDING, JobStatus.RUNNING)
+                and (owner_id is None or job.owner_id == owner_id)
+            )
 
     def get(self, job_id: str) -> Job | None:
         with self._lock:

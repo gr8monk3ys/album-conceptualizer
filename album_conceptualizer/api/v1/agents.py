@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from album_conceptualizer.api.jobs import Job, JobStatus, JobStore
+from album_conceptualizer.api.metrics import MetricsRegistry
 from album_conceptualizer.config import get_settings
+
+
+logger = logging.getLogger(__name__)
+
+CREW_TIMEOUT_SECONDS = 180
+MAX_ACTIVE_JOBS = 5
 
 
 try:
@@ -85,24 +95,68 @@ def _require_crew_function(fn: Any) -> None:
         )
 
 
-def _run_crew_in_thread(job_store: JobStore, job_id: str, crew: Any) -> None:
-    """Execute a CrewAI crew in a background thread."""
+def _run_crew_in_thread(
+    job_store: JobStore,
+    job_id: str,
+    crew: Any,
+    workflow: str,
+    metrics: MetricsRegistry | None = None,
+) -> None:
+    """Execute a CrewAI crew with timeout supervision."""
     job_store.update(job_id, status=JobStatus.RUNNING)
-    try:
-        result = crew.kickoff()
-        job_store.update(
-            job_id,
-            status=JobStatus.COMPLETED,
-            result={"output": str(result)},
-            completed_at=time.time(),
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(crew.kickoff)
+        try:
+            result = future.result(timeout=CREW_TIMEOUT_SECONDS)
+            job_store.update(
+                job_id,
+                status=JobStatus.COMPLETED,
+                result={"output": str(result)},
+                completed_at=time.time(),
+            )
+            if metrics:
+                metrics.record_agent_complete(workflow)
+        except FutureTimeoutError:
+            future.cancel()
+            job_store.update(
+                job_id,
+                status=JobStatus.FAILED,
+                error=f"Timed out after {CREW_TIMEOUT_SECONDS}s.",
+                completed_at=time.time(),
+            )
+            logger.warning("agent_crew_timeout", extra={"job_id": job_id, "workflow": workflow})
+            if metrics:
+                metrics.record_agent_failure(workflow, "timeout")
+        except Exception as exc:
+            job_store.update(
+                job_id,
+                status=JobStatus.FAILED,
+                error=str(exc),
+                completed_at=time.time(),
+            )
+            logger.exception(
+                "agent_crew_error",
+                exc_info=exc,
+                extra={"job_id": job_id, "workflow": workflow},
+            )
+            if metrics:
+                metrics.record_agent_failure(workflow, "crew_error")
+
+
+def _check_concurrency_limit(job_store: JobStore) -> None:
+    """Reject if the global active-job limit is reached."""
+    active = job_store.count_active()
+    if active >= MAX_ACTIVE_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many active agent jobs ({active}). "
+            f"Wait for running jobs to complete before starting another.",
+            headers={"retry-after": "30"},
         )
-    except Exception as exc:
-        job_store.update(
-            job_id,
-            status=JobStatus.FAILED,
-            error=str(exc),
-            completed_at=time.time(),
-        )
+
+
+def _get_metrics(request: Request) -> MetricsRegistry | None:
+    return getattr(request.app.state, "metrics", None)
 
 
 def _job_to_response(job: Job) -> JobResponse:
@@ -126,6 +180,9 @@ def start_ideation(req: IdeationRequest, request: Request) -> JobResponse:
     _require_anthropic_key()
     _require_crew_function(create_album_ideation_crew)
 
+    job_store: JobStore = request.app.state.job_store
+    _check_concurrency_limit(job_store)
+
     crew = create_album_ideation_crew(
         concept=req.concept,
         references=req.references,
@@ -133,12 +190,14 @@ def start_ideation(req: IdeationRequest, request: Request) -> JobResponse:
         track_count=req.track_count,
     )
 
-    job_store: JobStore = request.app.state.job_store
+    metrics = _get_metrics(request)
     job = job_store.create("ideation")
+    if metrics:
+        metrics.record_agent_start("ideation")
     response = _job_to_response(job)
     thread = threading.Thread(
         target=_run_crew_in_thread,
-        args=(job_store, job.id, crew),
+        args=(job_store, job.id, crew, "ideation", metrics),
         daemon=True,
     )
     thread.start()
@@ -162,6 +221,9 @@ def start_song_development(req: SongDevelopmentRequest, request: Request) -> Job
 
     _require_crew_function(create_song_development_crew)
 
+    job_store: JobStore = request.app.state.job_store
+    _check_concurrency_limit(job_store)
+
     kwargs: dict = {}
     if req.mood is not None:
         kwargs["mood"] = req.mood
@@ -177,12 +239,14 @@ def start_song_development(req: SongDevelopmentRequest, request: Request) -> Job
         **kwargs,
     )
 
-    job_store: JobStore = request.app.state.job_store
+    metrics = _get_metrics(request)
     job = job_store.create("song_development")
+    if metrics:
+        metrics.record_agent_start("song_development")
     response = _job_to_response(job)
     thread = threading.Thread(
         target=_run_crew_in_thread,
-        args=(job_store, job.id, crew),
+        args=(job_store, job.id, crew, "song_development", metrics),
         daemon=True,
     )
     thread.start()
@@ -204,26 +268,30 @@ def start_coherence_review(req: CoherenceReviewRequest, request: Request) -> Job
             detail="Album bible not found. Create one before running coherence review.",
         )
 
-    # Assemble album content from stored songs
+    _require_crew_function(create_coherence_review_crew)
+
+    job_store: JobStore = request.app.state.job_store
+    _check_concurrency_limit(job_store)
+
     album_content = "\n\n".join(
         f"Track {song.track_number}: {song.title}\n"
         + "\n".join(f"[{s.section_type}] {s.lyrics or ''}" for s in (song.sections or []))
         for song in album.songs
     )
 
-    _require_crew_function(create_coherence_review_crew)
-
     crew = create_coherence_review_crew(
         album_bible=bible,
         album_content=album_content or "(no song content yet)",
     )
 
-    job_store: JobStore = request.app.state.job_store
+    metrics = _get_metrics(request)
     job = job_store.create("coherence_review")
+    if metrics:
+        metrics.record_agent_start("coherence_review")
     response = _job_to_response(job)
     thread = threading.Thread(
         target=_run_crew_in_thread,
-        args=(job_store, job.id, crew),
+        args=(job_store, job.id, crew, "coherence_review", metrics),
         daemon=True,
     )
     thread.start()
