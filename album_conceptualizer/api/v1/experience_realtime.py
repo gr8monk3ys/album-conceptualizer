@@ -22,7 +22,6 @@ class CollabRealtimeEvent(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
-
 class CollabRealtimeHub:
     """In-process websocket hub for live collaboration room events."""
 
