@@ -115,6 +115,9 @@ uv.lock
 # MkDocs build output
 site/
 
+# Generated artifacts (lighthouse reports, playwright traces, export samples)
+output/
+
 # Playwright CLI artifacts
 .playwright-cli/
 .vercel
