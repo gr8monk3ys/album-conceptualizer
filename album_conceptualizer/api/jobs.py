@@ -66,12 +66,16 @@ class JobStore:
             jobs = [j for j in jobs if j.status == status]
         return jobs
 
+    _UPDATABLE_FIELDS = frozenset({"status", "result", "error", "completed_at"})
+
     def update(self, job_id: str, **kwargs: object) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
                 return
             for key, value in kwargs.items():
+                if key not in self._UPDATABLE_FIELDS:
+                    continue
                 setattr(job, key, value)
             if job.status in (JobStatus.COMPLETED, JobStatus.FAILED) and job.completed_at is None:
                 job.completed_at = time.time()

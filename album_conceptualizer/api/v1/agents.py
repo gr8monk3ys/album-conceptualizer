@@ -159,6 +159,11 @@ def _get_metrics(request: Request) -> MetricsRegistry | None:
     return getattr(request.app.state, "metrics", None)
 
 
+def _get_owner_id(request: Request) -> str | None:
+    """Extract owner ID from X-Owner-Id header (set by the Next.js proxy)."""
+    return request.headers.get("x-owner-id")
+
+
 def _job_to_response(job: Job) -> JobResponse:
     return JobResponse(
         job_id=job.id,
@@ -191,7 +196,8 @@ def start_ideation(req: IdeationRequest, request: Request) -> JobResponse:
     )
 
     metrics = _get_metrics(request)
-    job = job_store.create("ideation")
+    owner_id = _get_owner_id(request)
+    job = job_store.create("ideation", owner_id=owner_id)
     if metrics:
         metrics.record_agent_start("ideation")
     response = _job_to_response(job)
@@ -240,7 +246,8 @@ def start_song_development(req: SongDevelopmentRequest, request: Request) -> Job
     )
 
     metrics = _get_metrics(request)
-    job = job_store.create("song_development")
+    owner_id = _get_owner_id(request)
+    job = job_store.create("song_development", owner_id=owner_id)
     if metrics:
         metrics.record_agent_start("song_development")
     response = _job_to_response(job)
@@ -285,7 +292,8 @@ def start_coherence_review(req: CoherenceReviewRequest, request: Request) -> Job
     )
 
     metrics = _get_metrics(request)
-    job = job_store.create("coherence_review")
+    owner_id = _get_owner_id(request)
+    job = job_store.create("coherence_review", owner_id=owner_id)
     if metrics:
         metrics.record_agent_start("coherence_review")
     response = _job_to_response(job)
@@ -312,6 +320,9 @@ def get_job(job_id: str, request: Request) -> JobResponse:
     job_store: JobStore = request.app.state.job_store
     job = job_store.get(job_id)
     if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    owner_id = _get_owner_id(request)
+    if owner_id and job.owner_id and owner_id != job.owner_id:
         raise HTTPException(status_code=404, detail="Job not found")
     return _job_to_response(job)
 

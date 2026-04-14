@@ -141,7 +141,7 @@ export async function POST(
         { status: 400 },
       );
     }
-    const result = await startIdeation(parsed.data);
+    const result = await startIdeation(parsed.data, userId);
     if (isEngineError(result)) return engineErrorResponse(result);
     return jobResponseWithCredits(result, workspace.id, plan, action);
   }
@@ -156,7 +156,7 @@ export async function POST(
     }
     const owned = await ensureAlbumOwned(workspace.id, parsed.data.album_id);
     if (!owned) return NextResponse.json({ error: "Album not found." }, { status: 404 });
-    const result = await startSongDevelopment(parsed.data);
+    const result = await startSongDevelopment(parsed.data, userId);
     if (isEngineError(result)) return engineErrorResponse(result);
     return jobResponseWithCredits(result, workspace.id, plan, action);
   }
@@ -171,7 +171,7 @@ export async function POST(
   }
   const owned = await ensureAlbumOwned(workspace.id, parsed.data.album_id);
   if (!owned) return NextResponse.json({ error: "Album not found." }, { status: 404 });
-  const result = await startCoherenceReview(parsed.data);
+  const result = await startCoherenceReview(parsed.data, userId);
   if (isEngineError(result)) return engineErrorResponse(result);
   return jobResponseWithCredits(result, workspace.id, plan, action);
 }

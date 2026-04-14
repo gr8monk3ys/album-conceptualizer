@@ -14,7 +14,7 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
   const { jobId } = await params;
-  const result = await getAgentJob(jobId);
+  const result = await getAgentJob(jobId, userId);
   if (isEngineError(result)) {
     const upstream = result.status === 404 ? 404 : 502;
     return NextResponse.json({ error: result.detail }, { status: upstream });

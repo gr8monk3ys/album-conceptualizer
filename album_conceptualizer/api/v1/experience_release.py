@@ -26,6 +26,9 @@ from .experience_shared import (
     _safe_slug,
     _seed_progression,
 )
+
+# NOTE: one-way dependency release → studio. Do NOT add reverse imports in
+# experience_studio.py to avoid circular imports.
 from .experience_studio import (
     ReferenceAnalyzerRequest,
     _build_reference_analyzer_response,

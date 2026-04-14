@@ -46,11 +46,18 @@ function isEngineError(value: unknown): value is EngineError {
   );
 }
 
-async function postJson<T extends object>(path: string, body: T): Promise<AgentJob | EngineError> {
+async function postJson<T extends object>(
+  path: string,
+  body: T,
+  ownerId?: string,
+): Promise<AgentJob | EngineError> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (ownerId) headers["x-owner-id"] = ownerId;
   const response = await engineFetch(path, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(25_000),
   });
   if (!response.ok) {
     return {
@@ -76,29 +83,46 @@ async function readErrorDetail(response: Response): Promise<string> {
   }
 }
 
-export async function startIdeation(input: IdeationInput): Promise<AgentJob | EngineError> {
-  return postJson("/agents/ideation", {
-    concept: input.concept,
-    references: input.references ?? "",
-    themes: input.themes ?? "",
-    track_count: input.track_count ?? 10,
-  });
+export async function startIdeation(
+  input: IdeationInput,
+  ownerId?: string,
+): Promise<AgentJob | EngineError> {
+  return postJson(
+    "/agents/ideation",
+    {
+      concept: input.concept,
+      references: input.references ?? "",
+      themes: input.themes ?? "",
+      track_count: input.track_count ?? 10,
+    },
+    ownerId,
+  );
 }
 
 export async function startSongDevelopment(
   input: SongDevelopmentInput,
+  ownerId?: string,
 ): Promise<AgentJob | EngineError> {
-  return postJson("/agents/song-development", input);
+  return postJson("/agents/song-development", input, ownerId);
 }
 
 export async function startCoherenceReview(
   input: CoherenceReviewInput,
+  ownerId?: string,
 ): Promise<AgentJob | EngineError> {
-  return postJson("/agents/coherence-review", input);
+  return postJson("/agents/coherence-review", input, ownerId);
 }
 
-export async function getAgentJob(jobId: string): Promise<AgentJob | EngineError> {
-  const response = await engineFetch(`/agents/jobs/${encodeURIComponent(jobId)}`);
+export async function getAgentJob(
+  jobId: string,
+  ownerId?: string,
+): Promise<AgentJob | EngineError> {
+  const headers: Record<string, string> = {};
+  if (ownerId) headers["x-owner-id"] = ownerId;
+  const response = await engineFetch(`/agents/jobs/${encodeURIComponent(jobId)}`, {
+    headers,
+    signal: AbortSignal.timeout(10_000),
+  });
   if (!response.ok) {
     return {
       kind: "engine_error",
