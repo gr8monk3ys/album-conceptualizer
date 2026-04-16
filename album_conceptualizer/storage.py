@@ -164,7 +164,11 @@ class FileAlbumStore(AlbumStore):
         path = self._path_for(album_id)
         if not path.exists():
             return None
-        return Album.model_validate_json(path.read_text())
+        try:
+            return Album.model_validate_json(path.read_text())
+        except Exception:
+            logger.warning("album_deserialize_failed", extra={"path": str(path)}, exc_info=True)
+            return None
 
     def save(self, album: Album) -> None:
         path = self._path_for(str(album.id))

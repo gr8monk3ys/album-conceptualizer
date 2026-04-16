@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -19,8 +20,8 @@ from album_conceptualizer.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-CREW_TIMEOUT_SECONDS = 180
-MAX_ACTIVE_JOBS = 5
+CREW_TIMEOUT_SECONDS = int(os.environ.get("ALBUM_CONCEPTUALIZER_CREW_TIMEOUT", "180"))
+MAX_ACTIVE_JOBS = int(os.environ.get("ALBUM_CONCEPTUALIZER_MAX_ACTIVE_JOBS", "5"))
 
 
 try:

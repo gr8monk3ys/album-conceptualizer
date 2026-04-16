@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sparkles, Loader2, AlertCircle } from "lucide-react";
 
 import { useAgentJob } from "@/hooks/use-agent-job";
+import { parseApiError } from "@/lib/api-error";
 
 
 type IdeationAiProps = {
@@ -48,14 +49,7 @@ export function IdeationAi({ concept, references, themes, trackCount }: Ideation
         }),
       });
       if (!res.ok) {
-        let detail = `HTTP ${res.status}`;
-        try {
-          const data = (await res.json()) as { error?: unknown };
-          if (typeof data?.error === "string") detail = data.error;
-        } catch {
-          // swallow
-        }
-        throw new Error(detail);
+        throw new Error(await parseApiError(res, "Could not start ideation."));
       }
       const data = (await res.json()) as StartJobResponse;
       setJobId(data.job_id);

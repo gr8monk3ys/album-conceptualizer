@@ -77,8 +77,6 @@ class JobStore:
                 if key not in self._UPDATABLE_FIELDS:
                     continue
                 setattr(job, key, value)
-            if job.status in (JobStatus.COMPLETED, JobStatus.FAILED) and job.completed_at is None:
-                job.completed_at = time.time()
 
     def delete(self, job_id: str) -> bool:
         with self._lock:
