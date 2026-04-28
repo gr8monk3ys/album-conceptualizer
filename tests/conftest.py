@@ -17,6 +17,9 @@ def _default_memory_storage(monkeypatch):
     now that the production default is 'sqlite'.
     """
     monkeypatch.setenv("ALBUM_CONCEPTUALIZER_STORAGE_BACKEND", "memory")
+    # Tests use /identity/register which creates unverified accounts;
+    # disable the verified-email gate so workspace tokens work in tests.
+    monkeypatch.setenv("ALBUM_CONCEPTUALIZER_IDENTITY_REQUIRE_VERIFIED_EMAIL", "false")
 
 
 @pytest.fixture
@@ -91,5 +94,9 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
                 params = dict(inspect.signature(test_obj).parameters)
             except (TypeError, ValueError):
                 params = {}
-        if "_default_memory_storage" in fixture_names or "monkeypatch" in params or "mocker" in params:
+        if (
+            "_default_memory_storage" in fixture_names
+            or "monkeypatch" in params
+            or "mocker" in params
+        ):
             item.add_marker(pytest.mark.mock)

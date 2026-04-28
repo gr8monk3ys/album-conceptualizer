@@ -26,6 +26,7 @@ It currently supports:
 - Studio editing for songs, sections, lyrics, and chord progressions
 - comments, tasks, versions, and notifications
 - export through the Python engine
+- AI-powered workflows: album ideation, song development (lyrics + harmony + production notes), and coherence review via CrewAI agents
 - Discover, sharing, public publishing, and remix or fork flows
 - billing, credits, daily challenges, and analytics
 
@@ -38,7 +39,8 @@ The Python API powers:
 - export generation
 - identity and billing support
 - experience toolkit endpoints
-- optional AI and RAG features when installed
+- AI agent workflows (ideation, song development, coherence review) via CrewAI crews, accessible from the web app
+- optional RAG features when installed with `[rag]` extra
 
 ### 3. Legacy Gradio UI
 
@@ -53,7 +55,7 @@ The Gradio app still matters for:
 
 ### Create
 
-Users start from a concept, genre direction, and track count, then save a first album scaffold.
+Users start from a concept, genre direction, and track count. The AI brainstorm feature can generate a vision, style profile, and narrative structure from the concept. Users then save a first album scaffold.
 
 ### Refine
 
@@ -61,10 +63,11 @@ Users fill out:
 
 - album metadata
 - songs and sections
-- lyrics drafts
+- lyrics drafts (AI song development can generate lyrics, chord suggestions, and production notes)
 - chord progressions
 - concept summary
 - album bible data
+- AI coherence review to check narrative, lyrical, and harmonic consistency across tracks
 
 ### Collaborate
 
@@ -145,4 +148,4 @@ That is different from:
 
 If someone asks what this repo does right now, the short answer is:
 
-It gives you a structured workspace to create, refine, collaborate on, export, publish, and remix concept-album blueprints, with a Python engine behind the scenes for export and supporting APIs.
+It gives you an AI-powered workspace to create, refine, collaborate on, export, publish, and remix concept-album blueprints, with a Python engine behind the scenes powering CrewAI agent workflows, music theory, and export.

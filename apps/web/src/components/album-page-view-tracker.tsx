@@ -6,7 +6,8 @@ type AlbumPageViewEvent =
   | "album_bible_viewed"
   | "album_studio_viewed"
   | "album_coherence_viewed"
-  | "album_style_bible_viewed";
+  | "album_style_bible_viewed"
+  | "album_rough_demos_viewed";
 
 type AlbumPageViewTrackerProps = {
   albumId: string;

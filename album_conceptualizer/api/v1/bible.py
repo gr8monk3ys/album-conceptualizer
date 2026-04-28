@@ -282,8 +282,7 @@ async def patch_bible(
 
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
-        if value is not None:
-            setattr(bible, field, value)
+        setattr(bible, field, value)
 
     _save_bible(request, album_id, bible)
     return _bible_to_response(album_id, bible)

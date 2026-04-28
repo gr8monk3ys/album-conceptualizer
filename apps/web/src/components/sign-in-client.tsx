@@ -21,7 +21,9 @@ export function SignInClient({
   const [callbackUrl] = useState(() => {
     if (typeof window === "undefined") return "/app";
     const params = new URLSearchParams(window.location.search);
-    return params.get("callbackUrl") ?? "/app";
+    const raw = params.get("callbackUrl") ?? "/app";
+    // Prevent open redirect: only allow relative paths, reject protocol-relative URLs
+    return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/app";
   });
   const [form, setForm] = useState<SignInFormState>({
     devEmail: "dev@example.com",

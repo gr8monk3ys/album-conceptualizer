@@ -5,7 +5,7 @@ import json
 import shutil
 import zipfile
 from contextlib import suppress
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import median
 from typing import Any, cast
@@ -2447,7 +2447,7 @@ def _bind_quickstart_actions(
                             "alias": alias,
                             "score": score,
                             "created_at": str(
-                                vote.get("created_at", datetime.utcnow().isoformat())
+                                vote.get("created_at", datetime.now(UTC).isoformat())
                             ),
                         }
                     )
@@ -2599,7 +2599,7 @@ def _bind_quickstart_actions(
             message = "Battle prompt must be at least 8 characters."
             return message, remix_state_json, gr.update(), gr.update()
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
         battle_id = f"battle_{uuid4().hex[:12]}"
         share_slug = f"{_slugify(title_value)}-{uuid4().hex[:6]}"
         battle = {
@@ -2673,7 +2673,7 @@ def _bind_quickstart_actions(
             message = "Submission concept must be at least 8 characters."
             return message, remix_state_json, gr.update()
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
         submissions_payload = battle.get("submissions")
         submissions: list[dict[str, Any]]
         if isinstance(submissions_payload, list):
@@ -2791,7 +2791,7 @@ def _bind_quickstart_actions(
         new_vote = {
             "alias": alias_value,
             "score": score_value,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
         existing_vote = next(
             (
@@ -2808,7 +2808,7 @@ def _bind_quickstart_actions(
         target_submission["votes"] = votes
         _refresh_submission_stats(target_submission)
         battle["submissions"] = _sort_submissions(submissions)
-        battle["updated_at"] = datetime.utcnow().isoformat()
+        battle["updated_at"] = datetime.now(UTC).isoformat()
         registry["battles"][battle_id] = battle
         updated_state = _dump_remix_registry(registry)
         submission_choices = _submission_choice_pairs(battle)
@@ -2849,7 +2849,7 @@ def _bind_quickstart_actions(
             return message, remix_state_json, gr.update()
 
         battle["status"] = "closed"
-        battle["updated_at"] = datetime.utcnow().isoformat()
+        battle["updated_at"] = datetime.now(UTC).isoformat()
         registry["battles"][battle_id] = battle
         updated_state = _dump_remix_registry(registry)
         battle_choices = _battle_choice_pairs(registry, str(album.id))
@@ -2921,7 +2921,7 @@ def _bind_quickstart_actions(
         else:
             recommended_bpm = int(median(tempos)) if tempos else 120
 
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         package_label = (
             package_name.strip() if package_name and package_name.strip() else album.title
         )
@@ -2952,7 +2952,7 @@ def _bind_quickstart_actions(
                 f"DAW Handoff Pack for {album.title}\n"
                 f"Targets: {', '.join(targets)}\n"
                 f"Recommended BPM: {recommended_bpm}\n"
-                f"Generated: {datetime.utcnow().isoformat()}"
+                f"Generated: {datetime.now(UTC).isoformat()}"
             ),
         )
 

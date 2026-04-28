@@ -5,6 +5,7 @@ import { getPrisma } from "@/server/db";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { buildAlbumBible } from "@/server/bible";
 import { buildBiblePdfBuffer } from "@/server/bible-pdf";
+import { contentDisposition } from "@/server/headers";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,7 @@ export async function GET(
     status: 200,
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `attachment; filename=\"${filename}\"`,
+      "content-disposition": contentDisposition(filename),
       "cache-control": "no-store",
     },
   });

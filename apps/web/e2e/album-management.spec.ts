@@ -202,6 +202,45 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Close-mic alto with hushed verses").first()).toBeVisible();
   });
 
+  test("rough demo workspace saves a demo capture and reflects it on the album page", async ({
+    page,
+  }) => {
+    await devLogin(page);
+
+    const title = `Rough Demo ${randomSuffix()}`;
+    await createAlbumFromWizard(page, {
+      title,
+      artist: "Memo Club",
+      concept: "A concept album about airport lounges, neon vending machines, and the chorus you only hear once.",
+    });
+
+    await page.getByRole("main").getByRole("link", { name: "Demos", exact: true }).click();
+    await page.waitForURL("**/demos");
+    await page.getByLabel("Local rough demo file").setInputFiles({
+      name: "hallway-memo.wav",
+      mimeType: "audio/wav",
+      buffer: Buffer.from("rough-demo-audio"),
+    });
+    await page.getByLabel("Demo title").fill("Hallway chorus memo");
+    await page.getByLabel("Source kind").selectOption("hook-sketch");
+    await page.getByLabel("Song target").selectOption({ index: 1 });
+    await page
+      .getByLabel("What this demo captures")
+      .fill("The chorus rhythm is working even though the verse still needs a rewrite.");
+    await page.getByLabel("Sonic traits").fill("handclap pulse, whispered hook");
+    await page.getByLabel("Next moves").fill("rewrite verse 1, test slower tempo");
+    await page.getByRole("button", { name: "Add demo" }).click();
+
+    await expect(page.getByText("Demo added.")).toBeVisible();
+    await expect(page.getByText("Hallway chorus memo").first()).toBeVisible();
+    await expect(page.getByText("Structured review").first()).toBeVisible();
+    await expect(page.getByText("Chorus or post-chorus candidate").first()).toBeVisible();
+
+    await page.getByRole("link", { name: "Back" }).click();
+    await expect(page.getByRole("main").getByText("Rough demos").first()).toBeVisible();
+    await expect(page.getByText("Hallway chorus memo").first()).toBeVisible();
+  });
+
   test("analytics page shows the new project in the workspace funnel", async ({ page }) => {
     await devLogin(page);
 

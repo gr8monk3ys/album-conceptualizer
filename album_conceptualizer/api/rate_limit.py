@@ -40,13 +40,18 @@ def _token_fingerprint(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+_MAX_TRACKED_KEYS = 10_000
+_SWEEP_INTERVAL = 300  # seconds between full sweeps of stale keys
+
+
 class InMemoryRateLimiter(BaseHTTPMiddleware):
-    """Naive per-IP rate limiter (in-memory)."""
+    """Per-IP rate limiter (in-memory) with bounded key eviction."""
 
     def __init__(self, app, config: RateLimitConfig):
         super().__init__(app)
         self.config = config
         self._requests: dict[str, deque[float]] = defaultdict(deque)
+        self._last_sweep: float = 0.0
 
     def _get_key(self, request: Request) -> str:
         api_key = request.headers.get("x-api-key")
@@ -59,6 +64,16 @@ class InMemoryRateLimiter(BaseHTTPMiddleware):
         client_ip = request.client.host if request.client else "unknown"
         return f"ip:{client_ip}"
 
+    def _sweep_stale(self, now: float) -> None:
+        """Remove keys whose buckets are empty or fully expired."""
+        if now - self._last_sweep < _SWEEP_INTERVAL:
+            return
+        self._last_sweep = now
+        window_start = now - 60
+        stale = [k for k, v in self._requests.items() if not v or v[-1] < window_start]
+        for k in stale:
+            del self._requests[k]
+
     def _allowed(self, key: str) -> bool:
         now = time.time()
         window_start = now - 60
@@ -68,6 +83,7 @@ class InMemoryRateLimiter(BaseHTTPMiddleware):
         if len(bucket) >= self.config.max_per_minute:
             return False
         bucket.append(now)
+        self._sweep_stale(now)
         return True
 
     async def dispatch(self, request: Request, call_next):

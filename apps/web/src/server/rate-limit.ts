@@ -3,7 +3,13 @@ import { Redis } from "@upstash/redis";
 
 import { hasWebRateLimitingConfigured, isStrictProductionRuntime } from "@/server/production";
 
-type LimiterName = "albums_create" | "export_zip" | "preview_midi" | "preview_audio" | "stripe";
+type LimiterName =
+  | "albums_create"
+  | "export_zip"
+  | "preview_midi"
+  | "preview_audio"
+  | "stripe"
+  | "agents_start";
 
 type RateLimitResult = {
   ok: boolean;
@@ -64,6 +70,14 @@ const limiters: Record<LimiterName, Ratelimit | null> = {
         redis,
         limiter: Ratelimit.slidingWindow(5, "1 m"),
         prefix: "ac:ratelimit:stripe",
+        analytics: true,
+      })
+    : null,
+  agents_start: redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, "1 m"),
+        prefix: "ac:ratelimit:agents_start",
         analytics: true,
       })
     : null,

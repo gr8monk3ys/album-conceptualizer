@@ -149,6 +149,6 @@ def test_global_exception_handler_records_error_metric(monkeypatch):
 
     assert response.status_code == 500
     assert response.json()["detail"] == "Internal server error"
-    assert response.json()["type"] == "RuntimeError"
+    assert "type" not in response.json()  # exception type must not leak
     assert app.state.metrics.error_count >= 1
     reset_settings()

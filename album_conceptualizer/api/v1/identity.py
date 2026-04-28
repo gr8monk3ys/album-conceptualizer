@@ -220,12 +220,14 @@ def _issue_workspace_token(
     account_id: UUID,
     workspace_id: UUID,
 ) -> str:
+    settings = get_settings()
     token = secrets.token_urlsafe(32)
     store.save_session(
         WorkspaceSession(
             token_hash=hash_token(token),
             account_id=account_id,
             workspace_id=workspace_id,
+            expires_at=datetime.now(UTC) + timedelta(hours=settings.identity_session_ttl_hours),
         )
     )
     return token
@@ -354,6 +356,11 @@ def _build_token_link(template: str, token: str) -> str:
     try:
         return template.format(token=token)
     except Exception:
+        logger.warning(
+            "token_link_template_error",
+            extra={"template": template},
+            exc_info=True,
+        )
         return token
 
 
@@ -368,7 +375,11 @@ def _send_identity_email(
     try:
         sender.send(to_email=to_email, subject=subject, body=body)
     except Exception as exc:
-        logger.error("identity_email_send_failed", extra={"to_email": to_email, "subject": subject})
+        logger.error(
+            "identity_email_send_failed",
+            extra={"to_email": to_email, "subject": subject},
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to send verification email",
@@ -386,7 +397,7 @@ async def register_identity(request: Request, data: RegisterRequest) -> Register
         store,
         email=email,
         display_name=display_name,
-        verified=True,
+        verified=False,
     )
 
     workspace_name = data.workspace_name.strip() if data.workspace_name else None

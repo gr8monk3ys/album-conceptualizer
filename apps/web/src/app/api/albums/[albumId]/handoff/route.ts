@@ -12,6 +12,7 @@ import {
 import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
 import { listAlbumReferences } from "@/server/references";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { contentDisposition } from "@/server/headers";
 
 export const runtime = "nodejs";
 
@@ -77,7 +78,7 @@ export async function GET(
     status: 200,
     headers: {
       "content-type": "text/markdown; charset=utf-8",
-      "content-disposition": `attachment; filename=\"${filename}\"`,
+      "content-disposition": contentDisposition(filename),
       "cache-control": "no-store",
     },
   });

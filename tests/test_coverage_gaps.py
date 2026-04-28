@@ -104,12 +104,12 @@ class TestAlbumsExtended:
         resp = client.patch("/api/v1/albums/nonexistent-id", json={"title": "New Title"})
         assert resp.status_code == 404
 
-    def test_update_album_with_explicit_null_skips_setattr(self, client):
-        """Covers albums.py line 174->173 False branch: null value is not applied."""
+    def test_update_album_with_explicit_null_clears_field(self, client):
+        """Sending null for a field clears it (RFC 7396 JSON Merge Patch)."""
         album_id = _create_album(client, "Has Artist Album")
-        # Setting artist to null explicitly — covers if value is not None: False branch
         resp = client.patch(f"/api/v1/albums/{album_id}", json={"artist": None})
         assert resp.status_code == 200
+        assert resp.json()["artist"] is None
 
     def test_delete_album_not_found_returns_404(self, client):
         """Covers albums.py line 190: DELETE non-existent album → 404."""

@@ -41,12 +41,13 @@ def _token_fingerprint(token: str) -> str:
 
 
 class InMemoryQuota(BaseHTTPMiddleware):
-    """Naive daily quota limiter (in-memory)."""
+    """Daily quota limiter (in-memory) with automatic stale-date eviction."""
 
     def __init__(self, app, config: QuotaConfig):
         super().__init__(app)
         self.config = config
         self._usage: dict[tuple[str, date], int] = defaultdict(int)
+        self._last_evict_date: date | None = None
 
     def _get_key(self, request: Request) -> str:
         api_key = request.headers.get("x-api-key")
@@ -58,6 +59,15 @@ class InMemoryQuota(BaseHTTPMiddleware):
             return f"api:{_token_fingerprint(api_key)}"
         client_ip = request.client.host if request.client else "unknown"
         return f"ip:{client_ip}"
+
+    def _evict_old_dates(self, today: date) -> None:
+        """Remove entries for dates before today (at most once per day)."""
+        if self._last_evict_date == today:
+            return
+        self._last_evict_date = today
+        stale = [k for k in self._usage if k[1] < today]
+        for k in stale:
+            del self._usage[k]
 
     async def dispatch(self, request: Request, call_next):
         settings = (
@@ -71,6 +81,7 @@ class InMemoryQuota(BaseHTTPMiddleware):
 
         key = self._get_key(request)
         today = date.today()
+        self._evict_old_dates(today)
         usage_key = (key, today)
         used = self._usage[usage_key]
         if used >= self.config.daily_limit:

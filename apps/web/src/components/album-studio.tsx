@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, Download, Play, Plus, Save, Trash2 } from "lucide-r
 
 import type { AlbumJson } from "@/server/album-json";
 import { SectionComments } from "@/components/section-comments";
+import { SongDevelopmentAi } from "@/components/song-development-ai";
 import { usePlayer } from "@/components/player/player-provider";
 
 type SelectionInput = {
@@ -114,6 +115,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
       recurring_motifs: [],
       reference_albums: [],
       visual_inspiration: [],
+      rough_demos: [],
       songs: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -189,15 +191,16 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
     return {
       idsWereMissing,
       album: {
-      ...fallback,
-      ...obj,
-      id: albumIdFromJson,
-      songs: normalizeTrackNumbers(songs),
-      central_themes: Array.isArray(obj.central_themes) ? obj.central_themes : [],
-      secondary_genres: Array.isArray(obj.secondary_genres) ? obj.secondary_genres : [],
-      recurring_motifs: Array.isArray(obj.recurring_motifs) ? obj.recurring_motifs : [],
-      reference_albums: Array.isArray(obj.reference_albums) ? obj.reference_albums : [],
-      visual_inspiration: Array.isArray(obj.visual_inspiration) ? obj.visual_inspiration : [],
+        ...fallback,
+        ...obj,
+        id: albumIdFromJson,
+        songs: normalizeTrackNumbers(songs),
+        central_themes: Array.isArray(obj.central_themes) ? obj.central_themes : [],
+        secondary_genres: Array.isArray(obj.secondary_genres) ? obj.secondary_genres : [],
+        recurring_motifs: Array.isArray(obj.recurring_motifs) ? obj.recurring_motifs : [],
+        reference_albums: Array.isArray(obj.reference_albums) ? obj.reference_albums : [],
+        visual_inspiration: Array.isArray(obj.visual_inspiration) ? obj.visual_inspiration : [],
+        rough_demos: Array.isArray(obj.rough_demos) ? obj.rough_demos : [],
       },
     };
   }, [initialAlbum]);
@@ -636,6 +639,11 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <SongDevelopmentAi
+                  albumId={albumId}
+                  songTitle={activeSong?.title ?? `Track ${activeSong?.track_number ?? 1}`}
+                  trackNumber={activeSong?.track_number ?? 1}
+                />
                 <button
                   type="button"
                   onClick={() => void previewSong()}

@@ -56,6 +56,8 @@ def test_register_and_me_flow(monkeypatch):
 
     session = app.state.identity_store.get_session(hash_token(token))
     assert session is not None
+    assert session.expires_at is not None, "Session must have a default expiry"
+    assert session.is_active()
 
 
 def test_create_workspace_and_issue_token(monkeypatch):

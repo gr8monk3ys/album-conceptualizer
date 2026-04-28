@@ -3,6 +3,8 @@
 import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { IdeationAi } from "@/components/ideation-ai";
+
 type NarrativeStructure = "three-act" | "hero's-journey" | "circular" | "non-linear";
 
 type QuickStartFormState = {
@@ -371,6 +373,13 @@ function QuickStartStepFields({
           placeholder="One per line or comma-separated"
         />
       </label>
+
+      <IdeationAi
+        concept={form.conceptSummary}
+        references={form.referenceAlbumsRaw}
+        themes={form.centralThemesRaw}
+        trackCount={form.trackCount}
+      />
 
       <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
         <div className="text-xs text-[var(--muted2)]">After you save</div>
