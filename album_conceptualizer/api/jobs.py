@@ -77,6 +77,14 @@ class JobStore:
                 if key not in self._UPDATABLE_FIELDS:
                     continue
                 setattr(job, key, value)
+            # Invariant: a terminal status implies completed_at is set, so
+            # TTL eviction can fire. Callers may pass completed_at explicitly
+            # for precision; otherwise stamp it here.
+            if (
+                job.status in (JobStatus.COMPLETED, JobStatus.FAILED)
+                and job.completed_at is None
+            ):
+                job.completed_at = time.time()
 
     def delete(self, job_id: str) -> bool:
         with self._lock:
