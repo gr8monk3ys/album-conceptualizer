@@ -1,5 +1,9 @@
 # Album Conceptualizer
 
+<p align="center">
+  <img src="docs/assets/hero.png" alt="album-conceptualizer preview" width="640">
+</p>
+
 Album Conceptualizer is a full-stack workspace for building coherent concept albums.
 
 It currently includes:
