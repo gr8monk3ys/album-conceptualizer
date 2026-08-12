@@ -1,5 +1,14 @@
 """Tests for MIDI and MusicXML export paths — covers uncovered formats.py and midi.py lines."""
 
+import pytest
+
+# pretty-midi lives in the optional `music` extra, which the core test job does
+# not install — optional extras have their own "Optional Stack Smoke" job. The
+# import failure was a COLLECTION error, so it aborted the entire run: 666
+# tests reported as "1 error during collection" and nothing ran. Skipping this
+# module keeps the optional dependency optional.
+pytest.importorskip("pretty_midi")
+
 from album_conceptualizer.export.formats import AlbumExporter, ExportFormat
 from album_conceptualizer.export.midi import MidiExporter
 from album_conceptualizer.models.album import Section, SectionType, Song
