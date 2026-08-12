@@ -2,6 +2,7 @@
 
 import pytest
 
+
 # pretty-midi lives in the optional `music` extra, which the core test job does
 # not install — optional extras have their own "Optional Stack Smoke" job. The
 # import failure was a COLLECTION error, so it aborted the entire run: 666

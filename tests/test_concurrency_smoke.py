@@ -57,9 +57,7 @@ class TestConcurrentAlbumCreation:
         assert list_resp.status_code == 200
         data = list_resp.json()
         total = data.get("total", len(data.get("items", data)))
-        assert total >= count, (
-            f"Expected at least {count} albums, got {total}"
-        )
+        assert total >= count, f"Expected at least {count} albums, got {total}"
 
     def test_concurrent_create_and_read(self, sqlite_stress_client):
         """Interleave creates and reads. No lock errors should occur."""
