@@ -68,6 +68,8 @@ class JobStore:
 
     _UPDATABLE_FIELDS = frozenset({"status", "result", "error", "completed_at"})
 
+    _TERMINAL_STATUSES = frozenset({JobStatus.COMPLETED, JobStatus.FAILED})
+
     def update(self, job_id: str, **kwargs: object) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
@@ -77,6 +79,19 @@ class JobStore:
                 if key not in self._UPDATABLE_FIELDS:
                     continue
                 setattr(job, key, value)
+
+            # Stamp completion time whenever a job reaches a terminal state
+            # without one. _evict_stale() only considers jobs with a
+            # completed_at, so a terminal job that never gets one is immortal
+            # — it occupies the store forever and still counts against nothing.
+            # Every production call site already passes completed_at
+            # explicitly, which is why this has not leaked in practice; that
+            # makes the invariant a matter of caller discipline rather than
+            # something the store guarantees. Enforcing it here costs nothing
+            # (an explicit value is set above and left alone) and removes the
+            # whole class of mistake.
+            if job.status in self._TERMINAL_STATUSES and job.completed_at is None:
+                job.completed_at = time.time()
 
     def delete(self, job_id: str) -> bool:
         with self._lock:

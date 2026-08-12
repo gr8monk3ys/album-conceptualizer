@@ -1,5 +1,6 @@
 """Tests for progression export API endpoints (MIDI and MusicXML)."""
 
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,19 @@ from fastapi.testclient import TestClient
 
 from album_conceptualizer.api.app import create_app
 from album_conceptualizer.config import reset_settings
+
+
+# The MIDI / MusicXML / MP3 export paths need music21, pretty-midi and midiutil,
+# which ship in the optional `music` extra. The core test job installs only
+# `[dev]` — optional extras have their own "Optional Stack Smoke" job, and
+# CLAUDE.md records that these modules are excluded from CI coverage for
+# exactly this reason. Without the guard these ten tests fail on a dependency
+# they were never meant to have: the API correctly answers 501 ("Install with:
+# pip install -e '.[music]'") and the assertions expect 200.
+requires_music = pytest.mark.skipif(
+    any(importlib.util.find_spec(m) is None for m in ("music21", "pretty_midi")),
+    reason="requires the optional `music` extra",
+)
 
 
 @pytest.fixture
@@ -21,6 +35,7 @@ def client(monkeypatch):
     reset_settings()
 
 
+@requires_music
 class TestProgressionMidiExport:
     """Tests for POST /api/v1/export/progression/midi (lines 298-322)."""
 
@@ -70,6 +85,7 @@ class TestProgressionMidiExport:
         assert "progression.mid" in disposition
 
 
+@requires_music
 class TestProgressionMusicXMLExport:
     """Tests for POST /api/v1/export/progression/musicxml (lines 335-368)."""
 
@@ -108,6 +124,7 @@ class TestProgressionMusicXMLExport:
         assert "progression.musicxml" in disposition
 
 
+@requires_music
 class TestProgressionMp3Export:
     """Tests for POST /api/v1/export/progression/mp3."""
 
