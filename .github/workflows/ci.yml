@@ -15,7 +15,6 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.11"
-  UV_SYSTEM_PYTHON: 1
 
 jobs:
   lint:
@@ -30,10 +29,12 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Install dependencies
-        run: uv pip install --system ruff
+        run: uv pip install ruff
 
       - name: Run Ruff linter
         run: ruff check album_conceptualizer/ tests/
@@ -57,11 +58,13 @@ jobs:
           enable-cache: true
 
       - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e ".[dev]"
+          uv pip install -e ".[dev]"
 
       - name: Run tests
         run: |
@@ -87,11 +90,13 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e ".[dev]"
+          uv pip install -e ".[dev]"
 
       - name: Run mypy
         run: mypy album_conceptualizer/ --ignore-missing-imports
@@ -108,12 +113,14 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e ".[dev]"
-          uv pip install --system pip-audit
+          uv pip install -e ".[dev]"
+          uv pip install pip-audit
 
       - name: Run pip-audit
         run: pip-audit
@@ -130,11 +137,13 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Install optional dependencies
         run: |
-          uv pip install --system -e ".[dev,music,rag]"
+          uv pip install -e ".[dev,music,rag]"
 
       - name: Run optional dependency smoke tests
         run: |
@@ -156,7 +165,9 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Set up Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238
@@ -165,7 +176,7 @@ jobs:
 
       - name: Install UI E2E dependencies
         run: |
-          uv pip install --system -e ".[dev,ui,music]"
+          uv pip install -e ".[dev,ui,music]"
 
       - name: Run Playwright CLI UI E2E
         run: |
@@ -323,7 +334,9 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Build package
         run: uv build
