@@ -56,7 +56,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for _ in $(seq 1 60); do
+WAIT_SECONDS="${LIGHTHOUSE_WAIT_SECONDS:-120}"
+for _ in $(seq 1 "${WAIT_SECONDS}"); do
   if [[ -n "${SERVER_PID}" ]] && ! kill -0 "${SERVER_PID}" >/dev/null 2>&1; then
     cat "${SERVER_LOG}" >&2
     exit 1
@@ -72,5 +73,15 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-echo "Timed out waiting for ${BASE_URL}." >&2
+# Dump the server log. Without this a timeout says only "timed out" while the
+# reason -- a boot error, a failed DB connect, a port already bound -- sits in
+# a file nobody reads, so the job is red and undiagnosable at the same time.
+echo "Timed out waiting for ${BASE_URL} after ${WAIT_SECONDS}s." >&2
+if [[ -f "${SERVER_LOG}" ]]; then
+  echo "--- ${SERVER_LOG} ---" >&2
+  cat "${SERVER_LOG}" >&2
+  echo "--- end server log ---" >&2
+else
+  echo "(no server log at ${SERVER_LOG})" >&2
+fi
 exit 1
