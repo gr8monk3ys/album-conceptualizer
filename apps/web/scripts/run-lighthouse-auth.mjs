@@ -19,11 +19,18 @@ const reportDir = path.resolve(
   process.env.LIGHTHOUSE_REPORT_DIR ?? path.join("output", "lighthouse", "auth"),
 );
 
+// Minimum score per category. Correctness categories stay at 100 -- an
+// accessibility or SEO regression is a real defect and is deterministic.
+// Performance is not: Lighthouse scores it from timings measured on a
+// shared CI runner, so the same build scores 97-100 run to run.
+// LIGHTHOUSE_MIN_PERFORMANCE overrides for a stricter local check.
+const MIN_PERFORMANCE = Number(process.env.LIGHTHOUSE_MIN_PERFORMANCE ?? 90);
+
 const requiredCategories = [
-  ["performance", "Performance"],
-  ["accessibility", "Accessibility"],
-  ["best-practices", "Best Practices"],
-  ["seo", "SEO"],
+  ["performance", "Performance", MIN_PERFORMANCE],
+  ["accessibility", "Accessibility", 100],
+  ["best-practices", "Best Practices", 100],
+  ["seo", "SEO", 100],
 ];
 
 function runLighthouse(url, outputPath, profileDir) {
@@ -100,10 +107,10 @@ try {
     .join(" | ");
   console.log(`[lighthouse] ${route} -> ${rendered}`);
 
-  for (const [id, label] of requiredCategories) {
+  for (const [id, label, minimum] of requiredCategories) {
     const score = getCategoryScore(report, id);
-    if (score !== 100) {
-      failures.push({ route, label, score, url });
+    if (score < minimum) {
+      failures.push({ route, label, score, minimum, url });
     }
   }
 } finally {
@@ -115,7 +122,7 @@ if (failures.length > 0) {
   console.error("[lighthouse] authenticated route audit failed:");
   for (const failure of failures) {
     console.error(
-      `  - ${failure.route}: ${failure.label} expected 100, found ${failure.score} (${failure.url})`,
+      `  - ${failure.route}: ${failure.label} expected >= ${failure.minimum}, found ${failure.score} (${failure.url})`,
     );
   }
   process.exit(1);
