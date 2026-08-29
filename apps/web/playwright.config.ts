@@ -5,8 +5,25 @@ const baseURL =
   process.env.ALBUM_CONCEPTUALIZER_WEB_BASE_URL ??
   "http://127.0.0.1:3002";
 
+// Playwright must start the app itself. The CI job builds it and then runs
+// `playwright test`, so without this every spec hit a dead port and failed
+// with ERR_CONNECTION_REFUSED before asserting anything. `next start` serves
+// the build the job already produced; locally an app you are already running
+// is reused instead.
+const serverURL = new URL(baseURL);
+
 export default defineConfig({
   testDir: "./e2e",
+  webServer: {
+    command: `npm run start -- --hostname ${serverURL.hostname} --port ${
+      serverURL.port || "3000"
+    }`,
+    url: baseURL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    stdout: "pipe",
+    stderr: "pipe",
+  },
   timeout: 60_000,
   expect: {
     timeout: 15_000,
