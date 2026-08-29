@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Local-only harness. It drives the UI through the Playwright CLI shipped as a
+# Codex skill ($CODEX_HOME/skills/playwright), which exists on a developer
+# machine and never on a CI runner -- running it there exits 127 before a
+# single assertion. It is deliberately NOT part of .github/workflows/ci.yml;
+# run it by hand. Web E2E (apps/web, plain Playwright) is what covers the web
+# app in CI.
 if ! command -v npx >/dev/null 2>&1; then
   echo "Error: npx is required but not found on PATH." >&2
+  exit 1
+fi
+
+if [[ ! -x "${CODEX_HOME:-$HOME/.codex}/skills/playwright/scripts/playwright_cli.sh" ]]; then
+  echo "Error: the Playwright CLI skill was not found at" >&2
+  echo "  ${CODEX_HOME:-$HOME/.codex}/skills/playwright/scripts/playwright_cli.sh" >&2
+  echo "This script is a local harness and cannot run without it." >&2
   exit 1
 fi
 
