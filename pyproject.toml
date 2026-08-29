@@ -155,6 +155,9 @@ ignore = [
     "E501",    # line too long (handled by formatter)
     "E741",    # ambiguous variable name
     "PLR0913", # too many arguments
+    "PLR0917", # too many positional arguments (same call as PLR0913 above;
+               # ruff added this rule later, so a version bump began flagging
+               # 23 existing signatures the project had already opted out of)
     "PLR2004", # magic value comparison
     "PLR0911", # too many return statements
     "PLR0912", # too many branches
