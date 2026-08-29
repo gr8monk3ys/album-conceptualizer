@@ -20,6 +20,7 @@ from album_conceptualizer.audio.providers import (
     get_provider,
 )
 
+
 __all__ = [
     "GenerationBrief",
     "GenerationRequest",

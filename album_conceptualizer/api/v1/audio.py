@@ -162,7 +162,7 @@ def _run_generation(job_id: str, payload: GenerateRequest) -> None:
                 job_id, status=JobStatus.FAILED, error=str(exc), completed_at=time.time()
             )
             logger.warning("music_generation_failed", extra={"job_id": job_id, "error": str(exc)})
-        except Exception as exc:  # noqa: BLE001 - a job must never die silently
+        except Exception as exc:  # a job must never die silently
             _render_jobs.update(
                 job_id, status=JobStatus.FAILED, error=str(exc), completed_at=time.time()
             )

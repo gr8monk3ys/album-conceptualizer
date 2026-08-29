@@ -178,8 +178,7 @@ class ReplicateProvider:
                 # the reader looking for a hang that is really just a slow
                 # model plus a too-tight ceiling.
                 raise ProviderRequestError(
-                    f"Replicate did not finish within {self._timeout}s "
-                    f"(last status: {status}).",
+                    f"Replicate did not finish within {self._timeout}s (last status: {status}).",
                     retryable=True,
                 )
             time.sleep(_POLL_INTERVAL_SECONDS)
@@ -237,9 +236,7 @@ _REGISTRY: dict[str, str] = {"replicate": "replicate"}
 
 # MusicGen-large. Pinned by version digest: Replicate models are mutable by
 # tag, and an unpinned model silently changes what every render sounds like.
-DEFAULT_REPLICATE_MODEL = (
-    "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
-)
+DEFAULT_REPLICATE_MODEL = "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
 
 
 def get_provider(

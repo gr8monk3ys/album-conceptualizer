@@ -27,24 +27,25 @@ from album_conceptualizer.audio.providers import (
 
 
 def brief(**overrides) -> GenerationBrief:
-    base = dict(
-        song_title="Ash Harbour",
-        album_genre="post-rock",
-        lead_voice="breathy alto",
-        sonic_palette=["warm analog", "tape hiss"],
-        emotional_targets=["longing"],
-        avoid_list=["autotune"],
-        tempo=88,
-        key="D minor",
-        mood_tags=["nocturnal"],
-        instrumentation=["fretless bass"],
-        narrative_summary="a harbour town emptying out",
-    )
+    base = {
+        "song_title": "Ash Harbour",
+        "album_genre": "post-rock",
+        "lead_voice": "breathy alto",
+        "sonic_palette": ["warm analog", "tape hiss"],
+        "emotional_targets": ["longing"],
+        "avoid_list": ["autotune"],
+        "tempo": 88,
+        "key": "D minor",
+        "mood_tags": ["nocturnal"],
+        "instrumentation": ["fretless bass"],
+        "narrative_summary": "a harbour town emptying out",
+    }
     base.update(overrides)
     return GenerationBrief(**base)
 
 
 # --- prompt: the album leads -------------------------------------------------
+
 
 def test_album_identity_comes_first():
     # Providers weight early tokens and truncate from the end, so genre and
@@ -103,6 +104,7 @@ def test_truncation_drops_whole_clauses_and_keeps_the_album():
 
 # --- negative prompt ---------------------------------------------------------
 
+
 def test_negative_prompt_is_the_albums_avoid_list():
     assert build_negative_prompt(brief(avoid_list=["autotune", "trap hats"])) == (
         "autotune, trap hats"
@@ -114,6 +116,7 @@ def test_no_avoid_list_means_no_constraint_not_a_house_default():
 
 
 # --- provider resolution -----------------------------------------------------
+
 
 def test_nothing_configured_resolves_to_a_provider_that_explains_itself(monkeypatch):
     monkeypatch.delenv("MUSIC_PROVIDER", raising=False)
@@ -137,6 +140,7 @@ def test_unknown_provider_is_a_configuration_error(monkeypatch):
 
 
 # --- Replicate, over a mock transport ---------------------------------------
+
 
 def _provider(handler, **kw) -> ReplicateProvider:
     return ReplicateProvider(
@@ -274,7 +278,5 @@ def test_negative_prompt_and_seed_reach_the_provider_only_when_set():
     assert "negative_prompt" not in seen and "seed" not in seen
 
     seen.clear()
-    _provider(handler).generate(
-        GenerationRequest(prompt="x", negative_prompt="autotune", seed=7)
-    )
+    _provider(handler).generate(GenerationRequest(prompt="x", negative_prompt="autotune", seed=7))
     assert seen["negative_prompt"] == "autotune" and seen["seed"] == 7

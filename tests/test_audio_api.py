@@ -62,6 +62,7 @@ def _use(monkeypatch, provider):
 
 # --- prompt preview ----------------------------------------------------------
 
+
 def test_prompt_preview_spends_nothing_and_shows_what_would_be_sent(client, monkeypatch):
     provider = _use(monkeypatch, FakeProvider())
     response = client.post("/api/v1/audio/prompt-preview", json=BRIEF)
@@ -83,6 +84,7 @@ def test_prompt_preview_works_with_no_provider_configured(client, monkeypatch):
 
 
 # --- generate ----------------------------------------------------------------
+
 
 def test_generate_runs_the_job_and_returns_the_audio_url(client, monkeypatch):
     provider = _use(monkeypatch, FakeProvider())
@@ -144,9 +146,10 @@ def test_concurrency_limit_is_per_owner(client, monkeypatch):
     assert blocked.headers["retry-after"] == "30"
 
     # Another tenant is unaffected by alice's queue.
-    assert client.post(
-        "/api/v1/audio/generate", json=BRIEF, headers={"x-owner-id": "bob"}
-    ).status_code == 202
+    assert (
+        client.post("/api/v1/audio/generate", json=BRIEF, headers={"x-owner-id": "bob"}).status_code
+        == 202
+    )
 
 
 def test_one_owner_cannot_read_anothers_render(client, monkeypatch):
@@ -156,12 +159,16 @@ def test_one_owner_cannot_read_anothers_render(client, monkeypatch):
     ).json()["job_id"]
 
     # 404, not 403, so job ids are not enumerable.
-    assert client.get(
-        f"/api/v1/audio/generate/{job_id}", headers={"x-owner-id": "mallory"}
-    ).status_code == 404
-    assert client.get(
-        f"/api/v1/audio/generate/{job_id}", headers={"x-owner-id": "alice"}
-    ).status_code == 200
+    assert (
+        client.get(
+            f"/api/v1/audio/generate/{job_id}", headers={"x-owner-id": "mallory"}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(f"/api/v1/audio/generate/{job_id}", headers={"x-owner-id": "alice"}).status_code
+        == 200
+    )
 
 
 def test_unknown_job_is_404(client):

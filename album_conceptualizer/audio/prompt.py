@@ -88,8 +88,11 @@ def build_generation_prompt(brief: GenerationBrief) -> str:
         # "instrumental" and a described lead vocal are contradictory
         # instructions; models resolve that unpredictably, so only one of the
         # two ever reaches the provider.
-        parts.append(f"instrumental, no vocals, {voice} melodic lead" if brief.instrumental
-                     else f"lead vocal: {voice}")
+        parts.append(
+            f"instrumental, no vocals, {voice} melodic lead"
+            if brief.instrumental
+            else f"lead vocal: {voice}"
+        )
     elif brief.instrumental:
         parts.append("instrumental, no vocals")
 
