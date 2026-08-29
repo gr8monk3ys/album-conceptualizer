@@ -291,3 +291,11 @@ type = "github"
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
+
+[tool.uv]
+constraint-dependencies = [
+    # PYSEC-2026-2132: click <8.3.3. Only ever a transitive dep here
+    # (crewai, python-semantic-release, lancedb), so constrain rather than
+    # add it as a direct dependency.
+    "click>=8.3.3",
+]
