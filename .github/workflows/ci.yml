@@ -200,7 +200,6 @@ jobs:
       - name: Run public Lighthouse audit
         env:
           LIGHTHOUSE_PORT: "3300"
-          ALBUM_CONCEPTUALIZER_WEB_BASE_URL: http://127.0.0.1:3300
           NEXTAUTH_URL: http://127.0.0.1:3300
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3300
         run: bash scripts/web-lighthouse-public.sh
@@ -208,7 +207,6 @@ jobs:
       - name: Run authenticated Lighthouse audit
         env:
           LIGHTHOUSE_PORT: "3301"
-          ALBUM_CONCEPTUALIZER_WEB_BASE_URL: http://127.0.0.1:3301
           NEXTAUTH_URL: http://127.0.0.1:3301
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3301
         run: bash scripts/web-lighthouse-auth.sh
