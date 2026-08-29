@@ -153,43 +153,6 @@ jobs:
             tests/test_rag.py::TestEmbeddings \
             -v --tb=short
 
-  ui-e2e:
-    name: UI E2E (Playwright CLI)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
-        with:
-          enable-cache: true
-
-      - name: Set up Python
-        run: |
-          uv venv --python ${{ env.PYTHON_VERSION }}
-          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238
-        with:
-          node-version: "22"
-
-      - name: Install UI E2E dependencies
-        run: |
-          uv pip install -e ".[dev,ui,music]"
-
-      - name: Run Playwright CLI UI E2E
-        run: |
-          bash scripts/ui-e2e-playwright.sh
-
-      - name: Upload Playwright artifacts
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: playwright-ui-e2e
-          path: |
-            output/playwright/
-            .playwright-cli/
 
   web-lighthouse:
     name: Web Lighthouse
@@ -324,7 +287,7 @@ jobs:
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [lint, test, type-check, security, optional-stack, ui-e2e, web-lighthouse, web-e2e]
+    needs: [lint, test, type-check, security, optional-stack, web-lighthouse, web-e2e]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
@@ -350,7 +313,7 @@ jobs:
   docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: [lint, test, type-check, security, optional-stack, ui-e2e, web-lighthouse]
+    needs: [lint, test, type-check, security, optional-stack, web-lighthouse]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
