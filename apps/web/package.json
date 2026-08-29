@@ -60,8 +60,6 @@
     "hono": ">=4.11.7",
     "lodash": ">=4.17.23",
     "minimatch": ">=10.2.1",
-    "next-auth": {
-      "nodemailer": "$nodemailer"
-    }
+    "nodemailer": "$nodemailer"
   }
 }
