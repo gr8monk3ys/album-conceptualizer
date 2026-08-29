@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getAuthSession } from "@/server/auth";
 import { getPrisma } from "@/server/db";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { trackProductEventSafe } from "@/server/analytics";
 
 export const runtime = "nodejs";
 
@@ -44,6 +45,15 @@ export async function POST(
     select: { isPublic: true, publishedAt: true },
   });
 
+  if (updated.isPublic) {
+    await trackProductEventSafe({
+      name: "album_published",
+      workspaceId: workspace.id,
+      userId,
+      albumId: existing.id,
+      path: `/api/albums/${existing.id}/publish`,
+    });
+  }
+
   return NextResponse.json(updated);
 }
-

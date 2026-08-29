@@ -65,7 +65,7 @@ scripts/                smoke-test helpers
 | `identity_router` | none | accounts, workspaces, sessions |
 | `billing_public_router` | none | public plan info |
 | `api_key_router` | API key | billing protected |
-| `subscription_router` | API key + active subscription | albums, songs, bible, theory, export, experience |
+| `subscription_router` | API key + active subscription | albums, songs, bible, theory, export, experience, agents |
 
 Root-level compat endpoints (`/health`, `/ready`, `/live`) are thin wrappers that delegate to the v1 health handlers.
 
@@ -74,7 +74,7 @@ Root-level compat endpoints (`/health`, `/ready`, `/live`) are thin wrappers tha
 **Storage layer** (`storage.py`): Three concrete backends share abstract base classes (`AlbumStore`, `BibleStore`, `SubscriptionStore`):
 
 - `InMemory*` — no persistence, used in all tests
-- `SQLite*` — default in production (`ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=sqlite`), stored at `data/album_conceptualizer.db`
+- `SQLite*` — default in production (`ALBUM_CONCEPTUALIZER_STORAGE_BACKEND=sqlite`), stored at `data/album_conceptualizer.db`. Uses WAL mode with connection pooling (one persistent connection per store, protected by `threading.Lock`)
 - `File*` — JSON files on disk
 
 The active stores are attached to `app.state` (`album_store`, `bible_store`, `subscription_store`, `experience_store`, `identity_store`) during `_initialize_state()` at startup. Route handlers receive them via `request.app.state.*`.
@@ -82,6 +82,8 @@ The active stores are attached to `app.state` (`album_store`, `bible_store`, `su
 **Settings** (`config.py`): Pydantic-Settings `Settings` class, env prefix `ALBUM_CONCEPTUALIZER_`. Singleton via `get_settings()`, resettable with `reset_settings()` (used in tests to re-read env after monkeypatching). Key production settings: `ALBUM_CONCEPTUALIZER_API_KEY`, `ALBUM_CONCEPTUALIZER_CORS_ORIGINS`, `ALBUM_CONCEPTUALIZER_STORAGE_BACKEND`. `settings.production_issues()` returns a list of misconfiguration warnings.
 
 **Experience layer** (`api/v1/experience.py`, ~3 800 lines): All experience endpoints are pure data computation — zero Anthropic/LLM API calls. They operate on albums, songs, and in-memory collab room / remix battle state stored via `ExperienceStateStore`.
+
+**Agent workflows** (`api/v1/agents.py`): Three crew endpoints — ideation, song-development, coherence-review — fire CrewAI crews in background threads via `concurrent.futures.ThreadPoolExecutor` with a 180s timeout. Global concurrency cap of 5 active jobs. Requires `ANTHROPIC_API_KEY` and the `[ai]` extra at runtime. The Next.js app proxies these via `/api/agents/[action]` and `/api/agents/jobs/[jobId]` routes, with credit deduction (5 credits per job).
 
 **Optional extras**: AI agents (`agents/`, requires `[ai]`), RAG with ChromaDB (`rag/`, requires `[rag]`), MIDI/MusicXML export (`export/`, requires `[music]`). These modules are excluded from coverage measurement in CI because they need runtime extras not installed with `[dev]`.
 

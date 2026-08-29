@@ -19,7 +19,7 @@ import hashlib
 import os
 import platform
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +30,7 @@ class TelemetryEvent(BaseModel):
     """A telemetry event."""
 
     event_type: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     session_id: str
     properties: dict[str, Any] = Field(default_factory=dict)
     app_version: str = "0.1.0"
@@ -72,7 +72,7 @@ class TelemetryClient:
         """Generate an anonymous session ID."""
         # Create a hash that's consistent per machine but anonymous
         machine_id = str(uuid.getnode())  # MAC address based
-        session_seed = f"{machine_id}-{datetime.utcnow().date()}"
+        session_seed = f"{machine_id}-{datetime.now(UTC).date()}"
         return hashlib.sha256(session_seed.encode()).hexdigest()[:16]
 
     @property

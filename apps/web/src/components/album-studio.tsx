@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, Download, Play, Plus, Save, Trash2 } from "lucide-r
 
 import type { AlbumJson } from "@/server/album-json";
 import { SectionComments } from "@/components/section-comments";
+import { SongDevelopmentAi } from "@/components/song-development-ai";
 import { usePlayer } from "@/components/player/player-provider";
 
 type SelectionInput = {
@@ -21,11 +22,15 @@ function clampIndex(value: number, max: number) {
 }
 
 function newId() {
-  // crypto.randomUUID is supported in modern browsers. Keep a safe fallback for tests.
+  // Keep generated ids export-safe even in older browsers and test environments.
   try {
     return crypto.randomUUID();
   } catch {
-    return `id_${Math.random().toString(36).slice(2)}`;
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+      const random = Math.floor(Math.random() * 16);
+      const value = char === "x" ? random : (random & 0x3) | 0x8;
+      return value.toString(16);
+    });
   }
 }
 
@@ -110,6 +115,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
       recurring_motifs: [],
       reference_albums: [],
       visual_inspiration: [],
+      rough_demos: [],
       songs: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -185,15 +191,16 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
     return {
       idsWereMissing,
       album: {
-      ...fallback,
-      ...obj,
-      id: albumIdFromJson,
-      songs: normalizeTrackNumbers(songs),
-      central_themes: Array.isArray(obj.central_themes) ? obj.central_themes : [],
-      secondary_genres: Array.isArray(obj.secondary_genres) ? obj.secondary_genres : [],
-      recurring_motifs: Array.isArray(obj.recurring_motifs) ? obj.recurring_motifs : [],
-      reference_albums: Array.isArray(obj.reference_albums) ? obj.reference_albums : [],
-      visual_inspiration: Array.isArray(obj.visual_inspiration) ? obj.visual_inspiration : [],
+        ...fallback,
+        ...obj,
+        id: albumIdFromJson,
+        songs: normalizeTrackNumbers(songs),
+        central_themes: Array.isArray(obj.central_themes) ? obj.central_themes : [],
+        secondary_genres: Array.isArray(obj.secondary_genres) ? obj.secondary_genres : [],
+        recurring_motifs: Array.isArray(obj.recurring_motifs) ? obj.recurring_motifs : [],
+        reference_albums: Array.isArray(obj.reference_albums) ? obj.reference_albums : [],
+        visual_inspiration: Array.isArray(obj.visual_inspiration) ? obj.visual_inspiration : [],
+        rough_demos: Array.isArray(obj.rough_demos) ? obj.rough_demos : [],
       },
     };
   }, [initialAlbum]);
@@ -632,6 +639,11 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <SongDevelopmentAi
+                  albumId={albumId}
+                  songTitle={activeSong?.title ?? `Track ${activeSong?.track_number ?? 1}`}
+                  trackNumber={activeSong?.track_number ?? 1}
+                />
                 <button
                   type="button"
                   onClick={() => void previewSong()}

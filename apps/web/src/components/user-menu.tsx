@@ -23,7 +23,7 @@ export function UserMenu({
         </div>
         <div className="max-w-[220px] truncate text-[11px] text-[var(--muted2)]">{email}</div>
       </div>
-      <div className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.06)] text-xs font-semibold text-[var(--text)]">
+      <div className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.05)] text-xs font-semibold text-[var(--text)]">
         {imageUrl ? (
           <Image src={imageUrl} alt="" fill sizes="36px" unoptimized className="object-cover" />
         ) : (
@@ -33,7 +33,7 @@ export function UserMenu({
       <button
         type="button"
         onClick={() => signOut({ callbackUrl: "/" })}
-        className="grid h-9 w-9 place-items-center rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.04)] text-[var(--muted)] hover:bg-[rgba(255,255,255,0.07)]"
+        className="grid h-9 w-9 place-items-center rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.035)] text-[var(--muted)] hover:bg-[rgba(255,255,255,0.06)]"
         aria-label="Sign out"
         title="Sign out"
       >

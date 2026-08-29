@@ -2,11 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fragment } from "react";
 
+import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { BibleActions } from "@/components/bible-actions";
 import { getAlbum } from "@/server/albums";
 import { buildAlbumBible } from "@/server/bible";
 import { buildMotifCharacterGraph, type MotifCharacterGraph } from "@/server/bible-relationships";
 import { requireUser } from "@/server/identity";
+import { summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
@@ -167,6 +169,7 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
   if (!album) notFound();
 
   const bible = buildAlbumBible(album.data);
+  const styleSummary = summarizeStyleBible(bible.styleBible);
   const graph = buildMotifCharacterGraph(bible, { maxCharacters: 10, maxMotifs: 10, minEdgeWeight: 1 });
   const gridCols =
     bible.themeGrid.tracks.length > 0
@@ -178,6 +181,11 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
 
   return (
     <div className="flex flex-col gap-5">
+      <AlbumPageViewTracker
+        albumId={album.id}
+        event="album_bible_viewed"
+        path={`/app/albums/${album.id}/bible`}
+      />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs text-[var(--muted2)]">Bible</div>
@@ -203,6 +211,18 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
           >
             Studio
           </Link>
+          <Link
+            href={`/app/albums/${album.id}/references`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            References
+          </Link>
+          <Link
+            href={`/app/albums/${album.id}/style`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            Style
+          </Link>
           <BibleActions albumId={album.id} />
         </div>
       </div>
@@ -213,6 +233,59 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
             <div className="text-xs text-[var(--muted2)]">Logline</div>
             <div className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
               {bible.conceptSummary || "Add a concept summary in Studio to anchor this bible."}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-[var(--muted2)]">Voice / style bible</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  {styleSummary.score}/100 coverage
+                </div>
+              </div>
+              <Link
+                href={`/app/albums/${album.id}/style`}
+                className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+              >
+                Open workspace
+              </Link>
+            </div>
+
+            <div className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+              {bible.styleBible.lead_voice || "No lead voice brief set yet."}
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted2)]">
+                  Sonic palette
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {bible.styleBible.sonic_palette.length ? (
+                    bible.styleBible.sonic_palette.map((item) => (
+                      <Tag key={`palette-${item}`}>{item}</Tag>
+                    ))
+                  ) : (
+                    <div className="text-xs text-[var(--muted)]">No palette anchors set.</div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted2)]">
+                  Mix priorities
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {bible.styleBible.mix_priorities.length ? (
+                    bible.styleBible.mix_priorities.map((item) => (
+                      <Tag key={`mix-${item}`}>{item}</Tag>
+                    ))
+                  ) : (
+                    <div className="text-xs text-[var(--muted)]">No mix priorities set.</div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 

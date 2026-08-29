@@ -1,4 +1,7 @@
-.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke
+.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke backup-data restore-backup web-db-backup web-db-restore web-lighthouse-public web-lighthouse-auth web-e2e-backstop
+
+PY_DEV = uv run --python 3.11 --with '.[dev,music]'
+PY_UI = uv run --python 3.11 --with '.[dev,ui,music]'
 
 # Default target
 help:
@@ -30,6 +33,9 @@ help:
 	@echo "  make ui-playwright-smoke  Run Playwright UI smoke check"
 	@echo "  make ui-e2e        Run Playwright UI E2E assertions"
 	@echo "  make email-smoke   Send onboarding email smoke test"
+	@echo "  make web-lighthouse-public  Run the public Lighthouse 100/100 audit"
+	@echo "  make web-lighthouse-auth  Run the authenticated Lighthouse 100/100 audit"
+	@echo "  make web-e2e-backstop  Bring up the local stack and run API/web E2E fallback checks"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  make docs          Build documentation"
@@ -46,6 +52,12 @@ help:
 	@echo "Maintenance:"
 	@echo "  make clean         Remove build artifacts"
 	@echo "  make build         Build package"
+	@echo "  make backup-data   Create an application backup archive"
+	@echo "  make restore-backup ARCHIVE=/path/to/archive.tar.gz"
+	@echo "                     Restore an application backup archive"
+	@echo "  make web-db-backup Create a Postgres dump for the Next.js app"
+	@echo "  make web-db-restore DUMP=/path/to/web-postgres.dump"
+	@echo "                     Restore a Postgres dump for the Next.js app"
 	@echo "  make pre-commit    Run pre-commit hooks"
 
 # =============================================================================
@@ -105,58 +117,22 @@ format-check:
 	fi
 
 test:
-	@if command -v pytest >/dev/null 2>&1; then \
-		pytest tests/ -v ; \
-	elif [ -x .venv/bin/pytest ]; then \
-		.venv/bin/pytest tests/ -v ; \
-	else \
-		uv run --python 3.11 --with '.[dev]' pytest tests/ -v ; \
-	fi
+	$(PY_DEV) pytest tests/ -v
 
 test-cov:
-	@if command -v pytest >/dev/null 2>&1; then \
-		pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	elif [ -x .venv/bin/pytest ]; then \
-		.venv/bin/pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	else \
-		uv run --python 3.11 --with '.[dev]' pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	fi
+	$(PY_DEV) pytest tests/ -v --cov=album_conceptualizer --cov-report=term-missing --cov-report=html
 
 test-cov-integration:
-	@if command -v pytest >/dev/null 2>&1; then \
-		pytest tests/ -v -m integration --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	elif [ -x .venv/bin/pytest ]; then \
-		.venv/bin/pytest tests/ -v -m integration --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	else \
-		uv run --python 3.11 --with '.[dev]' pytest tests/ -v -m integration --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	fi
+	$(PY_DEV) pytest tests/ -v -m integration --cov=album_conceptualizer --cov-report=term-missing --cov-report=html
 
 test-cov-unit:
-	@if command -v pytest >/dev/null 2>&1; then \
-		pytest tests/ -v -m unit --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	elif [ -x .venv/bin/pytest ]; then \
-		.venv/bin/pytest tests/ -v -m unit --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	else \
-		uv run --python 3.11 --with '.[dev]' pytest tests/ -v -m unit --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	fi
+	$(PY_DEV) pytest tests/ -v -m unit --cov=album_conceptualizer --cov-report=term-missing --cov-report=html
 
 test-cov-mock:
-	@if command -v pytest >/dev/null 2>&1; then \
-		pytest tests/ -v -m mock --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	elif [ -x .venv/bin/pytest ]; then \
-		.venv/bin/pytest tests/ -v -m mock --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	else \
-		uv run --python 3.11 --with '.[dev]' pytest tests/ -v -m mock --cov=album_conceptualizer --cov-report=term-missing --cov-report=html ; \
-	fi
+	$(PY_DEV) pytest tests/ -v -m mock --cov=album_conceptualizer --cov-report=term-missing --cov-report=html
 
 test-fast:
-	@if command -v pytest >/dev/null 2>&1; then \
-		pytest tests/ -v -x --tb=short ; \
-	elif [ -x .venv/bin/pytest ]; then \
-		.venv/bin/pytest tests/ -v -x --tb=short ; \
-	else \
-		uv run --python 3.11 --with '.[dev]' pytest tests/ -v -x --tb=short ; \
-	fi
+	$(PY_DEV) pytest tests/ -v -x --tb=short
 
 type-check:
 	@if command -v mypy >/dev/null 2>&1; then \
@@ -179,16 +155,16 @@ pre-commit-install:
 # =============================================================================
 
 api:
-	uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000
+	$(PY_DEV) uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000
 
 api-dev:
-	uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000 --reload
+	$(PY_DEV) uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000 --reload
 
 ui:
-	python -m album_conceptualizer.cli ui
+	$(PY_UI) python3 -m album_conceptualizer.cli ui
 
 cli:
-	python -m album_conceptualizer.cli --help
+	$(PY_DEV) python3 -m album_conceptualizer.cli --help
 
 # =============================================================================
 # Documentation
@@ -265,13 +241,13 @@ clean:
 # =============================================================================
 
 billing-smoke:
-	python scripts/stripe-billing-smoke.py
+	$(PY_DEV) python3 scripts/stripe-billing-smoke.py
 
 billing-lifecycle-smoke:
-	python scripts/stripe-billing-smoke.py --simulate-lifecycle --skip-checkout
+	$(PY_DEV) python3 scripts/stripe-billing-smoke.py --simulate-lifecycle --skip-checkout
 
 staging-e2e:
-	python scripts/staging-e2e.py
+	$(PY_DEV) python3 scripts/staging-e2e.py
 
 ui-playwright-smoke:
 	bash scripts/ui-playwright-smoke.sh
@@ -281,6 +257,35 @@ ui-e2e:
 
 email-smoke:
 	.venv/bin/python scripts/email-smoke.py
+
+web-lighthouse-public:
+	bash scripts/web-lighthouse-public.sh
+
+web-lighthouse-auth:
+	bash scripts/web-lighthouse-auth.sh
+
+web-e2e-backstop:
+	bash scripts/web-e2e-backstop.sh
+
+backup-data:
+	./scripts/backup-data.sh
+
+restore-backup:
+	@if [ -z "$(ARCHIVE)" ]; then \
+		echo "Usage: make restore-backup ARCHIVE=/path/to/archive.tar.gz" ; \
+		exit 1 ; \
+	fi
+	./scripts/restore-backup.sh "$(ARCHIVE)"
+
+web-db-backup:
+	./scripts/web-db-backup.sh
+
+web-db-restore:
+	@if [ -z "$(DUMP)" ]; then \
+		echo "Usage: make web-db-restore DUMP=/path/to/web-postgres.dump" ; \
+		exit 1 ; \
+	fi
+	./scripts/web-db-restore.sh "$(DUMP)"
 
 # Update dependencies
 update:

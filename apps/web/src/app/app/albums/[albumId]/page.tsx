@@ -2,12 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AlbumDangerZone } from "@/components/album-danger-zone";
+import { FirstProjectChecklist } from "@/components/first-project-checklist";
 import { PublishAlbumButton } from "@/components/publish-album-button";
 import { ShareAlbumButton } from "@/components/share-album-button";
 import { getAlbum } from "@/server/albums";
 import { analyzeAlbumCoherence } from "@/server/coherence";
 import { getPrisma } from "@/server/db";
+import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
+import { getAlbumOnboardingSummary } from "@/server/onboarding";
+import { analyzeAlbumRoughDemos, summarizeRoughDemoReviews } from "@/server/rough-demo-review";
+import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
+import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
@@ -35,26 +41,45 @@ function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; tit
 
 export default async function AlbumDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ albumId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { albumId } = await params;
+  const query = await searchParams;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
 
   const prisma = getPrisma();
-  const shareLink = await prisma.albumShareLink.findUnique({
-    where: { albumId: album.id },
-    select: { token: true, revokedAt: true },
-  });
+  const [shareLink, onboarding, references, roughDemos] = await Promise.all([
+    prisma.albumShareLink.findUnique({
+      where: { albumId: album.id },
+      select: { token: true, revokedAt: true },
+    }),
+    getAlbumOnboardingSummary({
+      workspaceId: workspace.id,
+      albumId: album.id,
+      data: album.data,
+      isPublic: album.isPublic,
+    }),
+    listAlbumReferences(workspace.id, album.id),
+    Promise.resolve(listAlbumRoughDemos(album.data)),
+  ]);
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const initialShareLink =
     shareLink && !shareLink.revokedAt ? `${appUrl}/share/${shareLink.token}` : null;
 
   const songs = getSongsFromAlbumData(album.data);
   const coherence = analyzeAlbumCoherence(album.data);
+  const styleBible = getAlbumStyleBible(album.data);
+  const styleSummary = summarizeStyleBible(styleBible, references);
+  const demoSummary = summarizeRoughDemos(roughDemos);
+  const demoReviewSummary = summarizeRoughDemoReviews(analyzeAlbumRoughDemos(album.data));
+  const showOnboarding =
+    onboarding.completeCount < onboarding.totalCount || query.welcome === "1";
 
   return (
     <div className="flex flex-col gap-6">
@@ -98,6 +123,24 @@ export default async function AlbumDetailPage({
             className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
           >
             Inbox
+          </Link>
+          <Link
+            href={`/app/albums/${album.id}/references`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            References
+          </Link>
+          <Link
+            href={`/app/albums/${album.id}/style`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            Style
+          </Link>
+          <Link
+            href={`/app/albums/${album.id}/demos`}
+            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          >
+            Demos
           </Link>
           <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
           <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
@@ -158,6 +201,8 @@ export default async function AlbumDetailPage({
         </section>
 
         <aside className="space-y-3">
+          {showOnboarding ? <FirstProjectChecklist summary={onboarding} title={album.title} /> : null}
+
           <Link
             href={`/app/albums/${album.id}/coherence`}
             className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
@@ -173,8 +218,20 @@ export default async function AlbumDetailPage({
                 View report
               </div>
             </div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
-              {coherence.issues[0]?.title ?? "No issues detected."}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {coherence.breakdown.map((item) => (
+                <div
+                  key={item.key}
+                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                >
+                  {item.label} {item.score}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-[var(--muted2)]">
+              {coherence.nextActions[0]?.title ??
+                coherence.issues[0]?.title ??
+                "No issues detected."}
             </div>
           </Link>
 
@@ -185,6 +242,108 @@ export default async function AlbumDetailPage({
               Updated {album.updatedAt.toLocaleString()}
             </div>
           </div>
+
+          <Link
+            href={`/app/albums/${album.id}/references`}
+            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-[var(--muted2)]">Reference tracks</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  {references.length} saved
+                </div>
+              </div>
+              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
+                Open workspace
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {references.slice(0, 3).map((reference) => (
+                <div
+                  key={reference.id}
+                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                >
+                  {reference.targetRole
+                    ? reference.targetRole.replace(/-/g, " ")
+                    : reference.songTitle
+                      ? `track ${reference.songTrackNumber}`
+                      : "album wide"}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-[var(--muted2)]">
+              {references[0]
+                ? `${references[0].title}${references[0].artist ? ` · ${references[0].artist}` : ""}`
+                : "Capture opener, closer, vocal, and mix references before exporting."}
+            </div>
+          </Link>
+
+          <Link
+            href={`/app/albums/${album.id}/style`}
+            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-[var(--muted2)]">Voice / style bible</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  {styleSummary.score}/100
+                </div>
+              </div>
+              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
+                Open workspace
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {styleSummary.highlightTags.slice(0, 3).map((item) => (
+                <div
+                  key={item}
+                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-[var(--muted2)]">
+              {styleBible.lead_voice
+                ? styleBible.lead_voice
+                : "Define the vocal identity, palette, and mix constraints before export."}
+            </div>
+          </Link>
+
+          <Link
+            href={`/app/albums/${album.id}/demos`}
+            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-[var(--muted2)]">Rough demos</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  {demoSummary.count} captured · {demoReviewSummary.readyCount} ready
+                </div>
+              </div>
+              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
+                Open workspace
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {demoSummary.sourceKinds.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                >
+                  {item.replace(/-/g, " ")}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-[var(--muted2)]">
+              {demoReviewSummary.topHeadline
+                ? demoReviewSummary.topHeadline
+                : demoSummary.latestTitle
+                  ? demoSummary.latestTitle
+                : "Capture the memo, rehearsal, or riff sketch before it disappears."}
+            </div>
+          </Link>
 
           <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
             <div className="text-xs text-[var(--muted2)]">Next steps</div>

@@ -6,6 +6,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 
 import { getPrisma } from "@/server/db";
+import { trackProductEventSafe } from "@/server/analytics";
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
@@ -35,7 +36,10 @@ function getConfiguredEmailFrom(): string {
   return "onboarding@resend.dev";
 }
 
+let _cachedAuthOptions: NextAuthOptions | null = null;
+
 export function buildAuthOptions(): NextAuthOptions {
+  if (_cachedAuthOptions) return _cachedAuthOptions;
   const prisma = getPrisma();
   const authSecret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
   if (!authSecret) {
@@ -104,7 +108,7 @@ export function buildAuthOptions(): NextAuthOptions {
     );
   }
 
-  return {
+  const options: NextAuthOptions = {
     adapter: PrismaAdapter(prisma),
     secret: authSecret,
     session: { strategy: "jwt" },
@@ -123,7 +127,7 @@ export function buildAuthOptions(): NextAuthOptions {
       createUser: async ({ user }) => {
         // Bootstrap a personal workspace on first sign-in.
         // This keeps the rest of the app logic simple.
-        await prisma.workspace.create({
+        const workspace = await prisma.workspace.create({
           data: {
             name: user.name ? `${user.name}'s Workspace` : "My Workspace",
             ownerId: user.id,
@@ -141,9 +145,23 @@ export function buildAuthOptions(): NextAuthOptions {
             },
           },
         });
+
+        await trackProductEventSafe({
+          name: "user_signed_up",
+          workspaceId: workspace.id,
+          userId: user.id,
+          source: "auth",
+          path: "/api/auth/[...nextauth]",
+          metadata: {
+            email: user.email ?? null,
+          },
+        });
       },
     },
   };
+
+  _cachedAuthOptions = options;
+  return options;
 }
 
 export async function getAuthSession() {

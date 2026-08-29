@@ -1,5 +1,7 @@
 import { defineConfig } from "prisma/config";
 
+const DEFAULT_DB_SCHEMA = "album_conceptualizer";
+
 function withSchemaParam(connectionString: string, schema: string): string {
   try {
     const url = new URL(connectionString);
@@ -16,8 +18,8 @@ function withSchemaParam(connectionString: string, schema: string): string {
 // `DATABASE_URL` isn't set yet (it doesn't connect during generation).
 const baseDatabaseUrl =
   process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5433/album_conceptualizer?schema=public";
-const configuredSchema = process.env.PRISMA_DB_SCHEMA?.trim();
+  `postgresql://postgres:postgres@localhost:5433/album_conceptualizer?schema=${DEFAULT_DB_SCHEMA}`;
+const configuredSchema = process.env.PRISMA_DB_SCHEMA?.trim() || DEFAULT_DB_SCHEMA;
 const DATABASE_URL =
   configuredSchema && configuredSchema.length > 0
     ? withSchemaParam(baseDatabaseUrl, configuredSchema)

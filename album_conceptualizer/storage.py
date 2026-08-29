@@ -3,12 +3,37 @@
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from album_conceptualizer.logging import get_logger
 from album_conceptualizer.models.album import Album
 from album_conceptualizer.models.album_bible import AlbumBible
 from album_conceptualizer.models.subscription import AccountSubscription
+
+
+logger = get_logger("album_conceptualizer.storage")
+
+
+def _open_sqlite(path: Path) -> sqlite3.Connection:
+    """Open a SQLite connection with WAL mode and relaxed sync for performance."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path), check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
+
+def _safe_child(root: Path, filename: str) -> Path:
+    """Resolve *filename* under *root* and verify it stays within the directory.
+
+    Raises ``ValueError`` if the resolved path escapes *root* (path traversal).
+    """
+    target = (root / filename).resolve()
+    if not target.is_relative_to(root.resolve()):
+        raise ValueError(f"Path traversal detected in ID: {filename!r}")
+    return target
 
 
 class AlbumStore:
@@ -123,7 +148,7 @@ class FileAlbumStore(AlbumStore):
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path_for(self, album_id: str) -> Path:
-        return self.root / f"{album_id}.json"
+        return _safe_child(self.root, f"{album_id}.json")
 
     def list(self) -> list[Album]:
         albums: list[Album] = []
@@ -131,6 +156,7 @@ class FileAlbumStore(AlbumStore):
             try:
                 albums.append(Album.model_validate_json(path.read_text()))
             except Exception:
+                logger.warning("album_deserialize_failed", extra={"path": str(path)}, exc_info=True)
                 continue
         return albums
 
@@ -138,7 +164,11 @@ class FileAlbumStore(AlbumStore):
         path = self._path_for(album_id)
         if not path.exists():
             return None
-        return Album.model_validate_json(path.read_text())
+        try:
+            return Album.model_validate_json(path.read_text())
+        except Exception:
+            logger.warning("album_deserialize_failed", extra={"path": str(path)}, exc_info=True)
+            return None
 
     def save(self, album: Album) -> None:
         path = self._path_for(str(album.id))
@@ -160,7 +190,7 @@ class FileBibleStore(BibleStore):
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path_for(self, album_id: str) -> Path:
-        return self.root / f"{album_id}.json"
+        return _safe_child(self.root, f"{album_id}.json")
 
     def get(self, album_id: str) -> AlbumBible | None:
         path = self._path_for(album_id)
@@ -188,7 +218,7 @@ class FileSubscriptionStore(SubscriptionStore):
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path_for(self, api_key_hash: str) -> Path:
-        return self.root / f"{api_key_hash}.json"
+        return _safe_child(self.root, f"{api_key_hash}.json")
 
     def list(self) -> list[AccountSubscription]:
         items: list[AccountSubscription] = []
@@ -196,6 +226,9 @@ class FileSubscriptionStore(SubscriptionStore):
             try:
                 items.append(AccountSubscription.model_validate_json(path.read_text()))
             except Exception:
+                logger.warning(
+                    "subscription_deserialize_failed", extra={"path": str(path)}, exc_info=True
+                )
                 continue
         return items
 
@@ -220,45 +253,50 @@ class SQLiteAlbumStore(AlbumStore):
     """SQLite-backed album store (JSON payloads)."""
 
     path: Path
+    _conn: sqlite3.Connection = field(init=False, repr=False)
+    _lock: threading.Lock = field(init=False, repr=False, default_factory=threading.Lock)
 
     def __post_init__(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS albums (id TEXT PRIMARY KEY, payload TEXT NOT NULL)"
-            )
+        self._conn = _open_sqlite(self.path)
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS albums (id TEXT PRIMARY KEY, payload TEXT NOT NULL)"
+        )
+        self._conn.commit()
 
     def list(self) -> list[Album]:
-        with sqlite3.connect(self.path) as conn:
-            rows = conn.execute("SELECT payload FROM albums").fetchall()
+        with self._lock:
+            rows = self._conn.execute("SELECT payload FROM albums").fetchall()
         albums: list[Album] = []
         for (payload,) in rows:
             try:
                 albums.append(Album.model_validate_json(payload))
             except Exception:
+                logger.warning("album_deserialize_failed", extra={"store": "sqlite"}, exc_info=True)
                 continue
         return albums
 
     def get(self, album_id: str) -> Album | None:
-        with sqlite3.connect(self.path) as conn:
-            row = conn.execute("SELECT payload FROM albums WHERE id = ?", (album_id,)).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT payload FROM albums WHERE id = ?", (album_id,)
+            ).fetchone()
         if not row:
             return None
         return Album.model_validate_json(row[0])
 
     def save(self, album: Album) -> None:
         payload = album.model_dump_json(indent=2)
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
+        with self._lock:
+            self._conn.execute(
                 "INSERT OR REPLACE INTO albums (id, payload) VALUES (?, ?)",
                 (str(album.id), payload),
             )
-            conn.commit()
+            self._conn.commit()
 
     def delete(self, album_id: str) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DELETE FROM albums WHERE id = ?", (album_id,))
-            conn.commit()
+        with self._lock:
+            self._conn.execute("DELETE FROM albums WHERE id = ?", (album_id,))
+            self._conn.commit()
 
 
 @dataclass
@@ -266,17 +304,19 @@ class SQLiteBibleStore(BibleStore):
     """SQLite-backed album bible store (JSON payloads)."""
 
     path: Path
+    _conn: sqlite3.Connection = field(init=False, repr=False)
+    _lock: threading.Lock = field(init=False, repr=False, default_factory=threading.Lock)
 
     def __post_init__(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS bibles (album_id TEXT PRIMARY KEY, payload TEXT NOT NULL)"
-            )
+        self._conn = _open_sqlite(self.path)
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS bibles (album_id TEXT PRIMARY KEY, payload TEXT NOT NULL)"
+        )
+        self._conn.commit()
 
     def get(self, album_id: str) -> AlbumBible | None:
-        with sqlite3.connect(self.path) as conn:
-            row = conn.execute(
+        with self._lock:
+            row = self._conn.execute(
                 "SELECT payload FROM bibles WHERE album_id = ?", (album_id,)
             ).fetchone()
         if not row:
@@ -285,17 +325,17 @@ class SQLiteBibleStore(BibleStore):
 
     def save(self, album_id: str, bible: AlbumBible) -> None:
         payload = bible.model_dump_json(indent=2)
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
+        with self._lock:
+            self._conn.execute(
                 "INSERT OR REPLACE INTO bibles (album_id, payload) VALUES (?, ?)",
                 (album_id, payload),
             )
-            conn.commit()
+            self._conn.commit()
 
     def delete(self, album_id: str) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DELETE FROM bibles WHERE album_id = ?", (album_id,))
-            conn.commit()
+        with self._lock:
+            self._conn.execute("DELETE FROM bibles WHERE album_id = ?", (album_id,))
+            self._conn.commit()
 
 
 @dataclass
@@ -303,29 +343,34 @@ class SQLiteSubscriptionStore(SubscriptionStore):
     """SQLite-backed subscription store (JSON payloads)."""
 
     path: Path
+    _conn: sqlite3.Connection = field(init=False, repr=False)
+    _lock: threading.Lock = field(init=False, repr=False, default_factory=threading.Lock)
 
     def __post_init__(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS subscriptions ("
-                "api_key_hash TEXT PRIMARY KEY, payload TEXT NOT NULL)"
-            )
+        self._conn = _open_sqlite(self.path)
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS subscriptions ("
+            "api_key_hash TEXT PRIMARY KEY, payload TEXT NOT NULL)"
+        )
+        self._conn.commit()
 
     def list(self) -> list[AccountSubscription]:
-        with sqlite3.connect(self.path) as conn:
-            rows = conn.execute("SELECT payload FROM subscriptions").fetchall()
+        with self._lock:
+            rows = self._conn.execute("SELECT payload FROM subscriptions").fetchall()
         items: list[AccountSubscription] = []
         for (payload,) in rows:
             try:
                 items.append(AccountSubscription.model_validate_json(payload))
             except Exception:
+                logger.warning(
+                    "subscription_deserialize_failed", extra={"store": "sqlite"}, exc_info=True
+                )
                 continue
         return items
 
     def get(self, api_key_hash: str) -> AccountSubscription | None:
-        with sqlite3.connect(self.path) as conn:
-            row = conn.execute(
+        with self._lock:
+            row = self._conn.execute(
                 "SELECT payload FROM subscriptions WHERE api_key_hash = ?",
                 (api_key_hash,),
             ).fetchone()
@@ -335,14 +380,14 @@ class SQLiteSubscriptionStore(SubscriptionStore):
 
     def save(self, subscription: AccountSubscription) -> None:
         payload = subscription.model_dump_json(indent=2)
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
+        with self._lock:
+            self._conn.execute(
                 "INSERT OR REPLACE INTO subscriptions (api_key_hash, payload) VALUES (?, ?)",
                 (subscription.api_key_hash, payload),
             )
-            conn.commit()
+            self._conn.commit()
 
     def delete(self, api_key_hash: str) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DELETE FROM subscriptions WHERE api_key_hash = ?", (api_key_hash,))
-            conn.commit()
+        with self._lock:
+            self._conn.execute("DELETE FROM subscriptions WHERE api_key_hash = ?", (api_key_hash,))
+            self._conn.commit()

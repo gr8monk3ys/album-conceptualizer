@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from album_conceptualizer.models.album import Album, Section, SectionType, Song
 from album_conceptualizer.models.album_bible import AlbumBible, Theme
 from album_conceptualizer.models.subscription import (
@@ -297,3 +299,30 @@ class TestSQLiteSubscriptionStore:
         store.save(sub)
         store.delete("del-hash")
         assert store.get("del-hash") is None
+
+
+# ---------------------------------------------------------------------------
+# Path traversal protection
+# ---------------------------------------------------------------------------
+
+
+class TestPathTraversalProtection:
+    """Verify that file-backed stores reject IDs containing path traversal."""
+
+    @pytest.mark.parametrize("bad_id", ["../../etc/passwd", "../secret", "foo/../../bar"])
+    def test_file_album_store_rejects_traversal(self, tmp_path: Path, bad_id: str) -> None:
+        store = FileAlbumStore(root=tmp_path / "albums")
+        with pytest.raises(ValueError, match="Path traversal"):
+            store.get(bad_id)
+
+    @pytest.mark.parametrize("bad_id", ["../../etc/passwd", "../secret"])
+    def test_file_bible_store_rejects_traversal(self, tmp_path: Path, bad_id: str) -> None:
+        store = FileBibleStore(root=tmp_path / "bibles")
+        with pytest.raises(ValueError, match="Path traversal"):
+            store.get(bad_id)
+
+    @pytest.mark.parametrize("bad_id", ["../../etc/passwd", "../secret"])
+    def test_file_subscription_store_rejects_traversal(self, tmp_path: Path, bad_id: str) -> None:
+        store = FileSubscriptionStore(root=tmp_path / "subs")
+        with pytest.raises(ValueError, match="Path traversal"):
+            store.get(bad_id)

@@ -1,139 +1,95 @@
 # Album Conceptualizer
 
-A RAG-powered concept album ideation system with multi-agent orchestration.
+Album Conceptualizer is a full-stack workspace for building coherent concept albums.
 
-<div class="grid cards" markdown>
+The repo currently ships three product surfaces:
 
-- :material-album: **Create Concept Albums**
+- A Next.js web app for album planning, studio editing, publishing, remixing, billing, and analytics
+- A FastAPI engine for export, theory, billing, identity, and experience endpoints
+- A legacy Gradio UI that still works for smoke testing, parity checks, and local workflows
 
-    ---
+It is strongest at album structure, coherence, lyrics and chord workflows, collaboration, and export handoff. It is not a native Suno or Udio style audio generator.
 
-    Design cohesive concept albums with AI-assisted narrative structure,
-    thematic tracking, and style consistency.
+## Choose Your Path
 
-    [:octicons-arrow-right-24: Getting Started](getting-started/installation.md)
+If you want to:
 
-- :material-robot: **Multi-Agent AI**
+- run the product locally, start with [Quickstart](getting-started/quickstart.md)
+- understand what the product does, read [What This Repo Does](product/what-it-does.md)
+- work on the codebase, read [Repo Map](developer/repo-map.md) and [Architecture](developer/architecture.md)
+- ship changes safely, read [Testing and Quality](developer/testing-and-quality.md)
+- run or operate deployments, read [Runbooks](operations/runbooks.md)
 
-    ---
-
-    Leverage specialized AI agents (Lyricist, Music Theorist, Narrative
-    Specialist) working together via CrewAI.
-
-    [:octicons-arrow-right-24: Production Setup](getting-started/production.md)
-
-- :material-music-note: **Music Theory Tools**
-
-    ---
-
-    Analyze chords, generate scales, and get progression suggestions
-    with built-in music theory utilities.
-
-    [:octicons-arrow-right-24: Music Theory API](api/rest-api.md#music-theory)
-
-- :material-export: **Export Anywhere**
-
-    ---
-
-    Export to MIDI, ChordPro, MusicXML, and more for use in your
-    favorite DAW or notation software.
-
-    [:octicons-arrow-right-24: Export API](api/rest-api.md#export)
-
-</div>
-
-## What is Album Conceptualizer?
-
-Album Conceptualizer is the **first tool dedicated to concept album creation**.
-While AI lyric generators and chord tools exist separately, no other product
-addresses the unique challenge of maintaining **narrative and thematic
-coherence** across an entire album.
-
-### Key Features
-
-- **Album Bible** - Track themes, characters, motifs, and narrative arcs
-- **Hierarchical RAG** - Search at album, song, section, or line level
-- **Multi-Agent Workflow** - AI agents collaborate while maintaining coherence
-- **Export Flexibility** - MIDI, ChordPro, MusicXML, JSON formats
-- **REST API** - Integrate with your existing tools and workflows
-
-## Quick Example
-
-```python
-from album_conceptualizer.models.album import Album, Song, Section, SectionType
-from album_conceptualizer.models.album_bible import AlbumBible, Theme
-
-# Create an album
-album = Album(
-    title="The Journey Home",
-    artist="The Storytellers",
-    concept_summary="A traveler's journey through memory and time",
-)
-
-# Create the Album Bible
-bible = AlbumBible(
-    album_title="The Journey Home",
-    logline="A weary traveler discovers that home was within them all along",
-)
-
-# Add themes
-bible.add_theme(Theme(
-    name="Identity",
-    description="Who we are when stripped of familiar surroundings",
-))
-
-# Create songs
-song = Song(
-    title="Setting Out",
-    track_number=1,
-    key="D major",
-    tempo=120,
-)
-song.add_section(Section(
-    section_type=SectionType.VERSE,
-    order=1,
-    lyrics="The morning light breaks through...",
-    chord_progression=["D", "A", "Bm", "G"],
-))
-
-album.add_song(song)
-```
-
-## Architecture
+## System At A Glance
 
 ```mermaid
-graph TB
-    UI[Web UI / API] --> Agents[Multi-Agent System]
-    Agents --> RAG[RAG System]
-    RAG --> VectorDB[(Vector Store)]
-    Agents --> Export[Export Layer]
-    Export --> MIDI[MIDI]
-    Export --> ChordPro[ChordPro]
-    Export --> MusicXML[MusicXML]
+flowchart LR
+    Browser[Browser / Playwright] --> Web[Next.js web app]
+    Web --> Postgres[(Postgres / Prisma)]
+    Web --> Redis[(Upstash / Redis)]
+    Web --> Stripe[Stripe]
+    Web --> Engine[Python engine API]
+    Engine --> Storage[(SQLite / file / memory)]
+    Engine --> Export[Export formats]
+    Engine --> AI[Agents / RAG / theory]
 ```
 
-## Installation
+## What Lives Here
 
-=== "uv (Recommended)"
+### Web Product
 
-    ```bash
-    uv pip install --system -e .
-    ```
+The web app is the primary product surface. It supports:
 
-=== "pip"
+- guided album creation
+- album bible generation and editing
+- track and section editing in Studio
+- comments, tasks, versions, notifications, and remix flows
+- export handoff through the Python engine
+- publishing to Discover, public sharing, and forking
+- billing, credits, challenges, and workspace analytics
 
-    ```bash
-    pip install -e .
-    ```
+### Python Engine
 
-=== "Docker"
+The Python package powers:
 
-    ```bash
-    docker compose up -d app
-    ```
+- FastAPI endpoints under `album_conceptualizer/api/v1`
+- export generation for JSON, MIDI, ChordPro, and MusicXML
+- theory and experience endpoints
+- API identity and billing support
+- optional AI and RAG features when the relevant extras are installed
 
-[:octicons-arrow-right-24: Full Installation Guide](getting-started/installation.md)
+### Legacy UI
 
-## License
+The Gradio app remains useful for:
 
-Album Conceptualizer is licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
+- local demos without the web app
+- API and export smoke coverage
+- parity checks for older workflows
+
+## Documentation Map
+
+- [Quickstart](getting-started/quickstart.md): fastest path to a working local stack
+- [Installation](getting-started/installation.md): dependency and environment setup
+- [Production](getting-started/production.md): deployment and staging guidance
+- [What This Repo Does](product/what-it-does.md): user-facing capability map
+- [Repo Map](developer/repo-map.md): where code lives and where to make changes
+- [Web Route Reference](developer/web-route-reference.md): page and API route inventory for the Next.js app
+- [Web API Examples](developer/web-api-examples.md): concrete request and response examples for common web routes
+- [Architecture](developer/architecture.md): request flow, data flow, and boundaries
+- [Data Model](developer/data-model.md): Prisma schema and persistence rules
+- [Architecture Decisions](developer/architecture-decisions.md): the major rules that should not be changed casually
+- [Local Development](developer/local-development.md): daily development workflow
+- [Testing and Quality](developer/testing-and-quality.md): commands, gates, and CI
+- [Runbooks](operations/runbooks.md): backups, staging smoke, and operational checks
+- [REST API](api/rest-api.md): Python API reference
+
+## Current Launch Read
+
+The repo is locally strong and E2E capable. The main remaining production work is not codebase discoverability anymore, but external validation:
+
+- real auth providers
+- real Stripe checkout and webhooks
+- deployed export engine validation
+- staging and production operations discipline
+
+That is why the docs now separate product understanding, local development, and operations. Each audience needs different answers.

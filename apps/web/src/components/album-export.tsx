@@ -31,6 +31,27 @@ export function AlbumExport({ albumId }: { albumId: string }) {
     return params.toString();
   }, [selected, includeProductionNotes]);
 
+  const handoffDownloads = useMemo(
+    () => [
+      {
+        key: "suno",
+        title: "Suno brief",
+        desc: "Album-level prompt pack with per-track prompt lines and negative prompt guidance.",
+      },
+      {
+        key: "udio",
+        title: "Udio brief",
+        desc: "Section-aware handoff notes built for Udio-style iteration and extension workflows.",
+      },
+      {
+        key: "daw",
+        title: "DAW session notes",
+        desc: "Arrangement, recording, and mix priorities for a producer or session file handoff.",
+      },
+    ] as const,
+    [],
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -125,6 +146,42 @@ export function AlbumExport({ albumId }: { albumId: string }) {
           </div>
         </section>
       </div>
+
+      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-xs text-[var(--muted2)]">Handoff packs</div>
+            <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+              Generator + DAW briefs from your album system
+            </div>
+          </div>
+          <div className="text-xs text-[var(--muted2)]">
+            Uses Bible, coherence, references, and style-bible guidance
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {handoffDownloads.map((item) => (
+            <div
+              key={item.key}
+              className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4"
+            >
+              <div className="text-sm font-semibold text-[var(--text)]">{item.title}</div>
+              <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">{item.desc}</div>
+              <a
+                href={`/api/albums/${albumId}/handoff?target=${item.key}`}
+                onClick={() => {
+                  setStatus(`Preparing ${item.title.toLowerCase()}...`);
+                  window.setTimeout(() => setStatus(""), 1800);
+                }}
+                className="mt-4 inline-flex rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+              >
+                Download {item.title}
+              </a>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

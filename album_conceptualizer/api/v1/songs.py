@@ -239,8 +239,7 @@ async def update_song(
         if str(song.id) == song_id:
             update_data = data.model_dump(exclude_unset=True)
             for field, value in update_data.items():
-                if value is not None:
-                    setattr(song, field, value)
+                setattr(song, field, value)
             get_album_store(request).save(album)
             return _song_to_response(song)
 

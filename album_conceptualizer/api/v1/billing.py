@@ -10,7 +10,8 @@ from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from album_conceptualizer.api.deps import extract_auth_token, resolve_subscription_subject
-from album_conceptualizer.config import get_settings
+from album_conceptualizer.config import Settings, get_settings
+from album_conceptualizer.logging import get_logger
 from album_conceptualizer.models.subscription import (
     AccountSubscription,
     BillingPlan,
@@ -19,6 +20,7 @@ from album_conceptualizer.models.subscription import (
 from album_conceptualizer.storage import SubscriptionStore
 
 
+logger = get_logger("album_conceptualizer.billing")
 protected_router = APIRouter()
 public_router = APIRouter()
 
@@ -109,7 +111,7 @@ def _status_from_stripe(status_text: str | None) -> SubscriptionStatus:
     return mapping.get(status_text, SubscriptionStatus.INACTIVE)
 
 
-def _plan_price_id_for(settings, plan: BillingPlan) -> str | None:
+def _plan_price_id_for(settings: Settings, plan: BillingPlan) -> str | None:
     if plan == BillingPlan.PRO:
         return settings.stripe_price_id_pro
     if plan == BillingPlan.TEAM:
@@ -308,7 +310,11 @@ async def stripe_webhook(request: Request) -> WebhookAckResponse:
             secret=settings.stripe_webhook_secret,
         )
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        logger.warning("stripe_webhook_verification_failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Webhook signature verification failed",
+        ) from exc
 
     store = _get_store(request)
     event_type = str(event.get("type", ""))

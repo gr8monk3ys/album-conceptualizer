@@ -86,6 +86,8 @@ export function Playerbar() {
     };
   }, [getWaveform]);
 
+  if (!loaded) return null;
+
   return (
     <div className="pointer-events-auto fixed bottom-4 left-1/2 z-50 w-[min(1120px,calc(100vw-32px))] -translate-x-1/2 rounded-2xl border border-[var(--border)] bg-[rgba(15,16,21,0.78)] px-4 py-3 shadow-[0_30px_80px_rgba(0,0,0,0.6)] backdrop-blur">
       <div className="flex items-center justify-between gap-4">

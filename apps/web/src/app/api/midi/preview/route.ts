@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { getAuthSession } from "@/server/auth";
 import { engineFetch } from "@/server/engine";
-import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
+import { checkRateLimit, getRateLimitFailure, getRateLimitHeaders } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -20,11 +20,12 @@ export async function POST(request: Request) {
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
   const rate = await checkRateLimit("preview_midi", `user:${userId}`);
-  if (!rate.ok) {
-    return NextResponse.json(
-      { error: "Too many previews. Please wait a bit and try again." },
-      { status: 429, headers: getRateLimitHeaders(rate) },
-    );
+  const rateFailure = getRateLimitFailure(rate, "Too many previews. Please wait a bit and try again.");
+  if (rateFailure) {
+    return NextResponse.json(rateFailure.body, {
+      status: rateFailure.status,
+      headers: rateFailure.headers,
+    });
   }
 
   const payload = BodySchema.safeParse(await request.json().catch(() => null));
@@ -63,4 +64,3 @@ export async function POST(request: Request) {
 
   return new Response(engineResponse.body, { status: 200, headers });
 }
-

@@ -1,7 +1,9 @@
 import { AlbumCard, type AlbumListItem } from "@/components/album-card";
+import { WorkspaceFunnelCard } from "@/components/workspace-funnel-card";
 import Link from "next/link";
 
 import { listAlbums } from "@/server/albums";
+import { getWorkspaceFunnelSummary } from "@/server/analytics";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
@@ -25,7 +27,10 @@ function buildSubtitle(input: {
 export default async function AppHomePage() {
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
-  const albums = await listAlbums(workspace.id);
+  const [albums, funnel] = await Promise.all([
+    listAlbums(workspace.id),
+    getWorkspaceFunnelSummary(workspace.id),
+  ]);
 
   const items: AlbumListItem[] = albums.map((album) => ({
     id: album.id,
@@ -41,6 +46,8 @@ export default async function AppHomePage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <WorkspaceFunnelCard summary={funnel} />
+
       <div className="flex flex-col gap-2">
         <div className="text-xs text-[var(--muted2)]">For you</div>
         <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">

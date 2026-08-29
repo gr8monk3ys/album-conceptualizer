@@ -5,8 +5,10 @@ import { getPrisma } from "@/server/db";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { engineFetch } from "@/server/engine";
-import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
+import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
 import { getCreditsStatus, InsufficientCreditsError, spendCredits } from "@/server/credits";
+import { trackProductEventSafe } from "@/server/analytics";
+import { contentDisposition } from "@/server/headers";
 
 export const runtime = "nodejs";
 
@@ -30,11 +32,12 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
   const rate = await checkRateLimit("export_zip", `user:${userId}`);
-  if (!rate.ok) {
-    return NextResponse.json(
-      { error: "Too many exports. Please wait a bit and try again." },
-      { status: 429, headers: getRateLimitHeaders(rate) },
-    );
+  const rateFailure = getRateLimitFailure(rate, "Too many exports. Please wait a bit and try again.");
+  if (rateFailure) {
+    return NextResponse.json(rateFailure.body, {
+      status: rateFailure.status,
+      headers: rateFailure.headers,
+    });
   }
 
   const { albumId } = await params;
@@ -104,7 +107,19 @@ export async function GET(
   const filename = `${album.title.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "album"}_export.zip`;
   const headers = new Headers(engineResponse.headers);
   headers.set("content-type", "application/zip");
-  headers.set("content-disposition", `attachment; filename="${filename}"`);
+  headers.set("content-disposition", contentDisposition(filename));
+
+  await trackProductEventSafe({
+    name: "album_export_requested",
+    workspaceId: workspace.id,
+    userId,
+    albumId,
+    path: `/api/albums/${albumId}/export`,
+    metadata: {
+      formats: formatsParsed.data,
+      includeProductionNotes,
+    },
+  });
 
   return new Response(engineResponse.body, {
     status: 200,

@@ -47,6 +47,46 @@ const SongSchema = z
   })
   .passthrough();
 
+export const RoughDemoFileSchema = z
+  .object({
+    name: z.string().max(255),
+    size_bytes: z.number().int().positive().max(250_000_000).optional().nullable(),
+    mime_type: z.string().max(120).optional().nullable(),
+    duration_seconds: z.number().int().positive().max(86_400).optional().nullable(),
+  })
+  .passthrough();
+
+export const RoughDemoSchema = z
+  .object({
+    id: z.string().optional(),
+    title: z.string().min(1).max(200),
+    source_kind: z.string().min(1).max(40),
+    song_track_number: z.number().int().positive().optional().nullable(),
+    external_url: z.string().max(500).optional().nullable(),
+    capture_notes: z.string().max(1500).optional().nullable(),
+    sonic_traits: z.array(z.string()).optional().default([]),
+    lyrical_fragments: z.array(z.string()).optional().default([]),
+    next_actions: z.array(z.string()).optional().default([]),
+    local_file: RoughDemoFileSchema.optional().nullable(),
+    created_at: z.string().optional().nullable(),
+    updated_at: z.string().optional().nullable(),
+  })
+  .passthrough();
+
+export const StyleBibleSchema = z
+  .object({
+    lead_voice: z.string().max(600).optional().nullable(),
+    narrator_perspective: z.string().max(300).optional().nullable(),
+    vocal_attributes: z.array(z.string()).optional().default([]),
+    sonic_palette: z.array(z.string()).optional().default([]),
+    arrangement_rules: z.array(z.string()).optional().default([]),
+    mix_priorities: z.array(z.string()).optional().default([]),
+    avoid_list: z.array(z.string()).optional().default([]),
+    emotional_targets: z.array(z.string()).optional().default([]),
+    reference_strategy: z.string().max(700).optional().nullable(),
+  })
+  .passthrough();
+
 export const AlbumJsonSchema = z
   .object({
     id: z.string().optional(),
@@ -70,7 +110,13 @@ export const AlbumJsonSchema = z
     // Reference materials
     reference_albums: z.array(z.string()).optional().default([]),
     visual_inspiration: z.array(z.string()).optional().default([]),
+    // Rough demo intake
+    rough_demos: z.array(RoughDemoSchema).optional().default([]),
+    // Voice / style bible
+    style_bible: StyleBibleSchema.optional(),
   })
   .passthrough();
 
 export type AlbumJson = z.infer<typeof AlbumJsonSchema>;
+export type AlbumStyleBible = z.infer<typeof StyleBibleSchema>;
+export type AlbumRoughDemo = z.infer<typeof RoughDemoSchema>;

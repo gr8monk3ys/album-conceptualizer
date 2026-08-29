@@ -7,6 +7,7 @@ import { getPrisma } from "@/server/db";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { AlbumJsonSchema } from "@/server/album-json";
 import { buildAlbumMutationData } from "@/server/album-sync";
+import { trackProductEventSafe } from "@/server/analytics";
 
 export const runtime = "nodejs";
 
@@ -89,6 +90,18 @@ export async function PATCH(
         select: { id: true },
       });
     }
+  });
+
+  await trackProductEventSafe({
+    name: "album_saved",
+    workspaceId: workspace.id,
+    userId,
+    albumId: existing.id,
+    path: `/api/albums/${existing.id}`,
+    metadata: {
+      withVersion: Boolean(payload.data.versionMessage),
+      trackCount: album.songs.length,
+    },
   });
 
   return NextResponse.json({ ok: true });

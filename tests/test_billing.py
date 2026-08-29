@@ -584,7 +584,8 @@ def test_webhook_returns_400_on_construct_event_error(monkeypatch):
         content=b'{"id":"evt_3"}',
     )
     assert response.status_code == 400
-    assert "bad signature" in response.json()["detail"]
+    # Error detail must NOT leak internal exception messages
+    assert response.json()["detail"] == "Webhook signature verification failed"
 
 
 @pytest.mark.asyncio
@@ -661,7 +662,8 @@ async def test_webhook_direct_returns_400_when_construct_event_fails(monkeypatch
         await billing_api.stripe_webhook(request)
 
     assert exc_info.value.status_code == 400
-    assert "payload mismatch" in str(exc_info.value.detail)
+    # Error detail must NOT leak internal exception messages
+    assert exc_info.value.detail == "Webhook signature verification failed"
     reset_settings()
 
 

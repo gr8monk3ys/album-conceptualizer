@@ -152,6 +152,12 @@ class Settings(BaseSettings):
         le=24 * 14,
         alias="ALBUM_CONCEPTUALIZER_IDENTITY_INVITE_TTL_HOURS",
     )
+    identity_session_ttl_hours: int = Field(
+        default=24,
+        ge=1,
+        le=24 * 365,
+        alias="ALBUM_CONCEPTUALIZER_IDENTITY_SESSION_TTL_HOURS",
+    )
     identity_debug_tokens: bool = Field(
         default=False,
         alias="ALBUM_CONCEPTUALIZER_IDENTITY_DEBUG_TOKENS",
@@ -202,7 +208,7 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: list[str] = Field(
-        default_factory=lambda: ["*"],
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:7860"],
         alias="ALBUM_CONCEPTUALIZER_CORS_ORIGINS",
     )
 
@@ -285,6 +291,8 @@ class Settings(BaseSettings):
                 "Set ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_PRO (or STRIPE_PRICE_ID) "
                 "for Stripe checkout in strict mode"
             )
+        if not self.rate_limit_enabled:
+            issues.append("ALBUM_CONCEPTUALIZER_RATE_LIMIT_ENABLED should be true in strict mode")
         if self.identity_debug_tokens:
             issues.append("ALBUM_CONCEPTUALIZER_IDENTITY_DEBUG_TOKENS must be false in strict mode")
         if self.email_provider.strip().lower() == "smtp":
@@ -306,7 +314,7 @@ class Settings(BaseSettings):
     @classmethod
     def _parse_cors_origins(cls, value: object) -> list[str]:
         if value is None:
-            return ["*"]
+            return ["http://localhost:3000", "http://localhost:7860"]
         if isinstance(value, list):
             return value
         if isinstance(value, str):
@@ -318,10 +326,22 @@ class Settings(BaseSettings):
                     loaded = None
                 if isinstance(loaded, list):
                     parsed = [item for item in loaded if isinstance(item, str) and item.strip()]
-                    return parsed or ["*"]
+                    if not parsed:
+                        raise ValueError(
+                            "ALBUM_CONCEPTUALIZER_CORS_ORIGINS cannot be empty; "
+                            "set explicit origins for production"
+                        )
+                    return parsed
             cleaned = [item.strip() for item in value.split(",") if item.strip()]
-            return cleaned or ["*"]
-        return ["*"]
+            if not cleaned:
+                raise ValueError(
+                    "ALBUM_CONCEPTUALIZER_CORS_ORIGINS cannot be empty; "
+                    "set explicit origins for production"
+                )
+            return cleaned
+        raise ValueError(
+            "ALBUM_CONCEPTUALIZER_CORS_ORIGINS must be a JSON array or comma-separated string"
+        )
 
     @field_validator("collab_realtime_backend")
     @classmethod

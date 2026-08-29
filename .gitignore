@@ -89,6 +89,7 @@ chroma/
 *.log
 
 # Secrets
+.claude/settings.local.json
 .env.local
 .env.*.local
 secrets.yaml
@@ -114,6 +115,10 @@ uv.lock
 # MkDocs build output
 site/
 
+# Generated artifacts (lighthouse reports, playwright traces, export samples)
+output/
+
 # Playwright CLI artifacts
 .playwright-cli/
 .vercel
+apps/web/.lighthouseci/

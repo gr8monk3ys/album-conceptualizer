@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/server/stripe";
 import { getAuthSession } from "@/server/auth";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
-import { checkRateLimit, getRateLimitHeaders } from "@/server/rate-limit";
+import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
+import { trackProductEventSafe } from "@/server/analytics";
 
 type CheckoutBody = {
   plan?: "free" | "pro" | "team";
@@ -30,11 +31,15 @@ export async function POST(request: Request) {
   }
 
   const rate = await checkRateLimit("stripe", `user:${userId}`);
-  if (!rate.ok) {
-    return NextResponse.json(
-      { error: "Too many billing attempts. Please wait a bit and try again." },
-      { status: 429, headers: getRateLimitHeaders(rate) },
-    );
+  const rateFailure = getRateLimitFailure(
+    rate,
+    "Too many billing attempts. Please wait a bit and try again.",
+  );
+  if (rateFailure) {
+    return NextResponse.json(rateFailure.body, {
+      status: rateFailure.status,
+      headers: rateFailure.headers,
+    });
   }
 
   const payload = (await request.json().catch(() => ({}))) as CheckoutBody;
@@ -83,6 +88,17 @@ export async function POST(request: Request) {
           userId,
           plan,
         },
+      },
+    });
+
+    await trackProductEventSafe({
+      name: "billing_checkout_started",
+      workspaceId: workspace.id,
+      userId,
+      path: "/api/stripe/checkout",
+      metadata: {
+        plan,
+        sessionId: checkoutSession.id,
       },
     });
 
