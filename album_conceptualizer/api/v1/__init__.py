@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from album_conceptualizer.api.deps import require_active_subscription, require_api_key
 from album_conceptualizer.api.v1.agents import router as agents_router
 from album_conceptualizer.api.v1.albums import router as albums_router
+from album_conceptualizer.api.v1.audio import router as audio_router
 from album_conceptualizer.api.v1.bible import router as bible_router
 from album_conceptualizer.api.v1.billing import (
     protected_router as billing_protected_router,
@@ -36,6 +37,9 @@ subscription_router.include_router(songs_router, prefix="/albums/{album_id}/song
 subscription_router.include_router(bible_router, prefix="/albums/{album_id}/bible", tags=["bible"])
 subscription_router.include_router(theory_router, prefix="/theory", tags=["theory"])
 subscription_router.include_router(export_router, prefix="/export", tags=["export"])
+# Rendering costs money per call, so it sits behind the same subscription
+# gate as export rather than the bare API-key gate.
+subscription_router.include_router(audio_router, tags=["audio"])
 subscription_router.include_router(experience_router, tags=["experience"])
 subscription_router.include_router(agents_router, tags=["agents"])
 api_key_router.include_router(billing_protected_router, prefix="/billing", tags=["billing"])
