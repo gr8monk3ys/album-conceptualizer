@@ -243,6 +243,16 @@ jobs:
       AUTH_SECRET: dev-secret
       ENABLE_DEV_LOGIN: "1"
       NEXT_PUBLIC_ENABLE_DEV_LOGIN: "1"
+      # Required: next start runs as NODE_ENV=production, and auth.ts only
+      # registers the dev-login provider when AC_E2E=1 in production. Without
+      # it the provider list is EMPTY and buildAuthOptions() throws, so every
+      # /api/auth/* call 500s -- the sign-in button renders, nothing behind it
+      # works. Also what keeps /api/health out of strict-production mode.
+      AC_E2E: "1"
+      # Match web-lighthouse; db.ts defaults to pg for non-neon URLs anyway.
+      PRISMA_ADAPTER: pg
+      # The export/handoff routes proxy to the Python engine, started below.
+      ENGINE_API_URL: http://127.0.0.1:8000/api/v1
       NEXTAUTH_URL: http://127.0.0.1:3002
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3002
     steps:
@@ -262,6 +272,40 @@ jobs:
       - name: Install Playwright browsers
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
+
+      # Without an engine, engineFetch falls back to localhost:8000, nothing
+      # answers, and every download spec times out on waitForEvent("download")
+      # with only "TypeError: fetch failed" in the server log to explain it.
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: true
+
+      - name: Set up Python for the engine
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }}
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Install the engine
+        run: uv pip install -e .
+
+      - name: Start the engine
+        run: |
+          uvicorn album_conceptualizer.api.app:app --host 127.0.0.1 --port 8000 \
+            > /tmp/engine.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health > /dev/null 2>&1; then
+              echo "engine up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "engine did not start within 60s" >&2
+          cat /tmp/engine.log >&2
+          exit 1
+
+      - name: Engine log
+        if: always()
+        run: tail -50 /tmp/engine.log || true
 
       - name: Apply Prisma migrations
         working-directory: apps/web
