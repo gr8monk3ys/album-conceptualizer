@@ -243,6 +243,14 @@ jobs:
       AUTH_SECRET: dev-secret
       ENABLE_DEV_LOGIN: "1"
       NEXT_PUBLIC_ENABLE_DEV_LOGIN: "1"
+      # Required: next start runs as NODE_ENV=production, and auth.ts only
+      # registers the dev-login provider when AC_E2E=1 in production. Without
+      # it the provider list is EMPTY and buildAuthOptions() throws, so every
+      # /api/auth/* call 500s -- the sign-in button renders, nothing behind it
+      # works. Also what keeps /api/health out of strict-production mode.
+      AC_E2E: "1"
+      # Match web-lighthouse; db.ts defaults to pg for non-neon URLs anyway.
+      PRISMA_ADAPTER: pg
       NEXTAUTH_URL: http://127.0.0.1:3002
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3002
     steps:
