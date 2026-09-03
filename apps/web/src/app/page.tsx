@@ -1,3 +1,5 @@
+import { SiteHeader } from "@/components/site-header";
+
 export const metadata = {
   title: "Album Conceptualizer",
   description:
@@ -7,41 +9,10 @@ export const metadata = {
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,rgba(109,94,252,0.06),rgba(255,62,165,0.025)_30%,transparent_68%)]">
-      <div className="relative mx-auto flex min-h-screen max-w-[1200px] flex-col px-6 py-14">
-        <header className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[linear-gradient(135deg,rgba(255,62,165,0.9),rgba(109,94,252,0.76))]">
-              <span className="text-[13px] font-semibold tracking-wide text-black/80">AC</span>
-            </div>
-            <div className="leading-tight">
-              <div className="text-sm font-semibold tracking-tight text-[var(--text)]">
-                Album Conceptualizer
-              </div>
-              <div className="text-xs text-[var(--muted2)]">Blueprints, not raw audio.</div>
-            </div>
-          </div>
+      <div className="relative mx-auto flex max-w-[1200px] flex-col px-6 pb-16 pt-8 md:pt-10">
+        <SiteHeader />
 
-          <div className="flex items-center gap-2">
-            <form action="/sign-in">
-              <button
-                type="submit"
-                className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-              >
-                Sign in
-              </button>
-            </form>
-            <form action="/app">
-              <button
-                type="submit"
-                className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90"
-              >
-                Open app
-              </button>
-            </form>
-          </div>
-        </header>
-
-        <main className="mt-14 grid flex-1 grid-cols-1 items-center gap-10 lg:grid-cols-[1.2fr_1fr]">
+        <main className="mt-14 grid grid-cols-1 items-start gap-10 md:mt-20 lg:grid-cols-[1.2fr_1fr]">
           <div>
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-xs text-[var(--muted)]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
@@ -75,7 +46,7 @@ export default function HomePage() {
               </form>
             </div>
 
-            <div className="mt-8 hidden grid-cols-1 gap-3 sm:grid sm:grid-cols-3 [content-visibility:auto] [contain-intrinsic-size:220px]">
+            <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3 [content-visibility:auto] [contain-intrinsic-size:220px]">
               {[
                 { k: "Album bible", v: "Themes, motifs, references, and narrative rules" },
                 { k: "DAW handoff", v: "MIDI, ChordPro, MusicXML, JSON export packs" },
@@ -119,9 +90,9 @@ export default function HomePage() {
           </div>
         </main>
 
-        <footer className="mt-12 flex items-center justify-between gap-4 text-xs text-[var(--muted2)]">
+        <footer className="mt-16 flex flex-col gap-3 border-t border-[var(--border)] pt-6 text-xs text-[var(--muted2)] sm:flex-row sm:items-center sm:justify-between sm:gap-4 md:mt-20">
           <div>Built for artists, producers, and bands who care about coherence.</div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-4">
             <form action="/sign-in">
               <button type="submit" className="hover:text-[var(--text)]">
                 Sign in
