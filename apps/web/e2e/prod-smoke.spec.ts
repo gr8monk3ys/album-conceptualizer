@@ -5,11 +5,27 @@ test.describe("Production smoke", () => {
     await page.goto("/sign-in");
     await expect(page).toHaveTitle(/Sign In/i);
     await expect(page.getByText("Album Conceptualizer")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Terms" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Privacy Policy" })).toBeVisible();
   });
 
   test("unauthenticated app route redirects to sign-in", async ({ page }) => {
     await page.goto("/app");
     await expect(page).toHaveURL(/sign-in/);
+  });
+
+  test("public trust pages render", async ({ page }) => {
+    await page.goto("/terms");
+    await expect(page).toHaveTitle(/Terms of Service/i);
+    await expect(page.getByRole("heading", { name: /Terms for using Album Conceptualizer/i })).toBeVisible();
+
+    await page.goto("/privacy");
+    await expect(page).toHaveTitle(/Privacy Policy/i);
+    await expect(page.getByRole("heading", { name: /How Album Conceptualizer handles your data/i })).toBeVisible();
+
+    await page.goto("/support");
+    await expect(page).toHaveTitle(/Support/i);
+    await expect(page.getByRole("heading", { name: /Get help with access, billing, and exports/i })).toBeVisible();
   });
 
   test("core unauthenticated APIs respond", async ({ request }) => {

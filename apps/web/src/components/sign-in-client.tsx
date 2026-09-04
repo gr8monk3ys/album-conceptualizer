@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 
 type SignInFormState = {
@@ -153,8 +154,20 @@ export function SignInClient({
               </div>
             ) : null}
 
-            <div className="mt-6 text-xs text-[var(--muted2)]">
-              By continuing you agree to the Terms. Subscriptions are handled by Stripe.
+            <div className="mt-6 text-xs leading-relaxed text-[var(--muted2)]">
+              By continuing you agree to the{" "}
+              <Link href="/terms" className="text-[var(--text)] underline underline-offset-4">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="text-[var(--text)] underline underline-offset-4">
+                Privacy Policy
+              </Link>
+              . Subscriptions are handled by Stripe. Support is available at{" "}
+              <Link href="/support" className="text-[var(--text)] underline underline-offset-4">
+                /support
+              </Link>
+              .
             </div>
           </div>
 
