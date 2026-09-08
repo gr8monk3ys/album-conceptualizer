@@ -113,3 +113,17 @@ Prisma schema lives in `apps/web/prisma/schema.prisma`. Always run `npx prisma g
 | `ALBUM_CONCEPTUALIZER_SUBSCRIPTION_REQUIRED` | `false` | Requires Stripe Price IDs in `api/v1/billing.py` |
 | `ANTHROPIC_API_KEY` | — | Required for AI agent workflows |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | — | Required when subscription gating is on |
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `gr8monk3ys/album-conceptualizer`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, label string equal to role name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
