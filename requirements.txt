@@ -1,14 +1,17 @@
-# Base engine dependencies only -- generated from pyproject.toml.
-# The [ai] extra (crewai, langchain, chromadb) is EXCLUDED: far past
-# Vercel's bundle limit, and the agent endpoints already 503 without it.
+# NOTE: Vercel does NOT read this file for this project. Its Python builder
+# detects pyproject.toml and installs from that ("Installing required
+# dependencies from pyproject.toml..." in the build log), so the base
+# `dependencies` list is what actually ships and optional extras never do.
+#
+# Kept for local/non-Vercel use (`pip install -r requirements.txt`), and as
+# the record of that behaviour -- adding a line here and expecting the deploy
+# to change is a trap that cost several rounds to spot.
+#
+# Consequences on Vercel today:
+#   * [music] is absent -> MIDI/ChordPro/MusicXML export answer 501 with an
+#     explanatory message. To fix, those deps must move into pyproject's base
+#     `dependencies`, which is a real decision, not a deploy tweak.
+#   * [ai] is absent -> agent endpoints answer 503, which is intended.
+#
 # The fastapi upper bound is REQUIRED -- see pyproject.toml.
-pydantic>=2.11.7
-pydantic-settings>=2.8.1
-python-dotenv>=1.1.1,<1.3.0
-pyyaml>=6.0.3
-httpx>=0.28.1
-tenacity>=9.1.3
-rich>=14.3.2
-fastapi>=0.128.2,<0.137
-uvicorn[standard]>=0.37.0
-stripe>=12.0.0
+-e .

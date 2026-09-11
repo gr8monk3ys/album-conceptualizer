@@ -1,30 +1,11 @@
-# Python/runtime artifacts not needed for the Next.js deployment
-.venv/
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-.playwright-cli/
-__pycache__/
-*.pyc
-
-# Local build/test outputs
-htmlcov/
-site/
-cache/
-output/
-.coverage
-.coverage.*
-coverage.xml
-
-# Python app/docs/test tree (Vercel project root is apps/web)
-album_conceptualizer/
-tests/
-docs/
-data/
-
-# Web local artifacts
-apps/web/node_modules/
-apps/web/.next/
-apps/web/coverage/
-apps/web/test-results/
-apps/web/playwright-report/
+# SHARED between two Vercel projects that both deploy from this repo root:
+# the web app (Root Directory apps/web) and the engine (Root Directory .).
+# Anything excluded here disappears from BOTH uploads -- excluding apps/ here
+# made the web app's deploy fail with "Root Directory apps/web does not exist".
+# Per-project exclusions belong in vercel.json's excludeFiles instead.
+#
+# uv.lock is the one thing that must be excluded globally: it is gitignored,
+# but `vercel deploy` uploads local files, and its presence makes the Python
+# builder switch to uv and install dependencies WITHOUT the project itself --
+# every engine route then 500s with ModuleNotFoundError.
+uv.lock
