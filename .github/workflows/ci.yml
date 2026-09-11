@@ -193,6 +193,15 @@ jobs:
         working-directory: apps/web
         run: npm ci
 
+      # run-lighthouse-auth.mjs signs in through Playwright's chromium before
+      # handing the profile to Lighthouse. Without this step the job dies at
+      # launchPersistentContext with "Executable doesn't exist at
+      # ~/.cache/ms-playwright/chromium_headless_shell-*" -- the public audit
+      # passes because it only needs the runner's system Chrome.
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
       - name: Apply Prisma migrations
         working-directory: apps/web
         run: npm run prisma:migrate:deploy
