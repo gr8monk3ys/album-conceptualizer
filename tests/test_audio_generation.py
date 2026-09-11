@@ -7,6 +7,8 @@ are covered without a token or a paid call.
 
 from __future__ import annotations
 
+import re
+
 import httpx
 import pytest
 
@@ -280,3 +282,99 @@ def test_negative_prompt_and_seed_reach_the_provider_only_when_set():
     seen.clear()
     _provider(handler).generate(GenerationRequest(prompt="x", negative_prompt="autotune", seed=7))
     assert seen["negative_prompt"] == "autotune" and seen["seed"] == 7
+
+
+# --- Hugging Face, over a mock transport ------------------------------------
+
+
+def _hf(handler, **kw):
+    from album_conceptualizer.audio.providers import HuggingFaceProvider
+
+    return HuggingFaceProvider(
+        "hf_tok",
+        "facebook/musicgen-small",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        **kw,
+    )
+
+
+def test_huggingface_returns_bytes_not_a_url():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer hf_tok"
+        assert "musicgen-small" in str(request.url)
+        return httpx.Response(200, content=b"RIFFfake", headers={"content-type": "audio/wav"})
+
+    result = _hf(handler).generate(GenerationRequest(prompt="post-rock"))
+    assert result.audio_bytes == b"RIFFfake"
+    assert result.content_type == "audio/wav"
+    assert result.audio_url == ""  # nothing hosts it but us
+    assert result.provider == "huggingface"
+
+
+def test_a_result_with_neither_url_nor_bytes_is_rejected():
+    from album_conceptualizer.audio.providers import GenerationResult
+
+    with pytest.raises(ValueError):
+        GenerationResult(provider="p", model="m", duration_seconds=1, prompt="x")
+
+
+def test_cold_start_503_is_retryable_and_quotes_the_wait():
+    def handler(_):
+        return httpx.Response(503, json={"estimated_time": 42.7})
+
+    with pytest.raises(ProviderRequestError) as excinfo:
+        _hf(handler).generate(GenerationRequest(prompt="x"))
+    assert excinfo.value.retryable is True
+    assert "about 42s" in str(excinfo.value)
+    assert "cold start" in str(excinfo.value)
+
+
+def test_json_body_on_a_200_is_an_error_not_audio():
+    # Writing this to a .wav produces a file that plays as silence.
+    def handler(_):
+        return httpx.Response(
+            200, json={"error": "input too long"}, headers={"content-type": "application/json"}
+        )
+
+    with pytest.raises(ProviderRequestError, match="returned JSON, not audio"):
+        _hf(handler).generate(GenerationRequest(prompt="x"))
+
+
+def test_empty_body_is_an_error():
+    def handler(_):
+        return httpx.Response(200, content=b"", headers={"content-type": "audio/wav"})
+
+    with pytest.raises(ProviderRequestError, match="empty response"):
+        _hf(handler).generate(GenerationRequest(prompt="x"))
+
+
+@pytest.mark.parametrize("code", [401, 403])
+def test_hf_rejected_token_is_configuration_and_names_the_stale_cli_case(code):
+    def handler(_):
+        return httpx.Response(code, text="<html>")
+
+    with pytest.raises(
+        ProviderNotConfiguredError, match=re.escape("huggingface.co/settings/tokens")
+    ):
+        _hf(handler).generate(GenerationRequest(prompt="x"))
+
+
+@pytest.mark.parametrize("code", [429, 500, 502, 503])
+def test_hf_transient_failures_are_retryable(code):
+    def handler(_):
+        return httpx.Response(code, json={})
+
+    with pytest.raises(ProviderRequestError) as excinfo:
+        _hf(handler).generate(GenerationRequest(prompt="x"))
+    assert excinfo.value.retryable is True
+
+
+def test_hf_resolves_from_either_token_env_var(monkeypatch):
+    from album_conceptualizer.audio.providers import HuggingFaceProvider
+
+    monkeypatch.setenv("MUSIC_PROVIDER", "huggingface")
+    for var in ("HUGGINGFACE_API_TOKEN", "HF_TOKEN"):
+        monkeypatch.delenv("HUGGINGFACE_API_TOKEN", raising=False)
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+        monkeypatch.setenv(var, "hf_x")
+        assert isinstance(get_provider(), HuggingFaceProvider), var
