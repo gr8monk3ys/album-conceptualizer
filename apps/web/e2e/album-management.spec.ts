@@ -237,8 +237,18 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Chorus or post-chorus candidate").first()).toBeVisible();
 
     await page.getByRole("link", { name: "Back" }).click();
-    await expect(page.getByRole("main").getByText("Rough demos").first()).toBeVisible();
-    await expect(page.getByText("Hallway chorus memo").first()).toBeVisible();
+    // Wait for the navigation to actually land. The demos page also has a
+    // "Rough demos" heading, and the demo title is in its list, so asserting
+    // either right after the click passes against the OLD page whenever
+    // Playwright polls before Next swaps the DOM -- and fails whenever the
+    // server renders first. That race was 4 red runs out of 7 on one commit.
+    await page.waitForURL(/\/app\/albums\/[^/?]+(\?.*)?$/);
+    // The album page never prints the demo title: its Rough demos card shows
+    // the count plus the review headline (which wins over the latest title).
+    const demoCard = page.getByRole("main").getByRole("link", { name: /Rough demos/ });
+    await expect(demoCard).toBeVisible();
+    await expect(demoCard).toContainText("1 captured");
+    await expect(demoCard).toContainText("Chorus or post-chorus candidate");
   });
 
   test("analytics page shows the new project in the workspace funnel", async ({ page }) => {
