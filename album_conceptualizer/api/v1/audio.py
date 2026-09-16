@@ -9,12 +9,17 @@ rather than two.
 from __future__ import annotations
 
 import logging
+import mimetypes
 import os
+import re
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from album_conceptualizer.api.jobs import Job, JobStatus, JobStore
@@ -35,6 +40,33 @@ logger = logging.getLogger(__name__)
 
 GENERATION_TIMEOUT_SECONDS = int(os.environ.get("MUSIC_GENERATION_TIMEOUT", "420"))
 MAX_ACTIVE_RENDERS = int(os.environ.get("MUSIC_MAX_ACTIVE_RENDERS", "3"))
+
+# Where inline audio lands. Providers that return bytes (Hugging Face) have
+# nothing hosting the file but us, so it is written here and served back.
+RENDER_DIR = Path(os.environ.get("MUSIC_RENDER_DIR", "output/renders"))
+
+# Render ids are generated, never user-supplied, so the served name is
+# constrained to exactly the shape this module writes. Anything else is a
+# 404 before it can reach the filesystem.
+_RENDER_NAME = re.compile(r"^[0-9a-f]{32}\.[a-z0-9]{1,5}$")
+
+# Explicit, because mimetypes is environment-dependent (see _persist_render).
+# Covers what hosted music models actually return.
+_AUDIO_EXTENSIONS: dict[str, str] = {
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/wave": ".wav",
+    "audio/vnd.wave": ".wav",
+    "audio/flac": ".flac",
+    "audio/x-flac": ".flac",
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
+    "audio/ogg": ".ogg",
+    "audio/opus": ".opus",
+    "audio/webm": ".webm",
+    "audio/mp4": ".m4a",
+    "audio/aac": ".aac",
+}
 
 router = APIRouter(prefix="/audio")
 
@@ -111,6 +143,29 @@ def _job_to_response(job: Job) -> RenderJobResponse:
     )
 
 
+def _persist_render(audio: bytes, content_type: str) -> str:
+    """Write inline audio and return the path it is served from.
+
+    The extension comes from the provider's content-type, not the model name:
+    MusicGen returns WAV while others return FLAC or MP3, and a .wav holding
+    FLAC is a file players refuse to open.
+    """
+    extension = _AUDIO_EXTENSIONS.get((content_type or "").lower())
+    if extension is None:
+        # Fall back to the platform table, then to .wav. mimetypes is only a
+        # fallback because it reads OS mime databases and genuinely differs
+        # between environments -- 'audio/flac' resolves to '.flac' under one
+        # interpreter here and to None under another, which is precisely the
+        # bug that passes locally and fails in CI.
+        extension = mimetypes.guess_extension(content_type or "") or ".wav"
+    if extension == ".wave":
+        extension = ".wav"
+    RENDER_DIR.mkdir(parents=True, exist_ok=True)
+    name = f"{uuid.uuid4().hex}{extension}"
+    (RENDER_DIR / name).write_bytes(audio)
+    return f"/api/v1/audio/renders/{name}"
+
+
 def _run_generation(job_id: str, payload: GenerateRequest) -> None:
     _render_jobs.update(job_id, status=JobStatus.RUNNING)
     brief = payload.to_brief()
@@ -124,8 +179,14 @@ def _run_generation(job_id: str, payload: GenerateRequest) -> None:
 
     def _call() -> dict:
         result = get_provider().generate(generation)
+        audio_url = result.audio_url
+        if result.audio_bytes is not None:
+            # Persist BEFORE reporting success. Nothing else hosts these
+            # bytes, so a job that returns without writing them has produced
+            # a result that points at nothing.
+            audio_url = _persist_render(result.audio_bytes, result.content_type)
         return {
-            "audio_url": result.audio_url,
+            "audio_url": audio_url,
             "provider": result.provider,
             "model": result.model,
             "duration_seconds": result.duration_seconds,
@@ -224,3 +285,20 @@ async def get_render_job(job_id: str, request: Request) -> RenderJobResponse:
     if job is None or (job.owner_id is not None and job.owner_id != owner):
         raise HTTPException(status_code=404, detail="Render job not found.")
     return _job_to_response(job)
+
+
+@router.get("/renders/{name}")
+async def get_render(name: str) -> FileResponse:
+    """Serve a persisted render.
+
+    Names are validated against the exact generated shape rather than
+    sanitised: a rejected name never becomes a path, so traversal has nothing
+    to work with. Resolve-and-compare is kept as a second gate in case the
+    pattern is ever loosened.
+    """
+    if not _RENDER_NAME.match(name):
+        raise HTTPException(status_code=404, detail="Render not found.")
+    path = (RENDER_DIR / name).resolve()
+    if not str(path).startswith(str(RENDER_DIR.resolve())) or not path.is_file():
+        raise HTTPException(status_code=404, detail="Render not found.")
+    return FileResponse(path)

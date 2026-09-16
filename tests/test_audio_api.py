@@ -188,3 +188,82 @@ def test_unknown_job_is_404(client):
 def test_invalid_payloads_are_rejected(client, monkeypatch, patch):
     _use(monkeypatch, FakeProvider())
     assert client.post("/api/v1/audio/generate", json={**BRIEF, **patch}).status_code == 422
+
+
+# --- inline-audio providers: persist, then serve -----------------------------
+
+
+class BytesProvider:
+    """A provider that returns audio inline, the way Hugging Face does."""
+
+    name = "bytes-provider"
+
+    def __init__(self, content_type: str = "audio/wav") -> None:
+        self.content_type = content_type
+
+    def generate(self, request):
+        return GenerationResult(
+            provider=self.name,
+            model="musicgen-small",
+            duration_seconds=request.duration_seconds,
+            prompt=request.prompt,
+            audio_bytes=b"RIFFfakeaudio",
+            content_type=self.content_type,
+        )
+
+
+@pytest.fixture
+def render_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(audio_api, "RENDER_DIR", tmp_path / "renders")
+    return tmp_path / "renders"
+
+
+def test_inline_audio_is_persisted_and_served_back(client, monkeypatch, render_dir):
+    _use(monkeypatch, BytesProvider())
+    job_id = client.post("/api/v1/audio/generate", json=BRIEF).json()["job_id"]
+    result = client.get(f"/api/v1/audio/generate/{job_id}").json()["result"]
+
+    url = result["audio_url"]
+    assert url.startswith("/api/v1/audio/renders/")
+    assert url.endswith(".wav")
+    # The bytes actually reached disk -- a job that reports success without
+    # writing them has produced a result pointing at nothing.
+    assert (render_dir / url.rsplit("/", 1)[-1]).read_bytes() == b"RIFFfakeaudio"
+
+    served = client.get(url)
+    assert served.status_code == 200
+    assert served.content == b"RIFFfakeaudio"
+
+
+def test_extension_follows_the_content_type_not_the_model(client, monkeypatch, render_dir):
+    # A .wav holding FLAC is a file players refuse to open.
+    _use(monkeypatch, BytesProvider(content_type="audio/flac"))
+    job_id = client.post("/api/v1/audio/generate", json=BRIEF).json()["job_id"]
+    url = client.get(f"/api/v1/audio/generate/{job_id}").json()["result"]["audio_url"]
+    assert url.endswith(".flac")
+
+
+def test_url_providers_are_passed_through_untouched(client, monkeypatch, render_dir):
+    _use(monkeypatch, FakeProvider())
+    job_id = client.post("/api/v1/audio/generate", json=BRIEF).json()["job_id"]
+    result = client.get(f"/api/v1/audio/generate/{job_id}").json()["result"]
+    assert result["audio_url"] == "https://cdn/track.wav"
+    assert not render_dir.exists()  # nothing to persist
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "../../../etc/passwd",
+        "..%2f..%2fetc%2fpasswd",
+        "not-a-render.wav",
+        "abc.wav",
+        "/etc/passwd",
+    ],
+)
+def test_render_names_outside_the_generated_shape_are_404(client, render_dir, name):
+    assert client.get(f"/api/v1/audio/renders/{name}").status_code == 404
+
+
+def test_wellformed_but_unknown_render_is_404(client, render_dir):
+    assert client.get(f"/api/v1/audio/renders/{'a' * 32}.wav").status_code == 404
