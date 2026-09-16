@@ -29,7 +29,20 @@ dependencies = [
     "tenacity>=9.1.3",
     "rich>=14.3.2",
     # FastAPI for REST API
-    "fastapi>=0.128.2",
+    # The upper bound is load-bearing, not caution. From fastapi 0.137.0,
+    # nested include_router silently drops routes: a router included into a
+    # router included into the app contributes NOTHING, with no error raised.
+    # This API is built from exactly that shape, so an unbounded install
+    # yields a server that boots, answers /health, and serves none of its 104
+    # /api/v1 routes -- indistinguishable from a healthy deploy until a
+    # request 404s.
+    #
+    # Bisected on 2026-08-29, identical on Python 3.13 and 3.14:
+    #   fastapi 0.129.0, 0.133.0, 0.136.0 -> route registered
+    #   fastapi 0.137.0, 0.137.2, 0.138.x, 0.139.2, 0.141.1 -> route LOST
+    # Not starlette: 0.139.2 pinned back to starlette 0.52.1 is still broken.
+    # Re-test with tests/test_nested_router_registration.py before raising.
+    "fastapi>=0.128.2,<0.137",
     "uvicorn[standard]>=0.37.0",
     "stripe>=12.0.0",
 ]

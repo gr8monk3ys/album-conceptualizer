@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 
+import { SiteHeader } from "@/components/site-header";
+
 type SignInFormState = {
   devEmail: string;
   devName: string;
@@ -33,9 +35,11 @@ export function SignInClient({
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,rgba(109,94,252,0.06),rgba(255,62,165,0.025)_30%,transparent_68%)]">
-      <main className="relative mx-auto flex min-h-screen max-w-[1100px] items-center px-6 py-16">
-        <div className="grid w-full grid-cols-1 gap-10 lg:grid-cols-2">
-          <div className="flex flex-col justify-center">
+      <div className="relative mx-auto flex max-w-[1100px] flex-col px-6 pb-16 pt-8 md:pt-10">
+        <SiteHeader />
+
+        <main className="mt-14 grid w-full grid-cols-1 items-start gap-10 md:mt-20 lg:grid-cols-2">
+          <div className="flex flex-col">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-xs text-[var(--muted)]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
               Blueprint workflow for concept albums
@@ -48,20 +52,20 @@ export function SignInClient({
               structure, and exportable artifacts for your DAW.
             </p>
 
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              {githubEnabled ? (
+            {githubEnabled ? (
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => signIn("github", { callbackUrl })}
-                  className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90"
+                  className="whitespace-nowrap rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90"
                 >
                   Continue with GitHub
                 </button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
 
             {emailEnabled ? (
-              <div className="mt-5 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.25)] p-4">
+              <div className="mt-7 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.25)] p-4">
                 <div className="text-xs font-semibold text-[var(--text)]">Email magic link</div>
                 <div className="mt-1 text-xs text-[var(--muted2)]">
                   We&apos;ll email you a secure sign-in link.
@@ -90,7 +94,7 @@ export function SignInClient({
                         callbackUrl,
                       });
                     }}
-                    className="rounded-2xl bg-[rgba(255,255,255,0.10)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.14)]"
+                    className="shrink-0 whitespace-nowrap rounded-2xl bg-[rgba(255,255,255,0.10)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.14)]"
                   >
                     Send link
                   </button>
@@ -139,7 +143,7 @@ export function SignInClient({
                       callbackUrl,
                     })
                   }
-                  className="mt-3 w-full rounded-2xl bg-[rgba(255,255,255,0.10)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.14)]"
+                  className="mt-3 w-full whitespace-nowrap rounded-2xl bg-[rgba(255,255,255,0.10)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.14)]"
                 >
                   Continue (dev)
                 </button>
@@ -194,8 +198,8 @@ export function SignInClient({
                 </div>
               </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
