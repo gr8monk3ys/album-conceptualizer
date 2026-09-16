@@ -72,7 +72,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
@@ -183,7 +183,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Set up Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "22"
           cache: npm
@@ -192,6 +192,15 @@ jobs:
       - name: Install web dependencies
         working-directory: apps/web
         run: npm ci
+
+      # run-lighthouse-auth.mjs signs in through Playwright's chromium before
+      # handing the profile to Lighthouse. Without this step the job dies at
+      # launchPersistentContext with "Executable doesn't exist at
+      # ~/.cache/ms-playwright/chromium_headless_shell-*" -- the public audit
+      # passes because it only needs the runner's system Chrome.
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
 
       - name: Apply Prisma migrations
         working-directory: apps/web
@@ -213,7 +222,7 @@ jobs:
 
       - name: Upload Lighthouse artifacts
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: web-lighthouse
           path: |
@@ -259,7 +268,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Set up Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "22"
           cache: npm
@@ -321,7 +330,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: playwright-web-e2e
           path: apps/web/playwright-report/
@@ -347,7 +356,7 @@ jobs:
         run: uv build
 
       - name: Upload artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: dist
           path: dist/
@@ -357,6 +366,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, test, type-check, security, optional-stack, web-lighthouse]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # The workflow-level `permissions: read-all` gives GITHUB_TOKEN no
+    # packages scope, so every push to ghcr.io was refused with "denied:
+    # installation not allowed to Create organization package" and main
+    # stayed red for weeks. Grant the one scope the push needs, here only.
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
@@ -381,7 +397,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: .
           target: production
