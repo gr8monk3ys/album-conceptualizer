@@ -42,7 +42,7 @@ dependencies = [
     #   fastapi 0.137.0, 0.137.2, 0.138.x, 0.139.2, 0.141.1 -> route LOST
     # Not starlette: 0.139.2 pinned back to starlette 0.52.1 is still broken.
     # Re-test with tests/test_nested_router_registration.py before raising.
-    "fastapi>=0.128.2,<0.137",
+    "fastapi>=0.128.2,<0.142",
     "uvicorn[standard]>=0.37.0",
     "stripe>=12.0.0",
 ]
