@@ -1,6 +1,7 @@
 """Configuration management for Album Conceptualizer."""
 
 import json
+import logging
 from pathlib import Path
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator
@@ -213,9 +214,11 @@ class Settings(BaseSettings):
     )
 
     # Paths
-    data_dir: Path = Field(default=Path("./data"))
-    cache_dir: Path = Field(default=Path("./cache"))
-    output_dir: Path = Field(default=Path("./output"))
+    # Overridable so a read-only deployment can point them at a writable
+    # location (e.g. /tmp on serverless) instead of the source tree.
+    data_dir: Path = Field(default=Path("./data"), alias="ALBUM_CONCEPTUALIZER_DATA_DIR")
+    cache_dir: Path = Field(default=Path("./cache"), alias="ALBUM_CONCEPTUALIZER_CACHE_DIR")
+    output_dir: Path = Field(default=Path("./output"), alias="ALBUM_CONCEPTUALIZER_OUTPUT_DIR")
     chroma_persist_directory: Path | None = Field(
         default=None,
         validation_alias=AliasChoices(
@@ -225,6 +228,9 @@ class Settings(BaseSettings):
         ),
         description="ChromaDB persistence directory (optional)",
     )
+
+    # Populated by ensure_directories(); empty when everything is writable.
+    unwritable_directories: list[str] = Field(default_factory=list, exclude=True)
 
     # Sub-configurations
     llm: LLMConfig = Field(default_factory=LLMConfig)
@@ -239,10 +245,33 @@ class Settings(BaseSettings):
     )
 
     def ensure_directories(self) -> None:
-        """Create necessary directories if they don't exist."""
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        """Create the working directories, tolerating a read-only filesystem.
+
+        Called from get_settings(), which runs at import time, so raising here
+        takes the whole process down before a single route is served. On a
+        read-only deployment -- serverless, a hardened container, a
+        distroless image -- that turned a fully working engine into
+        "OSError: [Errno 30] Read-only file system" at import, which surfaces
+        to a caller as an opaque 500 on every endpoint.
+
+        Nothing needed to answer a theory, export or health request lives in
+        these directories; only features that actually write do. So a failure
+        to create them is degraded, not fatal: it is recorded on the instance
+        and the affected feature reports it if and when it is used. Point
+        ALBUM_CONCEPTUALIZER_{DATA,CACHE,OUTPUT}_DIR at a writable location
+        (/tmp on serverless) to restore them.
+        """
+        self.unwritable_directories = []
+        for directory in (self.data_dir, self.cache_dir, self.output_dir):
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                self.unwritable_directories.append(f"{directory}: {exc.strerror}")
+        if self.unwritable_directories:
+            logging.getLogger(__name__).warning(
+                "working_directories_unavailable",
+                extra={"directories": self.unwritable_directories},
+            )
 
     def configured_api_keys(self) -> list[str]:
         """Return all configured API keys in effective lookup order."""

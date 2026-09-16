@@ -1,9 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "server.py": {
+    "api/index.py": {
       "maxDuration": 60,
+      "includeFiles": "album_conceptualizer/**",
       "excludeFiles": "{tests/**,apps/**,docs/**,site/**,htmlcov/**,output/**,cache/**,data/**,**/__pycache__/**,**/*.pyc}"
     }
-  }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
 }
