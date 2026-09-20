@@ -12,6 +12,4 @@
 #     explanatory message. To fix, those deps must move into pyproject's base
 #     `dependencies`, which is a real decision, not a deploy tweak.
 #   * [ai] is absent -> agent endpoints answer 503, which is intended.
-#
-# The fastapi upper bound is REQUIRED -- see pyproject.toml.
 -e .

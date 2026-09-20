@@ -67,7 +67,9 @@ def test_the_app_still_builds_when_the_filesystem_is_read_only(monkeypatch):
         from album_conceptualizer.api.app import create_app
 
         app = create_app()
-        v1 = [r.path for r in app.routes if getattr(r, "path", "").startswith("/api/v1")]
+        # The OpenAPI schema, not app.routes: since fastapi 0.137 the latter is
+        # a tree of included routers and lists nothing under /api/v1.
+        v1 = [p for p in app.openapi()["paths"] if p.startswith("/api/v1")]
         assert len(v1) > 50, f"app came up with only {len(v1)} routes"
     finally:
         cfg._settings = None
