@@ -57,9 +57,11 @@
     "typescript": "^5"
   },
   "overrides": {
+    "deepmerge-ts": ">=8.0.0",
     "hono": ">=4.11.7",
     "lodash": ">=4.17.23",
     "minimatch": ">=10.2.1",
+    "mysql2": ">=3.23.1",
     "nodemailer": "$nodemailer"
   }
 }
