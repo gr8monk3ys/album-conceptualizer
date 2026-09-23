@@ -41,13 +41,35 @@ export function buttonClass(tone: Tone = "secondary", className?: string) {
   return cn(BUTTON_BASE, BUTTON_TONES[tone], className);
 }
 
+/**
+ * A button. `busy` is for a control whose own work is running (saving, previewing): it stays
+ * focusable and announces itself unavailable (aria-disabled, aria-busy) and ignores clicks,
+ * where the native `disabled` attribute would drop keyboard focus to the page body.
+ */
 export function Button({
   tone = "secondary",
   className,
   type = "button",
+  busy = false,
+  onClick,
   ...props
-}: ComponentProps<"button"> & { tone?: Tone }) {
-  return <button type={type} className={buttonClass(tone, className)} {...props} />;
+}: ComponentProps<"button"> & { tone?: Tone; busy?: boolean }) {
+  return (
+    <button
+      type={type}
+      className={buttonClass(tone, className)}
+      aria-disabled={busy || props["aria-disabled"] || undefined}
+      aria-busy={busy || undefined}
+      onClick={(event) => {
+        if (busy) {
+          event.preventDefault();
+          return;
+        }
+        onClick?.(event);
+      }}
+      {...props}
+    />
+  );
 }
 
 export function ButtonLink({
