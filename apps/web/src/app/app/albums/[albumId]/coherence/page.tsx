@@ -65,7 +65,7 @@ const TRACK_LINK_SUFFIX: Record<string, string> = {
 const TRACK_LINK =
   "type-figure inline-grid min-h-11 min-w-11 place-items-center rounded-sm text-sm font-semibold text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:bg-hover hover:text-ink";
 
-/** Track numbers as links in a sentence: "1, 4 and 7". */
+/** Track numbers as links in a catalog line: "1 · 4 · 7". */
 function TrackLinks({ albumId, issue, tracks }: { albumId: string; issue: CoherenceIssue; tracks: number[] }) {
   const suffix = TRACK_LINK_SUFFIX[issue.trackFocus ?? "song"] ?? "";
   return (
@@ -77,10 +77,12 @@ function TrackLinks({ albumId, issue, tracks }: { albumId: string; issue: Cohere
             {trackNumber}
             {suffix ? <span className="sr-only">{suffix}</span> : null}
           </Link>
-          {index < tracks.length - 2 ? (
-            <span className="text-ink-3">,</span>
-          ) : index === tracks.length - 2 ? (
-            <span className="px-1 text-xs text-ink-3">and</span>
+          {/* Each number is a 44px target, so a comma would float in the gap; a catalog dot
+              sits in it naturally. Screen readers hear "Track 1, Track 4" from the links. */}
+          {index < tracks.length - 1 ? (
+            <span aria-hidden="true" className="text-ink-3">
+              ·
+            </span>
           ) : null}
         </span>
       ))}
