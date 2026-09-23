@@ -19,7 +19,7 @@ export const metadata = {
 
 function Tag({ children }: { children: string }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.03)] px-2 py-0.5 text-[10px] font-semibold text-[var(--muted)]">
+    <span className="inline-flex items-center rounded-full border border-line-strong bg-raised px-2 py-0.5 text-[10px] font-semibold text-ink-2">
       {children}
     </span>
   );
@@ -28,7 +28,7 @@ function Tag({ children }: { children: string }) {
 function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
   if (!graph.characters.length || !graph.motifs.length) {
     return (
-      <div className="text-sm text-[var(--muted)]">
+      <div className="text-sm text-ink-2">
         Tag characters and motifs on tracks to see a relationship map.
       </div>
     );
@@ -61,10 +61,10 @@ function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
 
   return (
     <div className="space-y-3">
-      <div className="overflow-auto rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)]">
+      <div className="overflow-auto rounded-2xl border border-line bg-sunken">
         <svg
           viewBox={`0 0 ${viewW} ${viewH}`}
-          className="min-w-[680px] text-[var(--muted2)]"
+          className="min-w-[680px] text-ink-3"
           role="img"
           aria-label="Character to motif relationship map"
         >
@@ -143,12 +143,12 @@ function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
           {graph.edges.slice(0, 10).map((edge) => (
             <div
               key={`edge-${edge.character}-${edge.motif}`}
-              className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-2"
+              className="rounded-2xl border border-line bg-sunken px-4 py-2"
             >
-              <div className="text-xs font-semibold text-[var(--text)]">
-                {edge.character} <span className="text-[var(--muted2)]">↔</span> {edge.motif}
+              <div className="text-xs font-semibold text-ink">
+                {edge.character} <span className="text-ink-3">↔</span> {edge.motif}
               </div>
-              <div className="mt-1 text-[10px] text-[var(--muted2)]">
+              <div className="mt-1 text-[10px] text-ink-3">
                 Tracks {edge.trackNumbers.join(", ")}
               </div>
             </div>
@@ -188,11 +188,11 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
       />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs text-[var(--muted2)]">Bible</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+          <div className="text-xs text-ink-3">Bible</div>
+          <div className="text-2xl font-semibold tracking-tight text-ink">
             {bible.title}
           </div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
+          <div className="mt-1 text-sm text-ink-2">
             {bible.artist ? `by ${bible.artist}` : "Artist not set"}
             {bible.primaryGenre ? ` · ${bible.primaryGenre}` : ""}
           </div>
@@ -201,7 +201,7 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/app/albums/${album.id}`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+            className="rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
           >
             Back
           </Link>
@@ -213,13 +213,13 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
           </Link>
           <Link
             href={`/app/albums/${album.id}/references`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+            className="rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
           >
             References
           </Link>
           <Link
             href={`/app/albums/${album.id}/style`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+            className="rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
           >
             Style
           </Link>
@@ -229,36 +229,36 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
         <section className="space-y-4">
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Logline</div>
-            <div className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Logline</div>
+            <div className="mt-2 text-sm leading-relaxed text-ink-2">
               {bible.conceptSummary || "Add a concept summary in Studio to anchor this bible."}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+          <div className="rounded-2xl border border-line bg-raised p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-xs text-[var(--muted2)]">Voice / style bible</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                <div className="text-xs text-ink-3">Voice / style bible</div>
+                <div className="mt-1 text-sm font-semibold text-ink">
                   {styleSummary.score}/100 coverage
                 </div>
               </div>
               <Link
                 href={`/app/albums/${album.id}/style`}
-                className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+                className="rounded-full border border-line bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-hover"
               >
                 Open workspace
               </Link>
             </div>
 
-            <div className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+            <div className="mt-3 text-sm leading-relaxed text-ink-2">
               {bible.styleBible.lead_voice || "No lead voice brief set yet."}
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted2)]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-3">
                   Sonic palette
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -267,13 +267,13 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
                       <Tag key={`palette-${item}`}>{item}</Tag>
                     ))
                   ) : (
-                    <div className="text-xs text-[var(--muted)]">No palette anchors set.</div>
+                    <div className="text-xs text-ink-2">No palette anchors set.</div>
                   )}
                 </div>
               </div>
 
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted2)]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-3">
                   Mix priorities
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -282,35 +282,35 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
                       <Tag key={`mix-${item}`}>{item}</Tag>
                     ))
                   ) : (
-                    <div className="text-xs text-[var(--muted)]">No mix priorities set.</div>
+                    <div className="text-xs text-ink-2">No mix priorities set.</div>
                   )}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+          <div className="rounded-2xl border border-line bg-raised p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-xs text-[var(--muted2)]">Arc visualizer</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                <div className="text-xs text-ink-3">Arc visualizer</div>
+                <div className="mt-1 text-sm font-semibold text-ink">
                   Theme coverage ({bible.timeline.mode === "chronological" ? "chronological" : "track"}{" "}
                   order)
                 </div>
               </div>
-              <div className="text-xs text-[var(--muted2)]">{bible.themeGrid.tracks.length} tracks</div>
+              <div className="text-xs text-ink-3">{bible.themeGrid.tracks.length} tracks</div>
             </div>
 
             {bible.themeGrid.tracks.length ? (
-              <div className="mt-4 overflow-auto rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)]">
+              <div className="mt-4 overflow-auto rounded-2xl border border-line bg-sunken">
                 <div className="min-w-[760px]" style={{ display: "grid", gridTemplateColumns: gridCols }}>
-                  <div className="sticky left-0 z-10 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.24)] px-4 py-3 text-xs font-semibold text-[var(--muted2)]">
+                  <div className="sticky left-0 z-10 border-b border-line bg-sunken px-4 py-3 text-xs font-semibold text-ink-3">
                     Theme
                   </div>
                   {bible.themeGrid.tracks.map((track) => (
                     <div
                       key={track.trackNumber}
-                      className="border-b border-[rgba(255,255,255,0.06)] px-2 py-3 text-center text-[10px] font-semibold text-[var(--muted2)]"
+                      className="border-b border-line px-2 py-3 text-center text-[10px] font-semibold text-ink-3"
                       title={track.title}
                     >
                       {String(track.trackNumber).padStart(2, "0")}
@@ -321,24 +321,24 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
                     <Fragment key={row.label}>
                       <div
                         key={`${row.label}-label`}
-                        className="sticky left-0 z-10 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-xs font-semibold text-[var(--text)]"
+                        className="sticky left-0 z-10 border-b border-line bg-sunken px-4 py-3 text-xs font-semibold text-ink"
                       >
                         <div className="truncate">{row.label}</div>
-                        <div className="mt-1 text-[10px] text-[var(--muted2)]">
+                        <div className="mt-1 text-[10px] text-ink-3">
                           {row.trackNumbers.length ? `Tracks ${row.trackNumbers.join(", ")}` : "No tracks"}
                         </div>
                       </div>
                       {row.presence.map((present, idx) => (
                         <div
                           key={`${row.label}-${bible.themeGrid.tracks[idx]?.trackNumber ?? idx}`}
-                          className="border-b border-[rgba(255,255,255,0.06)] px-2 py-3"
+                          className="border-b border-line px-2 py-3"
                         >
                           <div
                             className={[
                               "mx-auto h-4 w-4 rounded-full",
                               present
                                 ? "bg-[linear-gradient(180deg,rgba(109,94,252,0.95),rgba(255,62,165,0.7))] shadow-[0_8px_18px_rgba(109,94,252,0.18)]"
-                                : "bg-[rgba(255,255,255,0.06)]",
+                                : "bg-hover",
                             ].join(" ")}
                           />
                         </div>
@@ -348,41 +348,41 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
                 </div>
               </div>
             ) : (
-              <div className="mt-3 text-sm text-[var(--muted)]">No tracks found.</div>
+              <div className="mt-3 text-sm text-ink-2">No tracks found.</div>
             )}
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Timeline</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">Story beats</div>
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Timeline</div>
+            <div className="mt-1 text-sm font-semibold text-ink">Story beats</div>
 
             <div className="mt-4 space-y-3">
               {bible.timeline.tracks.map((track) => (
                 <div
                   key={track.trackNumber}
-                  className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4"
+                  className="rounded-2xl border border-line bg-sunken p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-xs text-[var(--muted2)]">
+                      <div className="text-xs text-ink-3">
                         Track {track.trackNumber}
                         {typeof track.chronologicalOrder === "number"
                           ? ` · Chrono ${track.chronologicalOrder}`
                           : ""}
                       </div>
-                      <div className="mt-1 truncate text-sm font-semibold text-[var(--text)]">
+                      <div className="mt-1 truncate text-sm font-semibold text-ink">
                         {track.title}
                       </div>
                     </div>
                     <Link
                       href={`/app/albums/${album.id}/studio?song=${track.trackNumber}`}
-                      className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-[10px] font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+                      className="rounded-2xl border border-line bg-raised px-3 py-2 text-[10px] font-semibold text-ink hover:bg-hover"
                     >
                       Open
                     </Link>
                   </div>
 
-                  <div className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
+                  <div className="mt-3 text-xs leading-relaxed text-ink-2">
                     {track.narrativeSummary || "Add a narrative summary for this track."}
                   </div>
 
@@ -403,18 +403,18 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
                       {track.sections.slice(0, 6).map((section) => (
                         <div
                           key={`${track.trackNumber}-${section.order}-${section.sectionType}`}
-                          className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-3 py-2"
+                          className="rounded-2xl border border-line bg-raised px-3 py-2"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <div className="text-xs font-semibold text-[var(--text)]">
+                            <div className="text-xs font-semibold text-ink">
                               {section.sectionType} #{section.order + 1}
                             </div>
-                            <div className="text-[10px] text-[var(--muted2)]">
+                            <div className="text-[10px] text-ink-3">
                               {section.chordCount ? `${section.chordCount} chords` : "no chords"}
                             </div>
                           </div>
                           {section.emotionalArc || section.narrativeFunction ? (
-                            <div className="mt-1 text-[10px] text-[var(--muted2)]">
+                            <div className="mt-1 text-[10px] text-ink-3">
                               {section.narrativeFunction ? `Role: ${section.narrativeFunction}` : ""}
                               {section.narrativeFunction && section.emotionalArc ? " · " : ""}
                               {section.emotionalArc ? `Arc: ${section.emotionalArc}` : ""}
@@ -424,7 +424,7 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
                       ))}
                     </div>
                   ) : (
-                    <div className="mt-4 text-xs text-[var(--muted2)]">No sections yet.</div>
+                    <div className="mt-4 text-xs text-ink-3">No sections yet.</div>
                   )}
                 </div>
               ))}
@@ -433,9 +433,9 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
         </section>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Issues</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Issues</div>
+            <div className="mt-1 text-sm font-semibold text-ink">
               {warnings.length ? `${warnings.length} warnings` : "No warnings"}
             </div>
 
@@ -444,16 +444,16 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
                 warnings.slice(0, 8).map((issue) => (
                   <div
                     key={`${issue.level}-${issue.title}`}
-                    className="rounded-2xl border border-[rgba(255,62,165,0.22)] bg-[rgba(255,62,165,0.10)] px-4 py-3"
+                    className="rounded-2xl border border-accent bg-accent-soft px-4 py-3"
                   >
-                    <div className="text-xs font-semibold text-[var(--text)]">{issue.title}</div>
-                    <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                    <div className="text-xs font-semibold text-ink">{issue.title}</div>
+                    <div className="mt-1 text-xs leading-relaxed text-ink-2">
                       {issue.detail}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-[var(--muted)]">
+                <div className="text-sm text-ink-2">
                   No warnings detected. This bible will get more powerful as you add themes and
                   narrative notes.
                 </div>
@@ -462,15 +462,15 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
 
             {infos.length ? (
               <div className="mt-5">
-                <div className="text-xs font-semibold text-[var(--text)]">Info</div>
+                <div className="text-xs font-semibold text-ink">Info</div>
                 <div className="mt-2 space-y-2">
                   {infos.slice(0, 8).map((issue) => (
                     <div
                       key={`${issue.level}-${issue.title}`}
-                      className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3"
+                      className="rounded-2xl border border-line bg-sunken px-4 py-3"
                     >
-                      <div className="text-xs font-semibold text-[var(--text)]">{issue.title}</div>
-                      <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                      <div className="text-xs font-semibold text-ink">{issue.title}</div>
+                      <div className="mt-1 text-xs leading-relaxed text-ink-2">
                         {issue.detail}
                       </div>
                     </div>
@@ -480,9 +480,9 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
             ) : null}
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Relationship map</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Relationship map</div>
+            <div className="mt-1 text-sm font-semibold text-ink">
               Characters × motifs
             </div>
             <div className="mt-3">
@@ -490,48 +490,48 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Characters</div>
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Characters</div>
             <div className="mt-2 space-y-2">
               {bible.characterIndex.length ? (
                 bible.characterIndex.slice(0, 14).map((entry) => (
                   <div
                     key={entry.name}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-2"
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-sunken px-4 py-2"
                   >
-                    <div className="truncate text-xs font-semibold text-[var(--text)]">
+                    <div className="truncate text-xs font-semibold text-ink">
                       {entry.name}
                     </div>
-                    <div className="text-[10px] text-[var(--muted2)]">
+                    <div className="text-[10px] text-ink-3">
                       {entry.trackNumbers.join(", ")}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-[var(--muted)]">No characters tagged yet.</div>
+                <div className="text-sm text-ink-2">No characters tagged yet.</div>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Motifs</div>
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Motifs</div>
             <div className="mt-2 space-y-2">
               {bible.motifIndex.length ? (
                 bible.motifIndex.slice(0, 14).map((entry) => (
                   <div
                     key={entry.name}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-2"
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-sunken px-4 py-2"
                   >
-                    <div className="truncate text-xs font-semibold text-[var(--text)]">
+                    <div className="truncate text-xs font-semibold text-ink">
                       {entry.name}
                     </div>
-                    <div className="text-[10px] text-[var(--muted2)]">
+                    <div className="text-[10px] text-ink-3">
                       {entry.trackNumbers.join(", ")}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-[var(--muted)]">No motifs tagged yet.</div>
+                <div className="text-sm text-ink-2">No motifs tagged yet.</div>
               )}
             </div>
           </div>

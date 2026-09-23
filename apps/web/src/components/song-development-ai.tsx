@@ -73,7 +73,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
         type="button"
         disabled={isBusy}
         onClick={() => void start()}
-        className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(109,94,252,0.3)] bg-[rgba(109,94,252,0.08)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(109,94,252,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-2xl border border-accent bg-selected px-3 py-2 text-xs font-semibold text-ink hover:bg-selected disabled:cursor-not-allowed disabled:opacity-60"
         title="Generate lyrics, chords, and production notes with AI"
       >
         <Sparkles className="h-4 w-4" />
@@ -83,13 +83,13 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
   }
 
   return (
-    <div className="rounded-2xl border border-[rgba(109,94,252,0.2)] bg-[rgba(109,94,252,0.06)] p-4">
+    <div className="rounded-2xl border border-accent bg-selected p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[var(--text)]" />
+          <Sparkles className="h-4 w-4 text-ink" />
           <div>
-            <div className="text-xs text-[var(--muted2)]">AI song development</div>
-            <div className="text-sm font-semibold text-[var(--text)]">
+            <div className="text-xs text-ink-3">AI song development</div>
+            <div className="text-sm font-semibold text-ink">
               Track {trackNumber}: {songTitle}
             </div>
           </div>
@@ -99,7 +99,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
             <button
               type="button"
               onClick={() => setCollapsed(!collapsed)}
-              className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-1 text-[10px] font-semibold text-[var(--muted)] hover:bg-[rgba(255,255,255,0.06)]"
+              className="rounded-full border border-line bg-raised px-3 py-1 text-[10px] font-semibold text-ink-2 hover:bg-hover"
             >
               {collapsed ? "Expand" : "Collapse"}
             </button>
@@ -123,7 +123,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
       {error ? (
         <div
           role="alert"
-          className="mt-3 flex items-start gap-2 rounded-2xl border border-[rgba(255,72,72,0.22)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-xs text-[var(--bad)]"
+          className="mt-3 flex items-start gap-2 rounded-2xl border border-danger bg-danger-soft px-3 py-2 text-xs text-danger"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>{error}</span>
@@ -133,7 +133,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
       {failureMessage ? (
         <div
           role="alert"
-          className="mt-3 flex items-start gap-2 rounded-2xl border border-[rgba(255,72,72,0.22)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-xs text-[var(--bad)]"
+          className="mt-3 flex items-start gap-2 rounded-2xl border border-danger bg-danger-soft px-3 py-2 text-xs text-danger"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>{failureMessage}</span>
@@ -143,7 +143,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
       {isPolling && !output ? (
         <div
           aria-live="polite"
-          className="mt-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-6 text-center text-xs text-[var(--muted)]"
+          className="mt-3 rounded-2xl border border-line bg-sunken px-4 py-6 text-center text-xs text-ink-2"
         >
           The crew is writing lyrics, suggesting harmony, and generating production notes. This
           typically takes 30-90 seconds.
@@ -151,8 +151,8 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
       ) : null}
 
       {output && !collapsed ? (
-        <div className="mt-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3">
-          <div className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--muted)]">
+        <div className="mt-3 rounded-2xl border border-line bg-sunken px-4 py-3">
+          <div className="whitespace-pre-wrap text-xs leading-relaxed text-ink-2">
             {output}
           </div>
         </div>

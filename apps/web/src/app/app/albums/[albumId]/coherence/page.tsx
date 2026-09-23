@@ -15,10 +15,10 @@ export const metadata = {
 };
 
 function scoreLabel(score: number) {
-  if (score >= 85) return { label: "Excellent", className: "text-[var(--ok)]" };
-  if (score >= 70) return { label: "Solid", className: "text-[rgba(255,255,255,0.9)]" };
-  if (score >= 50) return { label: "Needs polish", className: "text-[var(--warn)]" };
-  return { label: "Broken", className: "text-[var(--bad)]" };
+  if (score >= 85) return { label: "Excellent", className: "text-ok" };
+  if (score >= 70) return { label: "Solid", className: "text-ink-2" };
+  if (score >= 50) return { label: "Needs polish", className: "text-warn" };
+  return { label: "Broken", className: "text-danger" };
 }
 
 function actionHref(albumId: string, target: "album" | "bible" | "studio") {
@@ -50,18 +50,18 @@ export default async function CoherencePage({
       />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="text-xs text-[var(--muted2)]">Project</div>
-          <div className="truncate text-2xl font-semibold tracking-tight text-[var(--text)]">
+          <div className="text-xs text-ink-3">Project</div>
+          <div className="truncate text-2xl font-semibold tracking-tight text-ink">
             {album.title}
           </div>
-          <div className="mt-1 text-sm text-[var(--muted)]">Coherence report v2</div>
-          <div className="mt-3 max-w-[72ch] text-sm leading-relaxed text-[var(--muted)]">
+          <div className="mt-1 text-sm text-ink-2">Coherence report v2</div>
+          <div className="mt-3 max-w-[72ch] text-sm leading-relaxed text-ink-2">
             {report.summary}
           </div>
         </div>
         <Link
           href={`/app/albums/${album.id}`}
-          className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          className="rounded-full border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
         >
           Back
         </Link>
@@ -70,12 +70,12 @@ export default async function CoherencePage({
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
           <CoherenceAiReview albumId={album.id} />
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Overall score</div>
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Overall score</div>
             <div className="mt-2 flex items-end justify-between gap-3">
-              <div className="text-4xl font-semibold tracking-tight text-[var(--text)]">
+              <div className="text-4xl font-semibold tracking-tight text-ink">
                 {report.score}
-                <span className="text-sm text-[var(--muted2)]">/100</span>
+                <span className="text-sm text-ink-3">/100</span>
               </div>
               <div className={`text-sm font-semibold ${verdict.className}`}>{verdict.label}</div>
             </div>
@@ -92,10 +92,10 @@ export default async function CoherencePage({
               ].map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-3 py-2"
+                  className="rounded-2xl border border-line bg-sunken px-3 py-2"
                 >
-                  <div className="text-[11px] text-[var(--muted2)]">{stat.label}</div>
-                  <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  <div className="text-[11px] text-ink-3">{stat.label}</div>
+                  <div className="mt-1 text-sm font-semibold text-ink">
                     {stat.value}
                   </div>
                 </div>
@@ -103,31 +103,31 @@ export default async function CoherencePage({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+          <div className="rounded-2xl border border-line bg-raised p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs text-[var(--muted2)]">Breakdown</div>
-                <div className="text-sm font-semibold text-[var(--text)]">
+                <div className="text-xs text-ink-3">Breakdown</div>
+                <div className="text-sm font-semibold text-ink">
                   Narrative, lyrics, harmony, sequence, motifs
                 </div>
               </div>
-              <div className="text-xs text-[var(--muted)]">{report.breakdown.length} areas</div>
+              <div className="text-xs text-ink-2">{report.breakdown.length} areas</div>
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {report.breakdown.map((item) => (
                 <div
                   key={item.key}
-                  className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3"
+                  className="rounded-2xl border border-line bg-sunken px-4 py-3"
                 >
-                  <div className="text-[11px] uppercase tracking-wide text-[var(--muted2)]">
+                  <div className="text-[11px] uppercase tracking-wide text-ink-3">
                     {item.label}
                   </div>
-                  <div className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)]">
+                  <div className="mt-2 text-2xl font-semibold tracking-tight text-ink">
                     {item.score}
-                    <span className="text-xs text-[var(--muted2)]">/100</span>
+                    <span className="text-xs text-ink-3">/100</span>
                   </div>
-                  <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+                  <div className="mt-2 text-xs leading-relaxed text-ink-2">
                     {item.summary}
                   </div>
                 </div>
@@ -135,15 +135,15 @@ export default async function CoherencePage({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+          <div className="rounded-2xl border border-line bg-raised p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs text-[var(--muted2)]">Findings</div>
-                <div className="text-sm font-semibold text-[var(--text)]">
+                <div className="text-xs text-ink-3">Findings</div>
+                <div className="text-sm font-semibold text-ink">
                   Issues & suggestions
                 </div>
               </div>
-              <div className="text-xs text-[var(--muted)]">{report.issues.length} items</div>
+              <div className="text-xs text-ink-2">{report.issues.length} items</div>
             </div>
 
             <div className="mt-3 space-y-2">
@@ -151,45 +151,45 @@ export default async function CoherencePage({
                 report.issues.map((issue) => (
                   <div
                     key={issue.id}
-                    className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3"
+                    className="rounded-2xl border border-line bg-sunken px-4 py-3"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-[var(--text)]">
+                      <div className="text-sm font-semibold text-ink">
                         {issue.title}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="rounded-full bg-[rgba(255,255,255,0.10)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]">
+                        <div className="rounded-full bg-selected px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-3">
                           {issue.category}
                         </div>
                         <div
                           className={[
                             "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
                             issue.severity === "error"
-                              ? "bg-[rgba(255,72,72,0.16)] text-[var(--bad)]"
+                              ? "bg-danger-soft text-danger"
                               : issue.severity === "warning"
-                                ? "bg-[rgba(255,202,40,0.16)] text-[var(--warn)]"
-                                : "bg-[rgba(255,255,255,0.10)] text-[var(--muted2)]",
+                                ? "bg-[rgba(255,202,40,0.16)] text-warn"
+                                : "bg-selected text-ink-3",
                           ].join(" ")}
                         >
                           {issue.severity}
                         </div>
                       </div>
                     </div>
-                    <div className="mt-1 text-sm text-[var(--muted)]">{issue.detail}</div>
+                    <div className="mt-1 text-sm text-ink-2">{issue.detail}</div>
                     {issue.relatedTracks?.length ? (
-                      <div className="mt-2 text-xs text-[var(--muted2)]">
+                      <div className="mt-2 text-xs text-ink-3">
                         Related tracks: {issue.relatedTracks.join(", ")}
                       </div>
                     ) : null}
                     {issue.suggestion ? (
-                      <div className="mt-2 text-xs text-[var(--muted2)]">
+                      <div className="mt-2 text-xs text-ink-3">
                         Suggestion: {issue.suggestion}
                       </div>
                     ) : null}
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-10 text-center text-sm text-[var(--muted)]">
+                <div className="rounded-2xl border border-line bg-sunken px-4 py-10 text-center text-sm text-ink-2">
                   No issues detected.
                 </div>
               )}
@@ -198,9 +198,9 @@ export default async function CoherencePage({
         </div>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Next actions</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Next actions</div>
+            <div className="mt-1 text-sm font-semibold text-ink">
               Fix the highest-leverage issues next
             </div>
             <div className="mt-3 space-y-3">
@@ -209,32 +209,32 @@ export default async function CoherencePage({
                   <Link
                     key={action.id}
                     href={actionHref(album.id, action.target)}
-                    className="block rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3 hover:bg-[rgba(0,0,0,0.24)]"
+                    className="block rounded-2xl border border-line bg-sunken px-4 py-3 hover:bg-sunken"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-[var(--text)]">
+                      <div className="text-sm font-semibold text-ink">
                         {action.title}
                       </div>
-                      <div className="rounded-full bg-[rgba(255,255,255,0.10)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]">
+                      <div className="rounded-full bg-selected px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-3">
                         {action.target}
                       </div>
                     </div>
-                    <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+                    <div className="mt-2 text-xs leading-relaxed text-ink-2">
                       {action.detail}
                     </div>
                   </Link>
                 ))
               ) : (
-                <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-10 text-center text-sm text-[var(--muted)]">
+                <div className="rounded-2xl border border-line bg-sunken px-4 py-10 text-center text-sm text-ink-2">
                   No immediate action items.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Coverage snapshot</div>
-            <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Coverage snapshot</div>
+            <div className="mt-2 space-y-2 text-sm text-ink-2">
               <div>
                 Lyrics on {report.stats.songsWithLyrics}/{report.stats.songCount} tracks
               </div>

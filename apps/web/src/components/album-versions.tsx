@@ -27,11 +27,11 @@ export function AlbumVersions({
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+      <section className="rounded-2xl border border-line bg-raised p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="text-xs text-[var(--muted2)]">Versions</div>
-            <div className="text-lg font-semibold tracking-tight text-[var(--text)]">
+            <div className="text-xs text-ink-3">Versions</div>
+            <div className="text-lg font-semibold tracking-tight text-ink">
               Save a snapshot
             </div>
           </div>
@@ -72,28 +72,28 @@ export function AlbumVersions({
 
         <div className="mt-3">
           <label className="block">
-            <div className="text-xs font-semibold text-[var(--text)]">Message</div>
+            <div className="text-xs font-semibold text-ink">Message</div>
             <input
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder='e.g., "Chorus rewrite + key changes"'
-              className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+              className="mt-2 w-full rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
               maxLength={200}
             />
           </label>
-          {status ? <div className="mt-2 text-xs text-[var(--muted2)]">{status}</div> : null}
+          {status ? <div className="mt-2 text-xs text-ink-3">{status}</div> : null}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+      <section className="rounded-2xl border border-line bg-raised p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-xs text-[var(--muted2)]">History</div>
-            <div className="text-sm font-semibold text-[var(--text)]">
+            <div className="text-xs text-ink-3">History</div>
+            <div className="text-sm font-semibold text-ink">
               {versions.length ? "Saved versions" : "No versions yet"}
             </div>
           </div>
-          <div className="text-xs text-[var(--muted)]">{versions.length} items</div>
+          <div className="text-xs text-ink-2">{versions.length} items</div>
         </div>
 
         <div className="mt-3 space-y-2">
@@ -101,14 +101,14 @@ export function AlbumVersions({
             versions.map((version) => (
               <div
                 key={version.id}
-                className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3"
+                className="rounded-2xl border border-line bg-sunken px-4 py-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-[var(--text)]">
+                    <div className="truncate text-sm font-semibold text-ink">
                       {version.message || "Version snapshot"}
                     </div>
-                    <div className="mt-1 text-xs text-[var(--muted2)]">
+                    <div className="mt-1 text-xs text-ink-3">
                       {new Date(version.createdAt).toLocaleString()}
                       {version.createdBy?.email ? ` · ${version.createdBy.email}` : ""}
                     </div>
@@ -146,7 +146,7 @@ export function AlbumVersions({
                         window.setTimeout(() => setStatus(""), 2000);
                       }
                     }}
-                    className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-full border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isRestoring === version.id ? "Restoring..." : "Restore"}
                   </button>
@@ -154,7 +154,7 @@ export function AlbumVersions({
               </div>
             ))
           ) : (
-            <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-10 text-center text-sm text-[var(--muted)]">
+            <div className="rounded-2xl border border-line bg-sunken px-4 py-10 text-center text-sm text-ink-2">
               Save a version before making big lyric or chord changes so you can revert quickly.
             </div>
           )}

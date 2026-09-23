@@ -13,10 +13,10 @@ export function SiteHeader() {
           <span className="text-[13px] font-semibold tracking-wide text-black/80">AC</span>
         </div>
         <div className="min-w-0 leading-tight">
-          <div className="truncate text-sm font-semibold tracking-tight text-[var(--text)]">
+          <div className="truncate text-sm font-semibold tracking-tight text-ink">
             Album Conceptualizer
           </div>
-          <div className="hidden text-xs text-[var(--muted2)] sm:block">
+          <div className="hidden text-xs text-ink-3 sm:block">
             Blueprints, not raw audio.
           </div>
         </div>
@@ -26,7 +26,7 @@ export function SiteHeader() {
         <form action="/sign-in">
           <button
             type="submit"
-            className="whitespace-nowrap rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+            className="whitespace-nowrap rounded-full border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
           >
             Sign in
           </button>

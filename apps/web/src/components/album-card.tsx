@@ -26,7 +26,7 @@ export function AlbumCard({
 }) {
   const content = (
     <>
-      <div className="relative h-16 w-16 flex-none overflow-hidden rounded-xl bg-[rgba(255,255,255,0.06)]">
+      <div className="relative h-16 w-16 flex-none overflow-hidden rounded-xl bg-hover">
         {album.cover ? (
           <Image
             src={album.cover}
@@ -56,22 +56,22 @@ export function AlbumCard({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <div className="truncate text-sm font-semibold text-[var(--text)]">
+          <div className="truncate text-sm font-semibold text-ink">
             {album.title}
           </div>
           {album.tag ? (
-            <div className="rounded-full bg-[rgba(255,62,165,0.18)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+            <div className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold text-accent">
               {album.tag}
             </div>
           ) : null}
         </div>
-        <div className="truncate text-xs text-[var(--muted2)]">{album.subtitle}</div>
+        <div className="truncate text-xs text-ink-3">{album.subtitle}</div>
       </div>
     </>
   );
 
   const wrapperClassName = cn(
-    "group flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)] transition-colors hover:bg-[rgba(255,255,255,0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.35)]",
+    "group flex items-center gap-4 rounded-2xl border border-line bg-raised p-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)] transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
     className,
   );
 

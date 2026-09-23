@@ -37,7 +37,7 @@ export function ForkShareButton({ token }: { token: string }) {
       >
         {isBusy ? "Working..." : "Fork to my library"}
       </button>
-      {status ? <div className="text-xs text-[var(--muted2)]">{status}</div> : null}
+      {status ? <div className="text-xs text-ink-3">{status}</div> : null}
     </div>
   );
 }

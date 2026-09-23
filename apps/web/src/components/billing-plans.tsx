@@ -56,24 +56,24 @@ export function BillingPlans({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="text-xs text-[var(--muted2)]">Billing</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+        <div className="text-xs text-ink-3">Billing</div>
+        <div className="text-2xl font-semibold tracking-tight text-ink">
           {workspaceName}: plan & billing
         </div>
-        <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
+        <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
           Manage your subscription (Stripe). Your plan gates project limits, exports, and credits.
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-[var(--text)]">
+          <span className="rounded-full border border-line bg-raised px-3 py-1 text-ink">
             Current: <span className="font-semibold">{currentPlan}</span>
           </span>
-          <span className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.25)] px-3 py-1 text-[var(--muted)]">
-            Status: <span className="font-semibold text-[var(--text)]">{status}</span>
+          <span className="rounded-full border border-line bg-sunken px-3 py-1 text-ink-2">
+            Status: <span className="font-semibold text-ink">{status}</span>
           </span>
           {currentPeriodEnd ? (
-            <span className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.25)] px-3 py-1 text-[var(--muted)]">
+            <span className="rounded-full border border-line bg-sunken px-3 py-1 text-ink-2">
               Renews:{" "}
-              <span className="font-semibold text-[var(--text)]">
+              <span className="font-semibold text-ink">
                 {new Date(currentPeriodEnd).toLocaleDateString()}
               </span>
             </span>
@@ -95,7 +95,7 @@ export function BillingPlans({
                   setStatusText(message);
                 }
               }}
-              className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-1 text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+              className="rounded-full border border-line bg-raised px-3 py-1 text-ink hover:bg-hover"
             >
               Manage in Stripe
             </button>
@@ -104,7 +104,7 @@ export function BillingPlans({
       </div>
 
       {banner ? (
-        <div className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(50,213,131,0.08)] px-4 py-3 text-sm text-[var(--text)]">
+        <div className="rounded-2xl border border-line-strong bg-ok-soft px-4 py-3 text-sm text-ink">
           {banner}
         </div>
       ) : null}
@@ -115,16 +115,16 @@ export function BillingPlans({
           return (
             <div
               key={plan.key}
-              className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4"
+              className="rounded-2xl border border-line bg-raised p-4"
             >
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-[var(--text)]">{plan.name}</div>
+                <div className="text-sm font-semibold text-ink">{plan.name}</div>
                 <div className="text-sm font-semibold text-white">{plan.price}/mo</div>
               </div>
-              <ul className="mt-3 space-y-1 text-sm text-[var(--muted)]">
+              <ul className="mt-3 space-y-1 text-sm text-ink-2">
                 {plan.perks.map((perk) => (
                   <li key={perk} className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                     {perk}
                   </li>
                 ))}
@@ -169,7 +169,7 @@ export function BillingPlans({
         })}
       </div>
 
-      {statusText ? <div className="text-sm text-[var(--muted2)]">{statusText}</div> : null}
+      {statusText ? <div className="text-sm text-ink-3">{statusText}</div> : null}
     </div>
   );
 }

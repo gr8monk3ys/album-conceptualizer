@@ -40,14 +40,14 @@ export function SignInClient({
 
         <main className="mt-14 grid w-full grid-cols-1 items-start gap-10 md:mt-20 lg:grid-cols-2">
           <div className="flex flex-col">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-xs text-[var(--muted)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-line bg-raised px-3 py-1 text-xs text-ink-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
               Blueprint workflow for concept albums
             </div>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-[var(--text)] md:text-5xl">
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-ink md:text-5xl">
               Album Conceptualizer
             </h1>
-            <p className="mt-4 max-w-[52ch] text-sm leading-relaxed text-[var(--muted)] md:text-base">
+            <p className="mt-4 max-w-[52ch] text-sm leading-relaxed text-ink-2 md:text-base">
               Plan a cohesive concept album with AI-assisted lyrics, chord progressions, narrative
               structure, and exportable artifacts for your DAW.
             </p>
@@ -65,9 +65,9 @@ export function SignInClient({
             ) : null}
 
             {emailEnabled ? (
-              <div className="mt-7 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.25)] p-4">
-                <div className="text-xs font-semibold text-[var(--text)]">Email magic link</div>
-                <div className="mt-1 text-xs text-[var(--muted2)]">
+              <div className="mt-7 rounded-2xl border border-line-strong bg-sunken p-4">
+                <div className="text-xs font-semibold text-ink">Email magic link</div>
+                <div className="mt-1 text-xs text-ink-3">
                   We&apos;ll email you a secure sign-in link.
                 </div>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -79,7 +79,7 @@ export function SignInClient({
                         magicEmail: e.target.value,
                       }))
                     }
-                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                     placeholder="you@example.com"
                     type="email"
                     autoComplete="email"
@@ -94,7 +94,7 @@ export function SignInClient({
                         callbackUrl,
                       });
                     }}
-                    className="shrink-0 whitespace-nowrap rounded-2xl bg-[rgba(255,255,255,0.10)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.14)]"
+                    className="shrink-0 whitespace-nowrap rounded-2xl bg-selected px-5 py-3 text-sm font-semibold text-ink hover:bg-selected"
                   >
                     Send link
                   </button>
@@ -103,9 +103,9 @@ export function SignInClient({
             ) : null}
 
             {devLoginEnabled ? (
-              <div className="mt-5 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.25)] p-4">
-                <div className="text-xs font-semibold text-[var(--text)]">Dev login</div>
-                <div className="mt-1 text-xs text-[var(--muted2)]">
+              <div className="mt-5 rounded-2xl border border-line-strong bg-sunken p-4">
+                <div className="text-xs font-semibold text-ink">Dev login</div>
+                <div className="mt-1 text-xs text-ink-3">
                   Enabled because `NEXT_PUBLIC_ENABLE_DEV_LOGIN=1`. Do not use this in production.
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -117,7 +117,7 @@ export function SignInClient({
                         devEmail: e.target.value,
                       }))
                     }
-                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                     placeholder="email"
                     autoComplete="off"
                   />
@@ -129,7 +129,7 @@ export function SignInClient({
                         devName: e.target.value,
                       }))
                     }
-                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                     placeholder="name"
                     autoComplete="off"
                   />
@@ -143,7 +143,7 @@ export function SignInClient({
                       callbackUrl,
                     })
                   }
-                  className="mt-3 w-full whitespace-nowrap rounded-2xl bg-[rgba(255,255,255,0.10)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.14)]"
+                  className="mt-3 w-full whitespace-nowrap rounded-2xl bg-selected px-5 py-3 text-sm font-semibold text-ink hover:bg-selected"
                 >
                   Continue (dev)
                 </button>
@@ -157,15 +157,15 @@ export function SignInClient({
               </div>
             ) : null}
 
-            <div className="mt-6 text-xs text-[var(--muted2)]">
+            <div className="mt-6 text-xs text-ink-3">
               By continuing you agree to the Terms. Subscriptions are handled by Stripe.
             </div>
           </div>
 
-          <div className="hidden rounded-[32px] border border-[var(--border)] bg-[rgba(255,255,255,0.035)] p-4 [content-visibility:auto] [contain-intrinsic-size:420px] lg:block">
-              <div className="rounded-[28px] border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.2)] p-5">
-                <div className="text-xs text-[var(--muted2)]">Preview</div>
-                <div className="mt-1 text-lg font-semibold text-[var(--text)]">
+          <div className="hidden rounded-[32px] border border-line bg-raised p-4 [content-visibility:auto] [contain-intrinsic-size:420px] lg:block">
+              <div className="rounded-[28px] border border-line bg-sunken p-5">
+                <div className="text-xs text-ink-3">Preview</div>
+                <div className="mt-1 text-lg font-semibold text-ink">
                   From idea to export bundle
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-3">
@@ -185,12 +185,12 @@ export function SignInClient({
                   ].map((card) => (
                     <div
                       key={card.title}
-                      className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] p-4"
+                      className="rounded-2xl border border-line bg-raised p-4"
                     >
-                      <div className="text-sm font-semibold text-[var(--text)]">
+                      <div className="text-sm font-semibold text-ink">
                         {card.title}
                       </div>
-                      <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                      <div className="mt-1 text-xs leading-relaxed text-ink-2">
                         {card.desc}
                       </div>
                     </div>

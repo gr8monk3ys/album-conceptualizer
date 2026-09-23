@@ -15,10 +15,10 @@ export function AlbumDangerZone({
   const [status, setStatus] = useState("");
 
   return (
-    <div className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,0,64,0.06)] p-4">
-      <div className="text-sm font-semibold text-[var(--text)]">Danger zone</div>
-      <div className="mt-1 text-sm text-[var(--muted)]">
-        Delete <span className="font-semibold text-[var(--text)]">{albumTitle}</span> and all its
+    <div className="rounded-2xl border border-line-strong bg-[rgba(255,0,64,0.06)] p-4">
+      <div className="text-sm font-semibold text-ink">Danger zone</div>
+      <div className="mt-1 text-sm text-ink-2">
+        Delete <span className="font-semibold text-ink">{albumTitle}</span> and all its
         data.
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -48,7 +48,7 @@ export function AlbumDangerZone({
         >
           {busy ? "Deleting..." : "Delete project"}
         </button>
-        {status ? <div className="text-xs text-[var(--muted2)]">{status}</div> : null}
+        {status ? <div className="text-xs text-ink-3">{status}</div> : null}
       </div>
     </div>
   );

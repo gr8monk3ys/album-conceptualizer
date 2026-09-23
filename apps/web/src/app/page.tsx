@@ -14,14 +14,14 @@ export default function HomePage() {
 
         <main className="mt-14 grid grid-cols-1 items-start gap-10 md:mt-20 lg:grid-cols-[1.2fr_1fr]">
           <div>
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-xs text-[var(--muted)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-line bg-raised px-3 py-1 text-xs text-ink-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
               AI workspace for concept albums
             </div>
-            <h1 className="mt-5 text-4xl font-semibold tracking-tight text-[var(--text)] md:text-6xl">
+            <h1 className="mt-5 text-4xl font-semibold tracking-tight text-ink md:text-6xl">
               Build a concept album that actually holds together.
             </h1>
-            <p className="mt-5 max-w-[62ch] text-sm leading-relaxed text-[var(--muted)] md:text-base">
+            <p className="mt-5 max-w-[62ch] text-sm leading-relaxed text-ink-2 md:text-base">
               Turn one idea into a coherent album blueprint with an album bible, tracklist, lyrics
               drafts, chord progressions, narrative arcs, comments, versions, and export-ready
               handoff for your DAW.
@@ -31,7 +31,7 @@ export default function HomePage() {
               <form action="/sign-in">
                 <button
                   type="submit"
-                  className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-6 py-3 text-sm font-semibold text-black hover:brightness-110"
+                  className="rounded-2xl bg-accent px-6 py-3 text-sm font-semibold text-accent-ink hover:brightness-110"
                 >
                   Start your first album
                 </button>
@@ -39,7 +39,7 @@ export default function HomePage() {
               <form action="/app/create">
                 <button
                   type="submit"
-                  className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-6 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+                  className="rounded-2xl border border-line bg-raised px-6 py-3 text-sm font-semibold text-ink hover:bg-hover"
                 >
                   See the workflow
                 </button>
@@ -54,19 +54,19 @@ export default function HomePage() {
               ].map((item) => (
                 <div
                   key={item.k}
-                  className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4"
+                  className="rounded-2xl border border-line bg-raised p-4"
                 >
-                  <div className="text-sm font-semibold text-[var(--text)]">{item.k}</div>
-                  <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{item.v}</div>
+                  <div className="text-sm font-semibold text-ink">{item.k}</div>
+                  <div className="mt-1 text-xs leading-relaxed text-ink-2">{item.v}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="hidden rounded-[32px] border border-[var(--border)] bg-[rgba(255,255,255,0.035)] p-4 [content-visibility:auto] [contain-intrinsic-size:420px] lg:block">
-            <div className="rounded-[28px] border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.2)] p-5">
-                <div className="text-xs text-[var(--muted2)]">How it works</div>
-                <div className="mt-2 text-lg font-semibold text-[var(--text)]">
+          <div className="hidden rounded-[32px] border border-line bg-raised p-4 [content-visibility:auto] [contain-intrinsic-size:420px] lg:block">
+            <div className="rounded-[28px] border border-line bg-sunken p-5">
+                <div className="text-xs text-ink-3">How it works</div>
+                <div className="mt-2 text-lg font-semibold text-ink">
                   The before-the-DAW workflow
                 </div>
                 <div className="mt-4 space-y-3">
@@ -77,29 +77,29 @@ export default function HomePage() {
                   ].map((line) => (
                     <div
                       key={line}
-                      className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--muted)]"
+                      className="rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink-2"
                     >
                       {line}
                     </div>
                   ))}
                 </div>
-                <div className="mt-5 text-xs text-[var(--muted2)]">
+                <div className="mt-5 text-xs text-ink-3">
                   Not an audio generator. A blueprint that makes your audio better.
                 </div>
             </div>
           </div>
         </main>
 
-        <footer className="mt-16 flex flex-col gap-3 border-t border-[var(--border)] pt-6 text-xs text-[var(--muted2)] sm:flex-row sm:items-center sm:justify-between sm:gap-4 md:mt-20">
+        <footer className="mt-16 flex flex-col gap-3 border-t border-line pt-6 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 md:mt-20">
           <div>Built for artists, producers, and bands who care about coherence.</div>
           <div className="flex shrink-0 items-center gap-4">
             <form action="/sign-in">
-              <button type="submit" className="hover:text-[var(--text)]">
+              <button type="submit" className="hover:text-ink">
                 Sign in
               </button>
             </form>
             <form action="/app">
-              <button type="submit" className="hover:text-[var(--text)]">
+              <button type="submit" className="hover:text-ink">
                 App
               </button>
             </form>

@@ -212,17 +212,17 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+    <div className="rounded-2xl border border-line bg-raised p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs text-[var(--muted2)]">Collaboration</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--text)]">Comments</div>
-          <div className="mt-1 text-xs text-[var(--muted2)]">{header}</div>
+          <div className="text-xs text-ink-3">Collaboration</div>
+          <div className="mt-1 text-sm font-semibold text-ink">Comments</div>
+          <div className="mt-1 text-xs text-ink-3">{header}</div>
         </div>
         <button
           type="button"
           onClick={copyLink}
-          className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+          className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-hover"
         >
           <Copy className="h-4 w-4" />
           Copy link
@@ -231,10 +231,10 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
 
       <div className="mt-3 space-y-2">
         {loading ? (
-          <div className="text-xs text-[var(--muted2)]">Loading comments…</div>
+          <div className="text-xs text-ink-3">Loading comments…</div>
         ) : comments.length ? (
-          <div className="max-h-[260px] overflow-auto rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)]">
-            <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
+          <div className="max-h-[260px] overflow-auto rounded-2xl border border-line bg-sunken">
+            <ul className="divide-y divide-line">
               {comments.map((comment) => {
                 const isDeleted = Boolean(comment.deletedAt);
                 const isResolved = Boolean(comment.resolvedAt);
@@ -243,35 +243,35 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <div className="truncate text-xs font-semibold text-[var(--text)]">
+                          <div className="truncate text-xs font-semibold text-ink">
                             {comment.author.name || "User"}
                           </div>
-                          <div className="text-[10px] text-[var(--muted2)]">
+                          <div className="text-[10px] text-ink-3">
                             {formatTime(comment.createdAt)}
                           </div>
                           {isResolved ? (
-                            <div className="inline-flex items-center gap-1 rounded-full bg-[rgba(50,213,131,0.14)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ok)]">
+                            <div className="inline-flex items-center gap-1 rounded-full bg-ok-soft px-2 py-0.5 text-[10px] font-semibold text-ok">
                               <CheckCircle2 className="h-3 w-3" />
                               Resolved
                             </div>
                           ) : null}
                           {isDeleted ? (
-                            <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-2 py-0.5 text-[10px] font-semibold text-[var(--muted2)]">
+                            <div className="rounded-full bg-hover px-2 py-0.5 text-[10px] font-semibold text-ink-3">
                               Deleted
                             </div>
                           ) : null}
                         </div>
-                        <div className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-[var(--muted)]">
+                        <div className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-ink-2">
                           {isDeleted ? "[deleted]" : comment.body}
                         </div>
                       </div>
 
                       {!isDeleted ? (
-                        <div className="flex flex-none items-center gap-1 text-[var(--muted)]">
+                        <div className="flex flex-none items-center gap-1 text-ink-2">
                           <button
                             type="button"
                             onClick={() => void makeTask(comment)}
-                            className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)]"
+                            className="grid h-9 w-9 place-items-center rounded-full hover:bg-hover"
                             aria-label="Create task"
                             title="Create task"
                           >
@@ -281,7 +281,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                             <button
                               type="button"
                               onClick={() => unresolve(comment.id)}
-                              className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)]"
+                              className="grid h-9 w-9 place-items-center rounded-full hover:bg-hover"
                               aria-label="Unresolve"
                               title="Unresolve"
                             >
@@ -291,7 +291,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                             <button
                               type="button"
                               onClick={() => resolve(comment.id)}
-                              className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)]"
+                              className="grid h-9 w-9 place-items-center rounded-full hover:bg-hover"
                               aria-label="Resolve"
                               title="Resolve"
                             >
@@ -301,7 +301,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                           <button
                             type="button"
                             onClick={() => remove(comment.id)}
-                            className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,62,165,0.14)]"
+                            className="grid h-9 w-9 place-items-center rounded-full hover:bg-accent-soft"
                             aria-label="Delete"
                             title="Delete"
                           >
@@ -316,26 +316,26 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
             </ul>
           </div>
         ) : (
-          <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-6 text-center text-xs text-[var(--muted2)]">
+          <div className="rounded-2xl border border-line bg-sunken px-4 py-6 text-center text-xs text-ink-3">
             No comments yet.
           </div>
         )}
       </div>
 
-      <div className="mt-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-3">
+      <div className="mt-3 rounded-2xl border border-line bg-sunken p-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs font-semibold text-[var(--text)]">Add comment</div>
-          <div className="text-[10px] text-[var(--muted2)]">{body.trim().length}/2000</div>
+          <div className="text-xs font-semibold text-ink">Add comment</div>
+          <div className="text-[10px] text-ink-3">{body.trim().length}/2000</div>
         </div>
         <textarea
           value={body}
           onChange={(e) => setUi((prev) => ({ ...prev, body: e.target.value }))}
           rows={3}
-          className="mt-2 w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-xs leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+          className="mt-2 w-full resize-y rounded-2xl border border-line-strong bg-raised px-4 py-3 text-xs leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
           placeholder="Leave feedback for this section…"
         />
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[10px] text-[var(--muted2)]">
+          <div className="text-[10px] text-ink-3">
             Tip: write concrete notes (what to change + why).
           </div>
           <button
@@ -349,8 +349,8 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
           </button>
         </div>
 
-        {status ? <div className="mt-2 text-[10px] text-[var(--muted2)]">{status}</div> : null}
-        {error ? <div className="mt-2 text-[10px] text-[var(--muted2)]">{error}</div> : null}
+        {status ? <div className="mt-2 text-[10px] text-ink-3">{status}</div> : null}
+        {error ? <div className="mt-2 text-[10px] text-ink-3">{error}</div> : null}
       </div>
     </div>
   );

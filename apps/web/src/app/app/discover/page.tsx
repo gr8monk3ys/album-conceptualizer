@@ -55,11 +55,11 @@ export default async function DiscoverPage({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <div className="text-xs text-[var(--muted2)]">Discover</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+        <div className="text-xs text-ink-3">Discover</div>
+        <div className="text-2xl font-semibold tracking-tight text-ink">
           Community projects
         </div>
-        <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
+        <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
           Browse published projects, like what hits, and fork a remix into your workspace.
         </div>
       </div>
@@ -67,21 +67,21 @@ export default async function DiscoverPage({
       <form
         action="/app/discover"
         method="get"
-        className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4"
+        className="flex flex-col gap-3 rounded-2xl border border-line bg-raised p-4"
       >
         <label className="flex flex-col gap-2">
-          <span className="text-xs text-[var(--muted2)]">Search</span>
+          <span className="text-xs text-ink-3">Search</span>
           <input
             name="q"
             defaultValue={q}
             autoComplete="off"
             spellCheck={false}
             placeholder="Search published projects…"
-            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-[var(--muted2)]">
+          <div className="text-xs text-ink-3">
             {shouldSearch ? `${albums.length} results` : `${albums.length} trending`}
           </div>
           <button
@@ -113,7 +113,7 @@ export default async function DiscoverPage({
       </div>
 
       {albums.length ? null : (
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-6 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-6 text-sm text-ink-2">
           Nothing published yet. Publish a project from its details page to seed the feed.
         </div>
       )}

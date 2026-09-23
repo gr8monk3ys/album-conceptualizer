@@ -126,11 +126,11 @@ export default async function SearchPage({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <div className="text-xs text-[var(--muted2)]">Search</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+        <div className="text-xs text-ink-3">Search</div>
+        <div className="text-2xl font-semibold tracking-tight text-ink">
           Find anything
         </div>
-        <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
+        <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
           Search titles, summaries, track names, and lyrics drafts inside this workspace.
         </div>
       </div>
@@ -138,21 +138,21 @@ export default async function SearchPage({
       <form
         action="/app/search"
         method="get"
-        className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4"
+        className="flex flex-col gap-3 rounded-2xl border border-line bg-raised p-4"
       >
         <label className="flex flex-col gap-2">
-          <span className="text-xs text-[var(--muted2)]">Query</span>
+          <span className="text-xs text-ink-3">Query</span>
           <input
             name="q"
             defaultValue={q}
             autoComplete="off"
             spellCheck={false}
             placeholder="Search: album title, song name, lyric line…"
-            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-[var(--muted2)]">
+          <div className="text-xs text-ink-3">
             {shouldSearch ? `${totalHits} hits` : "Type at least 2 characters"}
           </div>
           <button
@@ -167,7 +167,7 @@ export default async function SearchPage({
       {shouldSearch ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
           <section className="space-y-3">
-            <div className="text-xs text-[var(--muted2)]">Projects</div>
+            <div className="text-xs text-ink-3">Projects</div>
             {albumItems.length ? (
               <div className="grid grid-cols-1 gap-3">
                 {albumItems.map((album) => (
@@ -179,39 +179,39 @@ export default async function SearchPage({
                 ))}
               </div>
             ) : (
-              <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-5 text-sm text-[var(--muted)]">
+              <div className="rounded-2xl border border-line bg-raised p-5 text-sm text-ink-2">
                 No matching projects.
               </div>
             )}
           </section>
 
           <aside className="space-y-4">
-            <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-              <div className="text-xs text-[var(--muted2)]">Tracks</div>
+            <div className="rounded-2xl border border-line bg-raised p-4">
+              <div className="text-xs text-ink-3">Tracks</div>
               <div className="mt-2 space-y-2">
                 {songs.length ? (
                   songs.map((song) => (
                     <Link
                       key={song.id}
                       href={`/app/albums/${song.album.id}/studio?song=${song.trackNumber}&q=${encodeURIComponent(q)}`}
-                      className="block rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-3 hover:bg-[rgba(255,255,255,0.05)]"
+                      className="block rounded-2xl border border-line bg-raised px-4 py-3 hover:bg-raised"
                     >
-                      <div className="text-sm font-semibold text-[var(--text)]">
+                      <div className="text-sm font-semibold text-ink">
                         {song.title}
                       </div>
-                      <div className="mt-1 text-xs text-[var(--muted2)]">
+                      <div className="mt-1 text-xs text-ink-3">
                         {song.album.title} · Track {song.trackNumber}
                       </div>
                     </Link>
                   ))
                 ) : (
-                  <div className="text-sm text-[var(--muted)]">No matching tracks.</div>
+                  <div className="text-sm text-ink-2">No matching tracks.</div>
                 )}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-              <div className="text-xs text-[var(--muted2)]">Lyrics</div>
+            <div className="rounded-2xl border border-line bg-raised p-4">
+              <div className="text-xs text-ink-3">Lyrics</div>
               <div className="mt-2 space-y-2">
                 {sections.length ? (
                   sections.map((section) => (
@@ -220,28 +220,28 @@ export default async function SearchPage({
                       href={`/app/albums/${section.song.album.id}/studio?song=${section.song.trackNumber}&section=${section.order}&q=${encodeURIComponent(
                         q,
                       )}`}
-                      className="block rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-3 hover:bg-[rgba(255,255,255,0.05)]"
+                      className="block rounded-2xl border border-line bg-raised px-4 py-3 hover:bg-raised"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-[var(--text)]">
+                        <div className="text-sm font-semibold text-ink">
                           {section.song.title}
                         </div>
-                        <div className="text-xs text-[var(--muted2)]">
+                        <div className="text-xs text-ink-3">
                           {section.sectionType} #{section.order + 1}
                         </div>
                       </div>
-                      <div className="mt-1 text-xs text-[var(--muted2)]">
+                      <div className="mt-1 text-xs text-ink-3">
                         {section.song.album.title} · Track {section.song.trackNumber}
                       </div>
                       {section.lyrics ? (
-                        <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+                        <div className="mt-2 text-xs leading-relaxed text-ink-2">
                           {snippet(section.lyrics, q)}
                         </div>
                       ) : null}
                     </Link>
                   ))
                 ) : (
-                  <div className="text-sm text-[var(--muted)]">No matching lyric drafts.</div>
+                  <div className="text-sm text-ink-2">No matching lyric drafts.</div>
                 )}
               </div>
             </div>

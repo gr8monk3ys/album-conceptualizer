@@ -59,13 +59,13 @@ export function CoherenceAiReview({ albumId }: CoherenceAiReviewProps) {
   const failureMessage = job?.status === "failed" ? (job.error ?? "Review failed.") : null;
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[rgba(109,94,252,0.06)] p-4">
+    <div className="rounded-2xl border border-line bg-selected p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[var(--text)]" />
+          <Sparkles className="h-4 w-4 text-ink" />
           <div>
-            <div className="text-xs text-[var(--muted2)]">AI coherence review</div>
-            <div className="text-sm font-semibold text-[var(--text)]">
+            <div className="text-xs text-ink-3">AI coherence review</div>
+            <div className="text-sm font-semibold text-ink">
               LLM-powered qualitative feedback
             </div>
           </div>
@@ -90,7 +90,7 @@ export function CoherenceAiReview({ albumId }: CoherenceAiReviewProps) {
       {error ? (
         <div
           role="alert"
-          className="mt-3 flex items-start gap-2 rounded-2xl border border-[rgba(255,72,72,0.22)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-xs text-[var(--bad)]"
+          className="mt-3 flex items-start gap-2 rounded-2xl border border-danger bg-danger-soft px-3 py-2 text-xs text-danger"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>{error}</span>
@@ -100,7 +100,7 @@ export function CoherenceAiReview({ albumId }: CoherenceAiReviewProps) {
       {failureMessage ? (
         <div
           role="alert"
-          className="mt-3 flex items-start gap-2 rounded-2xl border border-[rgba(255,72,72,0.22)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-xs text-[var(--bad)]"
+          className="mt-3 flex items-start gap-2 rounded-2xl border border-danger bg-danger-soft px-3 py-2 text-xs text-danger"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>{failureMessage}</span>
@@ -110,22 +110,22 @@ export function CoherenceAiReview({ albumId }: CoherenceAiReviewProps) {
       {isPolling && !output ? (
         <div
           aria-live="polite"
-          className="mt-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-6 text-center text-xs text-[var(--muted)]"
+          className="mt-3 rounded-2xl border border-line bg-sunken px-4 py-6 text-center text-xs text-ink-2"
         >
           The review crew is reading your bible and tracks. This typically takes 30-90 seconds.
         </div>
       ) : null}
 
       {output ? (
-        <div className="mt-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3">
-          <div className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--muted)]">
+        <div className="mt-3 rounded-2xl border border-line bg-sunken px-4 py-3">
+          <div className="whitespace-pre-wrap text-xs leading-relaxed text-ink-2">
             {output}
           </div>
         </div>
       ) : null}
 
       {!jobId && !startError ? (
-        <div className="mt-3 text-xs text-[var(--muted2)]">
+        <div className="mt-3 text-xs text-ink-3">
           Run an LLM-powered coherence review on top of the rule-based report above. Uses your
           album bible and tracks.
         </div>

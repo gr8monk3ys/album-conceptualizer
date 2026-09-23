@@ -560,26 +560,26 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr_360px]">
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+      <section className="rounded-2xl border border-line bg-raised p-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <div className="text-xs text-[var(--muted2)]">Tracks</div>
-            <div className="text-sm font-semibold text-[var(--text)]">Song list</div>
+            <div className="text-xs text-ink-3">Tracks</div>
+            <div className="text-sm font-semibold text-ink">Song list</div>
           </div>
           <button
             type="button"
             onClick={addTrack}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)]"
+            className="inline-flex items-center gap-2 rounded-2xl bg-hover px-3 py-2 text-xs font-semibold text-ink hover:bg-selected"
           >
             <Plus className="h-4 w-4" />
             Add
           </button>
         </div>
 
-        <div className="mt-3 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.08)]">
+        <div className="mt-3 overflow-hidden rounded-2xl border border-line">
           {songs.length ? (
             <div className="max-h-[560px] overflow-auto">
-              <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
+              <ul className="divide-y divide-line">
                 {songs.map((song, index) => {
                   const isActive = index === selectedSong;
                   return (
@@ -591,22 +591,22 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                           "w-full px-4 py-3 text-left",
                           isActive
                             ? "bg-[linear-gradient(90deg,rgba(109,94,252,0.18),rgba(255,62,165,0.10))]"
-                            : "hover:bg-[rgba(255,255,255,0.04)]",
+                            : "hover:bg-raised",
                         ].join(" ")}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 text-xs tabular-nums text-[var(--muted2)]">
+                          <div className="w-10 text-xs tabular-nums text-ink-3">
                             {String(song.track_number).padStart(2, "0")}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-semibold text-[var(--text)]">
+                            <div className="truncate text-sm font-semibold text-ink">
                               {song.title}
                             </div>
-                            <div className="truncate text-xs text-[var(--muted2)]">
+                            <div className="truncate text-xs text-ink-3">
                               {song.sections?.length ?? 0} sections
                             </div>
                           </div>
-                          <div className="text-xs text-[var(--muted2)]">
+                          <div className="text-xs text-ink-3">
                             {song.tempo ? `${song.tempo} bpm` : ""}
                           </div>
                         </div>
@@ -617,24 +617,24 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
               </ul>
             </div>
           ) : (
-            <div className="px-4 py-10 text-center text-sm text-[var(--muted)]">
+            <div className="px-4 py-10 text-center text-sm text-ink-2">
               No songs yet. Add a track to start writing.
             </div>
           )}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+      <section className="rounded-2xl border border-line bg-raised p-4">
         {showEmpty ? (
-          <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-6 text-sm text-[var(--muted)]">
+          <div className="rounded-2xl border border-line bg-raised p-6 text-sm text-ink-2">
             Add a track on the left to begin.
           </div>
         ) : (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-xs text-[var(--muted2)]">Editing</div>
-                <div className="text-sm font-semibold text-[var(--text)]">
+                <div className="text-xs text-ink-3">Editing</div>
+                <div className="text-sm font-semibold text-ink">
                   Track {activeSong?.track_number}: {activeSong?.title}
                 </div>
               </div>
@@ -655,14 +655,14 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                 </button>
                 <Link
                   href={`/app/albums/${albumId}`}
-                  className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+                  className="rounded-2xl border border-line bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-hover"
                 >
                   Details
                 </Link>
                 <button
                   type="button"
                   onClick={() => deleteTrack(selectedSong)}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,62,165,0.12)]"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-accent-soft"
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete track
@@ -672,25 +672,25 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
 
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--muted2)]">Title</span>
+                <span className="text-xs text-ink-3">Title</span>
                 <input
                   value={activeSong?.title ?? ""}
                   onChange={(e) => updateSongField("title", e.target.value)}
-                  className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                  className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-[var(--muted2)]">Key</span>
+                  <span className="text-xs text-ink-3">Key</span>
                   <input
                     value={activeSong?.key ?? ""}
                     onChange={(e) => updateSongField("key", e.target.value || null)}
-                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                     placeholder="C minor"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-[var(--muted2)]">Tempo</span>
+                  <span className="text-xs text-ink-3">Tempo</span>
                   <input
                     value={activeSong?.tempo ?? ""}
                     onChange={(e) => {
@@ -698,25 +698,25 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                       updateSongField("tempo", next ? Number(next) : null);
                     }}
                     inputMode="numeric"
-                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                     placeholder="120"
                   />
                 </label>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-3">
+            <div className="rounded-2xl border border-line bg-sunken p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="text-xs text-[var(--muted2)]">Sections</div>
-                  <div className="text-sm font-semibold text-[var(--text)]">
+                  <div className="text-xs text-ink-3">Sections</div>
+                  <div className="text-sm font-semibold text-ink">
                     Structure + drafts
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={addSection}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)]"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-hover px-3 py-2 text-xs font-semibold text-ink hover:bg-selected"
                 >
                   <Plus className="h-4 w-4" />
                   Add section
@@ -724,9 +724,9 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
               </div>
 
               <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[240px_1fr]">
-                <div className="overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]">
+                <div className="overflow-hidden rounded-2xl border border-line bg-raised">
                   {sections.length ? (
-                    <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
+                    <ul className="divide-y divide-line">
                       {sections.map((section, index) => {
                         const isActive = index === selectedSection;
                         return (
@@ -737,15 +737,15 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                               className={[
                                 "w-full px-3 py-2 text-left text-sm",
                                 isActive
-                                  ? "bg-[rgba(109,94,252,0.16)] text-[var(--text)]"
-                                  : "text-[var(--muted)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text)]",
+                                  ? "bg-selected text-ink"
+                                  : "text-ink-2 hover:bg-raised hover:text-ink",
                               ].join(" ")}
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="truncate">
                                   {section.section_type} {section.order + 1}
                                 </span>
-                                <span className="text-xs text-[var(--muted2)]">
+                                <span className="text-xs text-ink-3">
                                   {Array.isArray(section.chord_progression) &&
                                   section.chord_progression.length
                                     ? `${section.chord_progression.length} chords`
@@ -758,7 +758,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                       })}
                     </ul>
                   ) : (
-                    <div className="px-3 py-6 text-center text-sm text-[var(--muted)]">
+                    <div className="px-3 py-6 text-center text-sm text-ink-2">
                       No sections yet.
                     </div>
                   )}
@@ -766,7 +766,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
 
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-xs text-[var(--muted2)]">
+                    <div className="text-xs text-ink-3">
                       {activeSection ? (
                         <>
                           Editing {activeSection.section_type} #{activeSection.order + 1}
@@ -781,7 +781,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                           type="button"
                           onClick={() => void previewSection()}
                           disabled={previewing}
-                          className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex items-center gap-2 rounded-2xl bg-hover px-3 py-2 text-xs font-semibold text-ink hover:bg-selected disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <Play className="h-4 w-4" />
                           Preview
@@ -790,7 +790,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                           type="button"
                           onClick={() => void downloadSectionMp3()}
                           disabled={previewing}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
                           title="Render and download an MP3 (requires server configuration)"
                         >
                           <Download className="h-4 w-4" />
@@ -799,7 +799,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                         <button
                           type="button"
                           onClick={() => moveSection(selectedSection, -1)}
-                          className="inline-flex items-center gap-1 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-2 py-2 text-xs text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+                          className="inline-flex items-center gap-1 rounded-2xl border border-line-strong bg-raised px-2 py-2 text-xs text-ink hover:bg-hover"
                           aria-label="Move section up"
                         >
                           <ArrowUp className="h-4 w-4" />
@@ -807,7 +807,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                         <button
                           type="button"
                           onClick={() => moveSection(selectedSection, 1)}
-                          className="inline-flex items-center gap-1 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-2 py-2 text-xs text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+                          className="inline-flex items-center gap-1 rounded-2xl border border-line-strong bg-raised px-2 py-2 text-xs text-ink hover:bg-hover"
                           aria-label="Move section down"
                         >
                           <ArrowDown className="h-4 w-4" />
@@ -815,7 +815,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                         <button
                           type="button"
                           onClick={() => deleteSection(selectedSection)}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,62,165,0.12)]"
+                          className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-accent-soft"
                         >
                           <Trash2 className="h-4 w-4" />
                           Delete
@@ -825,25 +825,25 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   </div>
 
                   {previewStatus ? (
-                    <div className="text-xs text-[var(--muted2)]">{previewStatus}</div>
+                    <div className="text-xs text-ink-3">{previewStatus}</div>
                   ) : null}
 
                   {activeSection ? (
                     <>
                       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                         <label className="flex flex-col gap-1">
-                          <span className="text-xs text-[var(--muted2)]">Section type</span>
+                          <span className="text-xs text-ink-3">Section type</span>
                           <input
                             value={activeSection.section_type ?? ""}
                             onChange={(e) =>
                               updateSectionField("section_type", e.target.value.trim() || "verse")
                             }
-                            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                            className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                             placeholder="verse"
                           />
                         </label>
                         <label className="flex flex-col gap-1">
-                          <span className="text-xs text-[var(--muted2)]">Chord progression</span>
+                          <span className="text-xs text-ink-3">Chord progression</span>
                           <input
                             value={stringifyChordProgression(activeSection.chord_progression)}
                             onChange={(e) =>
@@ -852,25 +852,25 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                                 parseChordProgression(e.target.value),
                               )
                             }
-                            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                            className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                             placeholder="C Am F G"
                           />
                         </label>
                       </div>
 
                       <label className="flex flex-col gap-1">
-                        <span className="text-xs text-[var(--muted2)]">Lyrics draft</span>
+                        <span className="text-xs text-ink-3">Lyrics draft</span>
                         <textarea
                           value={activeSection.lyrics ?? ""}
                           onChange={(e) => updateSectionField("lyrics", e.target.value)}
                           rows={10}
-                          className="min-h-[240px] w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                          className="min-h-[240px] w-full resize-y rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                           placeholder="Write lyrics for this section…"
                         />
                       </label>
                     </>
                   ) : (
-                    <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-6 text-sm text-[var(--muted)]">
+                    <div className="rounded-2xl border border-line bg-raised p-6 text-sm text-ink-2">
                       Select a section to edit lyrics + chords.
                     </div>
                   )}
@@ -882,46 +882,46 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
       </section>
 
       <aside className="space-y-3">
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Album</div>
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-xs text-ink-3">Album</div>
           <div className="mt-2 grid grid-cols-1 gap-3">
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Title</span>
+              <span className="text-xs text-ink-3">Title</span>
               <input
                 value={album.title ?? ""}
                 onChange={(e) => {
                   setAlbum((prev) => ({ ...prev, title: e.target.value }));
                   markDirty();
                 }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Artist</span>
+              <span className="text-xs text-ink-3">Artist</span>
               <input
                 value={album.artist ?? ""}
                 onChange={(e) => {
                   setAlbum((prev) => ({ ...prev, artist: e.target.value || null }));
                   markDirty();
                 }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="Artist name"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Primary genre</span>
+              <span className="text-xs text-ink-3">Primary genre</span>
               <input
                 value={album.primary_genre ?? ""}
                 onChange={(e) => {
                   setAlbum((prev) => ({ ...prev, primary_genre: e.target.value || null }));
                   markDirty();
                 }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="Alt pop"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Concept summary</span>
+              <span className="text-xs text-ink-3">Concept summary</span>
               <textarea
                 value={album.concept_summary ?? ""}
                 onChange={(e) => {
@@ -929,47 +929,47 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   markDirty();
                 }}
                 rows={5}
-                className="w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full resize-y rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="One paragraph describing the album concept…"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Central themes</span>
+              <span className="text-xs text-ink-3">Central themes</span>
               <input
                 value={centralThemesText}
                 onChange={(e) => {
                   setCentralThemesText(e.target.value);
                   markDirty();
                 }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="identity, memory, change"
               />
-              <div className="text-xs text-[var(--muted2)]">
+              <div className="text-xs text-ink-3">
                 Comma-separated (used by coherence analyzer).
               </div>
             </label>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+        <div className="rounded-2xl border border-line bg-raised p-4">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <div className="text-xs text-[var(--muted2)]">Save</div>
-              <div className="text-sm font-semibold text-[var(--text)]">
+              <div className="text-xs text-ink-3">Save</div>
+              <div className="text-sm font-semibold text-ink">
                 {dirty ? "Unsaved changes" : "All changes saved"}
               </div>
             </div>
-            <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
+            <div className="rounded-full bg-hover px-3 py-1 text-xs text-ink-2">
               {saving ? "saving…" : "ready"}
             </div>
           </div>
 
           <label className="mt-3 flex flex-col gap-1">
-            <span className="text-xs text-[var(--muted2)]">Version message (optional)</span>
+            <span className="text-xs text-ink-3">Version message (optional)</span>
             <input
               value={versionMessage}
               onChange={(e) => setVersionMessage(e.target.value)}
-              className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+              className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
               placeholder="e.g., tightened chorus + added chords"
             />
           </label>
@@ -988,13 +988,13 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
               type="button"
               onClick={() => save({ withVersion: true })}
               disabled={saving || !versionMessage.trim()}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-line bg-raised px-5 py-3 text-sm font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               Save version
             </button>
           </div>
 
-          {status ? <div className="mt-3 text-xs text-[var(--muted)]">{status}</div> : null}
+          {status ? <div className="mt-3 text-xs text-ink-2">{status}</div> : null}
         </div>
 
         {activeSong && activeSection ? (
@@ -1009,11 +1009,11 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
               }}
             />
           ) : (
-            <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+            <div className="rounded-2xl border border-line bg-raised p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs text-[var(--muted2)]">Collaboration</div>
-                  <div className="mt-1 text-sm font-semibold text-[var(--text)]">Comments</div>
+                  <div className="text-xs text-ink-3">Collaboration</div>
+                  <div className="mt-1 text-sm font-semibold text-ink">Comments</div>
                 </div>
                 <button
                   type="button"
@@ -1025,25 +1025,25 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   Save to enable
                 </button>
               </div>
-              <div className="mt-2 text-xs leading-relaxed text-[var(--muted2)]">
+              <div className="mt-2 text-xs leading-relaxed text-ink-3">
                 This project was imported without stable section IDs. Save once to enable comments and
                 shareable deep links.
               </div>
             </div>
           )
         ) : (
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Collaboration</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">Comments</div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Collaboration</div>
+            <div className="mt-1 text-sm font-semibold text-ink">Comments</div>
+            <div className="mt-2 text-xs text-ink-3">
               Select a section to leave feedback.
             </div>
           </div>
         )}
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Tips</div>
-          <ul className="mt-2 space-y-2 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-xs text-ink-3">Tips</div>
+          <ul className="mt-2 space-y-2 text-sm text-ink-2">
             <li>Keep chord loops short (4-8 chords) for clean MIDI exports.</li>
             <li>Use section types like `verse`, `chorus`, `bridge` for better tooling.</li>
             <li>

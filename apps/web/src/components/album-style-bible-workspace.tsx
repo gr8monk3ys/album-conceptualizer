@@ -163,35 +163,35 @@ export function AlbumStyleBibleWorkspace({
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <section className="space-y-4">
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Voice / Style Bible</div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-[var(--text)]">
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-xs text-ink-3">Voice / Style Bible</div>
+          <div className="mt-1 text-lg font-semibold tracking-tight text-ink">
             Lock the singer, palette, and production rules before handoff
           </div>
-          <div className="mt-2 max-w-[72ch] text-sm text-[var(--muted)]">
+          <div className="mt-2 max-w-[72ch] text-sm text-ink-2">
             Give collaborators a stable target for vocal character, sonic palette, arrangement
             constraints, and mix priorities.
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+        <div className="rounded-2xl border border-line bg-raised p-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
-              <span className="text-xs text-[var(--muted2)]">Lead voice brief</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
+              <span className="text-xs text-ink-3">Lead voice brief</span>
               <textarea
                 value={form.leadVoice}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, leadVoice: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="Close-mic alto with conversational phrasing and controlled falsetto lift."
                 aria-label="Lead voice brief"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
-              <span className="text-xs text-[var(--muted2)]">Narrator perspective</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
+              <span className="text-xs text-ink-3">Narrator perspective</span>
               <input
                 value={form.narratorPerspective}
                 onChange={(event) =>
@@ -200,98 +200,98 @@ export function AlbumStyleBibleWorkspace({
                     narratorPerspective: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="First-person, intimate, slightly unreliable."
                 aria-label="Narrator perspective"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Vocal attributes</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Vocal attributes</span>
               <textarea
                 value={form.vocalAttributes}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, vocalAttributes: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="breathy, clipped consonants, stacked harmonies"
                 aria-label="Vocal attributes"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Sonic palette</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Sonic palette</span>
               <textarea
                 value={form.sonicPalette}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, sonicPalette: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="chorused guitars, pillowy synths, dry drum room"
                 aria-label="Sonic palette"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Arrangement rules</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Arrangement rules</span>
               <textarea
                 value={form.arrangementRules}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, arrangementRules: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="no full drums before chorus, let bridges drop to bass + vocal"
                 aria-label="Arrangement rules"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Mix priorities</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Mix priorities</span>
               <textarea
                 value={form.mixPriorities}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, mixPriorities: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="lead vocal forward, bass warm not boomy, choruses widen hard"
                 aria-label="Mix priorities"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Avoid list</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Avoid list</span>
               <textarea
                 value={form.avoidList}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, avoidList: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="EDM risers, trap hats, glossy pop vocal tuning"
                 aria-label="Avoid list"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
-              <span className="text-xs text-[var(--muted2)]">Emotional targets</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
+              <span className="text-xs text-ink-3">Emotional targets</span>
               <textarea
                 value={form.emotionalTargets}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, emotionalTargets: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="late-night tension, bittersweet release, small-room intimacy"
                 aria-label="Emotional targets"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
-              <span className="text-xs text-[var(--muted2)]">Reference strategy</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
+              <span className="text-xs text-ink-3">Reference strategy</span>
               <textarea
                 value={form.referenceStrategy}
                 onChange={(event) =>
@@ -301,7 +301,7 @@ export function AlbumStyleBibleWorkspace({
                   }))
                 }
                 rows={4}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="Use the opener reference for vocal distance, the chorus reference for lift, and the mix reference for low-end discipline."
                 aria-label="Reference strategy"
               />
@@ -317,16 +317,16 @@ export function AlbumStyleBibleWorkspace({
             >
               {isSaving ? "Saving..." : "Save style bible"}
             </button>
-            {status ? <div className="text-xs text-[var(--muted2)]">{status}</div> : null}
+            {status ? <div className="text-xs text-ink-3">{status}</div> : null}
           </div>
         </div>
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Coverage</div>
-          <div className="mt-1 text-lg font-semibold text-[var(--text)]">{summary.score}/100</div>
-          <div className="mt-2 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-xs text-ink-3">Coverage</div>
+          <div className="mt-1 text-lg font-semibold text-ink">{summary.score}/100</div>
+          <div className="mt-2 text-sm text-ink-2">
             {summary.filledCount} of {summary.totalCount} style anchors are filled.
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -336,7 +336,7 @@ export function AlbumStyleBibleWorkspace({
               .map((item) => (
                 <span
                   key={item}
-                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                  className="rounded-full border border-line bg-sunken px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3"
                 >
                   {item}
                 </span>
@@ -344,9 +344,9 @@ export function AlbumStyleBibleWorkspace({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Reference roles</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-xs text-ink-3">Reference roles</div>
+          <div className="mt-1 text-sm font-semibold text-ink">
             Use the saved references on purpose
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -354,25 +354,25 @@ export function AlbumStyleBibleWorkspace({
               summary.referenceRoles.map((role) => (
                 <span
                   key={role}
-                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
+                  className="rounded-full border border-line bg-sunken px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3"
                 >
                   {formatRole(role)}
                 </span>
               ))
             ) : (
-              <div className="text-xs text-[var(--muted)]">No reference roles saved yet.</div>
+              <div className="text-xs text-ink-2">No reference roles saved yet.</div>
             )}
           </div>
           {summary.missingReferenceRoles.length ? (
-            <div className="mt-3 text-xs text-[var(--muted2)]">
+            <div className="mt-3 text-xs text-ink-3">
               Still missing: {summary.missingReferenceRoles.map(formatRole).join(", ")}
             </div>
           ) : null}
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Saved references</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-xs text-ink-3">Saved references</div>
+          <div className="mt-1 text-sm font-semibold text-ink">
             Current tracks informing the style bible
           </div>
           <div className="mt-3 space-y-2">
@@ -380,13 +380,13 @@ export function AlbumStyleBibleWorkspace({
               referenceTargets.slice(0, 6).map((reference) => (
                 <div
                   key={reference.id}
-                  className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-3 py-2"
+                  className="rounded-2xl border border-line bg-sunken px-3 py-2"
                 >
-                  <div className="text-xs font-semibold text-[var(--text)]">
+                  <div className="text-xs font-semibold text-ink">
                     {reference.title}
                     {reference.artist ? ` · ${reference.artist}` : ""}
                   </div>
-                  <div className="mt-1 text-[10px] text-[var(--muted2)]">
+                  <div className="mt-1 text-[10px] text-ink-3">
                     {reference.targetRole
                       ? formatRole(reference.targetRole)
                       : reference.songTitle
@@ -396,7 +396,7 @@ export function AlbumStyleBibleWorkspace({
                 </div>
               ))
             ) : (
-              <div className="text-xs text-[var(--muted)]">
+              <div className="text-xs text-ink-2">
                 Save reference tracks first if you want concrete vocal, opener, or mix targets.
               </div>
             )}

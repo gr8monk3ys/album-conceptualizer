@@ -206,9 +206,9 @@ function getStepValidity(step: number, form: QuickStartFormState) {
 }
 
 function getStatusClassName(tone: StatusTone) {
-  if (tone === "error") return "text-[rgba(255,200,200,0.95)]";
-  if (tone === "success") return "text-[var(--ok)]";
-  return "text-[var(--muted2)]";
+  if (tone === "error") return "text-danger";
+  if (tone === "success") return "text-ok";
+  return "text-ink-3";
 }
 
 function WizardProgress({
@@ -230,15 +230,15 @@ function WizardProgress({
             onClick={() => onStepSelect(index)}
             className={`rounded-2xl border px-3 py-3 text-left ${
               active
-                ? "border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)]"
-                : "border-[var(--border)] bg-[rgba(255,255,255,0.02)]"
+                ? "border-line-strong bg-hover"
+                : "border-line bg-raised"
             }`}
           >
-            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--muted2)]">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ink-3">
               {complete ? "Done" : `0${index + 1}`}
             </div>
-            <div className="mt-2 text-sm font-semibold text-[var(--text)]">{item.title}</div>
-            <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{item.detail}</div>
+            <div className="mt-2 text-sm font-semibold text-ink">{item.title}</div>
+            <div className="mt-1 text-xs leading-relaxed text-ink-2">{item.detail}</div>
           </button>
         );
       })}
@@ -259,33 +259,33 @@ function QuickStartStepFields({
     return (
       <>
         <label className="block">
-          <div className="text-xs font-semibold text-[var(--text)]">Album title</div>
+          <div className="text-xs font-semibold text-ink">Album title</div>
           <input
             value={form.title}
             onChange={(event) => setField("title", event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            className="mt-2 w-full rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
             placeholder="e.g., The Last Summer"
             autoComplete="off"
           />
         </label>
 
         <label className="block">
-          <div className="text-xs font-semibold text-[var(--text)]">Artist</div>
+          <div className="text-xs font-semibold text-ink">Artist</div>
           <input
             value={form.artist}
             onChange={(event) => setField("artist", event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            className="mt-2 w-full rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
             placeholder="e.g., The Storytellers"
             autoComplete="off"
           />
         </label>
 
         <label className="block">
-          <div className="text-xs font-semibold text-[var(--text)]">Concept summary</div>
+          <div className="text-xs font-semibold text-ink">Concept summary</div>
           <textarea
             value={form.conceptSummary}
             onChange={(event) => setField("conceptSummary", event.target.value)}
-            className="mt-2 min-h-[130px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            className="mt-2 min-h-[130px] w-full resize-none rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
             placeholder="What is the emotional or narrative spine of this album?"
           />
         </label>
@@ -297,7 +297,7 @@ function QuickStartStepFields({
     return (
       <>
         <div>
-          <div className="text-xs font-semibold text-[var(--text)]">Narrative structure</div>
+          <div className="text-xs font-semibold text-ink">Narrative structure</div>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {NARRATIVE_OPTIONS.map((option) => {
               const selected = option.key === form.narrativeStructure;
@@ -308,12 +308,12 @@ function QuickStartStepFields({
                   onClick={() => setField("narrativeStructure", option.key)}
                   className={`rounded-2xl border px-4 py-3 text-left ${
                     selected
-                      ? "border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)]"
-                      : "border-[var(--border)] bg-[rgba(255,255,255,0.03)]"
+                      ? "border-line-strong bg-hover"
+                      : "border-line bg-raised"
                   }`}
                 >
-                  <div className="text-sm font-semibold text-[var(--text)]">{option.label}</div>
-                  <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+                  <div className="text-sm font-semibold text-ink">{option.label}</div>
+                  <div className="mt-1 text-xs leading-relaxed text-ink-2">
                     {option.description}
                   </div>
                 </button>
@@ -323,21 +323,21 @@ function QuickStartStepFields({
         </div>
 
         <label className="block">
-          <div className="text-xs font-semibold text-[var(--text)]">Central themes</div>
+          <div className="text-xs font-semibold text-ink">Central themes</div>
           <textarea
             value={form.centralThemesRaw}
             onChange={(event) => setField("centralThemesRaw", event.target.value)}
-            className="mt-2 min-h-[100px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            className="mt-2 min-h-[100px] w-full resize-none rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
             placeholder="memory, loss, rebirth"
           />
         </label>
 
         <label className="block">
-          <div className="text-xs font-semibold text-[var(--text)]">Reference albums</div>
+          <div className="text-xs font-semibold text-ink">Reference albums</div>
           <textarea
             value={form.referenceAlbumsRaw}
             onChange={(event) => setField("referenceAlbumsRaw", event.target.value)}
-            className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+            className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
             placeholder="One per line or comma-separated"
           />
         </label>
@@ -349,8 +349,8 @@ function QuickStartStepFields({
     <>
       <label htmlFor="quickstart-track-count" className="block">
         <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold text-[var(--text)]">Track count</div>
-          <div className="text-xs text-[var(--muted)]">{form.trackCount}</div>
+          <div className="text-xs font-semibold text-ink">Track count</div>
+          <div className="text-xs text-ink-2">{form.trackCount}</div>
         </div>
         <input
           id="quickstart-track-count"
@@ -365,11 +365,11 @@ function QuickStartStepFields({
       </label>
 
       <label className="block">
-        <div className="text-xs font-semibold text-[var(--text)]">Track names (optional)</div>
+        <div className="text-xs font-semibold text-ink">Track names (optional)</div>
         <textarea
           value={form.trackNamesRaw}
           onChange={(event) => setField("trackNamesRaw", event.target.value)}
-          className="mt-2 min-h-[120px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+          className="mt-2 min-h-[120px] w-full resize-none rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
           placeholder="One per line or comma-separated"
         />
       </label>
@@ -381,9 +381,9 @@ function QuickStartStepFields({
         trackCount={form.trackCount}
       />
 
-      <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
-        <div className="text-xs text-[var(--muted2)]">After you save</div>
-        <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
+      <div className="rounded-2xl border border-line bg-sunken p-4">
+        <div className="text-xs text-ink-3">After you save</div>
+        <div className="mt-2 space-y-2 text-sm text-ink-2">
           <div>1. Review the Bible to see themes and story structure across tracks.</div>
           <div>2. Make one Studio pass and save your first real edits.</div>
           <div>3. Export a handoff pack or publish the blueprint for remix.</div>
@@ -395,9 +395,9 @@ function QuickStartStepFields({
 
 function PreviewStatCard({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
-      <div className="text-xs text-[var(--muted2)]">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)]">{value}</div>
+    <div className="rounded-2xl border border-line bg-sunken p-4">
+      <div className="text-xs text-ink-3">{label}</div>
+      <div className="mt-2 text-2xl font-semibold tracking-tight text-ink">{value}</div>
     </div>
   );
 }
@@ -418,18 +418,18 @@ function BlueprintPreview({
   onDownload: () => void;
 }) {
   return (
-    <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+    <section className="rounded-2xl border border-line bg-raised p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="text-xs text-[var(--muted2)]">Blueprint preview</div>
-          <div className="text-sm font-semibold text-[var(--text)]">album.json</div>
+          <div className="text-xs text-ink-3">Blueprint preview</div>
+          <div className="text-sm font-semibold text-ink">album.json</div>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onCopy}
             disabled={!draftAlbum}
-            className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs text-[var(--muted)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-full border border-line bg-raised px-3 py-2 text-xs text-ink-2 hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             Copy
           </button>
@@ -437,7 +437,7 @@ function BlueprintPreview({
             type="button"
             onClick={onDownload}
             disabled={!draftAlbum}
-            className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.12)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-full bg-hover px-3 py-2 text-xs font-semibold text-ink hover:bg-selected disabled:cursor-not-allowed disabled:opacity-40"
           >
             Download
           </button>
@@ -462,33 +462,33 @@ function BlueprintPreview({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Track preview</div>
+        <div className="rounded-2xl border border-line bg-sunken p-4">
+          <div className="text-xs text-ink-3">Track preview</div>
           <div className="mt-3 space-y-2">
             {Array.from({ length: form.trackCount }, (_, index) => {
               const title = trackNames[index] || `Track ${index + 1}`;
               return (
                 <div
                   key={`${index + 1}-${title}`}
-                  className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-3 py-2"
+                  className="rounded-2xl border border-line bg-raised px-3 py-2"
                 >
-                  <div className="text-[10px] text-[var(--muted2)]">
+                  <div className="text-[10px] text-ink-3">
                     {String(index + 1).padStart(2, "0")}
                   </div>
-                  <div className="text-sm font-semibold text-[var(--text)]">{title}</div>
+                  <div className="text-sm font-semibold text-ink">{title}</div>
                 </div>
               );
             }).slice(0, 6)}
             {form.trackCount > 6 ? (
-              <div className="text-xs text-[var(--muted2)]">
+              <div className="text-xs text-ink-3">
                 + {form.trackCount - 6} more tracks in the generated scaffold
               </div>
             ) : null}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(0,0,0,0.35)] p-3">
-          <pre className="max-h-[620px] overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-sunken p-3">
+          <pre className="max-h-[620px] overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-ink-2">
             {jsonText || "Add an album title to see the live blueprint preview."}
           </pre>
         </div>
@@ -621,16 +621,16 @@ export function QuickStartComposer() {
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+      <section className="rounded-2xl border border-line bg-raised p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xs text-[var(--muted2)]">First project</div>
-            <div className="text-lg font-semibold tracking-tight text-[var(--text)]">
+            <div className="text-xs text-ink-3">First project</div>
+            <div className="text-lg font-semibold tracking-tight text-ink">
               Build your album blueprint
             </div>
-            <div className="mt-1 text-sm text-[var(--muted)]">{currentStep.detail}</div>
+            <div className="mt-1 text-sm text-ink-2">{currentStep.detail}</div>
           </div>
-          <div className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-xs text-[var(--muted)]">
+          <div className="rounded-full border border-line bg-raised px-3 py-1 text-xs text-ink-2">
             Step {step + 1} / {WIZARD_STEPS.length}
           </div>
         </div>
@@ -642,7 +642,7 @@ export function QuickStartComposer() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <div className={`text-xs ${status ? getStatusClassName(status.tone) : "text-[var(--muted2)]"}`}>
+          <div className={`text-xs ${status ? getStatusClassName(status.tone) : "text-ink-3"}`}>
             {status?.text ?? "This blueprint stays compatible with the Python Album model."}
           </div>
 
@@ -651,7 +651,7 @@ export function QuickStartComposer() {
               type="button"
               onClick={goBack}
               disabled={step === 0}
-              className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-2xl border border-line bg-raised px-4 py-3 text-sm font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               Back
             </button>
@@ -660,7 +660,7 @@ export function QuickStartComposer() {
               <button
                 type="button"
                 onClick={goNext}
-                className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-4 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(255,62,165,0.15)] hover:brightness-110"
+                className="rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-accent-ink shadow-[0_20px_60px_rgba(255,62,165,0.15)] hover:brightness-110"
               >
                 Continue
               </button>
@@ -669,7 +669,7 @@ export function QuickStartComposer() {
                 type="button"
                 onClick={saveAlbum}
                 disabled={!draftAlbum || isSaving}
-                className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-4 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(255,62,165,0.15)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-accent-ink shadow-[0_20px_60px_rgba(255,62,165,0.15)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isSaving ? "Saving..." : "Save and continue"}
               </button>

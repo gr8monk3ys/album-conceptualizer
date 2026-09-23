@@ -76,7 +76,7 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
 
   return (
     <div
-      className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)]"
+      className="rounded-2xl border border-line bg-raised p-4 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)]"
       data-testid="discover-album-card"
       data-album-id={album.id}
     >
@@ -84,21 +84,21 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
         <div className="min-w-0">
           <Link
             href={`/app/discover/${album.id}`}
-            className="text-lg font-semibold tracking-tight text-[var(--text)] hover:underline"
+            className="text-lg font-semibold tracking-tight text-ink hover:underline"
           >
             {album.title}
           </Link>
-          <div className="mt-1 text-sm text-[var(--muted)]">
+          <div className="mt-1 text-sm text-ink-2">
             {album.artist ? `by ${album.artist}` : "Artist not set"} ·{" "}
             {album.primaryGenre || "Concept"} · {album.trackCount} tracks
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted2)]">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.03)] px-3 py-1">
-              <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-line-strong bg-raised px-3 py-1">
+              <Sparkles className="h-3.5 w-3.5 text-accent" />
               Published{" "}
               {album.publishedAt ? publishedDateFormatter.format(new Date(album.publishedAt)) : ""}
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.03)] px-3 py-1">
+            <div className="inline-flex items-center gap-2 rounded-full border border-line-strong bg-raised px-3 py-1">
               <Heart className="h-3.5 w-3.5" />
               {likes}
             </div>
@@ -110,9 +110,9 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
             type="button"
             onClick={toggleLike}
             disabled={busy}
-            className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Heart className={liked ? "h-4 w-4 text-[var(--accent)]" : "h-4 w-4"} />
+            <Heart className={liked ? "h-4 w-4 text-accent" : "h-4 w-4"} />
             {liked ? "Liked" : "Like"}
           </button>
 
@@ -129,7 +129,7 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
       </div>
 
       {error ? (
-        <div className="mt-3 text-xs text-[var(--muted)]" aria-live="polite">
+        <div className="mt-3 text-xs text-ink-2" aria-live="polite">
           {error}
         </div>
       ) : null}

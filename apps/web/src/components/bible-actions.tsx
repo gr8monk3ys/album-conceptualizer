@@ -34,7 +34,7 @@ export function BibleActions({ albumId }: { albumId: string }) {
         type="button"
         disabled={loading}
         onClick={() => void autotag()}
-        className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
         title="Auto-tag themes, motifs, and characters from lyrics"
       >
         <Sparkles className="h-4 w-4" />
@@ -43,7 +43,7 @@ export function BibleActions({ albumId }: { albumId: string }) {
 
       <a
         href={`/api/albums/${albumId}/bible/markdown`}
-        className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+        className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-sunken px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
         title="Download bible as Markdown"
       >
         <Download className="h-4 w-4" />
@@ -52,7 +52,7 @@ export function BibleActions({ albumId }: { albumId: string }) {
 
       <a
         href={`/api/albums/${albumId}/bible/pdf`}
-        className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+        className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-sunken px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
         title="Download bible as PDF"
       >
         <Download className="h-4 w-4" />
@@ -60,7 +60,7 @@ export function BibleActions({ albumId }: { albumId: string }) {
       </a>
 
       {status ? (
-        <div className="text-xs text-[var(--muted2)]" aria-live="polite">
+        <div className="text-xs text-ink-3" aria-live="polite">
           {status}
         </div>
       ) : null}

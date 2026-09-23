@@ -54,7 +54,7 @@ export function CompleteTaskButton({ albumId, taskId }: { albumId: string; taskI
           setLoading(false);
         }
       }}
-      className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.08)] px-3 py-2 text-[10px] font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.12)] disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-2xl bg-hover px-3 py-2 text-[10px] font-semibold text-ink hover:bg-selected disabled:cursor-not-allowed disabled:opacity-60"
     >
       <CheckCircle2 className="h-4 w-4" />
       {loading ? "Done…" : "Mark done"}

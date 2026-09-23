@@ -28,11 +28,11 @@ export default async function StudioPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-xs text-[var(--muted2)]">Studio</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+          <div className="text-xs text-ink-3">Studio</div>
+          <div className="text-2xl font-semibold tracking-tight text-ink">
             Edit songs and sections
           </div>
-          <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
+          <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
             Pick a project to edit lyrics drafts, chord loops, and section structure. Every save
             syncs to the database so exports stay up to date.
           </div>
@@ -40,7 +40,7 @@ export default async function StudioPage() {
 
         <Link
           href="/app/create"
-          className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-5 py-3 text-sm font-semibold text-black hover:brightness-110"
+          className="rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-accent-ink hover:brightness-110"
         >
           New project
         </Link>
@@ -53,7 +53,7 @@ export default async function StudioPage() {
       </div>
 
       {items.length ? null : (
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-6 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-6 text-sm text-ink-2">
           No projects yet. Create one, then come back here to write section-by-section.
         </div>
       )}

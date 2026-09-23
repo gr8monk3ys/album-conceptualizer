@@ -13,25 +13,25 @@ export function FirstProjectChecklist({
   const percent = Math.round((summary.completeCount / Math.max(summary.totalCount, 1)) * 100);
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.04)] p-4">
+    <div className="rounded-2xl border border-line bg-raised p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs text-[var(--muted2)]">First project</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+          <div className="text-xs text-ink-3">First project</div>
+          <div className="mt-1 text-sm font-semibold text-ink">
             {title ? `${title}: next milestones` : "Next milestones"}
           </div>
-          <div className="mt-1 text-xs text-[var(--muted)]">
+          <div className="mt-1 text-xs text-ink-2">
             {summary.completeCount} of {summary.totalCount} complete
           </div>
         </div>
-        <div className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-3 py-1 text-xs font-semibold text-[var(--text)]">
+        <div className="rounded-full border border-line bg-raised px-3 py-1 text-xs font-semibold text-ink">
           {percent}%
         </div>
       </div>
 
-      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
+      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-hover">
         <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,var(--accent2),var(--accent))]"
+          className="h-full rounded-full bg-accent"
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -41,27 +41,27 @@ export function FirstProjectChecklist({
           <Link
             key={step.key}
             href={step.href}
-            className="group flex items-start gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-3 py-3 hover:bg-[rgba(255,255,255,0.05)]"
+            className="group flex items-start gap-3 rounded-2xl border border-line bg-sunken px-3 py-3 hover:bg-raised"
           >
             <div className="mt-0.5">
               {step.complete ? (
-                <CheckCircle2 className="h-4 w-4 text-[var(--ok)]" />
+                <CheckCircle2 className="h-4 w-4 text-ok" />
               ) : (
-                <CircleDashed className="h-4 w-4 text-[var(--muted2)]" />
+                <CircleDashed className="h-4 w-4 text-ink-3" />
               )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted2)]">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-3">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="text-sm font-semibold text-[var(--text)]">{step.label}</span>
+                <span className="text-sm font-semibold text-ink">{step.label}</span>
               </div>
-              <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+              <div className="mt-1 text-xs leading-relaxed text-ink-2">
                 {step.description}
               </div>
             </div>
-            <ArrowRight className="mt-0.5 h-4 w-4 text-[var(--muted2)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--text)]" />
+            <ArrowRight className="mt-0.5 h-4 w-4 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
           </Link>
         ))}
       </div>

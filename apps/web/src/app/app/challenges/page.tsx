@@ -68,11 +68,11 @@ export default async function ChallengesPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-xs text-[var(--muted2)]">Challenges</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+          <div className="text-xs text-ink-3">Challenges</div>
+          <div className="text-2xl font-semibold tracking-tight text-ink">
             Earn credits by writing daily
           </div>
-          <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
+          <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
             Tiny prompts that push you forward. Credits can be spent on exports and project
             creation.
           </div>
@@ -81,13 +81,13 @@ export default async function ChallengesPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/app/studio"
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+            className="rounded-2xl border border-line bg-raised px-5 py-3 text-sm font-semibold text-ink hover:bg-hover"
           >
             Open Studio
           </Link>
           <Link
             href="/app/create"
-            className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-5 py-3 text-sm font-semibold text-black hover:brightness-110"
+            className="rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-accent-ink hover:brightness-110"
           >
             New project
           </Link>
@@ -104,27 +104,27 @@ export default async function ChallengesPage() {
         />
 
         <aside className="space-y-3">
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Streak</div>
-            <div className="mt-1 text-2xl font-semibold text-[var(--text)]">{streak} days</div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Streak</div>
+            <div className="mt-1 text-2xl font-semibold text-ink">{streak} days</div>
+            <div className="mt-2 text-xs text-ink-3">
               Based on completions in the last 30 days (UTC day boundaries).
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Earned (30d)</div>
-            <div className="mt-1 text-2xl font-semibold text-[var(--text)]">
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">Earned (30d)</div>
+            <div className="mt-1 text-2xl font-semibold text-ink">
               +{earnedLast30} credits
             </div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
+            <div className="mt-2 text-xs text-ink-3">
               Complete today&apos;s prompt to keep momentum.
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">How it works</div>
-            <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
+          <div className="rounded-2xl border border-line bg-raised p-4">
+            <div className="text-xs text-ink-3">How it works</div>
+            <div className="mt-2 space-y-2 text-sm text-ink-2">
               <div>1. Draft a section in Studio.</div>
               <div>2. Mark the challenge complete with a quick note.</div>
               <div>3. Spend credits on exports and new projects.</div>

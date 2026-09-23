@@ -26,3 +26,42 @@ export function getAlbumSongOptions(data: unknown): AlbumSongOption[] {
 export function findAlbumSongByTrackNumber(data: unknown, trackNumber: number) {
   return getAlbumSongOptions(data).find((song) => song.trackNumber === trackNumber) ?? null;
 }
+
+export type SpineRow = {
+  trackNumber: number;
+  title: string;
+  sections: number;
+  lyricSections: number;
+  themes: number;
+  hasNarrative: boolean;
+};
+
+function asList(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function isWritten(lyrics: unknown) {
+  // Scaffold placeholders like "[Verse line 1]" are not writing.
+  return typeof lyrics === "string" && lyrics.replace(/\[[^\]]*\]/g, "").trim().length > 0;
+}
+
+/** One row per track for the album spine: how far each track has come. */
+export function getSpineRows(data: unknown): SpineRow[] {
+  const songs = asList((data as { songs?: unknown } | null)?.songs);
+  const rows: SpineRow[] = [];
+  for (const raw of songs) {
+    if (!raw || typeof raw !== "object") continue;
+    const song = raw as Record<string, unknown>;
+    if (typeof song.track_number !== "number" || typeof song.title !== "string") continue;
+    const sections = asList(song.sections);
+    rows.push({
+      trackNumber: song.track_number,
+      title: song.title,
+      sections: sections.length,
+      lyricSections: sections.filter((s) => isWritten((s as { lyrics?: unknown } | null)?.lyrics)).length,
+      themes: asList(song.themes).filter((t) => typeof t === "string" && t.trim()).length,
+      hasNarrative: typeof song.narrative_summary === "string" && song.narrative_summary.trim().length > 0,
+    });
+  }
+  return rows.sort((a, b) => a.trackNumber - b.trackNumber);
+}

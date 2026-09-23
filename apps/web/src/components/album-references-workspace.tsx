@@ -74,9 +74,9 @@ function sortReferences(references: AlbumReferenceRecord[]) {
 }
 
 function getStatusClassName(tone: StatusTone) {
-  if (tone === "error") return "text-[rgba(255,200,200,0.95)]";
-  if (tone === "success") return "text-[var(--ok)]";
-  return "text-[var(--muted2)]";
+  if (tone === "error") return "text-danger";
+  if (tone === "success") return "text-ok";
+  return "text-ink-3";
 }
 
 function buildBody(form: ReferenceFormState) {
@@ -215,24 +215,24 @@ export function AlbumReferencesWorkspace({
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <section className="space-y-4">
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Reference workspace</div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-[var(--text)]">
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-xs text-ink-3">Reference workspace</div>
+          <div className="mt-1 text-lg font-semibold tracking-tight text-ink">
             Save the tracks you keep pointing at
           </div>
-          <div className="mt-2 max-w-[72ch] text-sm text-[var(--muted)]">
+          <div className="mt-2 max-w-[72ch] text-sm text-ink-2">
             Capture reference songs, what each one teaches the album, and whether it belongs to
             the whole project or a specific track.
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+        <div className="rounded-2xl border border-line bg-raised p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs text-[var(--muted2)]">
+              <div className="text-xs text-ink-3">
                 {editingId ? "Edit reference" : "Add reference"}
               </div>
-              <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+              <div className="mt-1 text-sm font-semibold text-ink">
                 Source the record&apos;s energy, palette, and mix targets
               </div>
             </div>
@@ -240,7 +240,7 @@ export function AlbumReferencesWorkspace({
               <button
                 type="button"
                 onClick={resetEditor}
-                className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+                className="rounded-full border border-line bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-hover"
               >
                 Cancel
               </button>
@@ -248,34 +248,34 @@ export function AlbumReferencesWorkspace({
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Reference title</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Reference title</span>
               <input
                 value={form.title}
                 onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="Track title"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Artist</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Artist</span>
               <input
                 value={form.artist}
                 onChange={(event) => setForm((current) => ({ ...current, artist: event.target.value }))}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="Artist or band"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Target role</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Target role</span>
               <select
                 value={form.targetRole}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, targetRole: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent"
               >
                 <option value="">Album-wide</option>
                 {ROLE_OPTIONS.map((role) => (
@@ -286,14 +286,14 @@ export function AlbumReferencesWorkspace({
               </select>
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Song target</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Song target</span>
               <select
                 value={form.songTrackNumber}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, songTrackNumber: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent"
               >
                 <option value="">Whole album</option>
                 {songOptions.map((song) => (
@@ -304,53 +304,53 @@ export function AlbumReferencesWorkspace({
               </select>
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">BPM</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">BPM</span>
               <input
                 value={form.bpm}
                 onChange={(event) => setForm((current) => ({ ...current, bpm: event.target.value }))}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 inputMode="numeric"
                 placeholder="118"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Key</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Key</span>
               <input
                 value={form.key}
                 onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="C minor"
               />
             </label>
 
-            <label className="md:col-span-2 flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Source URL</span>
+            <label className="md:col-span-2 flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Source URL</span>
               <input
                 value={form.sourceUrl}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, sourceUrl: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="https://open.spotify.com/..."
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Mood tags</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Mood tags</span>
               <input
                 value={form.moodTagsRaw}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, moodTagsRaw: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="cinematic, tense, urgent"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Arrangement tags</span>
+            <label className="flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Arrangement tags</span>
               <input
                 value={form.arrangementTagsRaw}
                 onChange={(event) =>
@@ -359,17 +359,17 @@ export function AlbumReferencesWorkspace({
                     arrangementTagsRaw: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="wide drums, stacked vocals"
               />
             </label>
 
-            <label className="md:col-span-2 flex flex-col gap-1 text-sm text-[var(--muted)]">
-              <span className="text-xs text-[var(--muted2)]">Why this reference matters</span>
+            <label className="md:col-span-2 flex flex-col gap-1 text-sm text-ink-2">
+              <span className="text-xs text-ink-3">Why this reference matters</span>
               <textarea
                 value={form.notes}
                 onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-                className="min-h-[120px] rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="min-h-[120px] rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="What exactly should this track teach the album?"
               />
             </label>
@@ -395,19 +395,19 @@ export function AlbumReferencesWorkspace({
             references.map((reference) => (
               <div
                 key={reference.id}
-                className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4"
+                className="rounded-2xl border border-line bg-raised p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="truncate text-sm font-semibold text-[var(--text)]">
+                      <div className="truncate text-sm font-semibold text-ink">
                         {reference.title}
                       </div>
-                      <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]">
+                      <div className="rounded-full bg-hover px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3">
                         {formatRole(reference.targetRole)}
                       </div>
                     </div>
-                    <div className="mt-1 text-xs text-[var(--muted2)]">
+                    <div className="mt-1 text-xs text-ink-3">
                       {reference.artist || "Artist not set"}
                       {reference.songTrackNumber && reference.songTitle
                         ? ` · Track ${String(reference.songTrackNumber).padStart(2, "0")} ${reference.songTitle}`
@@ -422,7 +422,7 @@ export function AlbumReferencesWorkspace({
                         setForm(toForm(reference));
                         setStatus("info", "Editing reference.");
                       }}
-                      className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-[10px] font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+                      className="rounded-full border border-line bg-raised px-3 py-2 text-[10px] font-semibold text-ink hover:bg-hover"
                     >
                       Edit
                     </button>
@@ -430,7 +430,7 @@ export function AlbumReferencesWorkspace({
                       type="button"
                       disabled={deletingId === reference.id}
                       onClick={() => void deleteReference(reference.id)}
-                      className="rounded-full border border-[rgba(255,72,72,0.30)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-[10px] font-semibold text-[var(--bad)] hover:bg-[rgba(255,72,72,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-full border border-danger bg-danger-soft px-3 py-2 text-[10px] font-semibold text-danger hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {deletingId === reference.id ? "Removing..." : "Delete"}
                     </button>
@@ -439,19 +439,19 @@ export function AlbumReferencesWorkspace({
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {reference.bpm ? (
-                    <div className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold text-[var(--muted2)]">
+                    <div className="rounded-full border border-line bg-sunken px-2 py-1 text-[10px] font-semibold text-ink-3">
                       {reference.bpm} BPM
                     </div>
                   ) : null}
                   {reference.key ? (
-                    <div className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold text-[var(--muted2)]">
+                    <div className="rounded-full border border-line bg-sunken px-2 py-1 text-[10px] font-semibold text-ink-3">
                       {reference.key}
                     </div>
                   ) : null}
                   {reference.moodTags.map((tag) => (
                     <div
                       key={`${reference.id}-mood-${tag}`}
-                      className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(109,94,252,0.10)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]"
+                      className="rounded-full border border-line bg-selected px-2 py-1 text-[10px] font-semibold text-ink-2"
                     >
                       {tag}
                     </div>
@@ -459,7 +459,7 @@ export function AlbumReferencesWorkspace({
                   {reference.arrangementTags.map((tag) => (
                     <div
                       key={`${reference.id}-arrangement-${tag}`}
-                      className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,62,165,0.10)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]"
+                      className="rounded-full border border-line bg-accent-soft px-2 py-1 text-[10px] font-semibold text-ink-2"
                     >
                       {tag}
                     </div>
@@ -467,19 +467,19 @@ export function AlbumReferencesWorkspace({
                 </div>
 
                 {reference.notes ? (
-                  <div className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+                  <div className="mt-3 text-sm leading-relaxed text-ink-2">
                     {reference.notes}
                   </div>
                 ) : null}
 
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--muted2)]">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-ink-3">
                   <div>Updated {new Date(reference.updatedAt).toLocaleString()}</div>
                   {reference.sourceUrl ? (
                     <a
                       href={reference.sourceUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="hover:text-[var(--text)]"
+                      className="hover:text-ink"
                     >
                       Open source
                     </a>
@@ -488,7 +488,7 @@ export function AlbumReferencesWorkspace({
               </div>
             ))
           ) : (
-            <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-4 py-10 text-center text-sm text-[var(--muted)]">
+            <div className="rounded-2xl border border-line bg-raised px-4 py-10 text-center text-sm text-ink-2">
               No references yet. Add one to anchor the album&apos;s pacing, texture, or mix
               direction.
             </div>
@@ -497,8 +497,8 @@ export function AlbumReferencesWorkspace({
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Reference coverage</div>
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-xs text-ink-3">Reference coverage</div>
           <div className="mt-2 grid grid-cols-1 gap-3">
             {[
               { label: "Saved references", value: references.length },
@@ -507,10 +507,10 @@ export function AlbumReferencesWorkspace({
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3"
+                className="rounded-2xl border border-line bg-sunken px-4 py-3"
               >
-                <div className="text-[11px] text-[var(--muted2)]">{item.label}</div>
-                <div className="mt-1 text-xl font-semibold tracking-tight text-[var(--text)]">
+                <div className="text-[11px] text-ink-3">{item.label}</div>
+                <div className="mt-1 text-xl font-semibold tracking-tight text-ink">
                   {item.value}
                 </div>
               </div>
@@ -518,9 +518,9 @@ export function AlbumReferencesWorkspace({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Good reference prompts</div>
-          <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-xs text-ink-3">Good reference prompts</div>
+          <div className="mt-2 space-y-2 text-sm text-ink-2">
             <div>1. What should the opener feel like in the first 20 seconds?</div>
             <div>2. What mix or vocal texture should the chorus aim for?</div>
             <div>3. Which song best teaches the closer how to land?</div>

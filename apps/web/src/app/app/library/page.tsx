@@ -25,11 +25,11 @@ export default async function LibraryPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <div className="text-xs text-[var(--muted2)]">Library</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+        <div className="text-xs text-ink-3">Library</div>
+        <div className="text-2xl font-semibold tracking-tight text-ink">
           All projects
         </div>
-        <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
+        <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
           Everything you&apos;ve saved in this workspace.
         </div>
       </div>

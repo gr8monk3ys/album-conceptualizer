@@ -45,7 +45,7 @@ export function PublishAlbumButton({
         type="button"
         onClick={toggle}
         disabled={busy}
-        className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
         title={
           isPublic
             ? "Visible in Discover"
@@ -55,7 +55,7 @@ export function PublishAlbumButton({
         {isPublic ? <Globe2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
         {isPublic ? "Published" : "Publish"}
       </button>
-      {status ? <div className="text-[10px] text-[var(--muted2)]">{status}</div> : null}
+      {status ? <div className="text-[10px] text-ink-3">{status}</div> : null}
     </div>
   );
 }

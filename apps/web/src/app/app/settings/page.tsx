@@ -4,20 +4,20 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="text-xs text-[var(--muted2)]">Settings</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+        <div className="text-xs text-ink-3">Settings</div>
+        <div className="text-2xl font-semibold tracking-tight text-ink">
           Workspace settings
         </div>
-        <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
+        <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
           Configure your workspace, runtime health, and billing plan. This Next.js app stores users
           and subscriptions in Neon (Postgres).
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 [content-visibility:auto] [contain-intrinsic-size:960px] md:grid-cols-3">
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 [content-visibility:auto] [contain-intrinsic-size:220px]">
-          <div className="text-sm font-semibold text-[var(--text)]">Billing</div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-4 [content-visibility:auto] [contain-intrinsic-size:220px]">
+          <div className="text-sm font-semibold text-ink">Billing</div>
+          <div className="mt-1 text-sm text-ink-2">
             Manage plan, credits, and invoices.
           </div>
           <div className="mt-3">
@@ -30,9 +30,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 [content-visibility:auto] [contain-intrinsic-size:220px]">
-          <div className="text-sm font-semibold text-[var(--text)]">Runtime Health</div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-4 [content-visibility:auto] [contain-intrinsic-size:220px]">
+          <div className="text-sm font-semibold text-ink">Runtime Health</div>
+          <div className="mt-1 text-sm text-ink-2">
             Check whether config, database, and export engine readiness are green in the deployed
             app.
           </div>
@@ -46,9 +46,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 [content-visibility:auto] [contain-intrinsic-size:220px]">
-          <div className="text-sm font-semibold text-[var(--text)]">Analytics</div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-4 [content-visibility:auto] [contain-intrinsic-size:220px]">
+          <div className="text-sm font-semibold text-ink">Analytics</div>
+          <div className="mt-1 text-sm text-ink-2">
             Review project creation, activation, export, publish, and billing funnel events.
           </div>
           <div className="mt-3">

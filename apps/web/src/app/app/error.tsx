@@ -17,15 +17,15 @@ export default function AppError({
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-md text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-xs text-[var(--muted)]">
+        <div className="inline-flex items-center gap-2 rounded-full border border-line bg-raised px-3 py-1 text-xs text-ink-2">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--bad)]" />
           Something went wrong
         </div>
 
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[var(--text)]">
+        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-ink">
           Unexpected error
         </h1>
-        <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+        <p className="mt-3 text-sm leading-relaxed text-ink-2">
           An error occurred while loading this page. Please try again, and if the problem persists
           contact support.
         </p>
@@ -40,7 +40,7 @@ export default function AppError({
           </button>
           <Link
             href="/app"
-            className="rounded-2xl bg-[rgba(255,255,255,0.10)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.14)]"
+            className="rounded-2xl bg-selected px-5 py-3 text-sm font-semibold text-ink hover:bg-selected"
           >
             Go to dashboard
           </Link>

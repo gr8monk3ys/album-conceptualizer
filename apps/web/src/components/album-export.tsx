@@ -55,19 +55,19 @@ export function AlbumExport({ albumId }: { albumId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="text-xs text-[var(--muted2)]">Export</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+        <div className="text-xs text-ink-3">Export</div>
+        <div className="text-2xl font-semibold tracking-tight text-ink">
           Export your album
         </div>
-        <div className="mt-2 max-w-[72ch] text-sm text-[var(--muted)]">
+        <div className="mt-2 max-w-[72ch] text-sm text-ink-2">
           This downloads a zip bundle created by the Python export engine. Select formats and hit
           download.
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-sm font-semibold text-[var(--text)]">Formats</div>
+        <section className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-sm font-semibold text-ink">Formats</div>
           <div className="mt-3 space-y-2">
             {ALL_FORMATS.map((fmt) => {
               const checked = selected.has(fmt.key);
@@ -76,7 +76,7 @@ export function AlbumExport({ albumId }: { albumId: string }) {
                 <label
                   key={fmt.key}
                   htmlFor={inputId}
-                  className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3 hover:bg-[rgba(0,0,0,0.24)]"
+                  className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-sunken px-4 py-3 hover:bg-sunken"
                 >
                   <input
                     id={inputId}
@@ -94,8 +94,8 @@ export function AlbumExport({ albumId }: { albumId: string }) {
                     className="mt-1 h-4 w-4 accent-[var(--accent)]"
                   />
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-[var(--text)]">{fmt.title}</div>
-                    <div className="mt-0.5 text-xs text-[var(--muted)]">{fmt.desc}</div>
+                    <div className="text-sm font-semibold text-ink">{fmt.title}</div>
+                    <div className="mt-0.5 text-xs text-ink-2">{fmt.desc}</div>
                   </div>
                 </label>
               );
@@ -103,12 +103,12 @@ export function AlbumExport({ albumId }: { albumId: string }) {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-sm font-semibold text-[var(--text)]">Options</div>
+        <section className="rounded-2xl border border-line bg-raised p-4">
+          <div className="text-sm font-semibold text-ink">Options</div>
           <div className="mt-3 space-y-3">
             <label
               htmlFor="include-production-notes"
-              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3 hover:bg-[rgba(0,0,0,0.24)]"
+              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-line bg-sunken px-4 py-3 hover:bg-sunken"
             >
               <input
                 id="include-production-notes"
@@ -119,10 +119,10 @@ export function AlbumExport({ albumId }: { albumId: string }) {
                 className="h-4 w-4 accent-[var(--accent)]"
               />
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-[var(--text)]">
+                <div className="text-sm font-semibold text-ink">
                   Include production notes
                 </div>
-                <div className="mt-0.5 text-xs text-[var(--muted)]">
+                <div className="mt-0.5 text-xs text-ink-2">
                   Adds extra context in exporters that support it.
                 </div>
               </div>
@@ -142,20 +142,20 @@ export function AlbumExport({ albumId }: { albumId: string }) {
               Download zip
             </button>
 
-            {status ? <div className="text-xs text-[var(--muted2)]">{status}</div> : null}
+            {status ? <div className="text-xs text-ink-3">{status}</div> : null}
           </div>
         </section>
       </div>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
+      <section className="rounded-2xl border border-line bg-raised p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-xs text-[var(--muted2)]">Handoff packs</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">
+            <div className="text-xs text-ink-3">Handoff packs</div>
+            <div className="mt-1 text-sm font-semibold text-ink">
               Generator + DAW briefs from your album system
             </div>
           </div>
-          <div className="text-xs text-[var(--muted2)]">
+          <div className="text-xs text-ink-3">
             Uses Bible, coherence, references, and style-bible guidance
           </div>
         </div>
@@ -164,17 +164,17 @@ export function AlbumExport({ albumId }: { albumId: string }) {
           {handoffDownloads.map((item) => (
             <div
               key={item.key}
-              className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4"
+              className="rounded-2xl border border-line bg-sunken p-4"
             >
-              <div className="text-sm font-semibold text-[var(--text)]">{item.title}</div>
-              <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">{item.desc}</div>
+              <div className="text-sm font-semibold text-ink">{item.title}</div>
+              <div className="mt-2 text-xs leading-relaxed text-ink-2">{item.desc}</div>
               <a
                 href={`/api/albums/${albumId}/handoff?target=${item.key}`}
                 onClick={() => {
                   setStatus(`Preparing ${item.title.toLowerCase()}...`);
                   window.setTimeout(() => setStatus(""), 1800);
                 }}
-                className="mt-4 inline-flex rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+                className="mt-4 inline-flex rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
               >
                 Download {item.title}
               </a>

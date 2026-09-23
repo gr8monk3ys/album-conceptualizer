@@ -73,9 +73,9 @@ export function DiscoverAlbumActions({
           type="button"
           onClick={toggleLike}
           disabled={busy}
-          className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <Heart className={liked ? "h-4 w-4 text-[var(--accent)]" : "h-4 w-4"} />
+          <Heart className={liked ? "h-4 w-4 text-accent" : "h-4 w-4"} />
           {likes}
         </button>
         <button
@@ -88,7 +88,7 @@ export function DiscoverAlbumActions({
           Remix
         </button>
       </div>
-      {error ? <div className="text-[10px] text-[var(--muted2)]">{error}</div> : null}
+      {error ? <div className="text-[10px] text-ink-3">{error}</div> : null}
     </div>
   );
 }

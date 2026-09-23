@@ -21,7 +21,7 @@ export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
           setLoading(false);
         }
       }}
-      className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
     >
       <MailOpen className="h-4 w-4" />
       {loading ? "Marking…" : "Mark all read"}
@@ -50,7 +50,7 @@ export function ToggleNotificationReadButton({ id, unread }: { id: string; unrea
           setLoading(false);
         }
       }}
-      className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-3 py-2 text-[10px] font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-sunken px-3 py-2 text-[10px] font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
       aria-label={unread ? "Mark read" : "Mark unread"}
       title={unread ? "Mark read" : "Mark unread"}
     >

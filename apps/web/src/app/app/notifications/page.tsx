@@ -38,17 +38,17 @@ export default async function NotificationsPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs text-[var(--muted2)]">Notifications</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+          <div className="text-xs text-ink-3">Notifications</div>
+          <div className="text-2xl font-semibold tracking-tight text-ink">
             Inbox
           </div>
-          <div className="mt-2 max-w-[72ch] text-sm text-[var(--muted)]">
+          <div className="mt-2 max-w-[72ch] text-sm text-ink-2">
             Mentions, comments, and tasks across this workspace.
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
+          <div className="rounded-full bg-hover px-3 py-1 text-xs text-ink-2">
             {unreadCount ? `${unreadCount} unread` : "all caught up"}
           </div>
           <MarkAllReadButton disabled={!unreadCount} />
@@ -56,8 +56,8 @@ export default async function NotificationsPage() {
       </div>
 
       {notifications.length ? (
-        <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)]">
-          <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
+        <div className="overflow-hidden rounded-2xl border border-line bg-raised">
+          <ul className="divide-y divide-line">
             {notifications.map((n) => {
               const isUnread = !n.readAt;
               const meta = n.actor?.name || n.actor?.email || "System";
@@ -74,21 +74,21 @@ export default async function NotificationsPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-semibold text-[var(--text)]">{n.title}</div>
-                        <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-2 py-0.5 text-[10px] font-semibold text-[var(--muted2)]">
+                        <div className="text-sm font-semibold text-ink">{n.title}</div>
+                        <div className="rounded-full bg-hover px-2 py-0.5 text-[10px] font-semibold text-ink-3">
                           {n.type}
                         </div>
                         {isUnread ? (
-                          <div className="rounded-full bg-[rgba(50,213,131,0.14)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ok)]">
+                          <div className="rounded-full bg-ok-soft px-2 py-0.5 text-[10px] font-semibold text-ok">
                             unread
                           </div>
                         ) : null}
                       </div>
-                      <div className="mt-1 text-xs text-[var(--muted2)]">
+                      <div className="mt-1 text-xs text-ink-3">
                         {meta} · {n.createdAt.toLocaleString()}
                       </div>
                       {n.body ? (
-                        <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+                        <div className="mt-2 text-xs leading-relaxed text-ink-2">
                           {n.body}
                         </div>
                       ) : null}
@@ -112,7 +112,7 @@ export default async function NotificationsPage() {
           </ul>
         </div>
       ) : (
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-6 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-6 text-sm text-ink-2">
           No notifications yet.
         </div>
       )}

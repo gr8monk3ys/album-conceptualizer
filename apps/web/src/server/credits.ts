@@ -9,12 +9,7 @@ import { planMonthlyCredits, type Plan } from "@/server/plan";
 // in the ledger, which is also how we know whether this month's grant already happened.
 // An upgrade mid-month adds the difference between the two plans' amounts.
 
-export const CREDIT_COSTS = {
-  albumCreate: 5,
-  albumFork: 5,
-  exportZip: 2,
-  agentRun: 5,
-} as const;
+export { CREDIT_COSTS } from "@/lib/credit-costs";
 
 const GRANT_REASON = "monthly_grant";
 

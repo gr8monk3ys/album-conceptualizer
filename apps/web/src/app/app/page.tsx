@@ -49,17 +49,17 @@ export default async function AppHomePage() {
       <WorkspaceFunnelCard summary={funnel} />
 
       <div className="flex flex-col gap-2">
-        <div className="text-xs text-[var(--muted2)]">For you</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+        <div className="text-xs text-ink-3">For you</div>
+        <div className="text-2xl font-semibold tracking-tight text-ink">
           Recent projects
         </div>
         {items.length ? (
-          <div className="max-w-[64ch] text-sm text-[var(--muted)]">
+          <div className="max-w-[64ch] text-sm text-ink-2">
             Pick up where you left off. Projects are synced to Neon (Postgres) and your Stripe
             plan.
           </div>
         ) : (
-          <div className="max-w-[64ch] text-sm text-[var(--muted)]">
+          <div className="max-w-[64ch] text-sm text-ink-2">
             Your library is empty. Create your first concept album and export it to your DAW.
           </div>
         )}
@@ -72,21 +72,21 @@ export default async function AppHomePage() {
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-6">
-          <div className="text-sm font-semibold text-[var(--text)]">Start here</div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
+        <div className="rounded-2xl border border-line bg-raised p-6">
+          <div className="text-sm font-semibold text-ink">Start here</div>
+          <div className="mt-1 text-sm text-ink-2">
             Generate an `album.json` scaffold, save it, then iterate track by track.
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Link
               href="/app/create"
-              className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-5 py-3 text-sm font-semibold text-black hover:brightness-110"
+              className="rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-accent-ink hover:brightness-110"
             >
               Create album
             </Link>
             <Link
               href="/app/settings/billing"
-              className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
+              className="rounded-2xl border border-line bg-raised px-5 py-3 text-sm font-semibold text-ink hover:bg-hover"
             >
               View plans
             </Link>
