@@ -41,11 +41,12 @@ export default async function AppHomePage() {
   const others = albums.slice(1, 1 + OTHERS_LIMIT).map(toAlbumListItem);
   const { challenge } = getDailyChallenge();
 
-  // Where the latest album stands, counted the way the spine counts it (lib/lyrics).
+  // Where the latest album stands, counted the way the spine and the handoff pack count it
+  // (lib/lyrics): a track's lyrics are written once any of its sections has words of its own.
   const total = latestRows.length;
   const progress = total
     ? [
-        { label: "Lyrics started", value: latestRows.filter((row) => row.lyricSections > 0).length },
+        { label: "Lyrics written", value: latestRows.filter((row) => row.lyricSections > 0).length },
         { label: "Themes tagged", value: latestRows.filter((row) => row.themes > 0).length },
         { label: "Story notes", value: latestRows.filter((row) => row.hasNarrative).length },
       ]

@@ -43,11 +43,20 @@ export default function HomePage() {
 
         <main className="flex flex-col">
           <section className="grid grid-cols-[minmax(0,1fr)] gap-x-12 gap-y-10 pt-12 md:pt-16 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
-            <div className="min-w-0">
-              <h1 className="type-display text-display-xl max-w-[16ch] text-ink">
-                Build a concept album that actually holds together.
+            {/* A size container: the headline's display size stays within 11% of this column
+                (see --text-display-xl), so it breaks at its two phrases at every width. */}
+            <div className="min-w-0 @container">
+              {/* Two phrases that each wrap on their own (balanced), so no word is left alone
+                  on a line: "Build a / concept album / that actually / holds together." Their
+                  width doesn't depend on the font's "0" (unlike ch), so the lines are the same
+                  before and after Archivo loads. */}
+              <h1 className="type-display text-display-xl break-words text-ink hyphens-auto">
+                <span className="inline-block max-w-full">Build a concept album</span>{" "}
+                <span className="inline-block max-w-full">that actually holds together.</span>
               </h1>
-              <p className="mt-6 max-w-[48ch] text-base leading-relaxed text-ink-2">
+              {/* Measures on this page are in em (27.5em is 48ch of Archivo), so they hold the
+                  same width in the fallback face that shows until Archivo arrives. */}
+              <p className="mt-6 max-w-[27.5em] text-base leading-relaxed text-ink-2">
                 Album Conceptualizer turns one idea into an album blueprint: a sequenced tracklist,
                 a narrative arc, the themes each track carries, and lyric and chord drafts for every
                 section. Then it hands the record to your DAW without losing the thread.
@@ -61,11 +70,11 @@ export default function HomePage() {
                 </ButtonLink>
               </div>
               {/* What it costs, said plainly before anyone signs up. */}
-              <p className="mt-4 max-w-[48ch] text-sm leading-relaxed text-ink-2">
+              <p className="mt-4 max-w-[27.5em] text-sm leading-relaxed text-ink-2">
                 The free plan comes with {planMonthlyCredits("free")} credits a month and up to{" "}
                 {FREE_PROJECT_LIMIT} albums. Creating an album uses {CREDIT_COSTS.albumCreate}.
               </p>
-              <p className="mt-6 max-w-[48ch] text-sm leading-relaxed text-ink-3">
+              <p className="mt-6 max-w-[27.5em] text-sm leading-relaxed text-ink-3">
                 Not an audio generator. It plans the record so the audio you make later has
                 something to hold on to.
               </p>
@@ -82,14 +91,14 @@ export default function HomePage() {
             <h2 id="how-it-works-title" className="type-display text-2xl text-ink md:text-3xl">
               How it works
             </h2>
-            <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-2">
+            <p className="mt-3 max-w-[35.5em] text-sm leading-relaxed text-ink-2">
               The album is the unit, not the song. Three moves take it from an idea to a session.
             </p>
             <ol className="mt-8 grid grid-cols-1 gap-x-10 gap-y-8 md:grid-cols-3">
               {MOVES.map((move) => (
                 <li key={move.title} className="min-w-0 border-t border-line-strong pt-4">
                   <h3 className="text-lg font-semibold text-ink">{move.title}</h3>
-                  <p className="mt-2 max-w-[48ch] text-sm leading-relaxed text-ink-2">{move.body}</p>
+                  <p className="mt-2 max-w-[27.5em] text-sm leading-relaxed text-ink-2">{move.body}</p>
                 </li>
               ))}
             </ol>

@@ -62,7 +62,8 @@ export function SignInClient({
         <SiteHeader showSignIn={false} />
 
         <main className="mt-12 w-full max-w-[34rem] md:mt-16">
-          <h1 className="type-display text-display-lg text-ink">Album Conceptualizer</h1>
+          {/* One long word in the widest cut: at 390px with 200% text it must break, not scroll. */}
+          <h1 className="type-display text-display-lg break-words text-ink hyphens-auto">Album Conceptualizer</h1>
           <p className="mt-4 max-w-[52ch] text-base leading-relaxed text-ink-2">
             Sign in to plan, write and export your concept albums. Your first sign-in sets up your
             workspace.

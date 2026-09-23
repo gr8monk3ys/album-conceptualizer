@@ -8,6 +8,11 @@ import "./globals.css";
 // Latin is preloaded; latin-ext is a separate face restricted by unicode-range, so browsers
 // fetch it only for a page that actually uses one of its characters. (next/font needs its
 // options written out literally, so the axis declaration is repeated in both calls.)
+//
+// The fallback is not next/font's: its generated face is Arial only (missing on Android and
+// most Linux) and sized for the default instance, so the expanded display cut, a quarter
+// wider, re-wrapped when Archivo swapped in. globals.css lists local faces sized per cut
+// (font-fallbacks.css) after these, so swapping keeps every line where it was.
 
 const archivo = localFont({
   src: [
@@ -19,7 +24,7 @@ const archivo = localFont({
   ],
   display: "swap",
   variable: "--font-archivo",
-  adjustFontFallback: "Arial",
+  adjustFontFallback: false,
   declarations: [
     { prop: "font-stretch", value: "62% 125%" },
     {

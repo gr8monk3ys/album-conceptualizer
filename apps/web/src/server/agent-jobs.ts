@@ -29,7 +29,7 @@ export async function startChargedAgentJob(input: {
       reason,
       metadata: { action: input.action, albumId: input.albumId },
       insufficientMessage:
-        "Not enough credits to run an agent workflow. Complete challenges or upgrade.",
+        "Not enough credits for an AI draft. Complete a challenge or upgrade your plan.",
     },
     async () => {
       const job = await startAgentJob(input.job, input.userId);

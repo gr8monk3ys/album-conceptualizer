@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { ForkShareButton } from "@/components/fork-share-button";
 import { RelativeTime } from "@/components/relative-time";
@@ -12,10 +14,28 @@ import { getAlbumSongOptions } from "@/server/album-songs";
 import { findSharedAlbum } from "@/server/share-links";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Shared Album",
-  description: "Review a shared album and remix it into your workspace.",
-};
+
+/** The album behind the link, loaded once per request for the title and the page. */
+const loadSharedAlbum = cache((token: string) =>
+  findSharedAlbum(token, {
+    id: true,
+    title: true,
+    artist: true,
+    conceptSummary: true,
+    data: true,
+    updatedAt: true,
+  }),
+);
+
+/** A shared link reads as the album it opens: "<album> · Album Conceptualizer". */
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const { token } = await params;
+  const album = await loadSharedAlbum(token);
+  return {
+    title: album?.title ?? "Shared album",
+    description: "A shared concept album: read its sequence and remix it into your own workspace.",
+  };
+}
 
 type ShareTrack = {
   trackNumber: number;
@@ -57,14 +77,7 @@ function getShareTracks(data: unknown): ShareTrack[] {
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const session = await getAuthSession();
-  const album = await findSharedAlbum(token, {
-    id: true,
-    title: true,
-    artist: true,
-    conceptSummary: true,
-    data: true,
-    updatedAt: true,
-  });
+  const album = await loadSharedAlbum(token);
   if (!album) notFound();
 
   const tracks = getShareTracks(album.data);

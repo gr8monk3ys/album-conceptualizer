@@ -268,12 +268,13 @@ export function AlbumBody({
     );
   // The two columns are chosen by the room the album body actually has (a container query in
   // rem, so larger text needs more room), not by the viewport: with a sidebar open or text
-  // scaled up, the spine folds into the disclosure instead of squeezing the content. 21rem
-  // fits six theme marks beside an 8rem title; from 72rem the spine takes 24rem so titles
+  // scaled up, the spine folds into the disclosure instead of squeezing the content. 22rem
+  // fits six theme marks beside an 8rem title and the "Lyrics" and "Role" heads (21rem was
+  // 10px short, so the spine scrolled sideways); from 72rem the spine takes 24rem so titles
   // wrap less.
   return (
     <div className="@container min-w-0">
-      <div className="grid min-w-0 grid-cols-1 gap-6 @4xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)] @4xl:gap-10 @6xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+      <div className="grid min-w-0 grid-cols-1 gap-6 @4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @4xl:gap-10 @6xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
         {/* Sticky just below the app header; the negative margin and padding line its top up
             with the content while keeping it clear of the header once it sticks. */}
         <aside className="hidden @4xl:sticky @4xl:top-header @4xl:-mt-6 @4xl:block @4xl:max-h-[calc(100dvh-5rem)] @4xl:self-start @4xl:overflow-y-auto @4xl:pb-6 @4xl:pt-6">

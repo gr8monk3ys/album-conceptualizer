@@ -607,7 +607,7 @@ export function AlbumRoughDemoWorkspace({
 
   function renderForm(mode: "add" | "edit") {
     return (
-      <Panel className="@container max-w-3xl scroll-mt-24">
+      <Panel className="@container max-w-3xl">
         <form onSubmit={(event) => void saveDemo(event)} noValidate aria-labelledby="demo-form-title">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -714,7 +714,7 @@ export function AlbumRoughDemoWorkspace({
                 onChange={(event) => update("songTrackNumber", event.target.value)}
                 className={selectClass}
               >
-                <option value="">Album-wide</option>
+                <option value="">Whole album</option>
                 {songOptions.map((song) => (
                   <option key={`${song.trackNumber}-${song.title}`} value={String(song.trackNumber)}>
                     {formatTrack(song.trackNumber)} · {song.title}
@@ -810,7 +810,7 @@ export function AlbumRoughDemoWorkspace({
           <h3
             id="demos-list-heading"
             tabIndex={-1}
-            className="scroll-mt-24 text-base font-semibold text-ink"
+            className="text-base font-semibold text-ink"
           >
             Captured demos
           </h3>
@@ -844,7 +844,7 @@ export function AlbumRoughDemoWorkspace({
               id={`demo-row-${demo.id}`}
               tabIndex={-1}
               aria-current={isEditing ? "true" : undefined}
-              className="scroll-mt-24 py-4"
+              className="py-4"
             >
               {isEditing ? (
                 renderForm("edit")
@@ -857,10 +857,10 @@ export function AlbumRoughDemoWorkspace({
                       {demo.song_track_number ? (
                         <>
                           {" · Track "}
-                          <span className="type-figure">{demo.song_track_number}</span>
+                          <span className="type-figure">{formatTrack(demo.song_track_number)}</span>
                         </>
                       ) : (
-                        " · Album-wide"
+                        " · Whole album"
                       )}
                       {demo.local_file?.name ? ` · ${demo.local_file.name}` : ""}
                     </p>

@@ -1,7 +1,7 @@
 import { AlbumJsonSchema } from "@/server/album-json";
 import { normalizeStyleBible } from "@/server/style-bible";
 import type { AlbumStyleBible } from "@/server/album-json";
-import type { CoherenceFix } from "@/server/coherence";
+import { formatTrackList, type CoherenceFix } from "@/server/coherence";
 
 export type BibleIssue = {
   level: "info" | "warn";
@@ -64,6 +64,41 @@ export type AlbumBible = {
   motifIndex: Array<{ name: string; trackNumbers: number[] }>;
   issues: BibleIssue[];
 };
+
+function tracksWord(count: number) {
+  return `${count} ${count === 1 ? "track" : "tracks"}`;
+}
+
+/**
+ * Which tracks carry a theme, as one phrase for a row of the theme map, so a screen reader
+ * hears the row once instead of a "yes" or "no" per track: "on tracks 1, 4 and 7".
+ */
+export function themeTracksPhrase(trackNumbers: number[], totalTracks: number): string {
+  const unique = Array.from(new Set(trackNumbers));
+  if (!unique.length) return "on no track yet";
+  if (unique.length === totalTracks && totalTracks > 2) return `on all ${totalTracks} tracks`;
+  return `on ${unique.length === 1 ? "track" : "tracks"} ${formatTrackList(unique)}`;
+}
+
+/**
+ * The Loose threads line. It never claims the album holds together over tracks that aren't
+ * written: an empty track has nothing loose because it has nothing yet.
+ */
+export function looseThreadsSummary(input: { warnings: number; writtenTracks: number; totalTracks: number }): string {
+  const { warnings, writtenTracks, totalTracks } = input;
+  const unwritten = Math.max(0, totalTracks - writtenTracks);
+  const notWritten = unwritten
+    ? `${tracksWord(unwritten)} ${unwritten === 1 ? "isn't" : "aren't"} written yet`
+    : "";
+  if (warnings) {
+    const threads = warnings === 1 ? "1 thread doesn't" : `${warnings} threads don't`;
+    return `${threads} hold across the album yet${notWritten ? `, and ${notWritten}` : ""}. Each links to where it's fixed.`;
+  }
+  if (!totalTracks) return "Nothing to check until the album has tracks.";
+  if (!unwritten) return "Every theme, character and story order holds across the album.";
+  if (!writtenTracks) return `Nothing loose so far, but no track is written yet, so there's little to check.`;
+  return `Nothing loose on the ${writtenTracks} written ${writtenTracks === 1 ? "track" : "tracks"}; ${notWritten}.`;
+}
 
 function normalizeToken(value: unknown) {
   return typeof value === "string" ? value.trim() : "";

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
@@ -9,11 +10,12 @@ import { ShareAlbumButton } from "@/components/share-album-button";
 import { ButtonLink, Section, buttonClass } from "@/components/ui";
 import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
-import { analyzeAlbumCoherence, verdictText } from "@/server/coherence";
+import { analyzeAlbumCoherence, verdictText, weakestDimension } from "@/server/coherence";
 import { getPrisma } from "@/server/db";
 import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
 import { getAlbumOnboardingSummary } from "@/server/onboarding";
+import { workspaceAlbumTitle } from "@/server/page-titles";
 import { getAlbumReadiness } from "@/server/readiness";
 import { analyzeAlbumRoughDemos, summarizeRoughDemoReviews } from "@/server/rough-demo-review";
 import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
@@ -21,10 +23,18 @@ import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Album overview",
-  description: "What the album needs next, how it holds together, its sound and how it's released.",
-};
+/** The album's own title in the browser tab and history: the Overview is the album's home. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  return {
+    title: (await workspaceAlbumTitle(albumId)) ?? "Album overview",
+    description: "What the album needs next, how it holds together, its sound and how it's released.",
+  };
+}
 
 function plural(count: number, one: string, many = `${one}s`) {
   return `${count} ${count === 1 ? one : many}`;
@@ -109,7 +119,8 @@ export default async function AlbumOverviewPage({
   const base = `/app/albums/${album.id}`;
   const step = nextAlbumStep(album.id, album.data);
   const coherence = analyzeAlbumCoherence(album.data);
-  const weakest = coherence.breakdown.reduce((low, item) => (item.score < low.score ? item : low));
+  // By each dimension's own value, so the weak spot shows even while the cap holds them level.
+  const weakest = weakestDimension(coherence);
   const styleBible = getAlbumStyleBible(album.data);
   const styleSummary = summarizeStyleBible(styleBible, references);
   const roughDemos = listAlbumRoughDemos(album.data);
@@ -118,18 +129,23 @@ export default async function AlbumOverviewPage({
   const firstReference = references[0];
   const readiness = getAlbumReadiness(album.id, album.data);
   const emptyTracks = coherence.stats.songCount - coherence.stats.songsWithLyrics;
+  const findings = plural(coherence.issues.length, "finding");
+  const welcoming = welcome === "1";
 
   return (
     <div className="flex flex-col gap-10">
-      {welcome === "1" ? (
+      {welcoming ? (
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded border border-line bg-raised px-4 py-3">
           <p className="min-w-0 max-w-[65ch] break-words text-sm text-ink">
             <span className="font-semibold">{album.title}</span> is saved. Next:{" "}
             {step.action.charAt(0).toLowerCase() + step.action.slice(1)}.
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Secondary: the release header already carries this step as the screen's primary. */}
-            <ButtonLink href={step.href}>{step.action}</ButtonLink>
+            {/* The one primary on first arrival: the release header leaves its copy of this
+                step out while the banner carries it. */}
+            <ButtonLink tone="primary" href={step.href}>
+              {step.action}
+            </ButtonLink>
             <Link href={base} className={buttonClass("ghost")}>
               Dismiss
             </Link>
@@ -137,8 +153,10 @@ export default async function AlbumOverviewPage({
         </div>
       ) : null}
 
-      <Section id="album-next" title="What's next" description="The next steps from a blueprint to a handoff pack.">
-        <FirstProjectChecklist summary={onboarding} />
+      {/* One next step, the one the header's button (or the welcome banner) takes, and the
+          whole path behind a disclosure. */}
+      <Section id="album-next" title="What's next">
+        <FirstProjectChecklist summary={onboarding} step={welcoming ? null : step} />
       </Section>
 
       <Section id="album-status" title="Where it stands">
@@ -151,13 +169,14 @@ export default async function AlbumOverviewPage({
                 ? verdictText(coherence.verdict)
                 : `${coherence.score}/100 · ${verdictText(coherence.verdict)}`
             }
+            // Which tracks are written is the spine's to show; this row says what the spine can't.
             detail={
               coherence.insufficient
                 ? coherence.summary
                 : emptyTracks > 0
-                  ? `Lyrics come first: ${plural(emptyTracks, "track")} still ${emptyTracks === 1 ? "has" : "have"} none. ${plural(coherence.issues.length, "finding")} in all.`
+                  ? `Weakest on the written tracks: ${weakest.label}. ${findings} in all.`
                   : coherence.issues.length
-                    ? `Weakest area: ${weakest.label}. ${plural(coherence.issues.length, "finding")} to work through.`
+                    ? `Weakest area: ${weakest.label}. ${findings} to work through.`
                     : "No open findings. The tracks hold together on this draft."
             }
             trailing="View report"
@@ -170,7 +189,7 @@ export default async function AlbumOverviewPage({
           />
           <StatusRow
             href={`${base}/references`}
-            label="Reference tracks"
+            label="References"
             figure={plural(references.length, "saved", "saved")}
             detail={
               firstReference

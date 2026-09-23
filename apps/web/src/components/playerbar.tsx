@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Loader2, Pause, Play, Repeat2, RotateCcw, Square, Volume2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ChevronDown, Loader2, Pause, Play, Repeat2, Square, Volume2, X } from "lucide-react";
 
-import { usePlayer, type PreviewInstrument } from "@/components/player/player-provider";
-import { Button, IconButton, buttonClass, selectClass } from "@/components/ui";
+import { INSTRUMENT_LABELS, usePlayer, type PreviewInstrument } from "@/components/player/player-provider";
+import { IconButton, buttonClass, selectClass } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 function formatClock(totalSeconds: number) {
@@ -90,10 +90,11 @@ function InstrumentSelect({ id }: { id: string }) {
         className={cn(selectClass, "w-auto")}
         disabled={player.status === "loading"}
       >
-        <option value="piano">Piano</option>
-        <option value="epiano">Electric piano</option>
-        <option value="strings">Strings</option>
-        <option value="pad">Pad</option>
+        {(Object.keys(INSTRUMENT_LABELS) as PreviewInstrument[]).map((value) => (
+          <option key={value} value={value}>
+            {INSTRUMENT_LABELS[value]}
+          </option>
+        ))}
       </select>
     </div>
   );
@@ -122,17 +123,79 @@ function VolumeSlider({ id }: { id: string }) {
   );
 }
 
-/** The preview player, docked to the bottom of the viewport once a preview is loaded. */
+/** The player collapses to one row on short screens (a phone on its side). */
+const SHORT_SCREEN = "(max-height: 500px)";
+/** The docked player never takes more than this share of the viewport's height. */
+const MAX_SHARE = 0.4;
+
+function useMediaQuery(query: string) {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const list = window.matchMedia(query);
+      list.addEventListener("change", onChange);
+      return () => list.removeEventListener("change", onChange);
+    },
+    [query],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
+
+function PlayPauseButton() {
+  const player = usePlayer();
+  const playing = player.status === "playing";
+  const loading = player.status === "loading" || player.instrumentLoading;
+  const canPlay = !loading && (player.status === "ready" || player.status === "paused" || playing);
+  return (
+    <IconButton
+      label={playing ? "Pause" : "Play"}
+      onClick={() => {
+        if (!canPlay) return;
+        if (playing) player.pause();
+        else void player.play();
+      }}
+      disabled={!canPlay}
+      className="border border-line-strong text-ink"
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      ) : playing ? (
+        <Pause className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <Play className="h-4 w-4" aria-hidden="true" />
+      )}
+    </IconButton>
+  );
+}
+
+/**
+ * The preview player, docked to the bottom of the viewport once a preview has loaded. It opens
+ * only for a preview that loaded (a failed one is explained where it was asked for, with
+ * Retry), never takes more than 40% of the viewport's height (scrolling inside itself past
+ * that), folds to one row (title, Play, Close) on short screens or whenever the full player
+ * wouldn't fit, and Close stops playback and removes it.
+ */
 export function Playerbar() {
   const player = usePlayer();
   const barRef = useRef<HTMLElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const [barHeight, setBarHeight] = useState(0);
+  const [tooTall, setTooTall] = useState(false);
+  const shortScreen = useMediaQuery(SHORT_SCREEN);
 
-  const loaded = player.status !== "idle";
+  // Docked once a preview is ready; it stays docked while the next one loads, and leaves on
+  // Close or a failed load.
+  const settled = player.status === "ready" || player.status === "playing" || player.status === "paused";
+  const [docked, setDocked] = useState(false);
+  if (settled && !docked) setDocked(true);
+  if ((player.status === "idle" || player.status === "error") && docked) setDocked(false);
+
+  const compact = shortScreen || tooTall;
   const playing = player.status === "playing";
   const loading = player.status === "loading" || player.instrumentLoading;
-  const failed = player.status === "error";
-  const canPlay = loaded && !loading && !failed;
   const title = player.nowPlaying?.title ?? "Preview";
   const subtitle =
     player.status === "loading"
@@ -157,53 +220,76 @@ export function Playerbar() {
       observer.disconnect();
       root.style.removeProperty("scroll-padding-bottom");
     };
-  }, [loaded]);
+  }, [docked]);
 
-  if (!loaded) return null;
+  // The full player folds to one row when it would need more than its share of the viewport
+  // (enlarged text, a small window). A resize gives the full player another try.
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!docked || compact || !content) return;
+    const observer = new ResizeObserver(() => {
+      if (content.getBoundingClientRect().height > window.innerHeight * MAX_SHARE) setTooTall(true);
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [docked, compact]);
+
+  useEffect(() => {
+    if (!docked) return;
+    const retry = () => setTooTall(false);
+    window.addEventListener("resize", retry);
+    return () => window.removeEventListener("resize", retry);
+  }, [docked]);
+
+  function close() {
+    const returnTo = player.close();
+    const target = returnTo ? document.getElementById(returnTo) : null;
+    if (target) target.focus();
+  }
+
+  if (!docked) return null;
+
+  const closeButton = (
+    <IconButton label="Close preview player" onClick={close}>
+      <X className="h-4 w-4" aria-hidden="true" />
+    </IconButton>
+  );
+
+  const status = player.notice ?? subtitle;
 
   return (
     <>
       {/* Keeps the end of the page reachable above the docked bar, whatever its height. */}
-      <div aria-hidden="true" className="h-44 sm:h-32" style={barHeight ? { height: barHeight } : undefined} />
+      <div aria-hidden="true" style={{ height: barHeight }} />
       <section
         ref={barRef}
         aria-label="Preview player"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-line-strong bg-raised md:left-64"
+        className="fixed inset-x-0 bottom-0 z-40 max-h-[40dvh] overflow-y-auto border-t border-line-strong bg-raised md:left-[var(--sidebar-w,min(16rem,33vw))]"
       >
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-2 md:px-8">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="min-w-0 flex-1 basis-40">
-              <p className="truncate text-sm font-semibold text-ink">{title}</p>
-              <p role="status" className={cn("truncate text-xs", failed ? "text-danger" : "text-ink-2")}>
-                {failed ? (player.error ?? "Couldn't render this preview.") : subtitle}
-              </p>
-            </div>
+        {compact ? (
+          <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 md:px-8">
+            <p className="min-w-0 flex-1 truncate text-sm text-ink" title={subtitle ? `${title} · ${subtitle}` : title}>
+              <span className="font-semibold">{title}</span>
+              {status ? <span className="text-ink-2"> · {status}</span> : null}
+            </p>
+            <span role="status" className="sr-only">
+              {player.notice ?? (player.status === "loading" ? "Loading preview…" : "")}
+            </span>
+            <PlayPauseButton />
+            {closeButton}
+          </div>
+        ) : (
+          <div ref={contentRef} className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-2 md:px-8">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="min-w-0 flex-1 basis-40">
+                <p className="truncate text-sm font-semibold text-ink">{title}</p>
+                <p role="status" className={cn("text-xs", player.notice ? "text-warn" : "truncate text-ink-2")}>
+                  {status}
+                </p>
+              </div>
 
-            {failed ? (
-              <Button tone="secondary" onClick={() => void player.retry()}>
-                <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                Retry
-              </Button>
-            ) : (
               <div className="flex items-center gap-1">
-                <IconButton
-                  label={playing ? "Pause" : "Play"}
-                  onClick={() => {
-                    if (!canPlay) return;
-                    if (playing) player.pause();
-                    else void player.play();
-                  }}
-                  disabled={!canPlay}
-                  className="border border-line-strong text-ink"
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  ) : playing ? (
-                    <Pause className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <Play className="h-4 w-4" aria-hidden="true" />
-                  )}
-                </IconButton>
+                <PlayPauseButton />
                 <IconButton label="Stop" onClick={() => player.stop()} disabled={loading}>
                   <Square className="h-4 w-4" aria-hidden="true" />
                 </IconButton>
@@ -217,16 +303,15 @@ export function Playerbar() {
                   <Repeat2 className="h-4 w-4" aria-hidden="true" />
                 </IconButton>
               </div>
-            )}
 
-            <div className="hidden flex-wrap items-center gap-x-4 gap-y-1 md:flex">
-              <InstrumentSelect id="player-instrument" />
-              <VolumeSlider id="player-volume" />
+              <div className="hidden flex-wrap items-center gap-x-4 gap-y-1 md:flex">
+                <InstrumentSelect id="player-instrument" />
+                <VolumeSlider id="player-volume" />
+              </div>
+
+              {closeButton}
             </div>
 
-          </div>
-
-          {!failed ? (
             <div className="flex min-w-0 items-center gap-3">
               <span className="type-figure min-w-10 text-xs text-ink-2">{formatClock(player.position)}</span>
               <input
@@ -239,32 +324,32 @@ export function Playerbar() {
                 onChange={(e) => player.seek(Number(e.target.value))}
                 aria-label="Position"
                 aria-valuetext={`${formatClock(player.position)} of ${formatClock(player.duration)}`}
-                className="min-h-11 min-w-0 flex-1 accent-accent"
+                className="min-h-11 min-w-0 flex-1 accent-ink"
               />
               <span className="type-figure min-w-10 text-right text-xs text-ink-2">
                 {formatClock(player.duration)}
               </span>
               <Waveform getWaveform={player.getWaveform} playing={playing} />
             </div>
-          ) : null}
 
-          {/* On small screens the sound settings live in a disclosure, still one tap away. */}
-          <details className="group w-full md:hidden">
-            <summary
-              className={cn(
-                buttonClass("ghost"),
-                "-ml-2 cursor-pointer list-none justify-start px-2 [&::-webkit-details-marker]:hidden",
-              )}
-            >
-              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
-              Sound options
-            </summary>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-1">
-              <InstrumentSelect id="player-instrument-mobile" />
-              <VolumeSlider id="player-volume-mobile" />
-            </div>
-          </details>
-        </div>
+            {/* On small screens the sound settings live in a disclosure, still one tap away. */}
+            <details className="group w-full md:hidden">
+              <summary
+                className={cn(
+                  buttonClass("ghost"),
+                  "-ml-2 cursor-pointer list-none justify-start px-2 [&::-webkit-details-marker]:hidden",
+                )}
+              >
+                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                Sound options
+              </summary>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-1">
+                <InstrumentSelect id="player-instrument-mobile" />
+                <VolumeSlider id="player-volume-mobile" />
+              </div>
+            </details>
+          </div>
+        )}
       </section>
     </>
   );

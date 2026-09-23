@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { AlbumStudio } from "@/components/album-studio";
@@ -12,10 +14,24 @@ import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Album Studio",
-  description: "Edit songs, lyrics, chords, and section-level details for your album.",
-};
+
+/** The signed-in workspace's album, read once per request for both the title and the page. */
+const loadStudio = cache(async (albumId: string) => {
+  const { userId } = await requireUser();
+  const workspace = await getActiveWorkspaceForUser(userId);
+  const album = await getAlbum(workspace.id, albumId);
+  return { workspace, album };
+});
+
+// "Studio · Night Radio" (the root layout's template adds " · Album Conceptualizer").
+export async function generateMetadata({ params }: { params: Promise<{ albumId: string }> }): Promise<Metadata> {
+  const { albumId } = await params;
+  const { album } = await loadStudio(albumId);
+  return {
+    title: album ? `Studio · ${album.title}` : "Studio",
+    description: "Write each track's lyrics and chords inside the album's sequence.",
+  };
+}
 
 function param(value: string | string[] | undefined) {
   return typeof value === "string" ? value : undefined;
@@ -32,12 +48,10 @@ export default async function AlbumStudioPage({
   const { albumId } = await params;
   const query = await searchParams;
 
-  const { userId } = await requireUser();
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const [album, aiAvailable, credits] = await Promise.all([
-    getAlbum(workspace.id, albumId),
+  const { workspace, album } = await loadStudio(albumId);
+  const [aiAvailable, credits] = await Promise.all([
     getAgentAvailability(),
-    // For the AI drafting confirm: "You'll have N left."
+    // For the AI draft confirm: "You'll have N left."
     getCredits({ workspaceId: workspace.id, plan: effectivePlan(workspace.subscription) }),
   ]);
   if (!album) notFound();

@@ -1,16 +1,26 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AlbumVersions } from "@/components/album-versions";
 import { getAlbum } from "@/server/albums";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Version history",
-  description: "Save versions of the album and restore earlier ones.",
-};
+/** "Versions · <album title>" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  return {
+    title: albumPageTitle("Versions", await workspaceAlbumTitle(albumId)),
+    description: "Save versions of the album and restore earlier ones.",
+  };
+}
 
 export default async function VersionsPage({ params }: { params: Promise<{ albumId: string }> }) {
   const { albumId } = await params;

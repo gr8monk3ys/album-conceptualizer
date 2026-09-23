@@ -6,7 +6,7 @@ import { Plus } from "lucide-react";
 import { carriedThemes, type StudioSong } from "@/components/studio/studio-model";
 import { TRACK_KEYSHORTCUTS } from "@/components/studio/studio-shortcuts";
 import { ThemeMark } from "@/components/theme-mark";
-import { Button } from "@/components/ui";
+import { Button, TableScroller } from "@/components/ui";
 import { lyricProgress } from "@/lib/lyrics";
 import { carriedThemesPhrase, themeAbbreviations } from "@/lib/theme-keys";
 import { cn } from "@/lib/utils";
@@ -186,9 +186,12 @@ export function TrackList({
       </div>
 
       {songs.length ? (
-        <div
+        // A focusable, labelled region (so it scrolls from the keyboard) that scrolls sideways
+        // when enlarged text leaves no room, and on its own beside the editor.
+        <TableScroller
           ref={scrollRef}
-          className="mt-1 min-h-0 overflow-x-auto border-b border-line [@media(min-height:501px)]:@2xl:flex-1 [@media(min-height:501px)]:@2xl:overflow-y-auto"
+          label="Track list"
+          className="mt-1 min-h-0 border-b border-line focus-visible:-outline-offset-2 [@media(min-height:501px)]:@2xl:flex-1 [@media(min-height:501px)]:@2xl:overflow-y-auto"
         >
           <table className="w-full border-collapse text-left">
             <caption className="sr-only">
@@ -343,7 +346,7 @@ export function TrackList({
               Arrow keys move between tracks and themes.
             </span>
           ) : null}
-        </div>
+        </TableScroller>
       ) : (
         <p className="mt-2 max-w-[65ch] text-sm text-ink-2">No tracks yet.</p>
       )}

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
@@ -7,13 +8,22 @@ import { getAlbum } from "@/server/albums";
 import { getAlbumSongOptions } from "@/server/album-songs";
 import { requireUser } from "@/server/identity";
 import { buildRoughDemoCollection } from "@/server/rough-demo-review";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Rough demos",
-  description: "Capture rough demos, voice memos, and riff sketches before they disappear.",
-};
+/** "Demos · <album title>" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  return {
+    title: albumPageTitle("Demos", await workspaceAlbumTitle(albumId)),
+    description: "Capture rough demos, voice memos, and riff sketches before they disappear.",
+  };
+}
 
 // The album layout renders the title, catalog line, album tabs and spine above this page;
 // the Sound sub-navigation comes first in the page itself.

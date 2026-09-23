@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Check } from "lucide-react";
 
-import { Button, Chip, PageHeader, Section, StatusMessage } from "@/components/ui";
+import { Button, Chip, PageHeader, Section, StatusMessage, TableScroller } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { cn } from "@/lib/utils";
 
@@ -27,18 +27,26 @@ const ALBUM_PASS = CREDIT_COSTS.albumCreate + 2 * CREDIT_COSTS.agentRun + CREDIT
 const CREDIT_USES: Array<{ key: string; label: string; detail?: string; cost: number }> = [
   { key: "create", label: "Create an album", cost: CREDIT_COSTS.albumCreate },
   { key: "remix", label: "Remix an album from Discover", cost: CREDIT_COSTS.albumFork },
-  { key: "ai", label: "Run AI: a brainstorm, a track draft or a written review", cost: CREDIT_COSTS.agentRun },
+  {
+    key: "ai",
+    label: "An AI draft: ideas for a new album, a track, or a written review",
+    cost: CREDIT_COSTS.agentRun,
+  },
   { key: "zip", label: "Download the zip export", cost: CREDIT_COSTS.exportZip },
   {
     key: "pass",
     label: "One album, start to handoff",
-    detail: `Create it (${CREDIT_COSTS.albumCreate}), a brainstorm and a written review (${2 * CREDIT_COSTS.agentRun}), one zip export (${CREDIT_COSTS.exportZip})`,
+    detail: `Create it (${CREDIT_COSTS.albumCreate}), two AI drafts (${2 * CREDIT_COSTS.agentRun}), one zip export (${CREDIT_COSTS.exportZip})`,
     cost: ALBUM_PASS,
   },
 ];
 
 function times(credits: number, cost: number) {
   return Math.floor(credits / cost);
+}
+
+function plural(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
 }
 
 const noopSubscribe = () => () => {};
@@ -191,10 +199,12 @@ export function BillingPlans({
             {PLANS.map((plan) => {
               const isCurrent = plan.key === currentPlan;
               const credits = monthlyCredits[plan.key];
+              // Plain facts: what the plan keeps and what arrives. What an album costs is said
+              // once, under the plans, rather than as a per-plan "about N albums" headline.
               const facts = [
                 plan.key === "free" ? `Keep up to ${freeProjectLimit} albums` : "Keep as many albums as you like",
                 `${credits} credits each month`,
-                `About ${times(credits, ALBUM_PASS)} ${times(credits, ALBUM_PASS) === 1 ? "album" : "albums"} start to handoff, or ${times(credits, CREDIT_COSTS.agentRun)} AI runs`,
+                `Enough for ${plural(times(credits, CREDIT_COSTS.agentRun), "AI draft", "AI drafts")}, or any mix of creating, remixing and exporting`,
               ];
               return (
                 <li
@@ -247,6 +257,11 @@ export function BillingPlans({
             })}
           </ul>
         </div>
+        <p className="mt-4 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+          Taking one album from start to handoff (creating it, two AI drafts and a zip export) uses{" "}
+          <span className="type-figure text-ink">{ALBUM_PASS}</span> credits. Writing, saving, the
+          Album Bible and the Coherence report never cost credits.
+        </p>
       </Section>
 
       <Section
@@ -254,7 +269,7 @@ export function BillingPlans({
         title="What a month of credits covers"
         description="Writing, saving, the Album Bible and the Coherence report never cost credits. These actions do; each plan column shows how many times its monthly credits cover one."
       >
-        <div role="region" aria-labelledby="credits-table-caption" tabIndex={0} className="overflow-x-auto">
+        <TableScroller label="Credit costs by plan">
           <table className="w-full min-w-[34rem] border-collapse text-sm">
             <caption id="credits-table-caption" className="sr-only">
               Credit cost of each action, and how many times each plan&apos;s monthly credits cover it
@@ -295,7 +310,7 @@ export function BillingPlans({
                     ) : null}
                   </th>
                   <td className="type-figure py-2.5 pr-4 text-right font-semibold text-ink">
-                    {use.cost} credits
+                    {plural(use.cost, "credit", "credits")}
                   </td>
                   {PLANS.map((plan) => (
                     <td
@@ -313,7 +328,7 @@ export function BillingPlans({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroller>
         <p className="mt-3 max-w-[65ch] text-sm text-ink-2">
           Each calendar month your plan tops your balance up to its monthly amount; credits you earn
           above that are kept. Need a few more?{" "}

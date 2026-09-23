@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-23T21:00:00Z",
+  "generatedAt": "2026-09-23T22:06:17Z",
   "title": "Design System: Album Conceptualizer",
   "extensions": {
     "colorMeta": {
@@ -296,11 +296,11 @@
     "typographyMeta": {
       "display-xl": {
         "displayName": "Display XL",
-        "purpose": "Landing headline and the album title on a public share page; fluid, expanded cut."
+        "purpose": "Landing headline and the album title on a public share page; fluid, expanded cut, held under 11% of a narrow container (cqi) with a 2rem floor that scales with text size."
       },
       "display-release": {
         "displayName": "Release title",
-        "purpose": "Album title in the release header on every album screen (`text-display-release`): fluid from 2.25rem on a phone to 3.75rem on a wide screen, max 24ch."
+        "purpose": "Album title in the release header on every album screen (`text-display-release`): fluid from 2.25rem on a phone to 3.75rem on a wide screen, max 18.75em (24ch of the display cut, in em so it holds before Archivo loads)."
       },
       "display-lg": {
         "displayName": "Display L",
@@ -340,7 +340,7 @@
       },
       "catalog": {
         "displayName": "Catalog",
-        "purpose": "Condensed caps under a title, table column heads, figure labels, the wordmark. Uppercase. Never above a heading."
+        "purpose": "Condensed caps under a title, table column heads, figure labels, the wordmark (capped at 11cqi in the sidebar and sheet so it wraps between its words). Uppercase. Never above a heading."
       },
       "figure-track": {
         "displayName": "Track figure",
@@ -431,11 +431,23 @@
     "layoutMeta": {
       "scrollPadding": {
         "value": "calc(var(--sticky-offset, var(--header-h)) + 1rem)",
-        "purpose": "Anchors and focused fields land clear of everything sticky; the Studio sets --sticky-offset (header plus save bar) while mounted."
+        "purpose": "The only sticky offset: anchors and focused fields land clear of everything sticky; the Studio sets --sticky-offset (header plus save bar) while mounted. No element adds a scroll-margin of its own."
       },
       "sidebar": {
         "value": "sticky, 100dvh, scrolls as one column",
         "purpose": "Nothing inside the sidebar or the mobile sheet shrinks, so navigation never collapses on short screens or at 200% text."
+      },
+      "sidebarWidth": {
+        "value": "--sidebar-w: 0px; from 48rem min(16rem, 33vw)",
+        "purpose": "The sidebar's rendered width (`w-sidebar`), and the left edge of anything fixed to the content column, such as the docked preview player (`md:left-sidebar`)."
+      },
+      "spineColumn": {
+        "value": "22rem from a 56rem album body, 24rem from 72rem",
+        "purpose": "Six theme marks, an 8rem title and the Lyrics and Role heads fit without the spine scrolling at normal text size."
+      },
+      "fontFallbacks": {
+        "value": "app/font-fallbacks.css: \"Archivo Local Arial\", \"Archivo Local Roboto\", \"Archivo Local DejaVu\"",
+        "purpose": "Local faces per cut (stretch 100% regular and bold, 125%, 75%) with size-adjust matching Archivo's average advance, so nothing re-wraps when Archivo swaps in."
       }
     },
     "forcedColors": [
@@ -506,7 +518,7 @@
       "name": "Chip",
       "kind": "chip",
       "refersTo": "chip",
-      "description": "A 4px outline label for a tag, theme or state; not a button.",
+      "description": "A 4px outline label for a tag, theme or state; not a button. Neutral, ok, warn and danger tones; no saffron tone.",
       "html": "<span class=\"ds-chip\">Draft</span> <span class=\"ds-chip ds-chip-ok\">Published</span> <span class=\"ds-chip ds-chip-warn\">Warning</span>",
       "css": ".ds-chip { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--line-strong); color: var(--ink-2); font-size: 0.75rem; line-height: 1rem; font-weight: 500; } .ds-chip-ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); } .ds-chip-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }"
     },
@@ -514,7 +526,7 @@
       "name": "Sidebar Navigation",
       "kind": "nav",
       "refersTo": "nav-item-active",
-      "description": "44px rows; the current row is Selected Graphite with a saffron bar and icon (a Highlight outline in forced colors). The focus ring is inset. Settings and Help sit in the account block.",
+      "description": "44px rows; the current row is Selected Graphite with a saffron bar and icon (a Highlight outline in forced colors). The focus ring is inset. The sidebar is --sidebar-w wide. The account block (name, plan, Upgrade on the free plan, Settings, Help, Sign out) is one component shared with the mobile sheet.",
       "html": "<nav class=\"ds-nav\" aria-label=\"Main\"><a class=\"ds-nav-item\" href=\"#\" aria-current=\"page\"><span class=\"ds-nav-bar\" aria-hidden=\"true\"></span><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg><span>Albums</span></a><a class=\"ds-nav-item\" href=\"#\"><span class=\"ds-nav-bar\" aria-hidden=\"true\"></span><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><span>Discover</span></a></nav>",
       "css": ".ds-nav { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-direction: column; gap: 2px; width: 16rem; } .ds-nav-item { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 4px; font-size: 0.875rem; color: var(--ink-2); text-decoration: none; transition: background-color 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-nav-item svg { color: var(--ink-3); flex: none; } .ds-nav-item:hover { background: var(--hover); color: var(--ink); } .ds-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-nav-bar { position: absolute; top: 8px; bottom: 8px; left: 0; width: 2px; border-radius: 9999px; background: transparent; } .ds-nav-item[aria-current=page] { background: var(--selected); color: var(--ink); font-weight: 600; } .ds-nav-item[aria-current=page] svg { color: var(--accent); } .ds-nav-item[aria-current=page] .ds-nav-bar { background: var(--accent); }"
     },
@@ -538,9 +550,9 @@
       "name": "The Spine",
       "kind": "custom",
       "refersTo": "spine-row",
-      "description": "The album sequence as a track sheet: number, title (never under 8rem), lyrics written, the album themes as marks under short horizontal keys with a legend, role in the arc. Auto table layout that scrolls sideways in its own region at 200% text; one spoken phrase per row for the themes.",
+      "description": "The album sequence as a track sheet: number, title (never under 8rem), lyrics written, the album themes as marks under their full names where the container has room (36rem for up to three themes, 48rem for six) or under short keys with a legend where not, role in the arc. Auto table layout in a TableScroller that scrolls sideways at 200% text; one spoken phrase per row for the themes.",
       "html": "<div class=\"ds-spine-wrap\"><table class=\"ds-spine\"><caption class=\"ds-sr\">Tracks in sequence</caption><thead><tr><th scope=\"col\" class=\"ds-n\"><span aria-hidden=\"true\">#</span><span class=\"ds-sr\">Track number</span></th><th scope=\"col\">Title</th><th scope=\"col\" class=\"ds-c\">Lyrics</th><th scope=\"col\" class=\"ds-c\"><span class=\"ds-sr\">Album themes</span><span class=\"ds-keys\" aria-hidden=\"true\"><abbr title=\"Isolation\">I</abbr><abbr title=\"Memory\">M</abbr></span></th><th scope=\"col\" class=\"ds-c\">Role</th></tr></thead><tbody><tr><td class=\"ds-num\">01</td><td><a href=\"#\">Call Sign</a></td><td class=\"ds-c ds-fig\"><span aria-hidden=\"true\">2/2</span><span class=\"ds-sr\">Lyrics: 2 of 2 sections written</span></td><td class=\"ds-c\"><span class=\"ds-keys\" aria-hidden=\"true\"><span><span class=\"ds-on\"></span></span><span><span class=\"ds-off\"></span></span></span><span class=\"ds-sr\">Carries Isolation</span></td><td class=\"ds-c\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg><span class=\"ds-sr\">Role: Opening</span></td></tr><tr><td class=\"ds-num\">02</td><td><a href=\"#\">Empty Frequencies</a></td><td class=\"ds-c ds-fig\"><span aria-hidden=\"true\">½</span><span class=\"ds-sr\">Lyrics: 1 of 2 sections written</span></td><td class=\"ds-c\"><span class=\"ds-keys\" aria-hidden=\"true\"><span><span class=\"ds-on\"></span></span><span><span class=\"ds-on\"></span></span></span><span class=\"ds-sr\">Carries Isolation and Memory</span></td><td class=\"ds-c\"><span class=\"ds-off\" aria-hidden=\"true\"></span><span class=\"ds-sr\">No role yet</span></td></tr></tbody></table></div><p class=\"ds-legend\" aria-hidden=\"true\"><span><b>I</b> Isolation</span> <span><b>M</b> Memory</span></p>",
-      "css": ".ds-spine-wrap { overflow-x: auto; min-width: 0; } .ds-spine { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; width: 100%; border-collapse: collapse; font-size: 0.875rem; color: var(--ink); } .ds-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .ds-spine th { padding: 0 4px 8px 0; text-align: left; vertical-align: bottom; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--line); } .ds-spine th.ds-n { width: 1.5rem; } .ds-spine th.ds-c { text-align: center; } .ds-keys { display: flex; justify-content: center; } .ds-keys > * { display: grid; place-items: center; width: 1.125rem; flex-shrink: 0; text-decoration: none; } .ds-spine tbody tr { position: relative; border-bottom: 1px solid var(--line); transition: background-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-spine tbody tr:hover, .ds-spine tbody tr:focus-within { background: var(--hover); } .ds-spine td { height: 44px; padding: 6px 4px 6px 0; vertical-align: middle; } .ds-spine .ds-c { text-align: center; color: var(--ink-2); } .ds-num, .ds-fig { font-variant-numeric: tabular-nums; } .ds-num { font-weight: 600; color: var(--ink-3); } .ds-spine a { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-width: 8rem; overflow-wrap: break-word; color: var(--ink); text-decoration: none; } .ds-spine a::after { content: ''; position: absolute; inset: 0; } .ds-spine a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-on { display: block; margin: 0 auto; width: 10px; height: 10px; border-radius: 4px; background: var(--ink); } .ds-off { display: block; margin: 0 auto; width: 4px; height: 4px; border-radius: 9999px; background: var(--line-strong); } @media (forced-colors: active) { .ds-on { background: CanvasText; } .ds-off { background: GrayText; } } .ds-legend { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; line-height: 1.625; color: var(--ink-3); } .ds-legend b { font-stretch: 75%; letter-spacing: 0.06em; font-weight: 600; color: var(--ink-2); }"
+      "css": ".ds-spine-wrap { position: relative; overflow-x: auto; min-width: 0; } .ds-spine { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; width: 100%; border-collapse: collapse; font-size: 0.875rem; color: var(--ink); } .ds-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .ds-spine th { padding: 0 4px 8px 0; text-align: left; vertical-align: bottom; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--line); } .ds-spine th.ds-n { width: 1.5rem; } .ds-spine th.ds-c { text-align: center; } .ds-keys { display: flex; justify-content: center; } .ds-keys > * { display: grid; place-items: center; width: 1.125rem; flex-shrink: 0; text-decoration: none; } .ds-spine tbody tr { position: relative; border-bottom: 1px solid var(--line); transition: background-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-spine tbody tr:hover, .ds-spine tbody tr:focus-within { background: var(--hover); } .ds-spine td { height: 44px; padding: 6px 4px 6px 0; vertical-align: middle; } .ds-spine .ds-c { text-align: center; color: var(--ink-2); } .ds-num, .ds-fig { font-variant-numeric: tabular-nums; } .ds-num { font-weight: 600; color: var(--ink-3); } .ds-spine a { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-width: 8rem; overflow-wrap: break-word; color: var(--ink); text-decoration: none; } .ds-spine a::after { content: ''; position: absolute; inset: 0; } .ds-spine a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-on { display: block; margin: 0 auto; width: 10px; height: 10px; border-radius: 4px; background: var(--ink); } .ds-off { display: block; margin: 0 auto; width: 4px; height: 4px; border-radius: 9999px; background: var(--line-strong); } @media (forced-colors: active) { .ds-on { background: CanvasText; } .ds-off { background: GrayText; } } .ds-legend { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; line-height: 1.625; color: var(--ink-3); } .ds-legend b { font-stretch: 75%; letter-spacing: 0.06em; font-weight: 600; color: var(--ink-2); }"
     },
     {
       "name": "Confirm Spend",
@@ -549,6 +561,14 @@
       "description": "Every credit spend asks once: the priced trigger swaps in place for one line naming the cost and the balance after, a primary confirm and Cancel. Escape cancels; focus returns to the trigger.",
       "html": "<div class=\"ds-confirm\" role=\"group\" aria-labelledby=\"ds-confirm-q\"><p id=\"ds-confirm-q\">Remix for 5 credits? You'll have 40 left.</p><button class=\"ds-btn ds-btn-primary\">Remix</button><button class=\"ds-btn ds-btn-ghost\">Cancel</button></div>",
       "css": ".ds-confirm { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .ds-confirm p { margin: 0; font-size: 0.875rem; color: var(--ink); } .ds-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border-radius: 4px; font-size: 0.875rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-primary { background: var(--accent); color: var(--accent-ink); } .ds-btn-primary:hover { background: var(--accent-hover); } .ds-btn-ghost { background: transparent; color: var(--ink-2); } .ds-btn-ghost:hover { background: var(--hover); color: var(--ink); }"
+    },
+    {
+      "name": "Table Scroller",
+      "kind": "custom",
+      "refersTo": "table-scroller",
+      "description": "The one wrapper for a table that may be wider than its column: a labelled, focusable region that scrolls sideways inside itself. Positioned (relative) so screen-reader-only text in the table stays inside it instead of widening the page.",
+      "html": "<div class=\"ds-table-scroller\" role=\"region\" aria-label=\"Tracks in sequence\" tabindex=\"0\"><table class=\"ds-table\"><thead><tr><th scope=\"col\">#</th><th scope=\"col\">Title</th><th scope=\"col\">Lyrics</th></tr></thead><tbody><tr><td>01</td><td>Call Sign</td><td>2/2</td></tr></tbody></table></div>",
+      "css": ".ds-table-scroller { position: relative; min-width: 0; overflow-x: auto; } .ds-table-scroller:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-table { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; width: 100%; border-collapse: collapse; font-size: 0.875rem; color: var(--ink); } .ds-table th { text-align: left; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); padding: 0 8px 8px 0; border-bottom: 1px solid var(--line); } .ds-table td { padding: 12px 8px 12px 0; border-bottom: 1px solid var(--line); }"
     }
   ],
   "narrative": {
@@ -565,7 +585,7 @@
     "rules": [
       {
         "name": "The One Signal Rule",
-        "body": "Saffron marks the primary action, the current location and focus, and nothing else: not headings, not the wordmark, not hovers, not links, not checkboxes, not decoration, never in a gradient. A screen has at most one saffron button.",
+        "body": "Saffron marks the primary action, the current location and focus, and nothing else: not headings, not the wordmark, not hovers, not links, not checkboxes, not chips, not sliders or meters (the player's seek position included), not decoration, never in a gradient. A screen has at most one saffron button. `Chip` has no saffron tone, so a chip can't borrow the signal.",
         "section": "colors"
       },
       {
@@ -624,6 +644,11 @@
         "section": "layout"
       },
       {
+        "name": "The Table Scroller Rule",
+        "body": "Every table that may scroll sideways sits in `TableScroller` (`<TableScroller label=\"…\">`, components/ui.tsx): `relative min-w-0 overflow-x-auto`, a labelled region that takes focus so the keyboard can scroll it. The `relative` is the point: screen-reader-only text inside the table is absolutely positioned, and without a positioned ancestor it escapes the scroller and widens the page.",
+        "section": "layout"
+      },
+      {
         "name": "The Flat Field Rule",
         "body": "No box-shadow, glow, blur or gradient fill. If something needs to stand apart, give it a tonal step or a rule.",
         "section": "elevation"
@@ -667,6 +692,36 @@
         "name": "The One Next Step Rule",
         "body": "The release header's next step is the album screen's saffron primary, unless the screen's own content shows a primary action (Export's download, a Sound form, an open confirm); then it steps back to secondary, so every album screen has exactly one saffron button. `AlbumNextAction` applies the rule by watching the content column for a primary; screens don't opt in or out.",
         "section": "components"
+      },
+      {
+        "name": "The One Primary Per State Rule",
+        "body": "Every state of a screen has at most one saffron button, and a screen that moves the work forward has exactly one: including first arrival on a new album (`?welcome=1`, where the welcome banner carries it), any state in which the header's next step steps back, an open confirm, and empty states. Reference screens (Help, Settings) may have none.",
+        "section": "components"
+      },
+      {
+        "name": "The Review Before Write Rule",
+        "body": "Nothing writes on the artist's behalf without review or undo. An action that changes the album's content in bulk (tagging from lyrics, AI output, imports) either shows proposals the artist accepts, as dashed suggestion marks with Accept all and per-item accept, or applies at once with an Undo that stays at least 10 seconds and names what changed (\"Added 3 tags on tracks 04, 05, 07 · Undo\").",
+        "section": "components"
+      },
+      {
+        "name": "The Status In Place Rule",
+        "body": "When an action changes something shown elsewhere on the screen (the release header's catalog line, the spine, a meter), that place updates without a reload: the client refreshes the route (`router.refresh()`) once the change has saved.",
+        "section": "components"
+      },
+      {
+        "name": "The Say What Changed Rule",
+        "body": "A confirmation names the specific change (\"Added tide to 04\", \"Published to Discover.\"), never a bare \"Done\", and any clamping or normalising of input is said out loud (\"Tempo is capped at 300\").",
+        "section": "components"
+      },
+      {
+        "name": "The Checked Where Typed Rule",
+        "body": "Musical input (chords, key, tempo) is checked as it is typed: the offending token is named inline in Coral, beside the field, and invalid input never counts as written (`@/lib/chords` `parseProgression`, `invalidChords`).",
+        "section": "components"
+      },
+      {
+        "name": "The One Term for AI Rule",
+        "body": "The AI action and its cost have one name everywhere: \"AI draft\" (\"AI draft · 5 credits\", \"New AI draft\", \"AI drafts\" in plural). Never \"AI run\", \"agent workflow\" or \"brainstorm\" as the name of the spend; the ideation feature may say it brainstorms ideas, but its cost line says \"AI draft\". Likewise lyrics are \"written\", never \"started\" (\"Lyrics written 3/8\").",
+        "section": "components"
       }
     ],
     "dos": [
@@ -677,8 +732,9 @@
       "Do mark the current location with saffron plus a second cue (weight, underline, bar, `aria-current`).",
       "Do keep every interactive element at least 44 by 44px and let the global saffron focus ring show (2px, offset 2px).",
       "Do use a transparency mask, not a color, when an overflowing strip needs an edge fade.",
-      "Do say what spends credits on the button itself, confirm it once with Confirm Spend, and disable priced AI actions with a plain reason when AI can't run.",
-      "Do give a mark that relies on a wash or saffron a forced-colors equivalent (Highlight, CanvasText, a border)."
+      "Do say what spends credits on the button itself, confirm it once with Confirm Spend, and disable priced AI actions with a plain reason when AI can't run (the disabled button drops its price).",
+      "Do give a mark that relies on a wash or saffron a forced-colors equivalent (Highlight, CanvasText, a border).",
+      "Do put every table that may scroll sideways in `TableScroller`, and line anything fixed to the content column up with `--sidebar-w`."
     ],
     "donts": [
       "Don't use saffron for headings, the wordmark, links, hovers, badges, checkboxes, meters or decoration, and never more than one saffron button on a screen.",
@@ -689,7 +745,8 @@
       "Don't introduce hex or rgba literals or a second typeface; use the tokens and the Archivo width axis.",
       "Don't set any text below 12px or run body copy wider than 65ch.",
       "Don't add per-element focus rings or remove outlines; insetting the global ring inside a scroller is the only adjustment.",
-      "Don't use `table-fixed` with rem columns, rotate column heads, or read a matrix out one cell at a time."
+      "Don't use `table-fixed` with rem columns, rotate column heads, or read a matrix out one cell at a time.",
+      "Don't add a `scroll-margin` for the sticky header: `html`'s scroll padding already clears it, and a second offset doubles it."
     ]
   }
 }

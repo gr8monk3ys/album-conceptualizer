@@ -25,10 +25,14 @@ export function clampIndex(value: number, length: number) {
   return Math.min(length - 1, Math.max(0, value));
 }
 
+/**
+ * Every token the artist typed, in order (spaces, commas or bars separate them, as in
+ * `parseProgression` from lib/chords). Tokens the exports can't read are kept, not dropped:
+ * the field flags them and written harmony doesn't count them.
+ */
 export function parseChordProgression(raw: string): string[] {
   return raw
-    .split(/[\n,]+/g)
-    .flatMap((chunk) => chunk.split(/\s+/g))
+    .split(/[\s,|]+/g)
     .map((token) => token.trim())
     .filter(Boolean);
 }
@@ -98,6 +102,28 @@ export const KEY_OPTIONS = [
   ...MAJOR_KEYS.map((k) => `${k} major`),
   ...MINOR_KEYS.map((k) => `${k} minor`),
 ];
+
+// "C", "Am", "a min", "E♭ Major" → "C major", "A minor", "A minor", "Eb major".
+const KEY_SHORTHAND = /^([A-G])\s*([#♯b♭]?)\s*(major|maj|minor|min|m)?$/i;
+
+/**
+ * One spelling for a key, the one the Key select offers ("C major", "A minor"). The setup and
+ * older albums write shorthand ("C", "Am"); read as-is, the select would show a stray option
+ * and the catalog line would disagree with it. Values that aren't a plain major or minor key
+ * ("D dorian") are kept as written.
+ */
+export function normalizeKey(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (!raw) return null;
+  const match = KEY_SHORTHAND.exec(raw);
+  if (!match) return raw;
+  const [, letter = "", accidental = "", quality = ""] = match;
+  const sign = accidental === "♯" ? "#" : accidental === "♭" || accidental === "B" ? "b" : accidental;
+  // "M" alone is the major shorthand; "m", "min" and "minor" (any case) are minor.
+  const minor = quality !== "M" && (quality.toLowerCase() === "m" || quality.toLowerCase().startsWith("min"));
+  return `${letter.toUpperCase()}${sign} ${minor ? "minor" : "major"}`;
+}
 
 export const TEMPO_MIN = 20;
 export const TEMPO_MAX = 300;
@@ -283,6 +309,7 @@ export function parseInitialAlbum(initialAlbum: unknown): { album: StudioAlbum; 
       return {
         ...song,
         id: songId,
+        key: normalizeKey(song?.key),
         track_number: typeof song?.track_number === "number" ? song.track_number : songIndex + 1,
         themes: list(song?.themes),
         motifs: list(song?.motifs),
@@ -319,6 +346,31 @@ export function albumProblem(album: StudioAlbum): string | null {
   const untitled = album.songs.find((song) => !song.title?.trim());
   if (untitled) return `Give track ${untitled.track_number} a title before saving.`;
   return null;
+}
+
+// ---------------------------------------------------------------- save status
+
+export type SaveMode = "auto" | "manual" | "version";
+
+/**
+ * What the save bar says, split in two: `live` goes in the one status region and changes
+ * only for events (a save the artist asked for, its result, a failure); `quiet` is shown
+ * beside it and never announced: autosave's "Saving…", "Unsaved changes", and the ticking
+ * "Saved · 3 minutes ago". At most one of them holds text.
+ */
+export function saveStatusParts(state: {
+  saving: boolean;
+  mode: SaveMode;
+  error: string | null;
+  flash: string | null;
+  dirty: boolean;
+  lastSavedAt: string | null;
+}): { live: string; quiet: "saving" | "unsaved" | "saved-at" | "no-changes" | null } {
+  if (state.saving) return state.mode === "auto" ? { live: "", quiet: "saving" } : { live: "Saving…", quiet: null };
+  if (state.error) return { live: `Couldn't save — ${state.error}`, quiet: null };
+  if (state.flash) return { live: state.flash, quiet: null };
+  if (state.dirty) return { live: "", quiet: "unsaved" };
+  return { live: "", quiet: state.lastSavedAt ? "saved-at" : "no-changes" };
 }
 
 // ---------------------------------------------------------------- errors

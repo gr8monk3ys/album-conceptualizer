@@ -68,8 +68,8 @@ The Workspace's balance for metered actions (creating, remixing, exporting, runn
 _Avoid_: tokens, points
 
 **Agent workflow**:
-An AI job run by the Engine for an Album: ideation, song development or coherence review.
-_Avoid_: crew (that's the implementation), AI task
+An AI job run by the Engine for an Album: ideation, song development or coherence review. The artist sees each one as an **AI draft**, and that is the only name the UI uses for it and its cost ("AI draft · 5 credits").
+_Avoid_: crew (that's the implementation), AI task; in the UI, "AI run", "agent workflow"
 
 **Engine**:
 The Python service that runs Agent workflows and exports. It is stateless toward the web app: it receives Album snapshots and keeps no copy.

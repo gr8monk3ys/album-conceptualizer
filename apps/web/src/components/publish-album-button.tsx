@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Globe2, Lock } from "lucide-react";
 
@@ -26,6 +27,7 @@ export function PublishAlbumButton({
   initialPublic: boolean;
   readiness?: AlbumReadiness;
 }) {
+  const router = useRouter();
   const [publicOverride, setPublicOverride] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -64,6 +66,9 @@ export function PublishAlbumButton({
         tone: "ok",
         text: payload?.isPublic ? "Published to Discover." : "Taken off Discover. The album is private again.",
       });
+      // The release header's catalog line reads the status ("Draft" / "Published · On
+      // Discover"); re-render the server layout so it changes here, not on the next reload.
+      router.refresh();
     } catch (err) {
       setStatus({
         tone: "danger",

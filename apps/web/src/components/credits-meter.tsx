@@ -29,7 +29,7 @@ export function CreditsMeter({ credits }: { credits?: { remaining: number; total
       </div>
       <p className="mt-2 max-w-[65ch] text-xs leading-relaxed text-ink-3">
         Creating an album costs {CREDIT_COSTS.albumCreate}, a remix {CREDIT_COSTS.albumFork}, an export{" "}
-        {CREDIT_COSTS.exportZip} and an AI run {CREDIT_COSTS.agentRun}. Your balance refills monthly.
+        {CREDIT_COSTS.exportZip} and an AI draft {CREDIT_COSTS.agentRun}. Your balance refills monthly.
       </p>
       <Link
         href="/app/challenges"

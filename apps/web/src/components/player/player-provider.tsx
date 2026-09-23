@@ -5,9 +5,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type * as ToneModule from "tone";
 import type { Player as SoundfontPlayer } from "soundfont-player";
 
-type PlayerStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
+import {
+  PreviewError,
+  instrumentSwitchMessage,
+  type PreviewFailure,
+  type PreviewInstrument,
+} from "@/components/player/preview-errors";
 
-export type PreviewInstrument = "piano" | "epiano" | "strings" | "pad";
+export { PREVIEW_FAILED_MESSAGE, INSTRUMENT_LABELS, previewErrorMessage } from "@/components/player/preview-errors";
+export type { PreviewInstrument } from "@/components/player/preview-errors";
+
+type PlayerStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
 type NowPlaying = {
   kind: "midi";
@@ -19,6 +27,8 @@ type LoadMidiInput = {
   midi: ArrayBuffer;
   title: string;
   subtitle?: string;
+  /** The control that started the preview; focus returns to it when the player is closed. */
+  returnFocusId?: string;
 };
 
 type PlayerApi = {
@@ -31,7 +41,10 @@ type PlayerApi = {
   instrument: PreviewInstrument;
   instrumentLoading: boolean;
   error: string | null;
+  /** A problem that didn't stop the preview (an instrument that didn't load), in plain words. */
+  notice: string | null;
   arm: () => Promise<void>;
+  /** Loads a preview. Rejects with a PreviewError (its message names the cause) when it can't. */
   loadMidi: (input: LoadMidiInput) => Promise<void>;
   play: () => Promise<void>;
   pause: () => void;
@@ -41,15 +54,12 @@ type PlayerApi = {
   toggleLoop: () => void;
   setInstrument: (instrument: PreviewInstrument) => Promise<void>;
   getWaveform: () => Uint8Array | null;
-  /** Load the last preview again (after a failure) and start it. */
-  retry: () => Promise<void>;
+  /** Stops playback and unloads the preview (the docked player goes away). Returns the id of the control that started it. */
+  close: () => string | null;
 };
 
 /** The stable part of the player: what a screen needs to start a preview. */
 export type PlayerControls = Pick<PlayerApi, "arm" | "loadMidi" | "play">;
-
-/** Shown when a preview cannot be loaded or rendered. Plain words, never a raw error. */
-export const PREVIEW_FAILED_MESSAGE = "Couldn't render this preview.";
 
 const PlayerContext = createContext<PlayerApi | null>(null);
 const PlayerControlsContext = createContext<PlayerControls | null>(null);
@@ -83,6 +93,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const [instrument, setInstrumentState] = useState<PreviewInstrument>("piano");
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const masterGainRef = useRef<GainNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -265,12 +276,22 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
   const setInstrument = useCallback(
     async (next: PreviewInstrument) => {
+      const previous = instrument;
       setInstrumentState(next);
-      if (currentMidiNotesRef.current.length) {
+      setNotice(null);
+      if (!currentMidiNotesRef.current.length) return;
+      try {
         await ensureInstrumentLoaded(next, currentMidiNotesRef.current);
+      } catch (err) {
+        // The preview keeps the instrument it already has; say so instead of failing it.
+        console.warn("preview_instrument_failed", err);
+        setInstrumentState(previous);
+        const kept = instrumentsRef.current.get(previous);
+        if (kept) activeInstrumentRef.current = kept;
+        setNotice(instrumentSwitchMessage(next, previous));
       }
     },
-    [ensureInstrumentLoaded],
+    [ensureInstrumentLoaded, instrument],
   );
 
   const loadMidi = useCallback(
@@ -278,10 +299,17 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       lastInputRef.current = input;
       setStatus("loading");
       setError(null);
+      setNotice(null);
       setNowPlaying({ kind: "midi", title: input.title, subtitle: input.subtitle });
       setDuration(0);
       setPosition(0);
+      // Whatever was playing stops now, so a load that fails never leaves sound running
+      // without a player to stop it.
+      toneRef.current?.Transport.stop();
+      stopAllSound();
 
+      // Each step names its own cause, so the artist hears what failed and what to do.
+      let step: PreviewFailure = "audio";
       try {
         const [tone, { Midi }] = await Promise.all([ensureAudioGraph(), import("@tonejs/midi")]);
 
@@ -294,6 +322,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
           partRef.current = null;
         }
 
+        step = "file";
         const parsed = new Midi(input.midi);
         const bpm = parsed.header.tempos[0]?.bpm ?? 120;
         tone.Transport.bpm.value = bpm;
@@ -328,7 +357,9 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
         setDuration(totalDuration);
         durationRef.current = totalDuration;
 
+        step = "instrument";
         await ensureInstrumentLoaded(instrument, uniqueNotes);
+        step = "audio";
 
         const part = new tone.Part((time, value) => {
           const instrumentPlayer = activeInstrumentRef.current;
@@ -347,10 +378,13 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
         setStatus("ready");
       } catch (err) {
-        // Keep the technical reason for debugging; the artist sees a plain message and Retry.
+        // Keep the technical reason for debugging; the artist sees the cause and Retry, where
+        // they asked for the preview (the docked player doesn't open for a failed one).
         console.warn("preview_load_failed", err);
-        setError(PREVIEW_FAILED_MESSAGE);
+        const failure = new PreviewError(step, instrument);
+        setError(failure.message);
         setStatus("error");
+        throw failure;
       }
     },
     [ensureAudioGraph, ensureInstrumentLoaded, instrument],
@@ -373,13 +407,21 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
     setStatus("playing");
   }, [arm, ensureTone, instrumentLoading]);
 
-  const retry = useCallback(async () => {
-    const input = lastInputRef.current;
-    if (!input) return;
-    await arm().catch(() => null);
-    await loadMidi(input);
-    if (partRef.current) await play().catch(() => null);
-  }, [arm, loadMidi, play]);
+  const close = useCallback(() => {
+    stopInternal();
+    partRef.current?.dispose();
+    partRef.current = null;
+    currentMidiNotesRef.current = [];
+    durationRef.current = 0;
+    setDuration(0);
+    setStatus("idle");
+    setNowPlaying(null);
+    setError(null);
+    setNotice(null);
+    const returnFocusId = lastInputRef.current?.returnFocusId ?? null;
+    lastInputRef.current = null;
+    return returnFocusId;
+  }, [stopInternal]);
 
   const toggleLoop = useCallback(() => {
     setLoop((prev) => !prev);
@@ -447,6 +489,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       instrument,
       instrumentLoading,
       error,
+      notice,
       arm,
       loadMidi,
       play,
@@ -457,10 +500,11 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       toggleLoop,
       setInstrument,
       getWaveform,
-      retry,
+      close,
     }),
     [
       arm,
+      close,
       duration,
       error,
       getWaveform,
@@ -469,10 +513,10 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       loadMidi,
       loop,
       nowPlaying,
+      notice,
       pause,
       play,
       position,
-      retry,
       seek,
       setInstrument,
       setVolume,

@@ -8,7 +8,7 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "New Album",
+  title: "New album",
   description: "Plan a new concept album: the idea, its direction and a first tracklist.",
 };
 

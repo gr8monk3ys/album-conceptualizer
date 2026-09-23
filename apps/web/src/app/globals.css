@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./font-fallbacks.css";
 
 /*
  * Label identity program: a warm graphite field, bone-white type and a single signal color
@@ -33,6 +34,17 @@
 
   /* Height of the sticky app header. Sticky offsets and scroll padding both read it. */
   --header-h: 4.3125rem;
+
+  /* The sidebar's rendered width: none below 768px (it is a sheet there), 16rem capped at a
+     third of the window from 768px. The sidebar is set from it, and anything fixed that must
+     start where the content column starts (the docked preview player) reads it too. */
+  --sidebar-w: 0px;
+}
+
+@media (width >= 48rem) {
+  :root {
+    --sidebar-w: min(16rem, 33vw);
+  }
 }
 
 @theme inline {
@@ -59,6 +71,8 @@
 
   /* Height of the sticky app header, so anything sticky below it lines up. */
   --spacing-header: var(--header-h);
+  /* The sidebar's width (`w-sidebar`, `md:left-sidebar`); 0 below 768px. */
+  --spacing-sidebar: var(--sidebar-w);
 
   /*
    * Display sizes for the expanded cut. Fluid, so a long title in the widest cut never
@@ -68,15 +82,22 @@
   --text-display-md--line-height: 1.02;
   --text-display-lg: clamp(1.625rem, 0.9rem + 4.4vw, 3rem);
   --text-display-lg--line-height: 1.02;
-  --text-display-xl: clamp(2rem, 1.1rem + 3.9vw, 3.5rem);
+  /* The landing headline and a shared album's title. Inside a narrow container (the landing's
+     5:7 hero column) it also stays under 11% of the container, so a phrase like "concept
+     album" keeps to one line; the 2rem floor still grows with the reader's text size. */
+  --text-display-xl: clamp(2rem, min(1.1rem + 3.9vw, 11cqi), 3.5rem);
   --text-display-xl--line-height: 1.02;
   /* The album title in the release header on every album screen: 2.25rem on a phone,
      growing to 3.75rem on a wide screen. */
   --text-display-release: clamp(2.25rem, 1.35rem + 2.6vw, 3.75rem);
   --text-display-release--line-height: 1.02;
 
-  /* Archivo is self-hosted by next/font (app/layout.tsx); latin-ext loads only when needed. */
-  --font-sans: var(--font-archivo-ext), var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  /* Archivo is self-hosted by next/font (app/layout.tsx); latin-ext loads only when needed.
+     Until it arrives, text is set in a local face sized to the same cut (font-fallbacks.css),
+     so nothing moves when it swaps in. */
+  --font-sans:
+    var(--font-archivo-ext), var(--font-archivo), "Archivo Local Arial", "Archivo Local Roboto",
+    "Archivo Local DejaVu", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 

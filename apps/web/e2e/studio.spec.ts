@@ -75,4 +75,38 @@ test.describe("Studio", () => {
     expect(download.suggestedFilename()).toMatch(/_export\.zip$/);
     expect(await download.path()).not.toBeNull();
   });
+
+  // WCAG 2.4.11: no focus stop may be hidden under the sticky header or save bar, including at
+  // 200% text on a laptop-sized screen, where the sticky layers are tallest.
+  test("keyboard focus is never hidden under the sticky layers at 200% text", async ({ page, isMobile }) => {
+    test.skip(isMobile, "Desktop geometry: the sticky save bar only sticks on tall viewports.");
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await devLogin(page);
+    await createAlbumAndOpenStudio(page, `Focus ${randomSuffix()}`);
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await page.locator("body").focus();
+
+    const hidden: string[] = [];
+    for (let stop = 0; stop < 60; stop += 1) {
+      await page.keyboard.press("Tab");
+      const problem = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        if (!el || el === document.body) return null;
+        const rect = el.getBoundingClientRect();
+        if (!rect.width || !rect.height) return null;
+        const name = `${el.tagName.toLowerCase()} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40)}"`;
+        if (rect.bottom <= 0 || rect.top >= innerHeight) return `${name} is off-screen (top ${Math.round(rect.top)})`;
+        // Sample the visible part of the control: whatever is painted there must be the control.
+        const top = Math.max(rect.top, 0);
+        const bottom = Math.min(rect.bottom, innerHeight);
+        const x = Math.min(Math.max(rect.left + rect.width / 2, 1), innerWidth - 1);
+        const y = top + (bottom - top) / 2;
+        const hit = document.elementFromPoint(x, y);
+        return hit && (hit === el || el.contains(hit) || hit.contains(el)) ? null : `${name} is covered`;
+      });
+      if (problem) hidden.push(problem);
+    }
+    expect(hidden).toEqual([]);
+  });
 });
+

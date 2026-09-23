@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Check } from "lucide-react";
 
@@ -5,22 +6,32 @@ import { CatalogItems } from "@/components/album-card";
 import { DiscoverAlbumActions } from "@/components/discover-album-actions";
 import { RelativeTime } from "@/components/relative-time";
 import { ThemeMark } from "@/components/theme-mark";
-import { ButtonLink, PageHeader, Section } from "@/components/ui";
+import { ButtonLink, Chip, PageHeader, Section } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { lyricExcerptsByTrack, writtenSummaryLine } from "@/lib/discover";
 import { getSpineRows, getSpineThemes } from "@/server/album-songs";
-import { analyzeAlbumCoherence, MIN_WRITTEN_TRACKS_FOR_SCORE } from "@/server/coherence";
+import { analyzeAlbumCoherence, MIN_WRITTEN_TRACKS_FOR_SCORE, verdictText } from "@/server/coherence";
 import { getCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { effectivePlan } from "@/server/plan";
+import { publishedAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Discover album",
-  description: "Read a published album's sequence and lyrics, then remix it into your workspace.",
-};
+
+const DESCRIPTION = "Read a published album's sequence and lyrics, then remix it into your workspace.";
+
+/** "<album title> · Discover" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  const title = await publishedAlbumTitle(albumId);
+  return { title: title ? `${title} · Discover` : "Discover", description: DESCRIPTION };
+}
 
 /** Each track's Story note (its narrative summary), keyed by track number. */
 function readStoryNotes(data: unknown): Map<number, string> {
@@ -243,12 +254,19 @@ export default async function DiscoverAlbumPage({
                 </p>
               ) : (
                 <>
-                  <p className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
-                    <span className="text-sm font-semibold text-ink">Overall</span>
-                    <span className="type-figure text-sm text-ink-2">
+                  {/* The verdict comes first: a score on a half-written album is capped, and the
+                      label ("Unfinished · 3 of 8 tracks written") says why before the number. */}
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2 border-b border-line-strong pb-2">
+                    <p className="min-w-0 text-sm font-semibold text-ink">
+                      Overall
+                      <Chip tone={coherence.verdict.tone} className="type-figure ml-2 align-middle">
+                        {verdictText(coherence.verdict)}
+                      </Chip>
+                    </p>
+                    <p className="type-figure text-sm text-ink-2">
                       <span className="text-lg font-semibold text-ink">{coherence.score}</span> / 100
-                    </span>
-                  </p>
+                    </p>
+                  </div>
                   <dl>
                     {coherence.breakdown.map((item) => (
                       <div key={item.key} className="flex items-baseline justify-between gap-3 border-b border-line py-2">
@@ -265,7 +283,7 @@ export default async function DiscoverAlbumPage({
               <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
                 {isOwn
                   ? "This is how other artists see your album on Discover. Open it in the Studio to keep writing; changes show here as you save them."
-                  : `A remix copies this album's concept, sequence, lyrics and chords into your workspace as a new private album, opened in the Studio. It costs ${CREDIT_COSTS.albumFork} credits. The original and its artist are not affected.`}
+                  : `A remix copies this album's concept, sequence, lyrics and chords into your workspace as a new private album credited to you, opened in the Studio; it keeps a note of the album it came from. It costs ${CREDIT_COSTS.albumFork} credits. The original and its artist are not affected.`}
               </p>
               <ButtonLink tone="ghost" href="/app/discover" className="mt-3 -ml-4">
                 Back to community albums

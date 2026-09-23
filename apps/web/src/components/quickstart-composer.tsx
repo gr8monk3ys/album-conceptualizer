@@ -140,7 +140,8 @@ function buildAlbumJson(input: QuickStartFormState, ids: DraftAlbumIds) {
   const now = new Date().toISOString();
   const trackNames = splitTrackNames(input.trackNamesRaw);
   const centralThemes = splitListInput(input.centralThemesRaw);
-  const referenceAlbums = splitListInput(input.referenceAlbumsRaw);
+  // One per line, like track titles: "Blonde, Frank Ocean" is one reference, not two.
+  const referenceAlbums = splitTrackNames(input.referenceAlbumsRaw);
 
   const songs = Array.from({ length: input.trackCount }, (_, index) => {
     const trackNumber = index + 1;
@@ -213,7 +214,7 @@ function getStepValidity(step: number, form: QuickStartFormState) {
     return Boolean(
       form.narrativeStructure ||
         splitListInput(form.centralThemesRaw).length > 0 ||
-        splitListInput(form.referenceAlbumsRaw).length > 0,
+        splitTrackNames(form.referenceAlbumsRaw).length > 0,
     );
   }
 
@@ -240,7 +241,10 @@ function WizardProgress({
   onStepSelect: (step: number) => void;
 }) {
   return (
-    <nav aria-label="Setup steps">
+    // Rem-sized container query: when the three names don't fit side by side (a phone at 200%
+    // text), the tabs show their step numbers; the name stays for screen readers and in the
+    // step heading below.
+    <nav aria-label="Setup steps" className="@container">
       <ol className="grid grid-cols-3 border-b border-line">
         {WIZARD_STEPS.map((item, index) => {
           const active = index === step;
@@ -261,7 +265,12 @@ function WizardProgress({
                     : "border-transparent text-ink-2 hover:text-ink disabled:text-ink-3 disabled:hover:text-ink-3",
                 )}
               >
-                <span className="max-w-full break-words text-sm font-semibold hyphens-auto">{item.title}</span>
+                <span className="text-sm font-semibold">
+                  <span aria-hidden="true" className="type-figure @[18rem]:hidden">
+                    {index + 1}
+                  </span>
+                  <span className="sr-only @[18rem]:not-sr-only">{item.title}</span>
+                </span>
                 <span className="flex items-center gap-1 text-xs text-ink-3">
                   {done ? (
                     <>
@@ -310,6 +319,7 @@ function QuickStartStepFields({
             className={inputClass}
             placeholder="e.g. The Last Summer"
             autoComplete="off"
+            aria-required="true"
             aria-invalid={titleError ? true : undefined}
             aria-describedby={titleError ? "quickstart-title-error" : undefined}
           />
@@ -339,6 +349,7 @@ function QuickStartStepFields({
             onChange={(event) => setField("conceptSummary", event.target.value)}
             className={cn(textareaClass, "min-h-32 resize-y")}
             placeholder="What is the emotional or narrative spine of this album?"
+            aria-required="true"
             aria-invalid={conceptError ? true : undefined}
             aria-describedby={conceptError ? "quickstart-concept-error" : "quickstart-concept-hint"}
           />
@@ -400,15 +411,16 @@ function QuickStartStepFields({
         </Field>
 
         <Field
-          label="Reference albums"
+          label="References"
           htmlFor="quickstart-references"
-          hint="Optional. Records this one should sit next to, one per line or separated by commas."
+          hint="Optional. Records or songs this album should sit next to, one per line. They're saved to the album's References, where you can add details."
         >
           <textarea
             id="quickstart-references"
             value={form.referenceAlbumsRaw}
             onChange={(event) => setField("referenceAlbumsRaw", event.target.value)}
             className={cn(textareaClass, "resize-y")}
+            placeholder={"e.g. Blonde, Frank Ocean\nOK Computer, Radiohead"}
             aria-describedby="quickstart-references-hint"
           />
         </Field>
@@ -734,7 +746,7 @@ export function QuickStartComposer({
   }
 
   const statusTone = status?.tone === "error" ? "danger" : status?.tone === "success" ? "ok" : "neutral";
-  const cost = CREDIT_COSTS.albumCreate;
+  const cost: number = CREDIT_COSTS.albumCreate;
 
   return (
     // Rem-sized container query, not a viewport breakpoint: with enlarged text the preview folds
@@ -791,7 +803,10 @@ export function QuickStartComposer({
           <div className="mt-6 flex flex-col gap-3 border-t border-line pt-4">
             {status ? <StatusMessage tone={statusTone}>{status.text}</StatusMessage> : null}
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* One row: Back on the left, the next step on the right. The right column takes
+                the rest of the width, so an open spend confirm wraps inside it (question, then
+                its buttons, right-aligned) instead of stacking under Back. */}
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
               {step > 0 ? (
                 <Button tone="ghost" onClick={goBack}>
                   Back
@@ -800,22 +815,24 @@ export function QuickStartComposer({
                 <span aria-hidden="true" />
               )}
 
-              {step < lastStep ? (
-                <Button tone="primary" onClick={goNext}>
-                  Continue
-                </Button>
-              ) : (
-                <ConfirmSpend
-                  cost={cost}
-                  remaining={creditsRemaining}
-                  actionLabel="Save and continue"
-                  onConfirm={saveAlbum}
-                  busy={isSaving}
-                  tone="primary"
-                >
-                  {isSaving ? "Saving…" : `Save and continue · ${cost} credits`}
-                </ConfirmSpend>
-              )}
+              <div className="flex min-w-0 justify-end text-right *:justify-end">
+                {step < lastStep ? (
+                  <Button tone="primary" onClick={goNext}>
+                    Continue
+                  </Button>
+                ) : (
+                  <ConfirmSpend
+                    cost={cost}
+                    remaining={creditsRemaining}
+                    actionLabel="Save and continue"
+                    onConfirm={saveAlbum}
+                    busy={isSaving}
+                    tone="primary"
+                  >
+                    {isSaving ? "Saving…" : `Save and continue · ${cost} ${cost === 1 ? "credit" : "credits"}`}
+                  </ConfirmSpend>
+                )}
+              </div>
             </div>
 
             {step === lastStep ? (

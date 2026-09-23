@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeAlbumCoherence,
   coherenceFixHref,
+  dimensionsWeakestFirst,
+  weakestDimension,
   formatTrackList,
   isWrittenLyrics,
   verdictText,
@@ -375,7 +377,7 @@ describe("honest signals on a half-written album", () => {
     expect(report.scoreCap).toBe(43);
     for (const item of report.breakdown) expect(item.score).toBeLessThanOrEqual(43);
     expect(breakdown(report, "lyrics").score).toBeLessThanOrEqual(43);
-    expect(breakdown(report, "lyrics").summary).toContain("Held at 43");
+    expect(breakdown(report, "lyrics").heldBecause).toBe("only 3 of 7 tracks are written");
     expect(report.score).toBeLessThanOrEqual(43);
   });
 
@@ -406,6 +408,92 @@ describe("honest signals on a half-written album", () => {
     expect(done.issues.find((issue) => issue.id === "missing_lyrics")).toBeUndefined();
     expect(done.scoreCap).toBe(100);
     expect(["Tight", "Solid", "Needs polish", "Loose"]).toContain(done.verdict.label);
+  });
+});
+
+/**
+ * The critique's case: 3 of 8 tracks written, so the cap holds every dimension at 38. The
+ * written tracks have chords of their own but no story notes, so Narrative is the weak spot.
+ */
+function cappedAlbum() {
+  return album(
+    Array.from({ length: 8 }, (_, index) =>
+      index < 3
+        ? scaffoldSong(index, {
+            verse: "Streetlights hum the same four notes",
+            verseChords: ["Am", "G", "F", "E"],
+            chorusChords: ["F", "G", "Am", "E"],
+            themes: ["distance"],
+            motifs: ["phone"],
+          })
+        : scaffoldSong(index, { themes: ["distance"], motifs: ["phone"] }),
+    ),
+    { recurring_motifs: ["phone"] },
+  );
+}
+
+describe("each dimension's own signal while the cap holds", () => {
+  const report = analyzeAlbumCoherence(cappedAlbum());
+
+  it("keeps the cap: every dimension reads 38", () => {
+    expect(report.scoreCap).toBe(38);
+    for (const item of report.breakdown) {
+      expect(item.score).toBe(38);
+      expect(item.heldBecause).toBe("only 3 of 8 tracks are written");
+    }
+  });
+
+  it("measures the uncapped value on the written tracks alone", () => {
+    expect(breakdown(report, "harmony").uncapped).toBe(100);
+    expect(breakdown(report, "harmony").signal).toBe("3 of 3 written tracks have chords of their own");
+    expect(breakdown(report, "narrative").uncapped).toBe(82);
+    expect(breakdown(report, "narrative").signal).toBe("0 of 3 written tracks have a story note");
+    expect(breakdown(report, "lyrics").signal).toBe("3 of 3 written tracks have a chorus");
+    expect(breakdown(report, "motifs").signal).toBe("1 motif comes back on a second track");
+  });
+
+  it("orders dimensions weakest first by their own value, ties in report order", () => {
+    expect(dimensionsWeakestFirst(report.breakdown).map((item) => item.key)).toEqual([
+      "narrative",
+      "sequence",
+      "motifs",
+      "lyrics",
+      "harmony",
+    ]);
+    expect(weakestDimension(report).key).toBe("narrative");
+    // The report itself keeps its fixed order; pages sort.
+    expect(report.breakdown.map((item) => item.key)).toEqual(["narrative", "lyrics", "harmony", "sequence", "motifs"]);
+  });
+
+  it("names the weak spot in the summary", () => {
+    expect(report.summary).toContain("on the written ones, Narrative is weakest");
+  });
+
+  it("measures the whole album, with no hold, once every track is written", () => {
+    const songs = (cappedAlbum().songs as Array<ReturnType<typeof scaffoldSong>>).map((song, index) =>
+      scaffoldSong(index, {
+        verse: "Words of its own",
+        verseChords: ["Am", "G", "F", "E"],
+        chorusChords: ["F", "G", "Am", "E"],
+        themes: song.themes,
+        motifs: song.motifs,
+        narrative: "Something happens.",
+      }),
+    );
+    const done = analyzeAlbumCoherence(album(songs, { recurring_motifs: ["phone"] }));
+    for (const item of done.breakdown) {
+      expect(item.heldBecause).toBeUndefined();
+      expect(item.uncapped).toBe(item.score);
+    }
+    expect(breakdown(done, "harmony").signal).toBe("8 of 8 tracks have chords of their own");
+  });
+
+  it("says a starter-loop track has no chords of its own in the whole-album signal", () => {
+    const songs = partlyWrittenAlbum(7, 7).songs as Array<Record<string, unknown>>;
+    songs[6] = scaffoldSong(6, { verse: "Words", themes: ["distance"], motifs: ["phone"], narrative: "x" });
+    const report = analyzeAlbumCoherence(album(songs, { recurring_motifs: ["phone"] }));
+    expect(breakdown(report, "harmony").signal).toBe("6 of 7 tracks have chords of their own");
+    expect(breakdown(report, "harmony").heldBecause).toBe("only 6 of 7 tracks have chords of their own");
   });
 });
 

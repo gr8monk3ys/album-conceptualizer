@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, Download, Loader2, Play, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 
-import { usePlayerControls, PREVIEW_FAILED_MESSAGE } from "@/components/player/player-provider";
+import { previewErrorMessage, usePlayerControls } from "@/components/player/player-provider";
+import { previewFailureMessage } from "@/components/player/preview-errors";
 import { RelativeTime } from "@/components/relative-time";
 import { SectionComments } from "@/components/section-comments";
 import { SongDevelopmentAi } from "@/components/song-development-ai";
@@ -15,14 +16,14 @@ import {
   AlbumDetails,
   albumFocusTarget,
 } from "@/components/studio/album-details";
+import { previewBlockedMessage } from "@/components/studio/input-checks";
 import { MoreMenu } from "@/components/studio/more-menu";
+import { ChordField, TempoField } from "@/components/studio/musical-fields";
 import { SongStoryEditor, STORY_FOCUS_TARGETS } from "@/components/studio/song-story-editor";
 import { SECTION_KEYSHORTCUTS, studioShortcut } from "@/components/studio/studio-shortcuts";
 import {
   KEY_OPTIONS,
   SECTION_TYPES,
-  TEMPO_MAX,
-  TEMPO_MIN,
   albumFrameKey,
   albumProblem,
   buildNewSection,
@@ -35,15 +36,16 @@ import {
   moveItem,
   moveTrack,
   nextToWrite,
+  normalizeKey,
   normalizeOrders,
   normalizeTrackNumbers,
-  parseChordProgression,
   parseInitialAlbum,
   readApiError,
   sectionLabels,
   sectionTypeLabel,
-  stringifyChordProgression,
+  saveStatusParts,
   toggleTheme,
+  type SaveMode,
   type StudioAlbum,
   type StudioSection,
   type StudioSong,
@@ -56,6 +58,7 @@ import {
   pad2,
 } from "@/components/studio/track-list";
 import { Button, EmptyState, Field, Section, inputClass, selectClass, textareaClass } from "@/components/ui";
+import { invalidChords } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
 import { cn } from "@/lib/utils";
 
@@ -78,22 +81,37 @@ type AlbumStudioProps = {
   albumId: string;
   initialAlbum: unknown;
   initialSelection?: SelectionInput;
-  /** From `getAgentAvailability()`: false when AI drafting can't run on this server. */
+  /** From `getAgentAvailability()`: false when AI drafts can't run on this server. */
   aiAvailable?: boolean;
-  /** The workspace's credit balance, so AI drafting can confirm "You'll have N left." */
+  /** The workspace's credit balance, so an AI draft can confirm "You'll have N left." */
   creditsRemaining?: number;
 };
-
-type SaveMode = "auto" | "manual" | "version";
 
 type UndoEntry =
   | { kind: "track"; song: StudioSong; index: number; label: string; key: number }
   | { kind: "section"; songId: string; section: StudioSection; index: number; label: string; key: number };
 
-type PreviewNote = { tone: "neutral" | "ok" | "danger"; text: string; retry?: () => void };
+/** A preview's status, shown beside the control that asked for it (the track's or the section's). */
+type PreviewNote = {
+  scope: "track" | "section";
+  tone: "neutral" | "ok" | "danger";
+  text: string;
+  retry?: () => void;
+  /** The Retry button's accessible name, unique on the page ("Retry preview", "Retry MP3"). */
+  retryLabel?: string;
+};
 
-/** Where focus goes next and how the page may move to show it. */
-type PendingFocus = { id: string; scroll: "center" | "nearest" | "none" };
+/**
+ * Where focus goes next and how the page may move to show it. "start" brings `scrollTo` (or
+ * the target) to the top of the view, under the sticky bar, e.g. the section's heading above
+ * its lyrics.
+ */
+type PendingFocus = { id: string; scroll: "center" | "nearest" | "start" | "none"; scrollTo?: string };
+
+/** The Studio's in-page targets: the editor column, and the current section's editor. */
+const EDITOR_ID = "studio-editor";
+const SECTION_EDITOR_ID = "studio-section-editor";
+const PREVIEW_CHORD_LIMIT = 128;
 
 const AUTOSAVE_DELAY_MS = 2000;
 /** Adding, deleting or moving a track saves almost at once, so the header and spine follow. */
@@ -160,37 +178,6 @@ function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** Chords are typed as free text; the parsed list is stored, the typed text is kept while editing. */
-function ChordInput({
-  id,
-  value,
-  onChange,
-  describedBy,
-}: {
-  id: string;
-  value: unknown;
-  onChange: (chords: string[]) => void;
-  describedBy?: string;
-}) {
-  const [draft, setDraft] = useState(() => stringifyChordProgression(value));
-  return (
-    <input
-      id={id}
-      value={draft}
-      onChange={(e) => {
-        setDraft(e.target.value);
-        onChange(parseChordProgression(e.target.value));
-      }}
-      onBlur={() => setDraft(stringifyChordProgression(parseChordProgression(draft)))}
-      aria-describedby={describedBy}
-      autoComplete="off"
-      spellCheck={false}
-      className={inputClass}
-      placeholder="C Am F G"
-    />
-  );
-}
-
 function Kbd({ children }: { children: string }) {
   return <kbd className="type-figure rounded-sm border border-line px-1 font-sans text-xs text-ink-2">{children}</kbd>;
 }
@@ -216,6 +203,7 @@ function useAlbumStudioRender({
   const [selection, setSelection] = useState(() => resolveSelection(initialParsed.album, initialSelection));
   const [versionMessage, setVersionMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savingMode, setSavingMode] = useState<SaveMode>("auto");
   const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(
@@ -315,8 +303,11 @@ function useAlbumStudioRender({
         const rect = el.getBoundingClientRect();
         const offScreen = rect.bottom < 0 || rect.top > window.innerHeight;
         if (pendingFocus.scroll !== "none" || offScreen) {
-          el.scrollIntoView({
-            block: pendingFocus.scroll === "center" ? "center" : "nearest",
+          const scrollEl = (pendingFocus.scrollTo && document.getElementById(pendingFocus.scrollTo)) || el;
+          // The page's scroll padding (globals.css, from --sticky-offset) keeps it clear of
+          // the header and save bar; nothing here adds its own offset.
+          scrollEl.scrollIntoView({
+            block: pendingFocus.scroll === "none" ? "nearest" : pendingFocus.scroll,
             behavior: prefersReducedMotion() ? "auto" : "smooth",
           });
         }
@@ -367,6 +358,7 @@ function useAlbumStudioRender({
 
     savingRef.current = true;
     setSaving(true);
+    setSavingMode(mode);
     setSaveError(null);
     if (mode !== "auto") setSavedFlash(null);
     try {
@@ -503,14 +495,30 @@ function useAlbumStudioRender({
     updateSections(activeSong?.id, (list) => list.map((s, i) => (i === sectionIndex ? { ...s, [key]: value } : s)));
   }
 
-  /** Selecting from the track list; in one column the editor sits below it, so bring it up. */
+  /**
+   * Selecting from the track list. In one column (a phone, enlarged text) the editor sits below
+   * the whole list, so the page brings up the track's lyrics: the current section's heading
+   * and its Lyrics draft, just under the save bar, which names the track. Focus stays on the
+   * row, so no keyboard opens on a phone.
+   */
   function openTrack(index: number) {
     selectSong(index);
     requestAnimationFrame(() => {
-      const editor = document.getElementById("studio-track");
-      if (!editor || editor.getBoundingClientRect().top < window.innerHeight * 0.75) return;
-      editor.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      const editor = document.getElementById(EDITOR_ID);
+      const list = document.getElementById("studio-tracks-title")?.closest("section");
+      if (!editor || !list) return;
+      const stacked = editor.getBoundingClientRect().top >= list.getBoundingClientRect().bottom - 1;
+      if (!stacked) return;
+      const target = document.getElementById(SECTION_EDITOR_ID) ?? document.getElementById("studio-track");
+      target?.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
     });
+  }
+
+  /** The Studio's skip link: straight to the current section's lyrics (or the track's title). */
+  function skipToLyrics() {
+    if (activeSection) setPendingFocus({ id: "section-lyrics", scroll: "start", scrollTo: SECTION_EDITOR_ID });
+    else if (activeSong) setPendingFocus({ id: "song-title", scroll: "start", scrollTo: "studio-track" });
+    else setPendingFocus({ id: EDITOR_ID, scroll: "start" });
   }
 
   function addTrack() {
@@ -621,33 +629,62 @@ function useAlbumStudioRender({
 
   const songTitle = activeSong ? activeSong.title || `Track ${activeSong.track_number}` : "";
 
-  async function previewFromChords(chords: string[], subtitle: string) {
-    const retry = () => void previewFromChords(chords, subtitle);
+  /**
+   * Renders the chords on the server and loads them into the player. Every failure is said
+   * where the preview was asked for, with its cause and Retry; the docked player only opens
+   * for a preview that loaded.
+   */
+  async function previewFromChords(chords: string[], subtitle: string, scope: PreviewNote["scope"], openerId: string) {
+    const retry = () => void previewFromChords(chords, subtitle, scope, openerId);
+    const fail = (text: string) => setPreviewNote({ scope, tone: "danger", text, retry });
+    const clipped = chords.length > PREVIEW_CHORD_LIMIT;
     setPreviewing(true);
-    setPreviewNote({ tone: "neutral", text: "Rendering preview…" });
+    setPreviewNote({ scope, tone: "neutral", text: "Rendering preview…" });
     // Best effort: unlock audio on this click so playback can start right away.
     void player.arm().catch(() => null);
     try {
-      const response = await fetch("/api/midi/preview", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ chords, tempo: clampTempo(activeSong?.tempo), barsPerChord: 1, title: songTitle }),
-      });
+      let response: Response;
+      try {
+        response = await fetch("/api/midi/preview", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            chords: chords.slice(0, PREVIEW_CHORD_LIMIT),
+            tempo: clampTempo(activeSong?.tempo),
+            barsPerChord: 1,
+            title: songTitle,
+          }),
+        });
+      } catch {
+        fail(previewFailureMessage("offline"));
+        return;
+      }
       if (!response.ok) {
-        const text = response.status === 429 ? await readApiError(response, PREVIEW_FAILED_MESSAGE) : PREVIEW_FAILED_MESSAGE;
-        setPreviewNote({ tone: "danger", text, retry });
+        fail(
+          await readApiError(
+            response,
+            "Couldn't render this preview: the server couldn't turn these chords into sound. Retry in a minute.",
+          ),
+        );
         return;
       }
       const midi = await response.arrayBuffer();
-      await player.loadMidi({ midi, title: songTitle, subtitle });
-      setPreviewNote(null);
+      try {
+        await player.loadMidi({ midi, title: songTitle, subtitle, returnFocusId: openerId });
+      } catch (err) {
+        fail(previewErrorMessage(err));
+        return;
+      }
+      setPreviewNote(
+        clipped
+          ? { scope, tone: "neutral", text: `Previewing the first ${PREVIEW_CHORD_LIMIT} chords of this track.` }
+          : null,
+      );
       try {
         await player.play();
       } catch {
-        setPreviewNote({ tone: "neutral", text: "Preview loaded. Press Play in the player to start it." });
+        setPreviewNote({ scope, tone: "neutral", text: "Preview loaded. Press Play in the player to start it." });
       }
-    } catch {
-      setPreviewNote({ tone: "danger", text: PREVIEW_FAILED_MESSAGE, retry });
     } finally {
       setPreviewing(false);
     }
@@ -655,9 +692,9 @@ function useAlbumStudioRender({
 
   async function downloadMp3(chords: string[], subtitle: string) {
     const retry = () => void downloadMp3(chords, subtitle);
-    const failed = "Couldn't render the MP3. Preview still plays in your browser.";
+    const failed = "Couldn't render the MP3: the server couldn't turn these chords into audio. Previews still play in your browser.";
     setPreviewing(true);
-    setPreviewNote({ tone: "neutral", text: "Rendering MP3…" });
+    setPreviewNote({ scope: "section", tone: "neutral", text: "Rendering MP3…" });
     try {
       const response = await fetch("/api/audio/preview/mp3", {
         method: "POST",
@@ -665,8 +702,7 @@ function useAlbumStudioRender({
         body: JSON.stringify({ chords, tempo: clampTempo(activeSong?.tempo), barsPerChord: 1, title: songTitle }),
       });
       if (!response.ok) {
-        const text = response.status === 429 ? await readApiError(response, failed) : failed;
-        setPreviewNote({ tone: "danger", text, retry });
+        setPreviewNote({ scope: "section", tone: "danger", text: await readApiError(response, failed), retry, retryLabel: "Retry MP3" });
         return;
       }
       const blob = await response.blob();
@@ -680,89 +716,113 @@ function useAlbumStudioRender({
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      setPreviewNote({ tone: "ok", text: "MP3 downloaded." });
+      setPreviewNote({ scope: "section", tone: "ok", text: "MP3 downloaded." });
     } catch {
-      setPreviewNote({ tone: "danger", text: failed, retry });
+      setPreviewNote({ scope: "section", tone: "danger", text: previewFailureMessage("offline"), retry, retryLabel: "Retry MP3" });
     } finally {
       setPreviewing(false);
     }
   }
 
+  /** Chords the exports can't read stop a preview before it starts, naming them. */
+  function blockedBy(list: StudioSection[], scope: PreviewNote["scope"]) {
+    const flagged = list.filter((section) => invalidChords(section.chord_progression).length);
+    if (!flagged.length) return false;
+    const bad = flagged.flatMap((section) => invalidChords(section.chord_progression));
+    // The whole-track preview says which sections to fix; a section's own preview needn't.
+    const where = scope === "track" ? flagged.map((section) => labels[sections.indexOf(section)] ?? "Section") : [];
+    setPreviewNote({ scope, tone: "danger", text: previewBlockedMessage(bad, where) });
+    return true;
+  }
+
   function previewSection() {
     const chords = chordsOf(activeSection);
     if (!chords.length) {
-      setPreviewNote({ tone: "neutral", text: "Add a chord progression to preview this section." });
+      setPreviewNote({ scope: "section", tone: "neutral", text: "Add a chord progression to preview this section." });
       return;
     }
-    void previewFromChords(chords, activeLabel);
+    if (activeSection && blockedBy([activeSection], "section")) return;
+    void previewFromChords(chords, activeLabel, "section", "preview-section");
   }
 
   function previewSong() {
     const chords = sections.flatMap((section) => chordsOf(section));
     if (!chords.length) {
-      setPreviewNote({ tone: "neutral", text: "Add chord progressions to the sections to preview this track." });
+      setPreviewNote({ scope: "track", tone: "neutral", text: "Add chord progressions to the sections to preview this track." });
       return;
     }
-    void previewFromChords(chords, "Whole track");
+    if (blockedBy(sections, "track")) return;
+    void previewFromChords(chords, "Whole track", "track", "preview-song");
   }
 
   function downloadSectionMp3() {
     const chords = chordsOf(activeSection);
     if (!chords.length) {
-      setPreviewNote({ tone: "neutral", text: "Add a chord progression to render an MP3." });
+      setPreviewNote({ scope: "section", tone: "neutral", text: "Add a chord progression to render an MP3." });
       return;
     }
+    if (activeSection && blockedBy([activeSection], "section")) return;
     void downloadMp3(chords, activeLabel);
   }
 
   // ------------------------------------------------------------------ render
 
   const progress = lyricProgress(sections);
-  const tempo = activeSong?.tempo ?? null;
-  const tempoOutOfRange = tempo != null && (tempo < TEMPO_MIN || tempo > TEMPO_MAX);
-  const keyValue = activeSong?.key ?? "";
+  // Shorthand keys ("C", "Am") read as the select's own spelling, so both agree.
+  const keyValue = normalizeKey(activeSong?.key) ?? "";
   const sectionType = activeSection?.section_type ?? "verse";
   const sectionTypeKnown = SECTION_TYPES.some((t) => t.value === sectionType);
   const themeColumns = Math.min(MAX_THEME_COLUMNS, (album.central_themes ?? []).filter((t) => t.trim()).length);
 
-  // One status region for saving. "Saved." shows briefly after an explicit save, then the time.
-  const saveStatus = saving ? (
-    <>
-      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-      Saving…
-    </>
-  ) : saveError ? (
-    <span className="min-w-0 break-words">Couldn&apos;t save — {saveError}</span>
-  ) : savedFlash ? (
-    <span className="text-ok">{savedFlash}</span>
-  ) : dirty ? (
-    "Unsaved changes"
-  ) : lastSavedAt ? (
-    <span>
-      Saved · <RelativeTime date={lastSavedAt} />
-    </span>
-  ) : (
-    "No changes yet"
-  );
+  // Saving has one live region, and it speaks only for events: a save the artist asked for
+  // ("Saving…", then "Saved."), and a save that failed. Autosave's quiet cycle and the ticking
+  // "Saved · 3 minutes ago" sit beside it, readable but never announced.
+  const status = saveStatusParts({ saving, mode: savingMode, error: saveError, flash: savedFlash, dirty, lastSavedAt });
+  const liveStatus = status.live;
+  const quietStatus =
+    status.quiet === "saving" ? (
+      "Saving…"
+    ) : status.quiet === "unsaved" ? (
+      "Unsaved changes"
+    ) : status.quiet === "saved-at" && lastSavedAt ? (
+      <>
+        Saved · <RelativeTime date={lastSavedAt} />
+      </>
+    ) : status.quiet === "no-changes" ? (
+      "No changes yet"
+    ) : null;
 
-  // One quiet row: the save status, Undo while it is offered, keyboard hints (only with a fine
-  // pointer and room for them) and a ghost "Save now". Autosave does the saving; the saffron on
-  // this screen belongs to the next step of the writing. On short screens (a phone on its
-  // side) the bar scrolls away with the page instead of sticking.
+  const currentTrack = activeSong ? `${pad2(activeSong.track_number)} · ${activeSong.title.trim() || "Untitled"}` : null;
+
+  // One quiet row: the current track (so a phone writer knows where they are while typing), the
+  // save status, Undo while it is offered, keyboard hints (only with a fine pointer and room for
+  // them) and a ghost "Save now". Autosave does the saving; the saffron on this screen belongs
+  // to the next step of the writing. On short screens (a phone on its side) the bar scrolls
+  // away with the page instead of sticking.
   const saveBar = (
     <div
       ref={saveBarRef}
       className="z-20 -mx-4 border-b border-line bg-ground px-4 py-0.5 md:-mx-8 md:px-8 [@media(min-height:501px)]:sticky [@media(min-height:501px)]:top-header"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-        <p
-          role="status"
-          className={cn("flex min-h-11 min-w-0 flex-1 basis-32 items-center gap-2 text-sm", saveError ? "text-danger" : "text-ink-2")}
-        >
-          {saveStatus}
-        </p>
+        <div className="flex min-h-11 min-w-0 flex-1 basis-40 flex-col justify-center">
+          {currentTrack ? (
+            <p className="type-figure truncate text-sm font-semibold text-ink" title={currentTrack}>
+              <span className="sr-only">Track </span>
+              {currentTrack}
+            </p>
+          ) : null}
+          {/* The live and the quiet status never both hold text, so no gap between them. */}
+          <p className={cn("flex min-w-0 items-center text-sm", saveError ? "text-danger" : "text-ink-2")}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 flex-none animate-spin" aria-hidden="true" /> : null}
+            <span role="status" className={cn("min-w-0 break-words", savedFlash && !saving && !saveError && "text-ok")}>
+              {liveStatus}
+            </span>
+            {quietStatus ? <span className="min-w-0 break-words">{quietStatus}</span> : null}
+          </p>
+        </div>
         {saveError && !saving ? (
-          <Button tone="secondary" onClick={() => void save("manual")}>
+          <Button tone="secondary" onClick={() => void save("manual")} aria-label="Retry save">
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Retry
           </Button>
@@ -790,6 +850,33 @@ function useAlbumStudioRender({
       </div>
     </div>
   );
+
+  /**
+   * A preview's status and Retry, beside the control that asked for it. Both scopes keep their
+   * live region mounted (empty, without height) so the first message is announced.
+   */
+  function previewStatus(scope: PreviewNote["scope"]) {
+    const note = previewNote?.scope === scope ? previewNote : null;
+    return (
+      <div className="flex flex-wrap items-center gap-x-3">
+        <p
+          role="status"
+          className={cn(
+            "min-w-0 max-w-[65ch] text-sm",
+            note?.tone === "danger" ? "text-danger" : note?.tone === "ok" ? "text-ok" : "text-ink-2",
+          )}
+        >
+          {note?.text ?? ""}
+        </p>
+        {note?.retry && !previewing ? (
+          <Button tone="secondary" className="mt-1" onClick={note.retry} aria-label={note.retryLabel ?? "Retry preview"}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Retry
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
 
   const trackList = (
     <TrackList
@@ -832,27 +919,10 @@ function useAlbumStudioRender({
               </span>
             ))}
           </p>
-          {/* The preview's own status; empty (and without height) until a preview starts. */}
-          <div className="flex flex-wrap items-center gap-x-3">
-            <p
-              role="status"
-              className={cn(
-                "min-w-0 max-w-[65ch] text-sm",
-                previewNote?.tone === "danger" ? "text-danger" : previewNote?.tone === "ok" ? "text-ok" : "text-ink-2",
-              )}
-            >
-              {previewNote?.text ?? ""}
-            </p>
-            {previewNote?.retry && !previewing ? (
-              <Button tone="secondary" className="mt-1" onClick={previewNote.retry}>
-                <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                Retry
-              </Button>
-            ) : null}
-          </div>
+          {previewStatus("track")}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button tone="secondary" onClick={previewSong} disabled={previewing}>
+          <Button id="preview-song" tone="secondary" onClick={previewSong} disabled={previewing}>
             <Play className="h-4 w-4" aria-hidden="true" />
             Preview song
           </Button>
@@ -911,6 +981,7 @@ function useAlbumStudioRender({
             className={selectClass}
           >
             <option value="">Not set</option>
+            {/* A key outside the list ("D dorian") stays selectable as written. */}
             {keyValue && !KEY_OPTIONS.includes(keyValue) ? <option value={keyValue}>{keyValue}</option> : null}
             <optgroup label="Major">
               {KEY_OPTIONS.filter((k) => k.endsWith("major")).map((k) => (
@@ -928,35 +999,14 @@ function useAlbumStudioRender({
             </optgroup>
           </select>
         </Field>
-        <Field
-          label="Tempo (bpm)"
-          htmlFor="song-tempo"
+        <TempoField
+          key={`tempo-${activeSong.id}`}
+          id="song-tempo"
           className="min-w-0"
-          error={tempoOutOfRange ? `Use ${TEMPO_MIN} to ${TEMPO_MAX} bpm.` : undefined}
-        >
-          <input
-            id="song-tempo"
-            type="number"
-            inputMode="numeric"
-            min={TEMPO_MIN}
-            max={TEMPO_MAX}
-            step={1}
-            value={tempo ?? ""}
-            onChange={(e) => {
-              const raw = e.target.value.trim();
-              if (!raw) return updateSongField("tempo", null);
-              const next = Math.round(Number(raw));
-              if (Number.isFinite(next)) updateSongField("tempo", next);
-            }}
-            onBlur={() => {
-              if (tempoOutOfRange) updateSongField("tempo", clampTempo(tempo));
-            }}
-            aria-invalid={tempoOutOfRange || undefined}
-            aria-describedby={tempoOutOfRange ? "song-tempo-error" : undefined}
-            className={cn(inputClass, "type-figure")}
-            placeholder="120"
-          />
-        </Field>
+          value={activeSong.tempo}
+          onChange={(next) => updateSongField("tempo", next)}
+          onClamped={setNavAnnouncement}
+        />
       </div>
     </section>
   ) : null;
@@ -1010,16 +1060,19 @@ function useAlbumStudioRender({
           </ol>
 
           {activeSection ? (
-            <div className="flex min-w-0 flex-col gap-4">
+            <div id={SECTION_EDITOR_ID} className="flex min-w-0 flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                  <h3 className="text-base font-semibold text-ink">{activeLabel}</h3>
-                  <p className="type-figure text-xs text-ink-3">
-                    {sectionIndex + 1} of {sections.length}
-                  </p>
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                    <h3 className="text-base font-semibold text-ink">{activeLabel}</h3>
+                    <p className="type-figure text-xs text-ink-3">
+                      {sectionIndex + 1} of {sections.length}
+                    </p>
+                  </div>
+                  {previewStatus("section")}
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
-                  <Button tone="secondary" onClick={previewSection} disabled={previewing}>
+                  <Button id="preview-section" tone="secondary" onClick={previewSection} disabled={previewing}>
                     <Play className="h-4 w-4" aria-hidden="true" />
                     Preview section
                   </Button>
@@ -1088,23 +1141,12 @@ function useAlbumStudioRender({
                     ))}
                   </select>
                 </Field>
-                <Field
-                  label="Chord progression"
-                  htmlFor="section-chords"
-                  hint={
-                    <span className="block max-w-[65ch]">
-                      Separate chords with spaces or commas. Loops of 4 to 8 chords export cleanly.
-                    </span>
-                  }
-                >
-                  <ChordInput
-                    key={activeSection.id}
-                    id="section-chords"
-                    value={activeSection.chord_progression}
-                    onChange={(chords) => updateSectionField("chord_progression", chords)}
-                    describedBy="section-chords-hint"
-                  />
-                </Field>
+                <ChordField
+                  key={activeSection.id}
+                  id="section-chords"
+                  value={activeSection.chord_progression}
+                  onChange={(chords) => updateSectionField("chord_progression", chords)}
+                />
               </div>
               {upNext ? (
                 <div>
@@ -1229,13 +1271,27 @@ function useAlbumStudioRender({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
+      {/* The first stop inside the album content: past the save bar and the whole track list,
+          straight to the current section's lyrics. Visible on focus, like the app's skip link. */}
+      {songs.length ? (
+        <a
+          href={`#${EDITOR_ID}`}
+          onClick={(event) => {
+            event.preventDefault();
+            skipToLyrics();
+          }}
+          className="sr-only z-50 rounded bg-accent text-sm font-semibold text-accent-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:inline-flex focus:min-h-11 focus:items-center focus:px-4 focus:py-3"
+        >
+          Skip to the lyrics
+        </a>
+      ) : null}
       {saveBar}
       <p className="sr-only" aria-live="polite">
         {navAnnouncement}
       </p>
       {/* The columns follow the room the Studio has (rem container queries), so enlarged text
-          folds it to one column. Fields keep clear of the sticky header and save bar when
-          focus or a deep link scrolls them into view. */}
+          folds it to one column. Fields keep clear of the sticky header and save bar through
+          the page's scroll padding alone (globals.css reads --sticky-offset, set above). */}
       <div className="@container min-w-0">
       <div
         className={cn(
@@ -1246,7 +1302,7 @@ function useAlbumStudioRender({
       >
         {trackList}
 
-        <div className="@container flex min-w-0 flex-col gap-8 **:scroll-mt-[calc(var(--sticky-offset,var(--header-h))_+_1rem)]">
+        <div id={EDITOR_ID} className="@container flex min-w-0 flex-col gap-8">
           {songs.length ? (
             <>
               {trackHeader}

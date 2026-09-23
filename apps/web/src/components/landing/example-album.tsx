@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { ThemeMark } from "@/components/theme-mark";
+import { TableScroller } from "@/components/ui";
 import { carriedThemesPhrase } from "@/lib/theme-keys";
 
 /**
@@ -124,14 +125,9 @@ export function ExampleAlbum({ className }: { className?: string }) {
           </p>
         </div>
       </div>
-      <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-ink-2">{EXAMPLE_ALBUM.concept}</p>
+      <p className="mt-3 max-w-[35.5em] text-sm leading-relaxed text-ink-2">{EXAMPLE_ALBUM.concept}</p>
 
-      <div
-        className="relative mt-5 overflow-x-auto"
-        role="region"
-        tabIndex={0}
-        aria-label="Example album sequence and themes"
-      >
+      <TableScroller label="Example album sequence and themes" className="mt-5">
         <table className="w-full border-collapse text-left">
           <caption className="sr-only">
             Sequence of the example album {EXAMPLE_ALBUM.title}: each track with its role, and
@@ -212,7 +208,7 @@ export function ExampleAlbum({ className }: { className?: string }) {
             </tr>
           </tfoot>
         </table>
-      </div>
+      </TableScroller>
 
       <p className="type-catalog mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-3 sm:hidden" aria-hidden="true">
         {THEMES.map((theme) => (
@@ -222,7 +218,7 @@ export function ExampleAlbum({ className }: { className?: string }) {
         ))}
       </p>
 
-      <p className="mt-4 max-w-[62ch] text-sm leading-relaxed text-ink-2">
+      <p className="mt-4 max-w-[35.5em] text-sm leading-relaxed text-ink-2">
         <span className="font-semibold text-ink">What the grid shows: </span>
         “Release” carries the ending but first appears on track 7. Seeding it earlier, around track
         4, would make the resolution feel earned.

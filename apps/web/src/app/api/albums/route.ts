@@ -8,6 +8,7 @@ import { apiHandler, enforceRateLimit, parseJsonBody, requireWorkspace } from "@
 import { chargeCredits, CREDIT_COSTS } from "@/server/credits";
 import { getPrisma } from "@/server/db";
 import { enforceProjectLimit } from "@/server/plan";
+import { wizardReferenceRows } from "@/server/wizard-references";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,7 @@ export const POST = apiHandler(async (request: Request) => {
   await enforceRateLimit(
     "albums_create",
     `user:${userId}`,
-    "Too many project creations. Please wait a bit and try again.",
+    "Too many new albums in a short time. Wait a minute and try again.",
   );
   const { album } = await parseJsonBody(request, BodySchema, "Invalid album payload.");
 
@@ -32,13 +33,20 @@ export const POST = apiHandler(async (request: Request) => {
       reason: "album_create",
       metadata: { title: album.title },
       insufficientMessage:
-        "Not enough credits to create a new project. Complete challenges or upgrade.",
+        "Not enough credits to create a new album. Complete a challenge or upgrade your plan.",
     });
     await enforceProjectLimit(tx, workspaceId, plan);
-    return tx.album.create({
+    const createdAlbum = await tx.album.create({
       data: { workspaceId, ...buildAlbumMutationData(album) },
       select: { id: true },
     });
+    // The records named in the wizard join the album's References collection, whole-album
+    // scoped, so the References page and the Overview count show them from the start.
+    const references = wizardReferenceRows(createdAlbum.id, album.reference_albums);
+    if (references.length) {
+      await tx.albumReference.createMany({ data: references });
+    }
+    return createdAlbum;
   });
 
   await trackProductEventSafe({

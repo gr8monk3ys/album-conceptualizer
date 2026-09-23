@@ -65,3 +65,148 @@ export function lyricExcerptsByTrack(data: unknown, maxLines = 2): Map<number, s
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Browsing Discover: sort and filter, read from and written to the URL so a view is linkable.
+// ---------------------------------------------------------------------------------------------
+
+export type DiscoverSort = "newest" | "written" | "liked";
+export type DiscoverShow = "all" | "finished";
+
+export const DISCOVER_SORTS: ReadonlyArray<{ value: DiscoverSort; label: string }> = [
+  { value: "newest", label: "Newest" },
+  { value: "written", label: "Most written" },
+  { value: "liked", label: "Most liked" },
+];
+
+export const DISCOVER_SHOWS: ReadonlyArray<{ value: DiscoverShow; label: string }> = [
+  { value: "all", label: "All albums" },
+  { value: "finished", label: "Finished only" },
+];
+
+export type DiscoverView = {
+  /** The search text, trimmed; searched only from two characters. */
+  q: string;
+  sort: DiscoverSort;
+  show: DiscoverShow;
+  /** A primary genre to keep, compared without case; null for every genre. */
+  genre: string | null;
+};
+
+export const DEFAULT_DISCOVER_VIEW: DiscoverView = { q: "", sort: "newest", show: "all", genre: null };
+
+type SearchParamsRecord = Record<string, string | string[] | undefined>;
+
+function firstParam(value: string | string[] | undefined): string {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) return value[0]?.trim() ?? "";
+  return "";
+}
+
+/** The Discover view a URL asks for; unknown values fall back to the defaults. */
+export function parseDiscoverView(params: SearchParamsRecord): DiscoverView {
+  const sort = firstParam(params.sort);
+  const show = firstParam(params.show);
+  const genre = firstParam(params.genre).slice(0, 80);
+  return {
+    q: firstParam(params.q).slice(0, 200),
+    sort: DISCOVER_SORTS.some((option) => option.value === sort) ? (sort as DiscoverSort) : "newest",
+    show: show === "finished" ? "finished" : "all",
+    genre: genre || null,
+  };
+}
+
+/** The URL for a Discover view; defaults are left out, so the plain view is `/app/discover`. */
+export function discoverHref(view: Partial<DiscoverView>): string {
+  const full = { ...DEFAULT_DISCOVER_VIEW, ...view };
+  const params = new URLSearchParams();
+  if (full.q.trim()) params.set("q", full.q.trim());
+  if (full.sort !== "newest") params.set("sort", full.sort);
+  if (full.show !== "all") params.set("show", full.show);
+  if (full.genre) params.set("genre", full.genre);
+  const query = params.toString();
+  return query ? `/app/discover?${query}` : "/app/discover";
+}
+
+/** True when the view narrows or reorders the plain list. */
+export function isNarrowedView(view: DiscoverView): boolean {
+  return view.show !== "all" || Boolean(view.genre);
+}
+
+/** What sorting and filtering need to know about one published album. */
+export type DiscoverRankable = {
+  /** Tracks on the album and how many have written lyrics (per @/lib/lyrics). */
+  tracks: number;
+  withLyrics: number;
+  likes: number;
+  publishedAt: string | null;
+  primaryGenre: string | null;
+};
+
+/** Finished means what the Coherence report means: every track has written lyrics. */
+export function isFinishedAlbum({ tracks, withLyrics }: Pick<DiscoverRankable, "tracks" | "withLyrics">) {
+  return tracks > 0 && withLyrics >= tracks;
+}
+
+function publishedTime(value: string | null) {
+  const time = value ? Date.parse(value) : NaN;
+  return Number.isFinite(time) ? time : 0;
+}
+
+/**
+ * The albums a view shows, in its order: filtered to finished albums and/or one genre, then
+ * sorted newest first, by tracks with written lyrics (the share breaks ties), or by likes.
+ * Every tie falls back to newest first, so the order is stable.
+ */
+export function arrangeDiscoverAlbums<T extends DiscoverRankable>(
+  albums: readonly T[],
+  view: Pick<DiscoverView, "sort" | "show" | "genre">,
+): T[] {
+  const genre = view.genre?.trim().toLowerCase() || null;
+  const kept = albums.filter(
+    (album) =>
+      (view.show !== "finished" || isFinishedAlbum(album)) &&
+      (!genre || album.primaryGenre?.trim().toLowerCase() === genre),
+  );
+  const newest = (a: T, b: T) => publishedTime(b.publishedAt) - publishedTime(a.publishedAt);
+  const share = (album: T) => (album.tracks ? album.withLyrics / album.tracks : 0);
+  return kept
+    .map((album, index) => ({ album, index }))
+    .sort((a, b) => {
+      let order = 0;
+      if (view.sort === "written") {
+        order = b.album.withLyrics - a.album.withLyrics || share(b.album) - share(a.album);
+      } else if (view.sort === "liked") {
+        order = b.album.likes - a.album.likes;
+      }
+      return order || newest(a.album, b.album) || a.index - b.index;
+    })
+    .map(({ album }) => album);
+}
+
+/** The distinct genres to offer, in alphabetical order, one spelling per genre. */
+export function genreOptions(values: ReadonlyArray<string | null | undefined>): string[] {
+  const byKey = new Map<string, string>();
+  for (const value of values) {
+    const genre = value?.trim();
+    if (!genre) continue;
+    const key = genre.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, genre);
+  }
+  return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+/** "12 published albums", "3 finished albums in folk", "2 matches for “tide” · finished only". */
+export function discoverCountLine(count: number, view: DiscoverView): string {
+  const searching = view.q.length >= 2;
+  const filters = [
+    view.show === "finished" ? "finished only" : null,
+    view.genre ? `in ${view.genre}` : null,
+  ].filter(Boolean);
+  if (searching) {
+    const base = `${count} ${count === 1 ? "match" : "matches"} for “${view.q}”`;
+    return filters.length ? `${base} · ${filters.join(" · ")}` : base;
+  }
+  const noun = `${view.show === "finished" ? "finished" : "published"} ${count === 1 ? "album" : "albums"}`;
+  return `${count} ${noun}${view.genre ? ` in ${view.genre}` : ""}`;
+}

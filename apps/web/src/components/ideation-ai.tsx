@@ -3,10 +3,10 @@
 import { useId, useMemo, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 
+import { AiUnavailableNote, useAiUnavailableNotice } from "@/components/ai-unavailable";
 import { ConfirmSpend } from "@/components/confirm-spend";
 import { Button, StatusMessage } from "@/components/ui";
 import { useAgentJob } from "@/hooks/use-agent-job";
-import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 /** What the artist chose to take from a brainstorm into the blueprint. */
@@ -276,7 +276,7 @@ function BrainstormResult({ output, onApply }: { output: string; onApply: Ideati
     <div className="mt-4 flex flex-col gap-4">
       <div
         role="region"
-        aria-label="Brainstorm result"
+        aria-label="AI draft"
         tabIndex={0}
         className="max-h-80 overflow-auto whitespace-pre-wrap border-y border-line py-3 text-sm leading-relaxed text-ink-2"
       >
@@ -385,6 +385,7 @@ export function IdeationAi({
   const [isStarting, setIsStarting] = useState(false);
 
   const { job, error: pollError, elapsedMs, isPolling } = useAgentJob({ jobId });
+  const unavailable = useAiUnavailableNotice(!aiAvailable);
 
   async function start() {
     setIsStarting(true);
@@ -402,7 +403,7 @@ export function IdeationAi({
       });
       if (!res.ok) {
         throw new Error(
-          await readError(res, "The brainstorm couldn't start. Check your connection and try again."),
+          await readError(res, "The AI draft couldn't start. Check your connection and try again."),
         );
       }
       const data = (await res.json()) as StartJobResponse;
@@ -411,7 +412,7 @@ export function IdeationAi({
       setStartError(
         err instanceof Error && err.message
           ? err.message
-          : "The brainstorm couldn't start. Check your connection and try again.",
+          : "The AI draft couldn't start. Check your connection and try again.",
       );
     } finally {
       setIsStarting(false);
@@ -424,15 +425,17 @@ export function IdeationAi({
   const output = job?.status === "completed" ? (job.result?.output ?? "").trim() : "";
   const failed = job?.status === "failed";
   const hasEnoughInput = concept.trim().length > 0;
-  const cost = CREDIT_COSTS.agentRun;
+  const cost: number = CREDIT_COSTS.agentRun;
+  const price = `${cost} ${cost === 1 ? "credit" : "credits"}`;
 
+  // One name for the spend everywhere: "AI draft". The feature brainstorms; its cost is a draft.
   const label = isStarting
     ? "Starting…"
     : isPolling
       ? `Brainstorming… ${formatElapsed(elapsedMs)}`
       : jobId
-        ? `Brainstorm again · ${cost} credits`
-        : `Brainstorm with AI · ${cost} credits`;
+        ? `New AI draft · ${price}`
+        : `AI draft · ${price}`;
 
   return (
     <section aria-labelledby="brainstorm-title" className="border-t border-line pt-5">
@@ -441,21 +444,20 @@ export function IdeationAi({
       </h3>
       {aiAvailable ? (
         <p id="brainstorm-hint" className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-2">
-          The AI reads your concept summary and suggests a direction, themes and a tracklist. It
-          takes 30 to 90 seconds. Nothing changes in your blueprint until you choose what to apply.
+          An AI draft brainstorms from your concept summary: a direction, themes and a tracklist.
+          It takes 30 to 90 seconds. Nothing changes in your blueprint until you choose what to
+          apply.
         </p>
-      ) : (
-        <p id="brainstorm-hint" className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
-          {AI_UNAVAILABLE_MESSAGE}
-        </p>
-      )}
+      ) : unavailable.show ? (
+        <AiUnavailableNote id={unavailable.noticeId} className="mt-1" />
+      ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         {aiAvailable ? (
           <ConfirmSpend
             cost={cost}
             remaining={creditsRemaining}
-            actionLabel={jobId ? "Brainstorm again" : "Brainstorm"}
+            actionLabel={jobId ? "Start a new AI draft" : "Start AI draft"}
             onConfirm={start}
             busy={isBusy}
             disabled={!hasEnoughInput}
@@ -468,15 +470,16 @@ export function IdeationAi({
             {label}
           </ConfirmSpend>
         ) : (
-          // Can't run here: no price on a button that can't spend; the line above says why.
-          <Button disabled aria-describedby="brainstorm-hint">
+          // Can't run here: the button stays, disabled and unpriced (nothing can be spent), and
+          // the one plain line on this screen says why.
+          <Button disabled aria-describedby={unavailable.describedBy}>
             <Sparkles className="h-4 w-4" aria-hidden="true" />
-            Brainstorm with AI
+            AI draft
           </Button>
         )}
         {aiAvailable && !hasEnoughInput && !jobId ? (
           <p id="brainstorm-needs-concept" className="text-xs text-ink-3">
-            Write a concept summary first; the brainstorm builds on it.
+            Write a concept summary first; the AI draft builds on it.
           </p>
         ) : null}
       </div>
@@ -495,13 +498,13 @@ export function IdeationAi({
 
       {failed ? (
         <StatusMessage tone="danger" className="mt-3">
-          The brainstorm didn&apos;t finish, and its {CREDIT_COSTS.agentRun} credits were refunded. Try again
-          in a minute, or carry on with your own concept: the rest of the setup works without it.
+          The AI draft didn&apos;t finish, and its {price} were refunded. Try again in a minute, or
+          carry on with your own concept: the rest of the setup works without it.
         </StatusMessage>
       ) : null}
 
       {job?.status === "completed" && !output ? (
-        <StatusMessage className="mt-3">The brainstorm came back empty. Try again with a longer concept.</StatusMessage>
+        <StatusMessage className="mt-3">The AI draft came back empty. Try again with a longer concept.</StatusMessage>
       ) : null}
 
       {output && jobId ? <BrainstormResult key={jobId} output={output} onApply={onApply} /> : null}

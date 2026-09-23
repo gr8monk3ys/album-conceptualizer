@@ -1,3 +1,5 @@
+import { isWrittenLyrics } from "@/lib/lyrics";
+import { TAG_KINDS, type TrackTagProposal, type TrackTags } from "@/lib/tag-proposals";
 import { AlbumJsonSchema, type AlbumJson } from "@/server/album-json";
 
 type TrackTagSuggestion = {
@@ -144,8 +146,10 @@ function suggestTagsFromLyrics(data: unknown): TrackTagSuggestion[] {
     .slice()
     .sort((a, b) => a.track_number - b.track_number)
     .map((song) => {
+      // Only lyrics the artist wrote: "[Verse line 1]" placeholders would tag every track
+      // with "verse" and "line" (`@/lib/lyrics` owns what counts as written).
       const lyrics = (song.sections ?? [])
-        .map((s) => (typeof s.lyrics === "string" ? s.lyrics : ""))
+        .map((s) => (isWrittenLyrics(s.lyrics) ? String(s.lyrics).replace(/\[[^\]]*\]/g, " ") : ""))
         .filter(Boolean)
         .join("\n");
 
@@ -189,38 +193,83 @@ function suggestTagsFromLyrics(data: unknown): TrackTagSuggestion[] {
     });
 }
 
-export function applyAutoTagsFromLyrics(data: unknown): AlbumJson | null {
+const MAX_TAGS_PER_KIND = 32;
+
+/**
+ * What "Tag from lyrics" would add, per track, without writing anything: only tags the track
+ * doesn't carry yet, only from written lyrics, only tracks with something to add. Null when
+ * the album can't be read. `writtenTracks` lets the page say why there's nothing to propose.
+ */
+export function proposeTagsFromLyrics(
+  data: unknown,
+): { proposals: TrackTagProposal[]; writtenTracks: number } | null {
   const parsed = AlbumJsonSchema.safeParse(data);
   if (!parsed.success) return null;
-
   const album = parsed.data;
-  const suggestions = suggestTagsFromLyrics(album);
-  const byTrack = new Map<number, TrackTagSuggestion>();
-  for (const s of suggestions) byTrack.set(s.trackNumber, s);
+  const byTrack = new Map(album.songs.map((song) => [song.track_number, song] as const));
+  const writtenTracks = album.songs.filter((song) => song.sections.some((section) => isWrittenLyrics(section.lyrics))).length;
 
-  const updated: AlbumJson = {
-    ...album,
-    updated_at: new Date().toISOString(),
-    songs: album.songs.map((song) => {
-      const suggestion = byTrack.get(song.track_number);
-      if (!suggestion) return song;
+  const proposals: TrackTagProposal[] = [];
+  for (const suggestion of suggestTagsFromLyrics(album)) {
+    const song = byTrack.get(suggestion.trackNumber);
+    if (!song) continue;
+    const fresh = (kind: (typeof TAG_KINDS)[number]) => {
+      const existing = new Set((song[kind] ?? []).map(normKey));
+      return uniqByKey(suggestion[kind]).filter((tag) => !existing.has(normKey(tag)));
+    };
+    const proposal: TrackTagProposal = {
+      trackNumber: suggestion.trackNumber,
+      title: song.title,
+      themes: fresh("themes"),
+      motifs: fresh("motifs"),
+      characters: fresh("characters"),
+    };
+    if (TAG_KINDS.some((kind) => proposal[kind].length)) proposals.push(proposal);
+  }
+  return { proposals, writtenTracks };
+}
 
-      const existingThemes = Array.isArray(song.themes) ? song.themes : [];
-      const existingMotifs = Array.isArray(song.motifs) ? song.motifs : [];
-      const existingCharacters = Array.isArray(song.characters) ? song.characters : [];
+/**
+ * Add the tags the artist accepted. Returns the album and exactly what was added (tags a track
+ * already carries, or tracks that no longer exist, are left out), so the confirmation can name
+ * it. Null when the album can't be read.
+ */
+export function applyAcceptedTags(
+  data: unknown,
+  accepted: readonly TrackTags[],
+): { album: AlbumJson; added: TrackTags[] } | null {
+  const parsed = AlbumJsonSchema.safeParse(data);
+  if (!parsed.success) return null;
+  const album = parsed.data;
 
-      const mergedThemes = uniqByKey([...existingThemes, ...suggestion.themes]).slice(0, 32);
-      const mergedMotifs = uniqByKey([...existingMotifs, ...suggestion.motifs]).slice(0, 32);
-      const mergedCharacters = uniqByKey([...existingCharacters, ...suggestion.characters]).slice(0, 32);
+  const acceptedByTrack = new Map<number, TrackTags>();
+  for (const entry of accepted) {
+    const current = acceptedByTrack.get(entry.trackNumber);
+    acceptedByTrack.set(entry.trackNumber, {
+      trackNumber: entry.trackNumber,
+      themes: [...(current?.themes ?? []), ...entry.themes],
+      motifs: [...(current?.motifs ?? []), ...entry.motifs],
+      characters: [...(current?.characters ?? []), ...entry.characters],
+    });
+  }
 
-      return {
-        ...song,
-        themes: mergedThemes,
-        motifs: mergedMotifs,
-        characters: mergedCharacters,
-      };
-    }),
-  };
+  const added: TrackTags[] = [];
+  const songs = album.songs.map((song) => {
+    const entry = acceptedByTrack.get(song.track_number);
+    if (!entry) return song;
+    const next = { ...song };
+    const addedHere: TrackTags = { trackNumber: song.track_number, themes: [], motifs: [], characters: [] };
+    for (const kind of TAG_KINDS) {
+      const existing = Array.isArray(song[kind]) ? song[kind] : [];
+      const seen = new Set(existing.map(normKey));
+      const room = Math.max(0, MAX_TAGS_PER_KIND - existing.length);
+      const fresh = uniqByKey(entry[kind]).filter((tag) => !seen.has(normKey(tag))).slice(0, room);
+      next[kind] = [...existing, ...fresh];
+      addedHere[kind] = fresh;
+    }
+    if (TAG_KINDS.some((kind) => addedHere[kind].length)) added.push(addedHere);
+    return next;
+  });
 
-  return updated;
+  return { album: { ...album, songs }, added: added.sort((left, right) => left.trackNumber - right.trackNumber) };
 }

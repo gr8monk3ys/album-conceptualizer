@@ -12,7 +12,7 @@ export const POST = apiHandler(
     await enforceRateLimit(
       "albums_create",
       `user:${userId}`,
-      "Too many project creations. Please wait a bit and try again.",
+      "Too many new albums in a short time. Wait a minute and try again.",
     );
 
     const { albumId } = await params;

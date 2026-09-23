@@ -41,6 +41,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [restoreStatus, setRestoreStatus] = useState<Status>(null);
+  const named = Boolean(message.trim());
 
   async function save() {
     const trimmed = message.trim();
@@ -100,21 +101,35 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
               void save();
             }}
           >
-            <Field htmlFor="version-message" label="What's in this version" hint="A few words you'll recognise later.">
+            <Field
+              htmlFor="version-message"
+              label="What's in this version"
+              hint="A few words you'll recognise later, e.g. “Chorus rewrite and key changes”."
+            >
               <input
                 id="version-message"
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
-                placeholder="Chorus rewrite and key changes"
                 aria-describedby="version-message-hint"
                 className={inputClass}
                 maxLength={200}
               />
             </Field>
             <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" tone="primary" disabled={!message.trim() || isSaving}>
+              <Button
+                type="submit"
+                tone="primary"
+                disabled={!named || isSaving}
+                aria-describedby={named ? undefined : "version-save-reason"}
+              >
                 {isSaving ? "Saving…" : "Save version"}
               </Button>
+              {/* A disabled button says why, where the eye already is. */}
+              {named ? null : (
+                <p id="version-save-reason" className="min-w-0 text-sm text-ink-3">
+                  Name the version to save it.
+                </p>
+              )}
               {saveStatus ? <StatusMessage tone={saveStatus.tone}>{saveStatus.text}</StatusMessage> : null}
             </div>
           </form>

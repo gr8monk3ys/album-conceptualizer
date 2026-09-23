@@ -1,7 +1,7 @@
 import { SignInClient } from "@/components/sign-in-client";
 
 export const metadata = {
-  title: "Sign In",
+  title: "Sign in",
   description: "Sign in to continue building and exporting concept albums.",
 };
 

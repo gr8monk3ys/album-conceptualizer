@@ -295,15 +295,17 @@ export function Field({
   );
 }
 
-/** A short label for a tag, theme or state. Not a button; see ChipButton for toggles. */
+/**
+ * A short label for a tag, theme or state; not a button. There is no saffron tone: a chip is
+ * never the primary action, the current location or focus (the One Signal Rule).
+ */
 export function Chip({
   tone = "neutral",
   className,
   ...props
-}: ComponentProps<"span"> & { tone?: "neutral" | "accent" | "ok" | "warn" | "danger" }) {
+}: ComponentProps<"span"> & { tone?: "neutral" | "ok" | "warn" | "danger" }) {
   const tones = {
     neutral: "border-line-strong text-ink-2",
-    accent: "border-accent/60 text-accent",
     ok: "border-ok/50 text-ok",
     warn: "border-warn/50 text-warn",
     danger: "border-danger/50 text-danger",

@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 
 import type { SpineRow } from "@/server/album-songs";
 import { ThemeMark } from "@/components/theme-mark";
+import { TableScroller } from "@/components/ui";
 import { carriedThemesPhrase, themeAbbreviations } from "@/lib/theme-keys";
 import { cn } from "@/lib/utils";
 
@@ -39,9 +40,22 @@ function pad(trackNumber: number) {
 }
 
 /**
+ * When the spine's own container has room, each theme column is headed by the theme's full
+ * name (5rem a column) and the legend goes; with less, short keys and the legend. The room
+ * needed is the number, lyrics and role columns (6.5rem), a 12rem title and the theme
+ * columns: up to three themes fit in 36rem, six in 48rem. Container queries in rem, so
+ * enlarged text needs more room. (Literal class names, so Tailwind generates them.)
+ */
+const THEME_HEADS = {
+  few: { keys: "@xl:hidden", names: "hidden @xl:block", slot: "@xl:w-20", legend: "@xl:hidden" },
+  many: { keys: "@3xl:hidden", names: "hidden @3xl:block", slot: "@3xl:w-20", legend: "@3xl:hidden" },
+} as const;
+
+/**
  * The album's sequence as a track sheet: track number, title, lyrics written, which album
- * themes the track carries (one mark per theme, under a short key spelled out in a legend)
- * and whether it has a role in the arc. Every row opens that track in the Studio.
+ * themes the track carries (one mark per theme, under the theme's name where there is room,
+ * or a short key spelled out in a legend where there isn't) and whether it has a role in the
+ * arc. Every row opens that track in the Studio.
  *
  * Built to survive enlarged text: the table sizes itself to its content (never `table-fixed`),
  * the title keeps at least 8rem, and when that no longer fits the table scrolls sideways
@@ -66,9 +80,10 @@ export function AlbumSpine({
   const base = `/app/albums/${albumId}`;
   const themeKeys = themes.map((theme) => theme.toLowerCase());
   const abbreviations = themeAbbreviations(themes);
+  const heads = themes.length <= 3 ? THEME_HEADS.few : THEME_HEADS.many;
 
   const body = rows.length ? (
-    <div className="relative min-w-0 overflow-x-auto">
+    <TableScroller label="Tracks in sequence">
       <table className="w-full border-collapse text-sm">
         <caption className="sr-only">
           Tracks in sequence: lyrics written, the album themes each track carries, and whether it
@@ -89,16 +104,26 @@ export function AlbumSpine({
             {themes.length ? (
               <th scope="col" className="px-0.5 pb-2 font-semibold">
                 <span className="sr-only">Album themes</span>
-                {/* One short key per theme, read left to right like the marks beneath it. */}
-                <span aria-hidden="true" className="flex justify-center">
+                {/* One head per theme, read left to right like the marks beneath it: the name
+                    where the container has room, a short key (spelled out below) where not. */}
+                <span aria-hidden="true" className="flex items-end justify-center">
                   {themes.map((theme, index) => (
-                    <abbr
-                      key={theme}
-                      title={theme}
-                      className="type-catalog block w-4.5 shrink-0 text-center text-xs text-ink-3 no-underline"
-                    >
-                      {abbreviations[index]}
-                    </abbr>
+                    <span key={theme} className={cn("block w-4.5 shrink-0 text-center", heads.slot)}>
+                      <abbr
+                        title={theme}
+                        className={cn("type-catalog block text-xs text-ink-3 no-underline", heads.keys)}
+                      >
+                        {abbreviations[index]}
+                      </abbr>
+                      <span
+                        className={cn(
+                          "type-catalog break-words px-1 text-xs leading-tight text-ink-3 hyphens-auto",
+                          heads.names,
+                        )}
+                      >
+                        {theme}
+                      </span>
+                    </span>
                   ))}
                 </span>
               </th>
@@ -145,7 +170,7 @@ export function AlbumSpine({
                   <td className="px-0.5 align-middle">
                     <span aria-hidden="true" className="flex justify-center">
                       {themes.map((theme, index) => (
-                        <span key={theme} className="grid w-4.5 shrink-0 place-items-center">
+                        <span key={theme} className={cn("grid w-4.5 shrink-0 place-items-center", heads.slot)}>
                           <ThemeMark carries={row.themeKeys.includes(themeKeys[index])} />
                         </span>
                       ))}
@@ -172,7 +197,7 @@ export function AlbumSpine({
           })}
         </tbody>
       </table>
-    </div>
+    </TableScroller>
   ) : (
     <p className="max-w-[65ch] text-sm text-ink-2">
       No tracks yet.{" "}
@@ -184,7 +209,12 @@ export function AlbumSpine({
   );
 
   return (
-    <section aria-labelledby={heading ? `${idPrefix}-title` : undefined} aria-label={heading ? undefined : "Sequence"}>
+    // A size container: the theme heads choose names or keys by the room the spine has.
+    <section
+      aria-labelledby={heading ? `${idPrefix}-title` : undefined}
+      aria-label={heading ? undefined : "Sequence"}
+      className="@container"
+    >
       {heading ? (
         <h2 id={`${idPrefix}-title`} className="mb-2 text-sm font-semibold text-ink">
           Sequence
@@ -192,8 +222,12 @@ export function AlbumSpine({
       ) : null}
       {body}
       {rows.length && themes.length ? (
-        // The key for the theme columns. Screen readers already hear each theme by name.
-        <p aria-hidden="true" className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-relaxed text-ink-3">
+        // The key for the theme columns, while they show keys. Screen readers already hear each
+        // theme by name.
+        <p
+          aria-hidden="true"
+          className={cn("mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-relaxed text-ink-3", heads.legend)}
+        >
           {themes.map((theme, index) => (
             <span key={theme} className="min-w-0 break-words">
               <span className="type-catalog text-ink-2">{abbreviations[index]}</span> {theme}

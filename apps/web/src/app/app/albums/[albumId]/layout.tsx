@@ -42,7 +42,9 @@ export default async function AlbumLayout({
     <div className="flex min-w-0 flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div className="flex min-w-0 max-w-full flex-col gap-3">
-          <h1 className="type-display text-display-release max-w-[24ch] break-words text-ink hyphens-auto">
+          {/* 18.75em is 24ch of the display cut, set in em so the measure is the same before
+              and after Archivo loads (the fallback's "0" is narrower). */}
+          <h1 className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto">
             {album.title}
           </h1>
           <p className="type-catalog flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">

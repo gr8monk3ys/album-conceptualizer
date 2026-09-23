@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
@@ -10,6 +11,7 @@ import {
   COHERENCE_BANDS,
   coherenceFixHref,
   coherenceTrackHref,
+  dimensionsWeakestFirst,
   MIN_WRITTEN_TRACKS_FOR_SCORE,
   type CoherenceFix,
   type CoherenceIssue,
@@ -21,15 +23,24 @@ import { getAlbum } from "@/server/albums";
 import { getCredits } from "@/server/credits";
 import { getAgentAvailability } from "@/server/engine";
 import { requireUser } from "@/server/identity";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Album coherence",
-  description: "How well the album's songs hold together against its concept, themes and motifs.",
-};
+/** "Coherence · <album title>" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  return {
+    title: albumPageTitle("Coherence", await workspaceAlbumTitle(albumId)),
+    description: "How well the album's songs hold together against its concept, themes and motifs.",
+  };
+}
 
 /** The findings that get the emphasis: the most serious first. */
 const LEAD_FINDINGS = 3;
@@ -212,7 +223,9 @@ function HowScored({ report }: { report: CoherenceReport }) {
         </dl>
         <p>
           No dimension scores above the share of tracks that have lyrics: {capExample}. Harmony is also held to the share of tracks with chords of
-          their own. The overall score weighs Narrative most, then Lyrics, Harmony, Sequence and Motifs.
+          their own. While a dimension is held, its row also says what the written tracks score on their
+          own, and the rows run weakest first by that. The overall score weighs Narrative most, then
+          Lyrics, Harmony, Sequence and Motifs.
         </p>
         <p>
           <span className="font-semibold text-ink">Unfinished</span> means at least one track still has no
@@ -241,7 +254,7 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
   const { stats } = report;
   const figures = [
     { label: "Tracks", value: stats.songCount },
-    { label: "With lyrics", value: stats.songsWithLyrics },
+    { label: "Lyrics written", value: stats.songsWithLyrics },
     { label: "With chords of their own", value: stats.songsWithChords },
     { label: "With a story note", value: stats.songsWithNarrativeSummary },
     { label: "On an album theme", value: stats.songsAlignedToThemes },
@@ -251,6 +264,11 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
   const showSeverity = new Set(report.issues.map((issue) => issue.severity)).size > 1;
   const lead = report.issues.slice(0, LEAD_FINDINGS);
   const rest = report.issues.slice(LEAD_FINDINGS);
+  // Weakest first by each dimension's own value, so the weak spot leads even while the cap
+  // holds every score at the same number.
+  const dimensions = dimensionsWeakestFirst(report.breakdown);
+  const anyHeld = scored && dimensions.some((item) => item.heldBecause);
+  const partlyWritten = stats.songsWithLyrics < stats.songCount;
 
   return (
     <div className="flex flex-col gap-10">
@@ -359,30 +377,45 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
         id="coherence-breakdown"
         title="By dimension"
         description={
-          scored
-            ? "Each dimension scored out of 100."
-            : "Scores appear once enough lyrics are written. Until then, here is what each dimension still needs."
+          !scored
+            ? "Scores appear once enough lyrics are written. Until then, here is what each dimension still needs."
+            : anyHeld && partlyWritten
+              ? "Each dimension out of 100, weakest first by what the written tracks show on their own."
+              : "Each dimension scored out of 100, weakest first."
         }
       >
         <ul className="divide-y divide-line border-y border-line">
-          {report.breakdown.map((item) => (
-            <li key={item.key} className="flex flex-wrap items-baseline gap-x-6 gap-y-1 py-3">
-              <span className="min-w-0 basis-28 text-sm font-semibold text-ink">{item.label}</span>
-              <span className="type-figure min-w-0 basis-16 text-lg font-semibold text-ink">
-                {scored ? (
-                  <>
-                    {item.score}
-                    <span className="text-xs font-normal text-ink-3">/100</span>
-                  </>
+          {dimensions.map((item) => {
+            const held = scored && item.heldBecause;
+            return (
+              <li key={item.key} className="flex flex-wrap items-baseline gap-x-6 gap-y-1 py-3">
+                <span className="min-w-0 basis-28 text-sm font-semibold text-ink">{item.label}</span>
+                <span className="type-figure min-w-0 basis-16 text-lg font-semibold text-ink">
+                  {scored ? (
+                    <>
+                      {item.score}
+                      <span className="text-xs font-normal text-ink-3">/100</span>
+                    </>
+                  ) : (
+                    <span className="text-sm font-normal text-ink-3">Not yet</span>
+                  )}
+                </span>
+                {held ? (
+                  <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
+                    <span className="block">{item.signal}.</span>
+                    <span className="type-figure mt-0.5 block text-xs text-ink-3">
+                      Held at {item.score} because {item.heldBecause} · {item.uncapped}
+                      {partlyWritten ? " on the written tracks alone" : " without the hold"}
+                    </span>
+                  </span>
                 ) : (
-                  <span className="text-sm font-normal text-ink-3">Not yet</span>
+                  <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
+                    {item.summary}
+                  </span>
                 )}
-              </span>
-              <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
-                {item.summary}
-              </span>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       </Section>
 

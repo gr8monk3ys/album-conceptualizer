@@ -3,6 +3,10 @@ import Link from "next/link";
 import { Wordmark } from "@/components/sidebar";
 import { ButtonLink } from "@/components/ui";
 
+export const metadata = { title: "Page not found" };
+
+// Addresses outside the app, and share links that were revoked or expired: the way into the
+// app, and the front page for someone who arrived from outside.
 export default function RootNotFound() {
   return (
     <div className="min-h-screen bg-ground px-4 py-6 sm:px-6">
@@ -23,7 +27,7 @@ export default function RootNotFound() {
               Go to your albums
             </ButtonLink>
             <ButtonLink href="/" tone="secondary">
-              Go home
+              Go to the front page
             </ButtonLink>
           </div>
         </main>

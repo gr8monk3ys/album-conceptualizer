@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
+import { useAiUnavailableNotice } from "@/components/ai-unavailable";
 import { ConfirmSpend } from "@/components/confirm-spend";
 import { Button, Section, StatusMessage } from "@/components/ui";
 import { useAgentJob } from "@/hooks/use-agent-job";
@@ -11,7 +12,8 @@ import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 type StartJobResponse = { job_id: string };
 
-const COST = CREDIT_COSTS.agentRun;
+const COST: number = CREDIT_COSTS.agentRun;
+const PRICE = `${COST} ${COST === 1 ? "credit" : "credits"}`;
 
 function formatElapsed(ms: number): string {
   const seconds = Math.floor(ms / 1000);
@@ -49,9 +51,10 @@ function plain(message: string | null, fallback: string) {
 }
 
 /**
- * A written review from the coherence agent, on top of the rule-based checks on this page.
- * It spends credits, so the cost is on the button and it asks once before spending. When AI
- * can't run here, the button carries no price and the description is the one plain line why.
+ * A written review, drafted by AI, on top of the rule-based checks on this page. It spends
+ * credits as an "AI draft", so the price is on the button and it asks once before spending.
+ * When AI can't run here, the button stays disabled (still priced) and the screen's one plain
+ * line says why.
  */
 export function CoherenceAiReview({
   albumId,
@@ -68,6 +71,7 @@ export function CoherenceAiReview({
   const [isStarting, setIsStarting] = useState(false);
 
   const { job, error: pollError, elapsedMs, isPolling } = useAgentJob({ jobId });
+  const unavailable = useAiUnavailableNotice(!aiAvailable);
 
   async function start() {
     setIsStarting(true);
@@ -114,7 +118,7 @@ export function CoherenceAiReview({
   const output = job?.status === "completed" ? (job.result?.output ?? "") : "";
   const failedText =
     job?.status === "failed"
-      ? `${sentence(plain(job.error, "The review stopped before it finished."))} Your ${COST} credits were refunded.`
+      ? `${sentence(plain(job.error, "The review stopped before it finished."))} Your ${PRICE} were refunded.`
       : null;
   const error = startError
     ? startError
@@ -129,24 +133,27 @@ export function CoherenceAiReview({
     : isPolling
       ? `Reviewing… ${formatElapsed(elapsedMs)}`
       : output
-        ? `Run again · ${COST} credits`
-        : `Run review · ${COST} credits`;
+        ? `New AI draft · ${PRICE}`
+        : `AI draft · ${PRICE}`;
 
   return (
     <Section
       id="coherence-written-review"
       title="Written review"
       description={
-        aiAvailable
-          ? `An agent reads the Album Bible and every track, then writes up where the record holds together and where it drifts. Each run costs ${COST} credits and takes about 30 to 90 seconds.`
-          : AI_UNAVAILABLE_MESSAGE
+        aiAvailable ? (
+          `An AI draft of a review: it reads the Album Bible and every track, then writes up where the record holds together and where it drifts. Each AI draft costs ${PRICE} and takes about 30 to 90 seconds.`
+        ) : unavailable.show ? (
+          // Section puts its description in a paragraph; the line is a span inside it.
+          <span id={unavailable.noticeId}>{AI_UNAVAILABLE_MESSAGE}</span>
+        ) : undefined
       }
       actions={
         aiAvailable ? (
           <ConfirmSpend
             cost={COST}
             remaining={creditsRemaining}
-            actionLabel={output ? "Run again" : "Run review"}
+            actionLabel={output ? "Start a new AI draft" : "Start AI draft"}
             onConfirm={start}
             busy={isBusy}
           >
@@ -154,7 +161,10 @@ export function CoherenceAiReview({
             {buttonLabel}
           </ConfirmSpend>
         ) : (
-          <Button disabled>Run review</Button>
+          // Disabled and unpriced: nothing can be spent here, and the plain line says why.
+          <Button disabled aria-describedby={unavailable.describedBy}>
+            AI draft
+          </Button>
         )
       }
     >
@@ -167,19 +177,19 @@ export function CoherenceAiReview({
             <ConfirmSpend
               cost={COST}
               remaining={creditsRemaining}
-              actionLabel="Try again"
+              actionLabel="Try the AI draft again"
               onConfirm={start}
               busy={isBusy}
               tone="ghost"
             >
-              {`Try again · ${COST} credits`}
+              {`Try the AI draft again · ${PRICE}`}
             </ConfirmSpend>
           ) : null}
         </div>
       ) : null}
 
       {isPolling && !output ? (
-        <StatusMessage>The agent is reading your Bible and tracks. Keep this page open.</StatusMessage>
+        <StatusMessage>The AI draft is reading your Bible and tracks. Keep this page open.</StatusMessage>
       ) : null}
 
       {output ? (
@@ -189,7 +199,7 @@ export function CoherenceAiReview({
       ) : null}
 
       {aiAvailable && !jobId && !error && !isStarting ? (
-        <p className="text-sm text-ink-3">No written review yet for this draft.</p>
+        <p className="text-sm text-ink-3">No written review yet for this version of the album.</p>
       ) : null}
     </Section>
   );

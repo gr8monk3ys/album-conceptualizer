@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { MoreHorizontal } from "lucide-react";
 
+import { menuLeftOffset } from "@/components/studio/menu-position";
 import { buttonClass } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -45,22 +46,39 @@ export function MoreMenu({ label, items, className }: { label: string; items: Mo
     if (returnFocus) triggerRef.current?.focus();
   }
 
-  // On open: keep the menu inside the viewport (it hangs from the button's right edge unless
-  // that would push it off the left side) and focus the first or last item.
-  useLayoutEffect(() => {
-    if (!open) return;
+  // Keeps the menu inside the viewport: it hangs from the button's right edge, clamped 8px
+  // from either edge (menu-position.ts), so it never widens the page on a phone.
+  const place = useCallback(() => {
+    const wrapper = wrapperRef.current;
     const trigger = triggerRef.current;
     const menu = menuRef.current;
-    if (trigger && menu) {
-      const fitsLeftward = trigger.getBoundingClientRect().right - menu.offsetWidth >= 8;
-      menu.style.left = fitsLeftward ? "auto" : "0";
-      menu.style.right = fitsLeftward ? "0" : "auto";
-    }
+    if (!wrapper || !trigger || !menu) return;
+    const left = menuLeftOffset({
+      triggerRight: trigger.getBoundingClientRect().right,
+      wrapperLeft: wrapper.getBoundingClientRect().left,
+      menuWidth: menu.offsetWidth,
+      viewportWidth: document.documentElement.clientWidth,
+    });
+    menu.style.left = `${left}px`;
+    menu.style.right = "auto";
+  }, []);
+
+  // On open: place the menu and focus the first or last item.
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
     const index = firstFocus.current === "last" ? items.length - 1 : 0;
     itemRefs.current[index]?.focus();
     // Only when the menu opens; the items' identity changes on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Rotating a phone or resizing the window re-places an open menu.
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open, place]);
 
   // A press anywhere outside closes the menu without taking focus back.
   useEffect(() => {
@@ -127,7 +145,7 @@ export function MoreMenu({ label, items, className }: { label: string; items: Mo
           role="menu"
           aria-label={`More ${label}`}
           onKeyDown={onMenuKeyDown}
-          className="absolute top-full z-30 mt-1 flex w-max min-w-56 max-w-[min(20rem,calc(100vw-2rem))] flex-col rounded border border-line-strong bg-raised p-1"
+          className="absolute left-0 top-full z-30 mt-1 flex w-max min-w-[min(14rem,calc(100vw-1rem))] max-w-[min(20rem,calc(100vw-1rem))] flex-col rounded border border-line-strong bg-raised p-1"
         >
           {items.map((item, index) => (
             <button

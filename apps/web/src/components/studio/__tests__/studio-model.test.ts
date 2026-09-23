@@ -9,7 +9,10 @@ import {
   moveItem,
   moveTrack,
   nextToWrite,
+  normalizeKey,
+  parseChordProgression,
   parseInitialAlbum,
+  saveStatusParts,
   toggleTheme,
 } from "@/components/studio/studio-model";
 
@@ -134,5 +137,67 @@ describe("albumFocusTarget", () => {
     expect(albumFocusTarget({ concept_summary: null, central_themes: [] })).toBe("album-concept");
     expect(albumFocusTarget({ concept_summary: "Radio at night", central_themes: [" "] })).toBe("album-central-themes");
     expect(albumFocusTarget({ concept_summary: "Radio at night", central_themes: ["memory"] })).toBe("album-title");
+  });
+});
+
+describe("normalizeKey", () => {
+  it("spells shorthand keys the way the Key select does", () => {
+    expect(normalizeKey("C")).toBe("C major");
+    expect(normalizeKey("G")).toBe("G major");
+    expect(normalizeKey("Am")).toBe("A minor");
+    expect(normalizeKey("A minor")).toBe("A minor");
+    expect(normalizeKey("a min")).toBe("A minor");
+    expect(normalizeKey("F#m")).toBe("F# minor");
+    expect(normalizeKey("Bb")).toBe("Bb major");
+    expect(normalizeKey("bbm")).toBe("Bb minor");
+    expect(normalizeKey("E♭ Major")).toBe("Eb major");
+    expect(normalizeKey("CM")).toBe("C major");
+    expect(normalizeKey("Cmaj")).toBe("C major");
+  });
+
+  it("keeps other values as written and drops empty ones", () => {
+    expect(normalizeKey("D dorian")).toBe("D dorian");
+    expect(normalizeKey("  ")).toBeNull();
+    expect(normalizeKey(null)).toBeNull();
+    expect(normalizeKey(5)).toBeNull();
+  });
+
+  it("is applied when the Studio reads the album, so the select and catalog line agree", () => {
+    const { album } = parseInitialAlbum({
+      title: "Night Radio",
+      songs: [
+        { ...buildNewSong(1), key: "C" },
+        { ...buildNewSong(2), key: "Am" },
+        { ...buildNewSong(3), key: null },
+      ],
+    });
+    expect(album.songs.map((s) => s.key)).toEqual(["C major", "A minor", null]);
+  });
+});
+
+describe("parseChordProgression", () => {
+  it("keeps every typed token in order, readable or not", () => {
+    expect(parseChordProgression("Am, banana | F#m7\nG/B")).toEqual(["Am", "banana", "F#m7", "G/B"]);
+    expect(parseChordProgression("  ")).toEqual([]);
+  });
+});
+
+describe("saveStatusParts", () => {
+  const idle = { saving: false, mode: "auto" as const, error: null, flash: null, dirty: false, lastSavedAt: null };
+
+  it("announces a save the artist asked for, and its result", () => {
+    expect(saveStatusParts({ ...idle, saving: true, mode: "manual" })).toEqual({ live: "Saving…", quiet: null });
+    expect(saveStatusParts({ ...idle, flash: "Saved." })).toEqual({ live: "Saved.", quiet: null });
+    expect(saveStatusParts({ ...idle, error: "The server can't be reached." })).toEqual({
+      live: "Couldn't save — The server can't be reached.",
+      quiet: null,
+    });
+  });
+
+  it("keeps autosave and the ticking time out of the live region", () => {
+    expect(saveStatusParts({ ...idle, saving: true })).toEqual({ live: "", quiet: "saving" });
+    expect(saveStatusParts({ ...idle, dirty: true })).toEqual({ live: "", quiet: "unsaved" });
+    expect(saveStatusParts({ ...idle, lastSavedAt: "2026-09-23T10:00:00Z" })).toEqual({ live: "", quiet: "saved-at" });
+    expect(saveStatusParts(idle)).toEqual({ live: "", quiet: "no-changes" });
   });
 });

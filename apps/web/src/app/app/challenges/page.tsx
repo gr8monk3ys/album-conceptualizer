@@ -20,7 +20,7 @@ const CREDIT_USES: Array<{ label: string; cost: number }> = [
   { label: "Create an album", cost: CREDIT_COSTS.albumCreate },
   { label: "Remix an album from Discover", cost: CREDIT_COSTS.albumFork },
   { label: "Download the zip export", cost: CREDIT_COSTS.exportZip },
-  { label: "Run an agent workflow", cost: CREDIT_COSTS.agentRun },
+  { label: "An AI draft (ideas, a track or a written review)", cost: CREDIT_COSTS.agentRun },
 ];
 
 function addDaysUtc(day: string, delta: number) {
@@ -150,7 +150,7 @@ export default async function ChallengesPage() {
                   </div>
                 ))}
               </dl>
-              <p className="mt-3 max-w-[65ch] text-sm text-ink-3">Writing, saving and the Album Bible never cost credits.</p>
+              <p className="mt-3 max-w-[65ch] text-sm text-ink-3">Writing, saving, the Album Bible and the Coherence report never cost credits.</p>
             </Section>
           </div>
         </div>

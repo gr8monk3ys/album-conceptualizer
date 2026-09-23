@@ -1,0 +1,53 @@
+// "Tag from lyrics" proposes tags; the artist accepts them before anything is written. These
+// are the shapes the proposal and the apply share (server route and Bible client alike), and
+// the one sentence that says what was added.
+
+export type TagKind = "themes" | "motifs" | "characters";
+
+export const TAG_KINDS: TagKind[] = ["themes", "motifs", "characters"];
+
+/** Tags for one track, by kind. */
+export type TrackTags = {
+  trackNumber: number;
+  themes: string[];
+  motifs: string[];
+  characters: string[];
+};
+
+/** Tags the lyrics suggest for one track, none of them on the track already. */
+export type TrackTagProposal = TrackTags & { title: string };
+
+/** How many tags, over every track and kind. */
+export function countTags(tracks: readonly TrackTags[]): number {
+  return tracks.reduce((sum, track) => sum + TAG_KINDS.reduce((n, kind) => n + track[kind].length, 0), 0);
+}
+
+function pad(trackNumber: number) {
+  return String(trackNumber).padStart(2, "0");
+}
+
+const LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
+
+/** Above this many tags the sentence counts them instead of naming each one. */
+const NAMED_TAGS = 6;
+
+/**
+ * What was added, named: "Added tide to 04, signal and static to 05." Past six tags it counts
+ * them: "Added 12 tags on tracks 04, 05 and 07."
+ */
+export function describeAddedTags(tracks: readonly TrackTags[]): string {
+  const touched = tracks
+    .filter((track) => TAG_KINDS.some((kind) => track[kind].length))
+    .slice()
+    .sort((left, right) => left.trackNumber - right.trackNumber);
+  const total = countTags(touched);
+  if (!total) return "No tags were added: every one is already on its track.";
+  if (total > NAMED_TAGS) {
+    const numbers = LIST.format(touched.map((track) => pad(track.trackNumber)));
+    return `Added ${total} tags on ${touched.length === 1 ? "track" : "tracks"} ${numbers}.`;
+  }
+  const parts = touched.map(
+    (track) => `${LIST.format(TAG_KINDS.flatMap((kind) => track[kind]))} to ${pad(track.trackNumber)}`,
+  );
+  return `Added ${parts.join(", ")}.`;
+}

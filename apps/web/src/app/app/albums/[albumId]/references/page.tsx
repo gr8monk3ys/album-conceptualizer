@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AlbumReferencesWorkspace } from "@/components/album-references-workspace";
@@ -6,13 +7,22 @@ import { getAlbumSongOptions } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
 import { requireUser } from "@/server/identity";
 import { listAlbumReferences } from "@/server/references";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Reference tracks",
-  description: "Capture reference songs, roles, mood tags, and arrangement notes for an album.",
-};
+/** "References · <album title>" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  return {
+    title: albumPageTitle("References", await workspaceAlbumTitle(albumId)),
+    description: "The records and songs this album keeps pointing at, for the whole album or one track.",
+  };
+}
 
 // The album layout renders the title, catalog line, album tabs and spine above this page;
 // the Sound sub-navigation comes first in the page itself.

@@ -1,25 +1,37 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { BibleActions } from "@/components/bible-actions";
-import { ButtonLink, Chip, EmptyState, Section } from "@/components/ui";
+import { ThemeMark } from "@/components/theme-mark";
+import { ButtonLink, Chip, EmptyState, Section, TableScroller } from "@/components/ui";
 import { getAlbum } from "@/server/albums";
-import { buildAlbumBible, type AlbumBible, type BibleIssue } from "@/server/bible";
+import { getSpineRows } from "@/server/album-songs";
+import { buildAlbumBible, looseThreadsSummary, themeTracksPhrase, type AlbumBible, type BibleIssue } from "@/server/bible";
 import { buildMotifCharacterGraph, type MotifCharacterGraph } from "@/server/bible-relationships";
 import { coherenceFixHref } from "@/server/coherence";
 import { requireUser } from "@/server/identity";
 import { summarizeStyleBible } from "@/server/style-bible";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { albumMotifIndex, type MotifEntry } from "@/lib/motifs";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Album Bible",
-  description: "Themes, motifs, characters and story beats across the album, and what still needs tagging.",
-};
+/** "Album Bible · <album title>" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  return {
+    title: albumPageTitle("Album Bible", await workspaceAlbumTitle(albumId)),
+    description: "Themes, motifs, characters and story beats across the album, and what still needs tagging.",
+  };
+}
 
 /** The map's text version is listed in full up to this many connections, then folded away. */
 const CONNECTIONS_SHOWN = 10;
@@ -57,65 +69,68 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
     );
   }
 
+  // The theme column sticks while the track columns scroll under it, at a width set against the
+  // scroller (`cqw`, from the @container wrapper) so it can never outgrow it at 200% text: at
+  // most 12rem or 40% of the scroller. The scroller's scroll padding is the same width, so a
+  // track link reached by Tab scrolls clear of the sticky column instead of under it. Below
+  // 28rem (rem, so enlarged text reaches it sooner) there's no room for a sticky column; it
+  // scrolls with the rest.
+  const themeColumn =
+    "w-[min(12rem,40cqw)] min-w-[min(12rem,40cqw)] max-w-[45cqw] bg-ground pr-4 text-left sticky left-0 z-10 @max-[28rem]:static";
   return (
-    <div className="relative overflow-x-auto border-y border-line">
-      {/* Auto layout with a rem minimum on the theme column, so larger text widens the table
-          (it scrolls inside this region) instead of starving the theme names. */}
-      <table className="w-full border-collapse text-sm">
-        <caption className="sr-only">
-          Themes by track. Each row is a theme; a filled mark means the track is tagged with it.
-        </caption>
-        <thead>
-          <tr className="border-b border-line">
-            <th
-              scope="col"
-              className="sticky left-0 z-10 min-w-[12rem] bg-ground py-2 pr-4 text-left text-xs font-semibold text-ink-3"
-            >
-              Theme
-            </th>
-            {tracks.map((track) => (
-              <th key={track.trackNumber} scope="col" className="w-12 min-w-12 p-0 font-normal">
-                <Link
-                  href={coherenceFixHref(albumId, { focus: "song-themes", trackNumber: track.trackNumber })}
-                  title={`${track.title}: edit its themes`}
-                  className="type-figure mx-auto grid h-11 w-11 place-items-center rounded-sm text-sm font-semibold text-ink-3 hover:bg-hover hover:text-ink"
-                >
-                  {pad(track.trackNumber)}
-                  <span className="sr-only">{`, ${track.title}: edit its themes`}</span>
-                </Link>
+    <div className="@container min-w-0 border-y border-line">
+      <TableScroller label="Theme map" className="scroll-ps-[min(12rem,40%)] @max-[28rem]:scroll-ps-0">
+        {/* Auto layout: larger text widens the table (it scrolls inside this region) instead
+            of starving the theme names. */}
+        <table className="w-full border-collapse text-sm">
+          <caption className="sr-only">
+            Themes by track. Each row is a theme and says which tracks carry it; select a track
+            number to edit that track&apos;s themes.
+          </caption>
+          <thead>
+            <tr className="border-b border-line">
+              <th scope="col" className={cn(themeColumn, "py-2 text-xs font-semibold text-ink-3")}>
+                Theme
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.label} className="border-b border-line last:border-b-0">
-              <th scope="row" className="sticky left-0 z-10 bg-ground py-2.5 pr-4 text-left font-normal">
-                <span className="block break-words font-semibold text-ink">
-                  {row.label}
-                </span>
-                <span className="type-figure block text-xs text-ink-3">
-                  {row.trackNumbers.length
-                    ? `${row.trackNumbers.length} of ${tracks.length} tracks`
-                    : "On no track yet"}
-                </span>
-              </th>
-              {row.presence.map((present, index) => (
-                <td key={`${row.label}-${tracks[index]?.trackNumber ?? index}`} className="p-0 text-center">
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "mx-auto block h-3.5 w-3.5 rounded-sm",
-                      present ? "bg-ink" : "border border-line-strong",
-                    )}
-                  />
-                  <span className="sr-only">{present ? "Yes" : "No"}</span>
-                </td>
+              {tracks.map((track) => (
+                <th key={track.trackNumber} scope="col" className="w-12 min-w-12 p-0 font-normal">
+                  <Link
+                    href={coherenceFixHref(albumId, { focus: "song-themes", trackNumber: track.trackNumber })}
+                    title={`${track.title}: edit its themes`}
+                    className="type-figure mx-auto grid h-11 w-11 place-items-center rounded-sm text-sm font-semibold text-ink-3 hover:bg-hover hover:text-ink"
+                  >
+                    {pad(track.trackNumber)}
+                    <span className="sr-only">{`, ${track.title}: edit its themes`}</span>
+                  </Link>
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label} className="border-b border-line last:border-b-0">
+                <th scope="row" className={cn(themeColumn, "py-2.5 font-normal")}>
+                  <span className="block font-semibold text-ink wrap-anywhere hyphens-auto">{row.label}</span>
+                  <span className="type-figure block text-xs text-ink-3">
+                    {row.trackNumbers.length
+                      ? `${row.trackNumbers.length} of ${tracks.length} tracks`
+                      : "On no track yet"}
+                    {/* One phrase per row instead of a "yes"/"no" for every cell. */}
+                    {row.trackNumbers.length ? (
+                      <span className="sr-only">{`, ${themeTracksPhrase(row.trackNumbers, tracks.length)}`}</span>
+                    ) : null}
+                  </span>
+                </th>
+                {row.presence.map((present, index) => (
+                  <td key={`${row.label}-${tracks[index]?.trackNumber ?? index}`} className="p-0 text-center">
+                    <ThemeMark carries={present} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroller>
     </div>
   );
 }
@@ -145,7 +160,7 @@ function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="region" tabIndex={0} aria-label="Character and motif map" className="relative overflow-x-auto">
+      <TableScroller label="Character and motif map">
         <svg
           viewBox={`0 0 ${viewW} ${viewH}`}
           className="w-full min-w-[640px] max-w-[880px]"
@@ -197,7 +212,7 @@ function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
             );
           })}
         </svg>
-      </div>
+      </TableScroller>
       {graph.edges.length > CONNECTIONS_SHOWN ? (
         <details>
           <summary className={DISCLOSURE}>{`All ${graph.edges.length} connections`}</summary>
@@ -320,16 +335,14 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
   const warnings = structure.filter((issue) => issue.level === "warn");
   const notes = structure.filter((issue) => issue.level === "info");
   const base = `/app/albums/${album.id}`;
+  const spine = getSpineRows(album.data);
+  const writtenTracks = spine.filter((row) => row.lyricSections > 0).length;
 
   return (
     <div className="flex flex-col gap-10">
       <AlbumPageViewTracker albumId={album.id} event="album_bible_viewed" path={`${base}/bible`} />
 
-      <Section
-        id="bible-concept"
-        title="Concept"
-        actions={<BibleActions albumId={album.id} />}
-      >
+      <Section id="bible-concept" title="Concept">
         {bible.conceptSummary ? (
           <p className="max-w-[65ch] text-base leading-relaxed text-ink-2">{bible.conceptSummary}</p>
         ) : (
@@ -343,6 +356,8 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
             </Link>
           </p>
         )}
+        {/* Tagging shows its suggestions for review right here, under the buttons. */}
+        <BibleActions albumId={album.id} className="mt-4" />
       </Section>
 
       <Section
@@ -358,11 +373,11 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
       <Section
         id="bible-issues"
         title="Loose threads"
-        description={
-          warnings.length
-            ? `${warnings.length === 1 ? "1 thread doesn't" : `${warnings.length} threads don't`} hold across the album yet. Each links to where it's fixed.`
-            : "Every theme, character and story order holds across the album."
-        }
+        description={looseThreadsSummary({
+          warnings: warnings.length,
+          writtenTracks,
+          totalTracks: spine.length,
+        })}
         actions={
           <ButtonLink href={`${base}/coherence`} tone="ghost">
             Open the Coherence report

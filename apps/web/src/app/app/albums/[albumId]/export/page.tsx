@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AlbumExport } from "@/components/album-export";
@@ -8,13 +9,22 @@ import { getCredits } from "@/server/credits";
 import { requireUser } from "@/server/identity";
 import { effectivePlan } from "@/server/plan";
 import { getAlbumReadiness } from "@/server/readiness";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Export",
-  description: "Download album bundles as MIDI, ChordPro, MusicXML, JSON, and text.",
-};
+/** "Export · <album title>" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  return {
+    title: albumPageTitle("Export", await workspaceAlbumTitle(albumId)),
+    description: "Download album bundles as MIDI, ChordPro, MusicXML, JSON, and text.",
+  };
+}
 
 // The album layout renders the title, catalog line, album tabs and spine above this page.
 export default async function AlbumExportPage({

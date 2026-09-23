@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
@@ -7,13 +8,22 @@ import { getAlbum } from "@/server/albums";
 import { requireUser } from "@/server/identity";
 import { listAlbumReferences } from "@/server/references";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Style bible",
-  description: "Define the vocal identity, sonic palette, and production rules for your album.",
-};
+/** "Style · <album title>" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  return {
+    title: albumPageTitle("Style", await workspaceAlbumTitle(albumId)),
+    description: "Define the vocal identity, sonic palette, and production rules for your album.",
+  };
+}
 
 // The album layout renders the title, catalog line, album tabs and spine above this page;
 // the Sound sub-navigation comes first in the page itself.

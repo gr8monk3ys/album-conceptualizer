@@ -1,13 +1,26 @@
 import Link from "next/link";
 
-import { AppNavLinks, HelpNavLink, SettingsNavLink } from "@/components/app-nav-links";
+import { AccountBlock } from "@/components/account-block";
+import { AppNavLinks } from "@/components/app-nav-links";
 import { CreditsMeter } from "@/components/credits-meter";
-import { SignOutButton } from "@/components/sign-out-button";
 import { cn } from "@/lib/utils";
 
-export function Wordmark({ className }: { className?: string }) {
+/**
+ * "Album Conceptualizer" in condensed caps. With `fit`, inside a narrow column (the sidebar,
+ * the mobile sheet), it never grows past what that column can hold, so enlarged text wraps it
+ * between the two words instead of splitting "Conceptualizer": the parent must be a size
+ * container (`@container`). "CONCEPTUALIZER" in this cut is 8.44em wide, so 11cqi keeps it
+ * to 93% of the column.
+ */
+export function Wordmark({ className, fit = false }: { className?: string; fit?: boolean }) {
   return (
-    <span className={cn("type-catalog break-words text-sm text-ink", className)}>
+    <span
+      className={cn(
+        "type-catalog break-words text-ink",
+        fit ? "text-[length:min(0.875rem,11cqi)] leading-5" : "text-sm",
+        className,
+      )}
+    >
       Album <span className="font-extrabold">Conceptualizer</span>
     </span>
   );
@@ -28,21 +41,21 @@ export function Sidebar({
   credits?: { remaining: number; total: number };
   unreadNotifications?: number;
 }) {
-  const showUpgrade = plan !== "pro" && plan !== "team";
-
   return (
     <aside
       aria-label="Workspace"
       className={cn(
-        // Capped by the viewport so enlarged text (rem) can never squeeze the page to nothing.
-        // The whole column scrolls when it is taller than the window (a short landscape
-        // screen, 200% text); nothing in it shrinks, so the navigation never collapses.
-        "sticky top-0 flex h-dvh w-64 max-w-[33vw] shrink-0 flex-col gap-6 overflow-y-auto border-r border-line px-3 py-5 *:shrink-0",
+        // `w-sidebar` is --sidebar-w (globals.css): 16rem capped at a third of the window, so
+        // enlarged text (rem) can never squeeze the page to nothing, and anything that must
+        // line up with the content column reads the same width. The whole column scrolls
+        // when it is taller than the window (a short landscape screen, 200% text); nothing in
+        // it shrinks, so the navigation never collapses.
+        "sticky top-0 flex h-dvh w-sidebar shrink-0 flex-col gap-6 overflow-y-auto border-r border-line px-3 py-5 *:shrink-0",
         className,
       )}
     >
-      <Link href="/app" className="block rounded px-3 py-1">
-        <Wordmark />
+      <Link href="/app" className="block rounded px-3 py-1 @container">
+        <Wordmark fit />
         <span className="mt-1 block break-words text-xs text-ink-3">{workspaceName}</span>
       </Link>
 
@@ -53,27 +66,7 @@ export function Sidebar({
         <CreditsMeter credits={credits} />
       </div>
 
-      <div className="border-t border-line pt-4">
-        <div className="flex flex-wrap items-center justify-between gap-x-2 px-3">
-          <div className="min-w-0">
-            <p className="break-words text-sm font-medium text-ink">{userName || "You"}</p>
-            <p className="text-xs capitalize text-ink-3">{plan ?? "free"} plan</p>
-          </div>
-          {showUpgrade ? (
-            <Link
-              href="/app/settings/billing"
-              className="inline-flex min-h-11 items-center rounded px-2 text-sm font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink"
-            >
-              Upgrade
-            </Link>
-          ) : null}
-        </div>
-        <div className="mt-2 flex flex-col gap-0.5">
-          <SettingsNavLink />
-          <HelpNavLink />
-          <SignOutButton />
-        </div>
-      </div>
+      <AccountBlock userName={userName} plan={plan} />
     </aside>
   );
 }

@@ -188,7 +188,7 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Dreams Tonite").first()).toBeVisible();
 
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Overview", exact: true }).click();
-    await expect(page.getByRole("main").getByText("Reference tracks")).toBeVisible();
+    await expect(page.getByRole("main").getByText("References", { exact: true })).toBeVisible();
     await expect(page.getByText("Dreams Tonite · Alvvays")).toBeVisible();
   });
 

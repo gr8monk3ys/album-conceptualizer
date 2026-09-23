@@ -34,7 +34,7 @@ export default function RootError({
               Try again
             </Button>
             <ButtonLink href="/" tone="secondary">
-              Go home
+              Go to the front page
             </ButtonLink>
           </div>
           {error.digest ? (

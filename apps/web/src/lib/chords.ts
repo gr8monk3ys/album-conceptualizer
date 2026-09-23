@@ -9,9 +9,9 @@
 
 /** The loops the setup writes, one per starting key. */
 export const STARTER_PROGRESSIONS: ReadonlyArray<{ key: string; chords: readonly string[] }> = [
-  { key: "C", chords: ["C", "G", "Am", "F"] },
+  { key: "C major", chords: ["C", "G", "Am", "F"] },
   { key: "A minor", chords: ["Am", "F", "C", "G"] },
-  { key: "G", chords: ["G", "D", "Em", "C"] },
+  { key: "G major", chords: ["G", "D", "Em", "C"] },
   { key: "D minor", chords: ["Dm", "Bb", "F", "C"] },
 ];
 

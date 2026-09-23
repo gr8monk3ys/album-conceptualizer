@@ -46,9 +46,11 @@ export function DiscoverAlbumCard({
       data-album-id={album.id}
     >
       <div className="min-w-0 md:flex-1">
+        {/* A block link, not inline-flex: a flex item won't break a long unspaced title, which
+            then pushed the page sideways. `wrap-anywhere` breaks it inside the column. */}
         <Link
           href={`/app/discover/${album.id}`}
-          className="type-display inline-flex min-h-11 max-w-full items-center break-words py-2 text-xl text-ink hyphens-auto underline-offset-4 hover:underline md:text-2xl"
+          className="type-display block min-h-11 max-w-full py-2 text-xl text-ink wrap-anywhere hyphens-auto underline-offset-4 hover:underline md:text-2xl"
         >
           {album.title}
         </Link>

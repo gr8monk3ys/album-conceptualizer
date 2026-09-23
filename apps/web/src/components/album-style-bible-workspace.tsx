@@ -14,6 +14,7 @@ import {
   inputClass,
   textareaClass,
 } from "@/components/ui";
+import { referenceRoleLabel, referenceRoleList } from "@/lib/reference-roles";
 import { useAutosave } from "@/lib/use-autosave";
 import type { AlbumStyleBible } from "@/server/album-json";
 
@@ -79,13 +80,6 @@ function toForm(styleBible: Required<AlbumStyleBible>): StyleBibleFormState {
     emotionalTargets: joinList(styleBible.emotional_targets),
     referenceStrategy: styleBible.reference_strategy ?? "",
   };
-}
-
-function formatRole(role: string) {
-  return role
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function buildBody(form: StyleBibleFormState) {
@@ -381,7 +375,7 @@ export function AlbumStyleBibleWorkspace({
                 <ul className="mt-3 flex flex-wrap gap-1.5">
                   {initialSummary.referenceRoles.map((role) => (
                     <li key={role}>
-                      <Chip>{formatRole(role)}</Chip>
+                      <Chip>{referenceRoleLabel(role)}</Chip>
                     </li>
                   ))}
                 </ul>
@@ -390,15 +384,16 @@ export function AlbumStyleBibleWorkspace({
               )}
               {initialSummary.missingReferenceRoles.length ? (
                 <p className="mt-3 text-xs leading-relaxed text-ink-3">
-                  Still missing:{" "}
-                  {initialSummary.missingReferenceRoles.map(formatRole).join(", ")}
+                  Still missing: {referenceRoleList(initialSummary.missingReferenceRoles)}.
                 </p>
               ) : null}
             </div>
 
             <div>
               <h3 className="text-base font-semibold text-ink">Saved references</h3>
-              <p className="mt-1 text-sm text-ink-2">Current tracks informing the style bible.</p>
+              <p className="mt-1 max-w-[65ch] text-sm text-ink-2">
+                The album&apos;s references informing the style bible.
+              </p>
               {referenceTargets.length ? (
                 <ul className="mt-3 divide-y divide-line border-y border-line">
                   {referenceTargets.slice(0, 6).map((reference) => (
@@ -410,18 +405,21 @@ export function AlbumStyleBibleWorkspace({
                         ) : null}
                       </p>
                       <p className="mt-0.5 text-xs text-ink-3">
-                        {reference.targetRole
-                          ? formatRole(reference.targetRole)
-                          : reference.songTitle
-                            ? `Track ${reference.songTrackNumber}: ${reference.songTitle}`
-                            : "Album-wide"}
+                        {[
+                          reference.targetRole ? referenceRoleLabel(reference.targetRole) : null,
+                          reference.songTitle && reference.songTrackNumber
+                            ? `Track ${String(reference.songTrackNumber).padStart(2, "0")}: ${reference.songTitle}`
+                            : "Whole album",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
                     </li>
                   ))}
                 </ul>
               ) : (
                 <p className="mt-3 text-sm text-ink-3">
-                  Save reference tracks first if you want concrete vocal, opener, or mix targets.
+                  Add references first if you want concrete vocal, opener, or mix targets.
                 </p>
               )}
               <ButtonLink href={`/app/albums/${albumId}/references`} tone="ghost" className="mt-2 -ml-4">

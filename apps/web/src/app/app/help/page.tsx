@@ -76,7 +76,10 @@ const COSTS = [
   { action: "Create an album", cost: CREDIT_COSTS.albumCreate },
   { action: "Remix an album from Discover or a share link", cost: CREDIT_COSTS.albumFork },
   { action: "Download an export zip", cost: CREDIT_COSTS.exportZip },
-  { action: "Run an AI draft (brainstorm, song development or coherence review)", cost: CREDIT_COSTS.agentRun },
+  {
+    action: "Get an AI draft (brainstorming ideas, developing a song or reviewing coherence)",
+    cost: CREDIT_COSTS.agentRun,
+  },
 ];
 
 const PLANS = [

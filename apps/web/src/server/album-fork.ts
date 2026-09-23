@@ -15,15 +15,22 @@ export function forkAlbumJson(
   album: AlbumJson,
   opts?: {
     titleSuffix?: string;
+    /**
+     * Who is making the remix. Their copy is credited to them (or to no one, when their name
+     * isn't known); the original artist is kept in `remixed_from`, never in `artist`.
+     */
+    remixerName?: string | null;
   },
 ): AlbumJson {
   const now = new Date().toISOString();
   const titleSuffix = opts?.titleSuffix ?? "";
+  const remixer = opts?.remixerName?.trim().slice(0, 200) || null;
 
   return {
     ...album,
     id: newId(),
     title: `${album.title}${titleSuffix}`.trim().slice(0, 200),
+    artist: remixer,
     // Provenance: which album this remix started from. Plain strings only, so it stays
     // JSON-safe; the album schema passes unknown keys through.
     remixed_from: {
@@ -58,16 +65,23 @@ export async function forkIntoWorkspace(input: {
 }): Promise<string> {
   const parsed = AlbumJsonSchema.safeParse(input.source);
   if (!parsed.success) throw new ApiError(422, "This album can't be remixed because its data is invalid.");
-  const forked = forkAlbumJson(parsed.data, { titleSuffix: " (Remix)" });
 
   const created = await getPrisma().$transaction(async (tx) => {
+    const remixer = await tx.user.findUnique({
+      where: { id: input.userId },
+      select: { name: true },
+    });
+    const forked = forkAlbumJson(parsed.data, {
+      titleSuffix: " (Remix)",
+      remixerName: remixer?.name ?? null,
+    });
     await chargeCredits(tx, {
       workspaceId: input.workspaceId,
       plan: input.plan,
       amount: CREDIT_COSTS.albumFork,
       reason: "album_create_remix",
       metadata: input.creditMetadata,
-      insufficientMessage: "Not enough credits to remix. Complete challenges or upgrade.",
+      insufficientMessage: "Not enough credits to remix. Complete a challenge or upgrade your plan.",
     });
     await enforceProjectLimit(tx, input.workspaceId, input.plan);
     const album = await tx.album.create({

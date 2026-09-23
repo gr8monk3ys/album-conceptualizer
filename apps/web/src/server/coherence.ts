@@ -76,8 +76,20 @@ export type CoherenceIssue = {
 export type CoherenceBreakdownItem = {
   key: CoherenceDimension;
   label: string;
+  /** The score the report gives, after the cap (see `CoherenceReport.scoreCap`). */
   score: number;
+  /** What the dimension sees across the whole album, in one or two sentences. */
   summary: string;
+  /**
+   * The dimension's own score before any cap, measured on the written tracks only (the whole
+   * album once every track is written). While the cap holds every dimension at the same
+   * number, this is what tells them apart: pages order by it, weakest first.
+   */
+  uncapped: number;
+  /** Why the cap holds `score` below `uncapped` ("only 3 of 8 tracks are written"); absent when it doesn't. */
+  heldBecause?: string;
+  /** The dimension's own evidence on the tracks it measured: "3 of 3 written tracks have chords of their own". */
+  signal: string;
 };
 
 export type CoherenceNextAction = {
@@ -249,20 +261,169 @@ function buildBreakdownItem(
   key: CoherenceDimension,
   score: number,
   summary: string,
+  extra: { uncapped?: number; heldBecause?: string; signal?: string } = {},
 ): CoherenceBreakdownItem {
+  const limited = clampScore(score);
   return {
     key,
     label: CATEGORY_LABELS[key],
-    score: clampScore(score),
+    score: limited,
     summary,
+    uncapped: clampScore(extra.uncapped ?? score),
+    ...(extra.heldBecause ? { heldBecause: extra.heldBecause } : {}),
+    signal: extra.signal ?? summary,
   };
 }
 
-function summarizeBreakdown(breakdown: CoherenceBreakdownItem[]) {
-  const weakest = breakdown.reduce((currentWeakest, item) =>
-    item.score < currentWeakest.score ? item : currentWeakest,
-  );
-  return { weakest };
+const DIMENSION_ORDER: CoherenceDimension[] = ["narrative", "lyrics", "harmony", "sequence", "motifs"];
+
+/**
+ * The dimensions weakest first, by their own (uncapped) score, so the weak spot reads first
+ * even while the cap holds every score at the same number. Ties keep the report's order.
+ */
+export function dimensionsWeakestFirst(breakdown: CoherenceBreakdownItem[]) {
+  return breakdown
+    .slice()
+    .sort(
+      (left, right) =>
+        left.uncapped - right.uncapped || DIMENSION_ORDER.indexOf(left.key) - DIMENSION_ORDER.indexOf(right.key),
+    );
+}
+
+/** The weakest dimension by its own score (see `dimensionsWeakestFirst`). */
+export function weakestDimension(report: Pick<CoherenceReport, "breakdown">) {
+  return dimensionsWeakestFirst(report.breakdown)[0];
+}
+
+/** Track-level counts a dimension score is measured on: every track, or only the written ones. */
+type TrackCounts = {
+  tracks: number;
+  withStory: number;
+  onAlbumTheme: number;
+  missingLyrics: number;
+  withoutChorus: number;
+  missingChords: number;
+  missingKeys: number;
+  missingTempo: number;
+  missingKeyOrTempo: number;
+  minimalStructure: number;
+};
+
+function countTracks(songs: SongSnapshot[], albumThemes: string[]): TrackCounts {
+  const count = (predicate: (song: SongSnapshot) => boolean) => songs.filter(predicate).length;
+  return {
+    tracks: songs.length,
+    withStory: count((song) => song.hasNarrativeSummary),
+    onAlbumTheme: count((song) =>
+      albumThemes.length ? song.themes.some((theme) => albumThemes.includes(theme)) : song.themes.length > 0,
+    ),
+    missingLyrics: count((song) => !song.hasLyrics),
+    withoutChorus: count((song) => !song.hasChorus),
+    missingChords: count((song) => !song.hasChords),
+    missingKeys: count((song) => !song.key),
+    missingTempo: count((song) => !song.tempo),
+    missingKeyOrTempo: count((song) => !song.key || !song.tempo),
+    minimalStructure: count((song) => song.sectionCount < 2),
+  };
+}
+
+/** What holds across the whole album, whichever tracks a score is measured on. */
+type AlbumFacts = {
+  songCount: number;
+  hasConcept: boolean;
+  albumThemeCount: number;
+  uniqueThemes: number;
+  uniqueMotifs: number;
+  callbackMotifs: number;
+  weakBookends: boolean;
+  duplicateTrackNumbers: boolean;
+  repeatedEnergyProfile: boolean;
+  /** Every track has a key and they are all the same one. */
+  singleKey: boolean;
+};
+
+/** The five dimension scores before any cap, measured on `counts`. */
+function dimensionScores(counts: TrackCounts, album: AlbumFacts): Record<CoherenceDimension, number> {
+  const total = counts.tracks;
+  const themeDrift = album.albumThemeCount > 0 && counts.onAlbumTheme < Math.ceil(total / 2);
+
+  let narrative = 100;
+  if (!album.songCount) narrative -= 60;
+  if (!album.hasConcept) narrative -= 18;
+  if (!album.uniqueThemes) narrative -= 12;
+  narrative -= ratioPenalty(total - counts.withStory, total, 18);
+  if (themeDrift) narrative -= 18;
+  if (album.weakBookends) narrative -= 12;
+
+  let lyrics = 100;
+  lyrics -= ratioPenalty(counts.missingLyrics, total, 45);
+  lyrics -= ratioPenalty(counts.withoutChorus, total, 18);
+
+  let harmony = 100;
+  harmony -= ratioPenalty(counts.missingChords, total, 45);
+  harmony -= ratioPenalty(counts.missingKeys, total, 18);
+  harmony -= ratioPenalty(counts.missingTempo, total, 14);
+  if (album.singleKey) harmony -= 8;
+
+  let sequence = 100;
+  if (!album.songCount) sequence -= 50;
+  if (album.duplicateTrackNumbers) sequence -= 35;
+  sequence -= ratioPenalty(counts.minimalStructure, total, 28);
+  if (album.repeatedEnergyProfile) sequence -= 18;
+  if (album.weakBookends) sequence -= 10;
+  if (album.songCount > 0 && album.songCount < 4) sequence -= 12;
+
+  let motifs = 100;
+  if (!album.uniqueThemes) motifs -= 16;
+  if (!album.uniqueMotifs) motifs -= 18;
+  if (themeDrift) motifs -= 18;
+  if (album.uniqueMotifs > 0 && album.callbackMotifs === 0) motifs -= 22;
+  if (album.uniqueMotifs > 0 && album.callbackMotifs === 1) motifs -= 8;
+
+  return {
+    narrative: clampScore(narrative),
+    lyrics: clampScore(lyrics),
+    harmony: clampScore(harmony),
+    sequence: clampScore(sequence),
+    motifs: clampScore(motifs),
+  };
+}
+
+/**
+ * Each dimension's own evidence, on the tracks it was measured on: "3 of 3 written tracks have
+ * chords of their own". `scope` is "written track" while some tracks are unwritten.
+ */
+function dimensionSignals(
+  counts: TrackCounts,
+  album: AlbumFacts,
+  scope: "track" | "written track",
+): Record<CoherenceDimension, string> {
+  const total = counts.tracks;
+  const of = (count: number, one: string, many: string) =>
+    `${count} of ${total} ${scope}${total === 1 ? "" : "s"} ${total === 1 ? one : many}`;
+  const keyOrTempo = counts.missingKeyOrTempo
+    ? `; ${counts.missingKeyOrTempo} ${counts.missingKeyOrTempo === 1 ? "has" : "have"} no key or tempo`
+    : "";
+
+  return {
+    narrative: `${album.hasConcept ? "" : "No concept summary yet; "}${of(counts.withStory, "has a story note", "have a story note")}`,
+    lyrics: of(total - counts.withoutChorus, "has a chorus", "have a chorus"),
+    harmony: `${of(total - counts.missingChords, "has chords of its own", "have chords of their own")}${keyOrTempo}`,
+    sequence: album.duplicateTrackNumbers
+      ? "Two tracks share a number"
+      : counts.minimalStructure
+        ? of(counts.minimalStructure, "has fewer than 2 sections", "have fewer than 2 sections")
+        : album.repeatedEnergyProfile
+          ? "Most tracks share one section pattern and tempo"
+          : album.weakBookends
+            ? "The opener and closer don't frame the record yet"
+            : "Track order and song structure hold",
+    motifs: !album.uniqueMotifs
+      ? "No motifs yet"
+      : album.callbackMotifs
+        ? `${plural(album.callbackMotifs, "motif")} ${album.callbackMotifs === 1 ? "comes" : "come"} back on a second track`
+        : "No motif comes back on a second track yet",
+  };
 }
 
 function buildNextActions(issues: CoherenceIssue[]): CoherenceNextAction[] {
@@ -816,40 +977,27 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
 
   const sortedIssues = sortIssues(issues);
 
-  let narrativeScore = 100;
-  if (!songCount) narrativeScore -= 60;
-  if (!album.concept_summary?.trim()) narrativeScore -= 18;
-  if (!uniqueThemes) narrativeScore -= 12;
-  narrativeScore -= ratioPenalty(songCount - songsWithNarrativeSummary, songCount, 18);
-  if (albumThemes.length > 0 && songsAlignedToThemes < Math.ceil(songCount / 2)) {
-    narrativeScore -= 18;
-  }
-  if (weakBookends) narrativeScore -= 12;
-
-  let lyricsScore = 100;
-  lyricsScore -= ratioPenalty(songsMissingLyrics, songCount, 45);
-  lyricsScore -= ratioPenalty(songsWithoutChorus, songCount, 18);
-
-  let harmonyScore = 100;
-  harmonyScore -= ratioPenalty(songsMissingChords, songCount, 45);
-  harmonyScore -= ratioPenalty(songsMissingKeys, songCount, 18);
-  harmonyScore -= ratioPenalty(songsMissingTempo, songCount, 14);
-  if (songCount >= 4 && uniqueKeys <= 1 && songsMissingKeys === 0) harmonyScore -= 8;
-
-  let sequenceScore = 100;
-  if (!songCount) sequenceScore -= 50;
-  if (duplicateTrackNumbers.size) sequenceScore -= 35;
-  sequenceScore -= ratioPenalty(minimalStructureSongs, songCount, 28);
-  if (repeatedEnergyProfile) sequenceScore -= 18;
-  if (weakBookends) sequenceScore -= 10;
-  if (songCount > 0 && songCount < 4) sequenceScore -= 12;
-
-  let motifsScore = 100;
-  if (!uniqueThemes) motifsScore -= 16;
-  if (!uniqueMotifs) motifsScore -= 18;
-  if (albumThemes.length > 0 && songsAlignedToThemes < Math.ceil(songCount / 2)) motifsScore -= 18;
-  if (uniqueMotifs > 0 && callbackMotifs === 0) motifsScore -= 22;
-  if (uniqueMotifs > 0 && callbackMotifs === 1) motifsScore -= 8;
+  const albumFacts: AlbumFacts = {
+    songCount,
+    hasConcept: Boolean(album.concept_summary?.trim()),
+    albumThemeCount: albumThemes.length,
+    uniqueThemes,
+    uniqueMotifs,
+    callbackMotifs,
+    weakBookends,
+    duplicateTrackNumbers: duplicateTrackNumbers.size > 0,
+    repeatedEnergyProfile,
+    singleKey: songCount >= 4 && uniqueKeys <= 1 && songsMissingKeys === 0,
+  };
+  const rawScores = dimensionScores(countTracks(snapshots, albumThemes), albumFacts);
+  // The same measures on the written tracks alone: what each dimension scores on its own
+  // while the cap holds them all at the share of written tracks. Once every track is written
+  // (or none is) this is the whole album again.
+  const writtenSongs = snapshots.filter((song) => song.hasLyrics);
+  const partlyWritten = writtenSongs.length > 0 && writtenSongs.length < songCount;
+  const measuredCounts = countTracks(partlyWritten ? writtenSongs : snapshots, albumThemes);
+  const uncapped = partlyWritten ? dimensionScores(measuredCounts, albumFacts) : rawScores;
+  const signals = dimensionSignals(measuredCounts, albumFacts, partlyWritten ? "written track" : "track");
 
   // A score needs lyrics to judge. A one-track album needs only its one track written.
   const requiredWrittenTracks = Math.max(1, Math.min(MIN_WRITTEN_TRACKS_FOR_SCORE, songCount));
@@ -861,26 +1009,19 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
   const scoreCap = songCount ? clampScore((songsWithLyrics / songCount) * 100) : 0;
   const harmonyCap = songCount ? Math.min(scoreCap, clampScore((songsWithChords / songCount) * 100)) : 0;
   const writtenFact = `only ${songsWithLyrics} of ${songCount} tracks ${songsWithLyrics === 1 ? "is" : "are"} written`;
-  const capped = (
-    key: CoherenceDimension,
-    raw: number,
-    summary: string,
-    cap = scoreCap,
-    capReason = writtenFact,
-  ) => {
-    const limited = Math.min(clampScore(raw), cap);
-    return buildBreakdownItem(
-      key,
-      limited,
+  const capped = (key: CoherenceDimension, summary: string, cap = scoreCap, capReason = writtenFact) => {
+    const limited = Math.min(rawScores[key], cap);
+    return buildBreakdownItem(key, limited, summary, {
+      uncapped: uncapped[key],
       // Unscored reports show what each dimension needs, not a cap nobody can see.
-      limited < clampScore(raw) && !insufficient ? `${summary} Held at ${cap} because ${capReason}.` : summary,
-    );
+      heldBecause: limited < uncapped[key] && !insufficient ? capReason : undefined,
+      signal: signals[key],
+    });
   };
 
   const breakdown = [
     capped(
       "narrative",
-      narrativeScore,
       !album.concept_summary?.trim()
         ? "The album has no concept summary yet, and the tracks' story notes have nothing to answer to."
         : songsWithNarrativeSummary < songCount
@@ -891,14 +1032,12 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     ),
     capped(
       "lyrics",
-      lyricsScore,
       songsMissingLyrics
-        ? `${songsWithLyrics} of ${songCount} tracks have lyrics; the rest are placeholders or empty.`
-        : "Every track has lyrics, so callbacks and hooks can be judged.",
+        ? `${songsWithLyrics} of ${songCount} tracks have lyrics written; the rest are placeholders or empty.`
+        : "Every track has lyrics written, so callbacks and hooks can be judged.",
     ),
     capped(
       "harmony",
-      harmonyScore,
       songsMissingChords
         ? `${songsWithChords} of ${songCount} tracks have chords of their own${
             songsWithStarterChords ? `; ${plural(songsWithStarterChords, "track")} still ${songsWithStarterChords === 1 ? "has" : "have"} the starter loop` : ""
@@ -913,14 +1052,12 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     ),
     capped(
       "sequence",
-      sequenceScore,
       repeatedEnergyProfile
         ? "Tempo and section energy need more contrast across the record."
         : "Track order and internal song structure are mostly holding together.",
     ),
     capped(
       "motifs",
-      motifsScore,
       !uniqueMotifs
         ? "No motifs yet, on the album or on any track."
         : callbackMotifs
@@ -936,7 +1073,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     breakdown[3].score * 0.18 +
     breakdown[4].score * 0.16;
   const score = clampScore(weightedScore);
-  const { weakest } = summarizeBreakdown(breakdown);
+  const weakest = weakestDimension({ breakdown });
   const topIssue = sortedIssues[0];
 
   const missing: CoherenceMissingPiece[] = [];
@@ -976,7 +1113,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       ? "Not enough material yet — write lyrics for this track to get a score."
       : "Not enough material yet — write lyrics for two tracks to get a score."
     : songsMissingLyrics
-      ? `${score}/100 overall, and unfinished: ${songsWithLyrics} of ${songCount} tracks are written, so no dimension scores above ${scoreCap}. Finish the empty ${songsMissingLyrics === 1 ? "track" : "tracks"} first.`
+      ? `${score}/100 overall, and unfinished: ${songsWithLyrics} of ${songCount} tracks are written, so no dimension scores above ${scoreCap}. Finish the empty ${songsMissingLyrics === 1 ? "track" : "tracks"} first; on the written ${songsWithLyrics === 1 ? "one" : "ones"}, ${weakest.label} is weakest.`
       : topIssue
         ? `${score}/100 overall. Weakest area: ${weakest.label} (${weakest.score}/100). Top issue: ${topIssue.title}.`
         : `${score}/100 overall. The album is structurally coherent across the current draft.`;

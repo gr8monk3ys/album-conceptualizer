@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { Loader2, RotateCcw, Sparkles } from "lucide-react";
 
+import { AiUnavailableNote, useAiUnavailableNotice } from "@/components/ai-unavailable";
 import { ConfirmSpend } from "@/components/confirm-spend";
 import { readApiError } from "@/components/studio/studio-model";
 import { Button } from "@/components/ui";
 import { useAgentJob } from "@/hooks/use-agent-job";
-import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 type SongDevelopmentAiProps = {
@@ -55,6 +55,7 @@ export function SongDevelopmentAi({
   const [repollId, setRepollId] = useState<string | null>(null);
 
   const { job, error: pollError, elapsedMs, isPolling } = useAgentJob({ jobId });
+  const unavailable = useAiUnavailableNotice(!aiAvailable);
 
   useEffect(() => {
     if (!repollId) return;
@@ -81,9 +82,9 @@ export function SongDevelopmentAi({
         // retrying right away won't help. Anything else is the service having a bad moment.
         const human = res.status === 401 || res.status === 402 || res.status === 429;
         if (human) {
-          setStartFailure({ text: await readApiError(res, "Couldn't start the draft."), retry: null });
+          setStartFailure({ text: await readApiError(res, "Couldn't start the AI draft."), retry: null });
         } else {
-          setStartFailure({ text: "Couldn't start the draft. No credits were spent.", retry: "start" });
+          setStartFailure({ text: "Couldn't start the AI draft. No credits were spent.", retry: "start" });
         }
         return;
       }
@@ -113,9 +114,9 @@ export function SongDevelopmentAi({
   const failure: Failure | null = startFailure
     ? startFailure
     : pollError
-      ? { text: "Lost touch with the draft while it was running.", retry: "poll" }
+      ? { text: "Lost touch with the AI draft while it was running.", retry: "poll" }
       : job?.status === "failed"
-        ? { text: `The draft couldn't be finished. Your ${COST_LABEL} were refunded.`, retry: "start" }
+        ? { text: `The AI draft couldn't be finished. Your ${COST_LABEL} were refunded.`, retry: "start" }
         : null;
 
   const buttonLabel = isStarting
@@ -123,8 +124,8 @@ export function SongDevelopmentAi({
     : isPolling
       ? `Drafting… ${formatElapsed(elapsedMs)}`
       : output
-        ? `Draft again · ${COST_LABEL}`
-        : `Develop with AI · ${COST_LABEL}`;
+        ? `New AI draft · ${COST_LABEL}`
+        : `AI draft · ${COST_LABEL}`;
 
   const icon = isBusy ? (
     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -135,14 +136,14 @@ export function SongDevelopmentAi({
   return (
     <section aria-labelledby="song-ai-title" className="flex min-w-0 flex-col gap-3 border-t border-line pt-4">
       <h3 id="song-ai-title" className="text-base font-semibold text-ink">
-        AI drafting
+        Draft this track with AI
       </h3>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {aiAvailable ? (
           <ConfirmSpend
             cost={COST}
             remaining={creditsRemaining}
-            actionLabel={output ? "Draft again" : "Develop with AI"}
+            actionLabel={output ? "Start a new AI draft" : "Start AI draft"}
             onConfirm={start}
             busy={isBusy}
           >
@@ -150,17 +151,21 @@ export function SongDevelopmentAi({
             {buttonLabel}
           </ConfirmSpend>
         ) : (
-          // Can't run here: no price on a button that can't spend, and one plain line why.
-          <Button tone="secondary" disabled aria-describedby={hintId}>
+          // Can't run here: the button stays, disabled and unpriced (nothing can be spent), and
+          // the one plain line on this screen says why.
+          <Button tone="secondary" disabled aria-describedby={unavailable.describedBy}>
             {icon}
-            Develop with AI
+            AI draft
           </Button>
         )}
-        <p id={hintId} className="min-w-0 max-w-[65ch] flex-1 basis-60 text-sm leading-relaxed text-ink-2">
-          {aiAvailable
-            ? "Drafts lyrics, harmony ideas and production notes for this track from the album’s concept. It takes about a minute; nothing here changes until you copy lines in."
-            : AI_UNAVAILABLE_MESSAGE}
-        </p>
+        {aiAvailable ? (
+          <p id={hintId} className="min-w-0 max-w-[65ch] flex-1 basis-60 text-sm leading-relaxed text-ink-2">
+            An AI draft of lyrics, harmony ideas and production notes for this track, from the
+            album&rsquo;s concept. It takes about a minute; nothing here changes until you copy lines in.
+          </p>
+        ) : unavailable.show ? (
+          <AiUnavailableNote id={unavailable.noticeId} className="min-w-0 flex-1 basis-60" />
+        ) : null}
       </div>
 
       {aiAvailable ? (
@@ -169,7 +174,7 @@ export function SongDevelopmentAi({
             {isPolling && !output
               ? "Writing lyrics, suggesting harmony and drafting production notes. This usually takes 30 to 90 seconds."
               : output
-                ? "Draft ready."
+                ? "AI draft ready."
                 : ""}
           </p>
           <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-danger">
@@ -177,9 +182,9 @@ export function SongDevelopmentAi({
               <>
                 <span className="min-w-0 max-w-[65ch]">{failure.text}</span>
                 {failure.retry === "start" ? (
-                  <ConfirmSpend cost={COST} remaining={creditsRemaining} actionLabel="Retry" onConfirm={start}>
+                  <ConfirmSpend cost={COST} remaining={creditsRemaining} actionLabel="Retry the AI draft" onConfirm={start}>
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                    Retry · {COST_LABEL}
+                    Retry AI draft · {COST_LABEL}
                   </ConfirmSpend>
                 ) : failure.retry === "poll" ? (
                   <Button tone="secondary" onClick={checkAgain}>
@@ -197,10 +202,10 @@ export function SongDevelopmentAi({
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="min-w-0 break-words text-sm font-semibold text-ink">
-              Draft for track {trackNumber}: {songTitle}
+              AI draft for track {String(trackNumber).padStart(2, "0")}: {songTitle}
             </p>
             <Button tone="ghost" aria-expanded={expanded} aria-controls={outputId} onClick={() => setExpanded(!expanded)}>
-              {expanded ? "Hide draft" : "Show draft"}
+              {expanded ? "Hide AI draft" : "Show AI draft"}
             </Button>
           </div>
           {expanded ? (

@@ -16,6 +16,7 @@ import {
   selectClass,
   textareaClass,
 } from "@/components/ui";
+import { REFERENCE_ROLES, referenceRoleLabel } from "@/lib/reference-roles";
 import { mergeStringFields, useDraftState, useLeaveGuard } from "@/lib/use-autosave";
 import type { AlbumSongOption } from "@/server/album-songs";
 import type { AlbumReferenceRecord } from "@/server/references";
@@ -38,16 +39,6 @@ type Notice = { tone: "ok" | "neutral"; text: string } | null;
 type ReferenceResponse = {
   reference: AlbumReferenceRecord;
 };
-
-const ROLE_OPTIONS = [
-  "album-world",
-  "opener",
-  "closer",
-  "chorus-energy",
-  "vocal-texture",
-  "mix-palette",
-  "bridge-contrast",
-] as const;
 
 const REFERENCE_PROMPTS = [
   "What should the opener feel like in the first 20 seconds?",
@@ -79,12 +70,22 @@ function splitTagInput(raw: string) {
     .filter(Boolean);
 }
 
-function formatRole(role: string | null) {
-  if (!role) return "Album-wide";
-  return role
-    .split("-")
-    .map((value) => value.charAt(0).toUpperCase() + value.slice(1))
-    .join(" ");
+/**
+ * A reference with nothing but its title, as the create wizard saves the records named there:
+ * its row offers "Add details" rather than "Edit".
+ */
+function isBareReference(reference: AlbumReferenceRecord) {
+  return (
+    !reference.artist &&
+    !reference.notes &&
+    !reference.sourceUrl &&
+    !reference.targetRole &&
+    !reference.bpm &&
+    !reference.key &&
+    !reference.songTrackNumber &&
+    reference.moodTags.length === 0 &&
+    reference.arrangementTags.length === 0
+  );
 }
 
 function formatTrack(trackNumber: number) {
@@ -288,7 +289,8 @@ export function AlbumReferencesWorkspace({
     pendingFocus.current = id;
   }
 
-  const songScopedCount = references.filter((reference) => reference.songTrackNumber).length;
+  const trackCount = references.filter((reference) => reference.songTrackNumber).length;
+  const wholeAlbumCount = references.length - trackCount;
   const uniqueRoles = new Set(
     references
       .map((reference) => reference.targetRole)
@@ -440,7 +442,7 @@ export function AlbumReferencesWorkspace({
 
   function renderForm(mode: "add" | "edit") {
     return (
-      <Panel className="@container max-w-3xl scroll-mt-24">
+      <Panel className="@container max-w-3xl">
         <form
           onSubmit={(event) => void submitReference(event)}
           noValidate
@@ -449,10 +451,14 @@ export function AlbumReferencesWorkspace({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 id="reference-form-title" className="text-base font-semibold text-ink">
-                {mode === "edit" ? "Edit reference" : "Add a reference"}
+                {mode === "edit"
+                  ? editingRecord && isBareReference(editingRecord)
+                    ? "Add details"
+                    : "Edit reference"
+                  : "Add a reference"}
               </h3>
               <p className="mt-1 max-w-[65ch] text-sm text-ink-2">
-                Source the record&apos;s energy, palette, and mix targets.
+                What this record or song teaches the album: its energy, palette, or mix.
               </p>
               {mode === "add" && addDraft.restored ? (
                 <p className="mt-1 max-w-[65ch] text-sm text-ink-3">
@@ -511,21 +517,26 @@ export function AlbumReferencesWorkspace({
                 onChange={(event) => update("targetRole", event.target.value)}
                 className={selectClass}
               >
-                <option value="">Album-wide</option>
-                {ROLE_OPTIONS.map((role) => (
+                <option value="">No particular role</option>
+                {REFERENCE_ROLES.map((role) => (
                   <option key={role} value={role}>
-                    {formatRole(role)}
+                    {referenceRoleLabel(role)}
                   </option>
                 ))}
               </select>
             </Field>
 
-            <Field label="Song target" htmlFor="reference-song">
+            <Field
+              label="Song target"
+              htmlFor="reference-song"
+              hint="The whole album, or the one track this reference is for."
+            >
               <select
                 id="reference-song"
                 value={form.songTrackNumber}
                 onChange={(event) => update("songTrackNumber", event.target.value)}
                 className={selectClass}
+                aria-describedby="reference-song-hint"
               >
                 <option value="">Whole album</option>
                 {songOptions.map((song) => (
@@ -622,7 +633,7 @@ export function AlbumReferencesWorkspace({
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <Button type="submit" tone="primary" disabled={isSubmitting}>
-              {isSubmitting ? "Saving…" : mode === "edit" ? "Update reference" : "Add reference"}
+              {isSubmitting ? "Saving…" : mode === "edit" ? "Save reference" : "Add reference"}
             </Button>
             {formError ? <StatusMessage tone="danger">{formError}</StatusMessage> : null}
           </div>
@@ -637,13 +648,14 @@ export function AlbumReferencesWorkspace({
         <h3
           id="references-list-heading"
           tabIndex={-1}
-          className="scroll-mt-24 text-base font-semibold text-ink"
+          className="text-base font-semibold text-ink"
         >
           Saved references
         </h3>
         <p className="text-sm text-ink-2">
           <span className="type-figure text-ink">{references.length}</span> saved ·{" "}
-          <span className="type-figure text-ink">{songScopedCount}</span> song-specific ·{" "}
+          <span className="type-figure text-ink">{wholeAlbumCount}</span> whole album ·{" "}
+          <span className="type-figure text-ink">{trackCount}</span> for one track ·{" "}
           <span className="type-figure text-ink">{uniqueRoles}</span>{" "}
           {uniqueRoles === 1 ? "role" : "roles"}
         </p>
@@ -656,6 +668,7 @@ export function AlbumReferencesWorkspace({
       <ul className="divide-y divide-line">
         {references.map((reference) => {
           const isEditing = editing?.id === reference.id;
+          const bare = isBareReference(reference);
           const hasFacts =
             Boolean(reference.bpm) ||
             Boolean(reference.key) ||
@@ -667,7 +680,7 @@ export function AlbumReferencesWorkspace({
               id={`reference-row-${reference.id}`}
               tabIndex={-1}
               aria-current={isEditing ? "true" : undefined}
-              className="scroll-mt-24 py-4"
+              className="py-4"
             >
               {isEditing ? (
                 renderForm("edit")
@@ -679,8 +692,12 @@ export function AlbumReferencesWorkspace({
                         {reference.title}
                       </p>
                       <p className="mt-0.5 break-words text-sm text-ink-2">
-                        {reference.artist || "Artist not set"}
-                        {" · "}
+                        {reference.artist ? (
+                          <>
+                            {reference.artist}
+                            {" · "}
+                          </>
+                        ) : null}
                         {reference.songTrackNumber && reference.songTitle ? (
                           <>
                             Track{" "}
@@ -692,7 +709,7 @@ export function AlbumReferencesWorkspace({
                         )}
                       </p>
                     </div>
-                    <Chip>{formatRole(reference.targetRole)}</Chip>
+                    {reference.targetRole ? <Chip>{referenceRoleLabel(reference.targetRole)}</Chip> : null}
                   </div>
 
                   {hasFacts ? (
@@ -739,6 +756,11 @@ export function AlbumReferencesWorkspace({
                     <p className="mt-3 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
                       {reference.notes}
                     </p>
+                  ) : bare ? (
+                    <p className="mt-2 max-w-[65ch] text-sm text-ink-3">
+                      Only the title so far. Add the artist, what it teaches the album, and the track
+                      it&apos;s for, if it&apos;s for one.
+                    </p>
                   ) : null}
 
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -761,13 +783,13 @@ export function AlbumReferencesWorkspace({
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
-                        tone="ghost"
+                        tone={bare ? "secondary" : "ghost"}
                         className="px-3"
-                        aria-label={`Edit ${reference.title}`}
+                        aria-label={bare ? `Add details to ${reference.title}` : `Edit ${reference.title}`}
                         disabled={editDirty}
                         onClick={() => startEdit(reference)}
                       >
-                        Edit
+                        {bare ? "Add details" : "Edit"}
                       </Button>
                       <DeleteControl
                         itemLabel={reference.title}
@@ -794,7 +816,10 @@ export function AlbumReferencesWorkspace({
         </Button>
       }
     >
-      <p>Add one to anchor the album&apos;s pacing, texture, or mix direction. A good place to start:</p>
+      <p>
+        Add a record or song to anchor the album&apos;s pacing, texture, or mix direction, for the
+        whole album or one track. A good place to start:
+      </p>
       <ul className="mt-2 list-disc space-y-1 pl-5">
         {REFERENCE_PROMPTS.map((prompt) => (
           <li key={prompt}>{prompt}</li>
@@ -807,8 +832,8 @@ export function AlbumReferencesWorkspace({
     <div className="flex flex-col gap-10">
       <Section
         id="references"
-        title="Save the tracks you keep pointing at"
-        description="Capture reference songs, what each one teaches the album, and whether it belongs to the whole album or one track. Build the album's sonic map before the DAW session gets messy."
+        title="The records this album keeps pointing at"
+        description="One collection of references for the album: records and songs, what each one teaches, and whether it's for the whole album or one track. References named when you set up the album are here too."
         actions={
           references.length && !addOpen && !editing ? (
             <Button id="reference-add-trigger" onClick={openAdd}>

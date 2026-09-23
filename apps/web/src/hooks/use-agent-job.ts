@@ -29,7 +29,7 @@ type UseAgentJobReturn = {
 const DEFAULT_INTERVAL_MS = 2000;
 
 const LOST_TOUCH =
-  "Lost touch with the AI run while it was working. Check your connection, then check again.";
+  "Lost touch with the AI draft while it was working. Check your connection, then check again.";
 
 function isTerminal(status: AgentJobStatus): boolean {
   return status === "completed" || status === "failed";
