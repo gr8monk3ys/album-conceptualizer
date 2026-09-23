@@ -1,49 +1,51 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 
 import { AlbumJsonSchema } from "@/server/album-json";
-import { getAuthSession } from "@/server/auth";
+import { writeAlbumSnapshot } from "@/server/album-sync";
+import { ApiError, apiHandler, requireAlbum, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
-import { buildAlbumMutationData } from "@/server/album-sync";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const runtime = "nodejs";
 
-export async function POST(
-  _request: Request,
-  { params }: { params: Promise<{ albumId: string; versionId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+export const POST = apiHandler(
+  async (
+    _request: Request,
+    { params }: { params: Promise<{ albumId: string; versionId: string }> },
+  ) => {
+    const { userId, workspaceId } = await requireWorkspace();
+    const { albumId, versionId } = await params;
+    const album = await requireAlbum(workspaceId, albumId, { id: true, data: true });
 
-  const { albumId, versionId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
+    const prisma = getPrisma();
+    const version = await prisma.albumVersion.findFirst({
+      where: { id: versionId, albumId: album.id },
+      select: { data: true, message: true, createdAt: true },
+    });
+    if (!version) throw new ApiError(404, "Not found.");
 
-  const version = await prisma.albumVersion.findFirst({
-    where: { id: versionId, albumId, album: { workspaceId: workspace.id } },
-    select: { id: true, data: true },
-  });
-  if (!version) return NextResponse.json({ error: "Not found." }, { status: 404 });
+    const parsed = AlbumJsonSchema.safeParse(version.data);
+    if (!parsed.success) throw new ApiError(400, "Version snapshot is invalid album JSON.");
 
-  const parsed = AlbumJsonSchema.safeParse(version.data);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Version snapshot is invalid album JSON." }, { status: 400 });
-  }
+    const restored = { ...parsed.data, updated_at: new Date().toISOString() };
+    const label = version.message ?? version.createdAt.toISOString();
 
-  const mutation = buildAlbumMutationData(parsed.data);
+    await prisma.$transaction(async (tx) => {
+      // Keep the state being overwritten so a restore can itself be undone.
+      if (album.data !== null) {
+        await tx.albumVersion.create({
+          data: {
+            albumId: album.id,
+            createdByUserId: userId,
+            message: `Before restoring ${label}`.slice(0, 200),
+            data: album.data as Prisma.InputJsonValue,
+          },
+          select: { id: true },
+        });
+      }
+      await writeAlbumSnapshot(tx, album.id, restored);
+    });
 
-  await prisma.$transaction([
-    prisma.song.deleteMany({ where: { albumId } }),
-    prisma.album.update({
-      where: { id: albumId },
-      data: {
-        ...mutation,
-      },
-      select: { id: true },
-    }),
-  ]);
-
-  return NextResponse.json({ ok: true });
-}
-
+    return NextResponse.json({ ok: true });
+  },
+);

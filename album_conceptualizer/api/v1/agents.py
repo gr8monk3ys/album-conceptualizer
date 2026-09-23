@@ -8,14 +8,21 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from album_conceptualizer.api.jobs import Job, JobStatus, JobStore
 from album_conceptualizer.api.metrics import MetricsRegistry
 from album_conceptualizer.config import get_settings
+from album_conceptualizer.models.album import Album
+from album_conceptualizer.models.album_bible import AlbumBible
+from album_conceptualizer.models.snapshot import (
+    InvalidSnapshotError,
+    album_from_snapshot,
+    bible_from_album,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -51,8 +58,27 @@ class IdeationRequest(BaseModel):
     track_count: int = Field(default=10, ge=3, le=25)
 
 
-class SongDevelopmentRequest(BaseModel):
-    album_id: str
+class AlbumTarget(BaseModel):
+    """Identifies the album an agent works on.
+
+    Callers that own the album (the web app) send ``album``, a snapshot of the album JSON,
+    and the engine derives the Album Bible from it. ``album_id`` looks the album and its
+    bible up in the engine's own stores instead.
+    """
+
+    album: dict[str, Any] | None = Field(
+        default=None, description="Album JSON snapshot, as accepted by /export/album/zip."
+    )
+    album_id: str | None = None
+
+    @model_validator(mode="after")
+    def _require_album(self) -> AlbumTarget:
+        if self.album is None and not self.album_id:
+            raise ValueError("Provide either 'album' (a snapshot) or 'album_id'.")
+        return self
+
+
+class SongDevelopmentRequest(AlbumTarget):
     song_title: str
     track_number: int = Field(ge=1)
     mood: str | None = None
@@ -60,8 +86,8 @@ class SongDevelopmentRequest(BaseModel):
     song_structure: str | None = None
 
 
-class CoherenceReviewRequest(BaseModel):
-    album_id: str
+class CoherenceReviewRequest(AlbumTarget):
+    pass
 
 
 class JobResponse(BaseModel):
@@ -165,6 +191,50 @@ def _get_owner_id(request: Request) -> str | None:
     return request.headers.get("x-owner-id")
 
 
+def _resolve_album(
+    target: AlbumTarget, request: Request, workflow: str
+) -> tuple[Album, AlbumBible]:
+    """Return the album and bible an agent should work on, or raise 400/404."""
+    if target.album is not None:
+        try:
+            album = album_from_snapshot(target.album)
+        except InvalidSnapshotError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        style_bible = target.album.get("style_bible")
+        return album, bible_from_album(
+            album, style_bible if isinstance(style_bible, dict) else None
+        )
+
+    album_id = cast("str", target.album_id)
+    stored = request.app.state.album_store.get(album_id)
+    if stored is None:
+        raise HTTPException(status_code=404, detail="Album not found")
+    bible = request.app.state.bible_store.get(album_id)
+    if bible is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Album bible not found. Create one before running {workflow}.",
+        )
+    return stored, bible
+
+
+def _launch(request: Request, workflow: str, crew: Any) -> JobResponse:
+    """Register a job for ``crew`` and run it on a supervised background thread."""
+    job_store: JobStore = request.app.state.job_store
+    metrics = _get_metrics(request)
+    job = job_store.create(workflow, owner_id=_get_owner_id(request))
+    if metrics:
+        metrics.record_agent_start(workflow)
+    response = _job_to_response(job)
+    thread = threading.Thread(
+        target=_run_crew_in_thread,
+        args=(job_store, job.id, crew, workflow, metrics),
+        daemon=True,
+    )
+    thread.start()
+    return response
+
+
 def _job_to_response(job: Job) -> JobResponse:
     return JobResponse(
         job_id=job.id,
@@ -185,9 +255,7 @@ def _job_to_response(job: Job) -> JobResponse:
 def start_ideation(req: IdeationRequest, request: Request) -> JobResponse:
     _require_anthropic_key()
     _require_crew_function(create_album_ideation_crew)
-
-    job_store: JobStore = request.app.state.job_store
-    _check_concurrency_limit(job_store)
+    _check_concurrency_limit(request.app.state.job_store)
 
     crew = create_album_ideation_crew(
         concept=req.concept,
@@ -195,41 +263,15 @@ def start_ideation(req: IdeationRequest, request: Request) -> JobResponse:
         themes=req.themes,
         track_count=req.track_count,
     )
-
-    metrics = _get_metrics(request)
-    owner_id = _get_owner_id(request)
-    job = job_store.create("ideation", owner_id=owner_id)
-    if metrics:
-        metrics.record_agent_start("ideation")
-    response = _job_to_response(job)
-    thread = threading.Thread(
-        target=_run_crew_in_thread,
-        args=(job_store, job.id, crew, "ideation", metrics),
-        daemon=True,
-    )
-    thread.start()
-    return response
+    return _launch(request, "ideation", crew)
 
 
 @router.post("/song-development", status_code=202)
 def start_song_development(req: SongDevelopmentRequest, request: Request) -> JobResponse:
+    _album, bible = _resolve_album(req, request, "song development")
     _require_anthropic_key()
-
-    album = request.app.state.album_store.get(req.album_id)
-    if album is None:
-        raise HTTPException(status_code=404, detail="Album not found")
-
-    bible = request.app.state.bible_store.get(req.album_id)
-    if bible is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Album bible not found. Create one before running song development.",
-        )
-
     _require_crew_function(create_song_development_crew)
-
-    job_store: JobStore = request.app.state.job_store
-    _check_concurrency_limit(job_store)
+    _check_concurrency_limit(request.app.state.job_store)
 
     kwargs: dict = {}
     if req.mood is not None:
@@ -245,41 +287,15 @@ def start_song_development(req: SongDevelopmentRequest, request: Request) -> Job
         album_bible=bible,
         **kwargs,
     )
-
-    metrics = _get_metrics(request)
-    owner_id = _get_owner_id(request)
-    job = job_store.create("song_development", owner_id=owner_id)
-    if metrics:
-        metrics.record_agent_start("song_development")
-    response = _job_to_response(job)
-    thread = threading.Thread(
-        target=_run_crew_in_thread,
-        args=(job_store, job.id, crew, "song_development", metrics),
-        daemon=True,
-    )
-    thread.start()
-    return response
+    return _launch(request, "song_development", crew)
 
 
 @router.post("/coherence-review", status_code=202)
 def start_coherence_review(req: CoherenceReviewRequest, request: Request) -> JobResponse:
+    album, bible = _resolve_album(req, request, "coherence review")
     _require_anthropic_key()
-
-    album = request.app.state.album_store.get(req.album_id)
-    if album is None:
-        raise HTTPException(status_code=404, detail="Album not found")
-
-    bible = request.app.state.bible_store.get(req.album_id)
-    if bible is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Album bible not found. Create one before running coherence review.",
-        )
-
     _require_crew_function(create_coherence_review_crew)
-
-    job_store: JobStore = request.app.state.job_store
-    _check_concurrency_limit(job_store)
+    _check_concurrency_limit(request.app.state.job_store)
 
     album_content = "\n\n".join(
         f"Track {song.track_number}: {song.title}\n"
@@ -291,20 +307,13 @@ def start_coherence_review(req: CoherenceReviewRequest, request: Request) -> Job
         album_bible=bible,
         album_content=album_content or "(no song content yet)",
     )
+    return _launch(request, "coherence_review", crew)
 
-    metrics = _get_metrics(request)
+
+def _visible_to_caller(job: Job, request: Request) -> bool:
+    """Jobs started on behalf of an owner are visible only to that owner."""
     owner_id = _get_owner_id(request)
-    job = job_store.create("coherence_review", owner_id=owner_id)
-    if metrics:
-        metrics.record_agent_start("coherence_review")
-    response = _job_to_response(job)
-    thread = threading.Thread(
-        target=_run_crew_in_thread,
-        args=(job_store, job.id, crew, "coherence_review", metrics),
-        daemon=True,
-    )
-    thread.start()
-    return response
+    return not (owner_id and job.owner_id and owner_id != job.owner_id)
 
 
 @router.get("/jobs", status_code=200)
@@ -313,17 +322,16 @@ def list_jobs(
     status: JobStatus | None = Query(None, description="Filter by job status"),  # noqa: B008
 ) -> list[JobResponse]:
     job_store: JobStore = request.app.state.job_store
-    return [_job_to_response(j) for j in job_store.list(status=status)]
+    return [
+        _job_to_response(j) for j in job_store.list(status=status) if _visible_to_caller(j, request)
+    ]
 
 
 @router.get("/jobs/{job_id}", status_code=200)
 def get_job(job_id: str, request: Request) -> JobResponse:
     job_store: JobStore = request.app.state.job_store
     job = job_store.get(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-    owner_id = _get_owner_id(request)
-    if owner_id and job.owner_id and owner_id != job.owner_id:
+    if job is None or not _visible_to_caller(job, request):
         raise HTTPException(status_code=404, detail="Job not found")
     return _job_to_response(job)
 
@@ -331,5 +339,6 @@ def get_job(job_id: str, request: Request) -> JobResponse:
 @router.delete("/jobs/{job_id}", status_code=204)
 def delete_job(job_id: str, request: Request) -> None:
     job_store: JobStore = request.app.state.job_store
-    if not job_store.delete(job_id):
+    job = job_store.get(job_id)
+    if job is None or not _visible_to_caller(job, request) or not job_store.delete(job_id):
         raise HTTPException(status_code=404, detail="Job not found")

@@ -1,0 +1,3 @@
+# Remove the Gradio UI
+
+The Next.js app in `apps/web` is the only product UI. The Gradio UI (`album_conceptualizer/ui/`, about 4,700 lines) re-implemented jam plans, the progress coach, release kits and bible Markdown inline, a third copy after the Engine's experience endpoints and the web app. CI never installed its extra, so it went untested. We deleted it along with its CLI command, Docker stage, compose services and Makefile targets rather than keep a surface that silently drifts from the product. Don't reintroduce a second UI in the Engine; a local workflow should use the web app against a local Engine.

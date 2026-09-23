@@ -1,46 +1,28 @@
 import { NextResponse } from "next/server";
 
-import { getAuthSession } from "@/server/auth";
-import { getPrisma } from "@/server/db";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { writeAlbumSnapshot } from "@/server/album-sync";
+import { ApiError, apiHandler, requireAlbum, requireWorkspace } from "@/server/api";
 import { applyAutoTagsFromLyrics } from "@/server/autotag";
-import { buildAlbumMutationData } from "@/server/album-sync";
+import { getPrisma } from "@/server/db";
 
 export const runtime = "nodejs";
 
-export async function POST(
-  _request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+export const POST = apiHandler(
+  async (_request: Request, { params }: { params: Promise<{ albumId: string }> }) => {
+    const { workspaceId } = await requireWorkspace();
+    const { albumId } = await params;
+    const album = await requireAlbum(workspaceId, albumId, { id: true, data: true });
 
-  const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
+    const tagged = applyAutoTagsFromLyrics(album.data);
+    if (!tagged) throw new ApiError(400, "Album data is invalid.");
 
-  const album = await prisma.album.findFirst({
-    where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true, data: true },
-  });
-  if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
+    // The album was rewritten, so its JSON snapshot carries a fresh updated_at.
+    const updated = { ...tagged, updated_at: new Date().toISOString() };
 
-  const updated = applyAutoTagsFromLyrics(album.data);
-  if (!updated) return NextResponse.json({ error: "Album data is invalid." }, { status: 400 });
-
-  const mutation = buildAlbumMutationData(updated);
-
-  await prisma.$transaction(async (tx) => {
-    // Keep relational tables in sync with the new JSON snapshot.
-    await tx.song.deleteMany({ where: { albumId: album.id } });
-    await tx.album.update({
-      where: { id: album.id },
-      data: { ...mutation },
-      select: { id: true },
+    await getPrisma().$transaction(async (tx) => {
+      await writeAlbumSnapshot(tx, album.id, updated);
     });
-  });
 
-  return NextResponse.json({ ok: true });
-}
-
+    return NextResponse.json({ ok: true });
+  },
+);

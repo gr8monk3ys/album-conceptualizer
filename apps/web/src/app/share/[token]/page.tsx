@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 
 import { ForkShareButton } from "@/components/fork-share-button";
 import { getAuthSession } from "@/server/auth";
-import { getPrisma } from "@/server/db";
+import { getAlbumSongOptions } from "@/server/album-songs";
+import { findSharedAlbum } from "@/server/share-links";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -11,52 +12,20 @@ export const metadata = {
   description: "Review a shared album and fork it into your workspace.",
 };
 
-function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; title: string }> {
-  if (!data || typeof data !== "object") return [];
-  const songs = (data as { songs?: unknown }).songs;
-  if (!Array.isArray(songs)) return [];
-
-  return songs
-    .map((song) => {
-      if (!song || typeof song !== "object") return null;
-      const track_number = (song as { track_number?: unknown }).track_number;
-      const title = (song as { title?: unknown }).title;
-      if (typeof track_number !== "number" || typeof title !== "string") return null;
-      return { track_number, title };
-    })
-    .filter((song): song is { track_number: number; title: string } => Boolean(song))
-    .sort((a, b) => a.track_number - b.track_number);
-}
-
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const prisma = getPrisma();
   const session = await getAuthSession();
-
-  const share = await prisma.albumShareLink.findUnique({
-    where: { token },
-    select: {
-      revokedAt: true,
-      expiresAt: true,
-      album: {
-        select: {
-          id: true,
-          title: true,
-          artist: true,
-          conceptSummary: true,
-          data: true,
-          updatedAt: true,
-        },
-      },
-    },
+  const album = await findSharedAlbum(token, {
+    id: true,
+    title: true,
+    artist: true,
+    conceptSummary: true,
+    data: true,
+    updatedAt: true,
   });
+  if (!album) notFound();
 
-  if (!share?.album) notFound();
-  if (share.revokedAt) notFound();
-  const now = new Date();
-  if (share.expiresAt && share.expiresAt.getTime() < now.getTime()) notFound();
-
-  const songs = getSongsFromAlbumData(share.album.data);
+  const songs = getAlbumSongOptions(album.data);
   const callbackUrl = `/share/${token}`;
 
   return (
@@ -67,10 +36,10 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-xs text-[var(--muted2)]">Shared project</div>
-            <div className="truncate text-3xl font-semibold tracking-tight">{share.album.title}</div>
+            <div className="truncate text-3xl font-semibold tracking-tight">{album.title}</div>
             <div className="mt-1 text-sm text-[var(--muted)]">
-              {share.album.artist ? `by ${share.album.artist}` : "Artist not set"} · Updated{" "}
-              {share.album.updatedAt.toLocaleString()}
+              {album.artist ? `by ${album.artist}` : "Artist not set"} · Updated{" "}
+              {album.updatedAt.toLocaleString()}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -87,11 +56,11 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           </div>
         </div>
 
-        {share.album.conceptSummary ? (
+        {album.conceptSummary ? (
           <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
             <div className="text-xs text-[var(--muted2)]">Concept</div>
             <div className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
-              {share.album.conceptSummary}
+              {album.conceptSummary}
             </div>
           </div>
         ) : null}
@@ -109,10 +78,10 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             {songs.length ? (
               <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
                 {songs.map((song) => (
-                  <li key={`${song.track_number}-${song.title}`} className="px-4 py-3">
+                  <li key={`${song.trackNumber}-${song.title}`} className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 text-xs tabular-nums text-[var(--muted2)]">
-                        {String(song.track_number).padStart(2, "0")}
+                        {String(song.trackNumber).padStart(2, "0")}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-semibold">{song.title}</div>

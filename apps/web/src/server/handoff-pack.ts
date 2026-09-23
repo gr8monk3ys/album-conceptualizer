@@ -4,6 +4,7 @@ import { analyzeAlbumCoherence } from "@/server/coherence";
 import type { AlbumReferenceRecord } from "@/server/references";
 import { analyzeAlbumRoughDemos } from "@/server/rough-demo-review";
 import { getRoughDemoSourceLabel, listAlbumRoughDemos } from "@/server/rough-demos";
+import { safeFilename } from "@/server/headers";
 
 export type HandoffTarget = "suno" | "udio" | "daw";
 
@@ -44,10 +45,6 @@ const TARGET_CONFIG: Record<
       "Use the session objective and arrangement notes to build the rough first pass before chasing sound-design details.",
   },
 };
-
-function sanitizeFilename(value: string) {
-  return value.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "handoff_pack";
-}
 
 function lineWrap(text: string, max = 96) {
   const trimmed = text.trim();
@@ -454,5 +451,5 @@ export function buildHandoffPackMarkdown(input: {
 }
 
 export function getHandoffPackFilename(albumTitle: string, target: HandoffTarget) {
-  return `${sanitizeFilename(`${albumTitle}_${target}_handoff_pack`)}.md`;
+  return `${safeFilename(`${albumTitle}_${target}_handoff_pack`, "handoff_pack")}.md`;
 }

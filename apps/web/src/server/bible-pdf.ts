@@ -2,10 +2,7 @@ import PDFDocument from "pdfkit";
 
 import type { AlbumBible } from "@/server/bible";
 import { buildMotifCharacterGraph } from "@/server/bible-relationships";
-
-function sanitizeFilename(value: string) {
-  return value.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "bible";
-}
+import { safeFilename } from "@/server/headers";
 
 type TextBlockOpts = {
   size?: number;
@@ -219,6 +216,6 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
 
   doc.end();
   const buffer = await done;
-  const filename = sanitizeFilename(`${bible.title}_album_bible`) + ".pdf";
+  const filename = safeFilename(`${bible.title}_album_bible`, "bible") + ".pdf";
   return { buffer, filename };
 }

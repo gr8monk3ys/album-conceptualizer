@@ -54,7 +54,15 @@ export function Sidebar({
             {creditsRemaining}
           </div>
         </div>
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
+        <div
+          role="meter"
+          aria-label="Credits"
+          aria-valuemin={0}
+          aria-valuemax={creditsTotal}
+          aria-valuenow={creditsRemaining}
+          aria-valuetext={`${creditsRemaining} of ${creditsTotal} monthly credits left`}
+          className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]"
+        >
           <div
             className="h-full rounded-full bg-[linear-gradient(90deg,var(--accent2),var(--accent))]"
             style={{ width: `${Math.round(ratio * 100)}%` }}

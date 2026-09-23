@@ -130,11 +130,11 @@ class Settings(BaseSettings):
         alias="ALBUM_CONCEPTUALIZER_STRIPE_PRICE_ID_TEAM",
     )
     billing_success_url: str = Field(
-        default="http://localhost:7860/billing/success",
+        default="http://localhost:3000/billing/success",
         alias="ALBUM_CONCEPTUALIZER_BILLING_SUCCESS_URL",
     )
     billing_cancel_url: str = Field(
-        default="http://localhost:7860/billing/cancel",
+        default="http://localhost:3000/billing/cancel",
         alias="ALBUM_CONCEPTUALIZER_BILLING_CANCEL_URL",
     )
     strict_production: bool = Field(
@@ -168,11 +168,11 @@ class Settings(BaseSettings):
         alias="ALBUM_CONCEPTUALIZER_IDENTITY_REQUIRE_VERIFIED_EMAIL",
     )
     identity_magic_link_url_template: str = Field(
-        default="http://localhost:7860/auth/magic-link?token={token}",
+        default="http://localhost:3000/auth/magic-link?token={token}",
         alias="ALBUM_CONCEPTUALIZER_IDENTITY_MAGIC_LINK_URL_TEMPLATE",
     )
     identity_invite_url_template: str = Field(
-        default="http://localhost:7860/auth/invite?token={token}",
+        default="http://localhost:3000/auth/invite?token={token}",
         alias="ALBUM_CONCEPTUALIZER_IDENTITY_INVITE_URL_TEMPLATE",
     )
     email_provider: str = Field(
@@ -209,7 +209,7 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: list[str] = Field(
-        default_factory=lambda: ["http://localhost:3000", "http://localhost:7860"],
+        default_factory=lambda: ["http://localhost:3000"],
         alias="ALBUM_CONCEPTUALIZER_CORS_ORIGINS",
     )
 
@@ -343,7 +343,7 @@ class Settings(BaseSettings):
     @classmethod
     def _parse_cors_origins(cls, value: object) -> list[str]:
         if value is None:
-            return ["http://localhost:3000", "http://localhost:7860"]
+            return ["http://localhost:3000"]
         if isinstance(value, list):
             return value
         if isinstance(value, str):

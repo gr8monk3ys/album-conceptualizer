@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getAlbumSongOptions } from "@/server/album-songs";
 import { notFound } from "next/navigation";
 
 import { DiscoverAlbumActions } from "@/components/discover-album-actions";
@@ -11,23 +12,6 @@ export const metadata = {
   title: "Discover Album",
   description: "Explore a published album and remix it into your workspace.",
 };
-
-function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; title: string }> {
-  if (!data || typeof data !== "object") return [];
-  const songs = (data as { songs?: unknown }).songs;
-  if (!Array.isArray(songs)) return [];
-
-  return songs
-    .map((song) => {
-      if (!song || typeof song !== "object") return null;
-      const track_number = (song as { track_number?: unknown }).track_number;
-      const title = (song as { title?: unknown }).title;
-      if (typeof track_number !== "number" || typeof title !== "string") return null;
-      return { track_number, title };
-    })
-    .filter((song): song is { track_number: number; title: string } => Boolean(song))
-    .sort((a, b) => a.track_number - b.track_number);
-}
 
 export default async function DiscoverAlbumPage({
   params,
@@ -55,7 +39,7 @@ export default async function DiscoverAlbumPage({
   });
   if (!album) notFound();
 
-  const songs = getSongsFromAlbumData(album.data);
+  const songs = getAlbumSongOptions(album.data);
   const coherence = analyzeAlbumCoherence(album.data);
 
   return (
@@ -117,10 +101,10 @@ export default async function DiscoverAlbumPage({
               {songs.length ? (
                 <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
                   {songs.map((song) => (
-                    <li key={`${song.track_number}-${song.title}`} className="px-4 py-3">
+                    <li key={`${song.trackNumber}-${song.title}`} className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 text-xs tabular-nums text-[var(--muted2)]">
-                          {String(song.track_number).padStart(2, "0")}
+                          {String(song.trackNumber).padStart(2, "0")}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-semibold text-[var(--text)]">

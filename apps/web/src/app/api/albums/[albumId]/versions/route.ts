@@ -1,30 +1,23 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAuthSession } from "@/server/auth";
+import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const runtime = "nodejs";
+
+type Context = { params: Promise<{ albumId: string }> };
 
 const CreateBodySchema = z.object({
   message: z.string().trim().min(1).max(200).optional(),
 });
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
+export const GET = apiHandler(async (_request: Request, { params }: Context) => {
+  const { workspaceId } = await requireWorkspace();
   const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
 
-  const versions = await prisma.albumVersion.findMany({
-    where: { albumId, album: { workspaceId: workspace.id } },
+  const versions = await getPrisma().albumVersion.findMany({
+    where: { albumId, album: { workspaceId } },
     orderBy: { createdAt: "desc" },
     take: 50,
     select: {
@@ -36,44 +29,24 @@ export async function GET(
   });
 
   return NextResponse.json({ versions });
-}
+});
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
+export const POST = apiHandler(async (request: Request, { params }: Context) => {
+  const { userId, workspaceId } = await requireWorkspace();
+  const payload = await parseJsonBody(request, CreateBodySchema);
   const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
+  const album = await requireAlbum(workspaceId, albumId, { id: true, data: true });
+  if (!album.data) throw new ApiError(400, "Album has no saved data snapshot.");
 
-  const payload = CreateBodySchema.safeParse(await request.json().catch(() => null));
-  if (!payload.success) {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
-  }
-
-  const album = await prisma.album.findFirst({
-    where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true, data: true },
-  });
-  if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
-  if (!album.data) {
-    return NextResponse.json({ error: "Album has no saved data snapshot." }, { status: 400 });
-  }
-
-  const created = await prisma.albumVersion.create({
+  const created = await getPrisma().albumVersion.create({
     data: {
       albumId: album.id,
       createdByUserId: userId,
-      message: payload.data.message ?? null,
+      message: payload.message ?? null,
       data: album.data,
     },
     select: { id: true },
   });
 
   return NextResponse.json({ id: created.id }, { status: 201 });
-}
-
+});

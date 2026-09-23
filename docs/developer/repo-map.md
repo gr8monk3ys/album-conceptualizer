@@ -7,7 +7,7 @@ This page is for engineers who need to find the right place to work quickly.
 | Path | Purpose |
 | --- | --- |
 | `apps/web/` | Primary Next.js product surface |
-| `album_conceptualizer/` | Python package, FastAPI engine, exports, models, legacy UI |
+| `album_conceptualizer/` | Python package, FastAPI engine, exports, models |
 | `tests/` | Python pytest suite |
 | `docs/` | MkDocs source |
 | `scripts/` | smoke tests, runbooks, backup, restore, and ops helpers |
@@ -61,7 +61,6 @@ Inside `album_conceptualizer/`:
 | `integrations/` | external service integrations |
 | `models/` | core domain models |
 | `rag/` | optional retrieval and embeddings support |
-| `ui/` | legacy Gradio application |
 
 ### High-Value Python Entry Points
 
@@ -71,7 +70,6 @@ Inside `album_conceptualizer/`:
 | inspect API routes | `album_conceptualizer/api/v1/` |
 | work on export formats | `album_conceptualizer/export/` |
 | inspect storage and config | `album_conceptualizer/config.py` |
-| work on the Gradio UI | `album_conceptualizer/ui/app.py` |
 
 ## Tests And Scripts
 
@@ -86,7 +84,6 @@ Inside `album_conceptualizer/`:
 - billing
 - rate limiting and quota
 - storage backends
-- legacy UI smoke
 
 ### Web Tests
 
@@ -105,7 +102,6 @@ Top-level `scripts/` includes:
 - backup and restore
 - staging smoke
 - Stripe billing smoke
-- UI smoke and UI E2E
 - Lighthouse audits
 - production start and stop helpers
 

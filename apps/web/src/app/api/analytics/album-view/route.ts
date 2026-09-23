@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAuthSession } from "@/server/auth";
 import { trackProductEventSafe } from "@/server/analytics";
-import { getPrisma } from "@/server/db";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
 
 export const runtime = "nodejs";
 
@@ -20,40 +18,19 @@ const BodySchema = z.object({
   path: z.string().min(1).max(300),
 });
 
-export async function POST(request: Request) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-
-  const payload = BodySchema.safeParse(await request.json().catch(() => null));
-  if (!payload.success) {
-    return NextResponse.json({ error: "Invalid analytics payload." }, { status: 400 });
-  }
-
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
-  const album = await prisma.album.findFirst({
-    where: {
-      id: payload.data.albumId,
-      workspaceId: workspace.id,
-    },
-    select: { id: true },
-  });
-
-  if (!album) {
-    return NextResponse.json({ error: "Album not found." }, { status: 404 });
-  }
+export const POST = apiHandler(async (request: Request) => {
+  const { userId, workspaceId } = await requireWorkspace();
+  const payload = await parseJsonBody(request, BodySchema, "Invalid analytics payload.");
+  const album = await requireAlbum(workspaceId, payload.albumId, { id: true });
 
   await trackProductEventSafe({
-    name: payload.data.event,
-    workspaceId: workspace.id,
+    name: payload.event,
+    workspaceId,
     userId,
     albumId: album.id,
-    path: payload.data.path,
+    path: payload.path,
     source: "client",
   });
 
   return new NextResponse(null, { status: 204 });
-}
+});

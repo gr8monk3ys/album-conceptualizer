@@ -140,14 +140,6 @@ If you want a single backup command that brings the stack up and runs the modern
 make web-e2e-backstop
 ```
 
-## Optional: Run The Legacy Gradio UI
-
-If you want the older UI surface:
-
-```bash
-make ui
-```
-
 ## Common Local Gotchas
 
 ### Prisma Or Login Errors

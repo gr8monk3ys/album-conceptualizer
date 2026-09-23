@@ -41,9 +41,9 @@ pip install -e .
 
 ```bash
 # Build and run
-docker compose up -d app
+docker compose up -d api
 
-# Access at http://localhost:7860
+# Access at http://localhost:8000
 ```
 
 ## Optional Dependencies
@@ -73,14 +73,6 @@ For MIDI and MusicXML export:
 
 ```bash
 uv pip install --system -e ".[music]"
-```
-
-### Web UI
-
-For the Gradio interface:
-
-```bash
-uv pip install --system -e ".[ui]"
 ```
 
 ### Full Installation

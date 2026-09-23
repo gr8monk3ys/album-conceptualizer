@@ -13,7 +13,4 @@ route {
     handle /openapi.json {
         reverse_proxy api:8000
     }
-    handle {
-        reverse_proxy app:7860
-    }
 }

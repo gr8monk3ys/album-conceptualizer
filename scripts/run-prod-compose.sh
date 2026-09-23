@@ -27,5 +27,4 @@ if [[ "${ALBUM_CONCEPTUALIZER_DOMAIN:-}" != "" && "${ALBUM_CONCEPTUALIZER_DOMAIN
 else
   echo "Proxy: http://localhost"
   echo "API:   http://localhost:8000"
-  echo "UI:    http://localhost:7860"
 fi

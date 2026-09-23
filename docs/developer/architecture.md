@@ -1,10 +1,9 @@
 # Architecture
 
-This repo has two primary runtime systems and one legacy UI surface:
+This repo has two primary runtime systems:
 
 - a Next.js web product
 - a Python engine API
-- a Gradio UI on top of the Python package
 
 The web app is the main user-facing product. The Python engine acts as a supporting service for export and broader API capabilities.
 
@@ -48,7 +47,6 @@ The Python engine owns:
 - theory and experience APIs
 - optional AI and RAG-backed capabilities
 - API-side identity and billing flows used outside the web app
-- the legacy Gradio UI
 
 The engine can run with multiple persistence backends depending on environment.
 

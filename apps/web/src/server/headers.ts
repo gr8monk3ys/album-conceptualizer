@@ -18,3 +18,8 @@ export function contentDisposition(filename: string): string {
   }
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
+
+/** A filename-safe version of a title (word characters, dashes, underscores), or `fallback`. */
+export function safeFilename(value: string, fallback: string): string {
+  return value.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || fallback;
+}

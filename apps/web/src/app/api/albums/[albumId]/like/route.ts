@@ -1,31 +1,28 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 
-import { getAuthSession } from "@/server/auth";
+import { ApiError, apiHandler, requireUser } from "@/server/api";
 import { getPrisma } from "@/server/db";
 
 export const runtime = "nodejs";
 
-async function ensurePublicAlbum(prisma: ReturnType<typeof getPrisma>, albumId: string) {
-  const album = await prisma.album.findFirst({
+type Context = { params: Promise<{ albumId: string }> };
+
+/** A published album's id, or a 404. Likes work on any public album, not just the caller's. */
+async function requirePublicAlbumId(albumId: string) {
+  const album = await getPrisma().album.findFirst({
     where: { id: albumId, isPublic: true },
     select: { id: true },
   });
-  return album?.id ?? null;
+  if (!album) throw new ApiError(404, "Not found.");
+  return album.id;
 }
 
-export async function POST(
-  _request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
+export const POST = apiHandler(async (_request: Request, { params }: Context) => {
+  const userId = await requireUser();
   const { albumId } = await params;
+  const publicAlbumId = await requirePublicAlbumId(albumId);
   const prisma = getPrisma();
-  const publicAlbumId = await ensurePublicAlbum(prisma, albumId);
-  if (!publicAlbumId) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   try {
     await prisma.albumLike.create({
@@ -33,27 +30,21 @@ export async function POST(
       select: { id: true },
     });
   } catch (err) {
+    // A duplicate like (unique constraint) is fine: the user already likes it.
     if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) {
-      return NextResponse.json({ error: "Unable to like." }, { status: 500 });
+      throw new ApiError(500, "Unable to like.");
     }
   }
 
   const likes = await prisma.albumLike.count({ where: { albumId: publicAlbumId } });
   return NextResponse.json({ liked: true, likes });
-}
+});
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
+export const DELETE = apiHandler(async (_request: Request, { params }: Context) => {
+  const userId = await requireUser();
   const { albumId } = await params;
+  const publicAlbumId = await requirePublicAlbumId(albumId);
   const prisma = getPrisma();
-  const publicAlbumId = await ensurePublicAlbum(prisma, albumId);
-  if (!publicAlbumId) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   await prisma.albumLike.deleteMany({
     where: { albumId: publicAlbumId, userId },
@@ -61,5 +52,4 @@ export async function DELETE(
 
   const likes = await prisma.albumLike.count({ where: { albumId: publicAlbumId } });
   return NextResponse.json({ liked: false, likes });
-}
-
+});

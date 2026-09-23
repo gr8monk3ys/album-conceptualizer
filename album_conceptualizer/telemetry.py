@@ -198,9 +198,5 @@ class Events:
     CHORD_ANALYSIS = "chord_analysis"
     EXPORT_GENERATED = "export_generated"
 
-    # UI events
-    UI_TAB_VIEWED = "ui_tab_viewed"
-    UI_FEATURE_USED = "ui_feature_used"
-
     # Error events
     ERROR_OCCURRED = "error_occurred"

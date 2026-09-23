@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAuthSession } from "@/server/auth";
+import { ApiError, apiHandler, parseJsonBody, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const runtime = "nodejs";
 
@@ -11,35 +10,25 @@ const PatchBodySchema = z.object({
   action: z.enum(["read", "unread"]),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ notificationId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+export const PATCH = apiHandler(
+  async (request: Request, { params }: { params: Promise<{ notificationId: string }> }) => {
+    const { userId, workspaceId } = await requireWorkspace();
+    const payload = await parseJsonBody(request, PatchBodySchema, "Invalid payload.");
+    const { notificationId } = await params;
+    const prisma = getPrisma();
 
-  const payload = PatchBodySchema.safeParse(await request.json().catch(() => null));
-  if (!payload.success) {
-    return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
-  }
+    const existing = await prisma.notification.findFirst({
+      where: { id: notificationId, workspaceId, userId },
+      select: { id: true },
+    });
+    if (!existing) throw new ApiError(404, "Not found.");
 
-  const { notificationId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
+    await prisma.notification.update({
+      where: { id: existing.id },
+      data: { readAt: payload.action === "read" ? new Date() : null },
+      select: { id: true },
+    });
 
-  const existing = await prisma.notification.findFirst({
-    where: { id: notificationId, workspaceId: workspace.id, userId },
-    select: { id: true },
-  });
-  if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
-
-  await prisma.notification.update({
-    where: { id: existing.id },
-    data: { readAt: payload.data.action === "read" ? new Date() : null },
-    select: { id: true },
-  });
-
-  return NextResponse.json({ ok: true });
-}
-
+    return NextResponse.json({ ok: true });
+  },
+);

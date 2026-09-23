@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
+import { ApiError, apiHandler, parseJsonBody, requireWorkspace } from "@/server/api";
 import { getDailyChallenge, getUtcDay, isKnownChallenge } from "@/server/challenges";
-import { getAuthSession } from "@/server/auth";
+import { grantCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
-import { planCreditsTotal } from "@/server/credits";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const runtime = "nodejs";
 
@@ -15,85 +14,43 @@ const BodySchema = z.object({
   notes: z.string().trim().min(10).max(800).optional(),
 });
 
-export async function POST(request: Request) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
-  const payload = BodySchema.safeParse(await request.json().catch(() => null));
-  if (!payload.success) {
-    return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
-  }
+export const POST = apiHandler(async (request: Request) => {
+  const { workspaceId, plan } = await requireWorkspace();
+  const payload = await parseJsonBody(request, BodySchema);
 
   const today = getUtcDay();
   const { challenge } = getDailyChallenge(today);
-
-  if (!isKnownChallenge(payload.data.challengeKey)) {
-    return NextResponse.json({ error: "Unknown challenge." }, { status: 400 });
+  if (!isKnownChallenge(payload.challengeKey)) throw new ApiError(400, "Unknown challenge.");
+  // Only today's challenge (UTC day boundary) can be completed.
+  if (payload.challengeKey !== challenge.key) {
+    throw new ApiError(409, "That challenge is not active today.");
   }
-
-  // Only allow completing today's challenge (UTC day boundary) to keep this simple.
-  if (payload.data.challengeKey !== challenge.key) {
-    return NextResponse.json({ error: "That challenge is not active today." }, { status: 409 });
-  }
-
-  const prisma = getPrisma();
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const plan = workspace.subscription?.plan ?? "free";
-  const baseline = planCreditsTotal(plan);
 
   try {
-    const balance = await prisma.$transaction(async (tx) => {
-      // Ensure a balance row exists (and stays at least baseline on upgrades).
-      const existing = await tx.creditBalance.upsert({
-        where: { workspaceId: workspace.id },
-        create: { workspaceId: workspace.id, balance: baseline },
-        update: {},
-        select: { balance: true },
-      });
-      if (existing.balance < baseline) {
-        await tx.creditBalance.update({
-          where: { workspaceId: workspace.id },
-          data: { balance: baseline },
-          select: { balance: true },
-        });
-      }
-
+    const balance = await getPrisma().$transaction(async (tx) => {
       await tx.challengeCompletion.create({
         data: {
-          workspaceId: workspace.id,
+          workspaceId,
           challengeKey: challenge.key,
           challengeDay: today,
-          notes: payload.data.notes ?? null,
+          notes: payload.notes ?? null,
           creditsEarned: challenge.credits,
         },
         select: { id: true },
       });
-
-      await tx.creditLedgerEntry.create({
-        data: {
-          workspaceId: workspace.id,
-          delta: challenge.credits,
-          reason: `challenge:${challenge.key}`,
-          metadata: { day: today, key: challenge.key },
-        },
-        select: { id: true },
+      return grantCredits(tx, {
+        workspaceId,
+        plan,
+        amount: challenge.credits,
+        reason: `challenge:${challenge.key}`,
+        metadata: { day: today, key: challenge.key },
       });
-
-      const updated = await tx.creditBalance.update({
-        where: { workspaceId: workspace.id },
-        data: { balance: { increment: challenge.credits } },
-        select: { balance: true },
-      });
-
-      return updated.balance;
     });
-
     return NextResponse.json({ ok: true, balance });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      return NextResponse.json({ error: "Already completed today." }, { status: 409 });
+      throw new ApiError(409, "Already completed today.");
     }
-    return NextResponse.json({ error: "Could not record completion." }, { status: 500 });
+    throw err;
   }
-}
+});

@@ -3,9 +3,10 @@ import { headers } from "next/headers";
 
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
-import { getCreditsStatus } from "@/server/credits";
+import { getCredits } from "@/server/credits";
 import { requireUser } from "@/server/identity";
 import { getUnreadNotificationCount } from "@/server/notifications";
+import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +16,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // here so child pages can stay focused on their content.
   const [requestHeaders, { session, userId }] = await Promise.all([headers(), requireUser()]);
   const workspace = await getActiveWorkspaceForUser(userId);
-  const plan = workspace.subscription?.plan ?? "free";
+  const plan = effectivePlan(workspace.subscription);
   const currentPath = requestHeaders.get("x-pathname") ?? "/app";
-  const credits = await getCreditsStatus({ workspaceId: workspace.id, plan });
+  const credits = await getCredits({ workspaceId: workspace.id, plan });
   const unreadNotifications = await getUnreadNotificationCount({
     workspaceId: workspace.id,
     userId,

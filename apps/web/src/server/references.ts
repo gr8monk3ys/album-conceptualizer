@@ -1,3 +1,7 @@
+import { z } from "zod";
+
+import { findAlbumSongByTrackNumber } from "@/server/album-songs";
+import { ApiError } from "@/server/api-error";
 import { getPrisma } from "@/server/db";
 
 export type AlbumReferenceRecord = {
@@ -18,7 +22,92 @@ export type AlbumReferenceRecord = {
   updatedAt: string;
 };
 
-function mapReference(
+/** The body of a create or update: an update replaces every field. */
+export const ReferenceBodySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  artist: z.string().trim().max(200).optional(),
+  sourceUrl: z.url().max(500).optional(),
+  notes: z.string().trim().max(2000).optional(),
+  targetRole: z
+    .enum([
+      "album-world",
+      "opener",
+      "closer",
+      "chorus-energy",
+      "vocal-texture",
+      "mix-palette",
+      "bridge-contrast",
+    ])
+    .optional(),
+  bpm: z.number().int().min(40).max(280).optional(),
+  key: z.string().trim().max(64).optional(),
+  moodTags: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
+  arrangementTags: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
+  songTrackNumber: z.number().int().min(1).max(99).optional(),
+});
+
+export type ReferenceBody = z.infer<typeof ReferenceBodySchema>;
+
+/** Trimmed, lowercased and deduplicated tags. */
+export function normalizeTags(values: string[] | undefined) {
+  return Array.from(
+    new Set(
+      (values ?? [])
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((value) => value.toLowerCase()),
+    ),
+  );
+}
+
+/**
+ * The stored fields for a reference body, with its song target resolved against the album
+ * JSON. Throws a 400 when the body targets a song the album does not have.
+ */
+export function buildReferenceData(albumData: unknown, body: ReferenceBody) {
+  const song = body.songTrackNumber
+    ? findAlbumSongByTrackNumber(albumData, body.songTrackNumber)
+    : null;
+  if (body.songTrackNumber && !song) {
+    throw new ApiError(400, "Selected song target was not found.");
+  }
+
+  return {
+    songId: song?.id ?? null,
+    songTrackNumber: song?.trackNumber ?? null,
+    songTitle: song?.title ?? null,
+    title: body.title,
+    artist: body.artist || null,
+    sourceUrl: body.sourceUrl || null,
+    notes: body.notes || null,
+    targetRole: body.targetRole || null,
+    bpm: body.bpm ?? null,
+    key: body.key || null,
+    moodTags: normalizeTags(body.moodTags),
+    arrangementTags: normalizeTags(body.arrangementTags),
+  };
+}
+
+/** The columns an `AlbumReferenceRecord` is built from. */
+export const REFERENCE_SELECT = {
+  id: true,
+  songId: true,
+  songTrackNumber: true,
+  songTitle: true,
+  title: true,
+  artist: true,
+  sourceUrl: true,
+  notes: true,
+  targetRole: true,
+  bpm: true,
+  key: true,
+  moodTags: true,
+  arrangementTags: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export function mapReference(
   reference: {
     id: string;
     songId: string | null;
@@ -64,23 +153,7 @@ export async function listAlbumReferences(workspaceId: string, albumId: string) 
       album: { workspaceId },
     },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-    select: {
-      id: true,
-      songId: true,
-      songTrackNumber: true,
-      songTitle: true,
-      title: true,
-      artist: true,
-      sourceUrl: true,
-      notes: true,
-      targetRole: true,
-      bpm: true,
-      key: true,
-      moodTags: true,
-      arrangementTags: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: REFERENCE_SELECT,
   });
 
   return references.map(mapReference);

@@ -1,87 +1,48 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 
-import { getAuthSession } from "@/server/auth";
 import { StyleBibleSchema } from "@/server/album-json";
-import { buildAlbumMutationData } from "@/server/album-sync";
+import { writeAlbumSnapshot } from "@/server/album-sync";
 import { trackProductEventSafe } from "@/server/analytics";
+import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
 import { getAlbumStyleBible, patchAlbumStyleBible } from "@/server/style-bible";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const runtime = "nodejs";
 
-const BodySchema = StyleBibleSchema;
+type Context = { params: Promise<{ albumId: string }> };
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
+export const GET = apiHandler(async (_request: Request, { params }: Context) => {
+  const { workspaceId } = await requireWorkspace();
   const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
-  const album = await prisma.album.findFirst({
-    where: { id: albumId, workspaceId: workspace.id },
-    select: { data: true },
-  });
-
-  if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  const album = await requireAlbum(workspaceId, albumId, { data: true });
 
   return NextResponse.json({ styleBible: getAlbumStyleBible(album.data) });
-}
+});
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
-  const payload = BodySchema.safeParse(await request.json().catch(() => null));
-  if (!payload.success) {
-    return NextResponse.json({ error: "Invalid style bible payload." }, { status: 400 });
-  }
-
+export const PATCH = apiHandler(async (request: Request, { params }: Context) => {
+  const { userId, workspaceId } = await requireWorkspace();
+  const payload = await parseJsonBody(request, StyleBibleSchema, "Invalid style bible payload.");
   const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
-  const existing = await prisma.album.findFirst({
-    where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true, data: true },
-  });
+  const existing = await requireAlbum(workspaceId, albumId, { id: true, data: true });
 
-  if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
-
-  const patchedAlbum = patchAlbumStyleBible(existing.data, payload.data);
-  if (!patchedAlbum) {
-    return NextResponse.json({ error: "Stored album data is invalid." }, { status: 409 });
-  }
+  const patchedAlbum = patchAlbumStyleBible(existing.data, payload);
+  if (!patchedAlbum) throw new ApiError(409, "Stored album data is invalid.");
 
   const nextAlbum = {
     ...patchedAlbum,
     updated_at: new Date().toISOString(),
   };
-  const mutation = buildAlbumMutationData(nextAlbum);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.song.deleteMany({ where: { albumId: existing.id } });
-    await tx.album.update({
-      where: { id: existing.id },
-      data: mutation,
-      select: { id: true },
-    });
+  await getPrisma().$transaction(async (tx) => {
+    await writeAlbumSnapshot(tx, existing.id, nextAlbum);
   });
 
   const styleBible = getAlbumStyleBible(nextAlbum);
 
   await trackProductEventSafe({
     name: "album_style_bible_saved",
-    workspaceId: workspace.id,
+    workspaceId,
     userId,
     albumId: existing.id,
     path: `/api/albums/${existing.id}/style-bible`,
@@ -101,4 +62,4 @@ export async function PATCH(
   });
 
   return NextResponse.json({ styleBible });
-}
+});

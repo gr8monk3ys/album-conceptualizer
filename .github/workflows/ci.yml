@@ -320,6 +320,16 @@ jobs:
         working-directory: apps/web
         run: npm run prisma:migrate:deploy
 
+      - name: Lint and typecheck the web app
+        working-directory: apps/web
+        run: |
+          npm run lint
+          npm run typecheck
+
+      - name: Run web unit tests
+        working-directory: apps/web
+        run: npm test
+
       - name: Build Next.js app
         working-directory: apps/web
         run: npm run build

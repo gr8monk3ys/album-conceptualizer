@@ -2,11 +2,10 @@
 
 Album Conceptualizer is a full-stack workspace for building coherent concept albums.
 
-The repo currently ships three product surfaces:
+The repo currently ships two product surfaces:
 
 - A Next.js web app for album planning, studio editing, publishing, remixing, billing, and analytics
 - A FastAPI engine for export, theory, billing, identity, and experience endpoints
-- A legacy Gradio UI that still works for smoke testing, parity checks, and local workflows
 
 It is strongest at album structure, coherence, lyrics and chord workflows, collaboration, and export handoff. It is not a native Suno or Udio style audio generator.
 
@@ -57,14 +56,6 @@ The Python package powers:
 - theory and experience endpoints
 - API identity and billing support
 - optional AI and RAG features when the relevant extras are installed
-
-### Legacy UI
-
-The Gradio app remains useful for:
-
-- local demos without the web app
-- API and export smoke coverage
-- parity checks for older workflows
 
 ## Documentation Map
 
