@@ -108,5 +108,20 @@ test.describe("Studio", () => {
     }
     expect(hidden).toEqual([]);
   });
+
+  // Leaving the Studio inside the autosave window used to drop the last words typed: in-app
+  // navigation unmounted the editor before its 2 s save ran.
+  test("words typed just before switching tabs are saved, not lost", async ({ page }) => {
+    await devLogin(page);
+    await createAlbumAndOpenStudio(page, `Leave ${randomSuffix()}`);
+    const line = `Sirens practise on a Tuesday ${randomSuffix()}`;
+    await page.getByLabel("Lyrics draft").fill(line);
+    // Straight to another tab, well inside the autosave delay.
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Bible", exact: true }).click();
+    await page.waitForURL("**/bible");
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
+    await page.waitForURL("**/studio");
+    await expect(page.getByLabel("Lyrics draft")).toHaveValue(line);
+  });
 });
 

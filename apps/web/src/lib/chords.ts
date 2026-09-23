@@ -78,8 +78,36 @@ export function isWrittenProgression(chords: unknown): boolean {
   return !isStarterOrEmptyProgression(chords) && invalidChords(chords).length === 0;
 }
 
-/** A track has written harmony once any of its sections does. */
+function sectionChords(section: unknown): unknown {
+  return (section as { chord_progression?: unknown } | null)?.chord_progression;
+}
+
+/**
+ * Whether a track's harmony is the artist's own. The setup gives every section of a track the
+ * same starter loop, and the four loops are rotations of one cycle, so "is this a starter
+ * loop?" alone would miss real work (turning C G Am F into Am F C G on the verse). A track
+ * counts as written once any section has readable chords that are no starter loop, or once its
+ * sections no longer share one loop, which only an edit produces.
+ */
 export function trackHasWrittenHarmony(sections: unknown): boolean {
   const list = Array.isArray(sections) ? sections : [];
-  return list.some((s) => isWrittenProgression((s as { chord_progression?: unknown } | null)?.chord_progression));
+  if (list.some((section) => isWrittenProgression(sectionChords(section)))) return true;
+  const loops = new Set(
+    list
+      .map((section) => sectionChords(section))
+      .filter((chords) => progressionKey(chords) && invalidChords(chords).length === 0)
+      .map((chords) => progressionKey(chords)),
+  );
+  return loops.size > 1;
+}
+
+/**
+ * Whether one section's chords are still untouched scaffolding: empty, or a starter loop on a
+ * track whose harmony hasn't been made its own (see trackHasWrittenHarmony).
+ */
+export function isScaffoldSection(sections: unknown, index: number): boolean {
+  const list = Array.isArray(sections) ? sections : [];
+  const chords = sectionChords(list[index]);
+  if (!progressionKey(chords)) return true;
+  return isStarterOrEmptyProgression(chords) && !trackHasWrittenHarmony(list);
 }

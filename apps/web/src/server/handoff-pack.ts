@@ -1,4 +1,4 @@
-import { isStarterOrEmptyProgression, trackHasWrittenHarmony } from "@/lib/chords";
+import { isScaffoldSection, trackHasWrittenHarmony } from "@/lib/chords";
 import { trackHasLyrics } from "@/lib/lyrics";
 import { albumMotifIndex } from "@/lib/motifs";
 import { AlbumJsonSchema } from "@/server/album-json";
@@ -222,7 +222,7 @@ function buildSectionLines(
   return sections
     .slice()
     .sort((left, right) => left.order - right.order)
-    .map((section) => {
+    .map((section, index, sections) => {
       const bits = [
         `${section.section_type} #${formatSectionOrdinal(section.order)}`,
         section.narrative_function ?? null,
@@ -231,7 +231,7 @@ function buildSectionLines(
         Array.isArray(section.chord_progression) && section.chord_progression.some((chord) => chord.trim())
           ? `chords: ${section.chord_progression.join(" - ")}${
               // Honest about scaffolding: the setup's starter loop isn't the artist's harmony.
-              isStarterOrEmptyProgression(section.chord_progression) ? " (starter loop)" : ""
+              isScaffoldSection(sections, index) ? " (starter loop)" : ""
             }`
           : null,
       ];

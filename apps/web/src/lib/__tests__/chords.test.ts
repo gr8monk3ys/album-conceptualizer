@@ -7,6 +7,7 @@ import {
   isWrittenProgression,
   parseProgression,
   trackHasWrittenHarmony,
+  isScaffoldSection,
 } from "@/lib/chords";
 
 describe("chord symbols", () => {
@@ -41,4 +42,24 @@ describe("written harmony", () => {
     expect(isWrittenProgression(["Am7", "banana"])).toBe(false);
     expect(trackHasWrittenHarmony([{ chord_progression: ["Xq7", "H##", "banana"] }])).toBe(false);
   });
+
+  it("counts a starter loop the artist moved onto another section as their own", () => {
+    // The setup writes one loop on every section; rotating the verse's loop is an edit.
+    const sections = [
+      { chord_progression: ["Am", "F", "C", "G"] },
+      { chord_progression: ["C", "G", "Am", "F"] },
+    ];
+    expect(trackHasWrittenHarmony(sections)).toBe(true);
+    expect(isScaffoldSection(sections, 0)).toBe(false);
+  });
+
+  it("keeps an untouched seeded track as scaffolding", () => {
+    const sections = [
+      { chord_progression: ["C", "G", "Am", "F"] },
+      { chord_progression: ["C", "G", "Am", "F"] },
+    ];
+    expect(trackHasWrittenHarmony(sections)).toBe(false);
+    expect(isScaffoldSection(sections, 1)).toBe(true);
+  });
 });
+

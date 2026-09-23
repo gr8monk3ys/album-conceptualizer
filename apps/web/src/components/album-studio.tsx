@@ -8,6 +8,7 @@ import { previewErrorMessage, usePlayerControls } from "@/components/player/play
 import { previewFailureMessage } from "@/components/player/preview-errors";
 import { RelativeTime } from "@/components/relative-time";
 import { SectionComments } from "@/components/section-comments";
+import { LeavePrompt } from "@/components/sound-nav";
 import { SongDevelopmentAi } from "@/components/song-development-ai";
 import {
   ALBUM_CONCEPT_INPUT_ID,
@@ -60,6 +61,7 @@ import {
 import { Button, EmptyState, Field, Section, inputClass, selectClass, textareaClass } from "@/components/ui";
 import { invalidChords } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
+import { useLeaveGuard } from "@/lib/use-autosave";
 import { cn } from "@/lib/utils";
 
 type SelectionInput = {
@@ -228,9 +230,12 @@ function useAlbumStudioRender({
   const revisionRef = useRef(0);
   const savingRef = useRef(false);
   const queuedRef = useRef<SaveMode | null>(null);
+  // The save in flight, so leaving the Studio can wait for it before saving what's left.
+  const inFlightRef = useRef<Promise<boolean> | null>(null);
+  const dirtyRef = useRef(false);
   const frameKeyRef = useRef(albumFrameKey(album));
   const structuralRef = useRef(false);
-  const saveRef = useRef<(mode: SaveMode) => Promise<void>>(async () => {});
+  const saveRef = useRef<(mode: SaveMode) => Promise<boolean>>(async () => false);
   const stepRef = useRef<(what: "track" | "section", dir: -1 | 1) => void>(() => {});
   const saveBarRef = useRef<HTMLDivElement | null>(null);
 
@@ -318,14 +323,26 @@ function useAlbumStudioRender({
   }, [pendingFocus, songIndex]);
 
   useEffect(() => {
-    if (!dirty) return;
-    const handler = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    dirtyRef.current = dirty;
   }, [dirty]);
+
+  // Leaving the Studio never drops words. An in-app link click saves first (waiting for any
+  // save in flight) and then navigates; only if that save fails does the viewer choose.
+  // Closing or reloading the tab still asks, and sends a last keepalive save.
+  const leaveGuard = useLeaveGuard({
+    when: dirty || saving,
+    beforeLeave: saveBeforeLeave,
+    onUnload: sendKeepaliveSave,
+  });
+
+  // Exits the link guard can't intercept (Back/Forward, a programmatic navigation) unmount
+  // the Studio: send whatever is unsaved with keepalive so it survives the page going away.
+  useEffect(() => {
+    return () => {
+      if (dirtyRef.current) sendKeepaliveSave();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, on unmount
+  }, []);
 
   useEffect(() => {
     if (!undo) return;
@@ -341,17 +358,51 @@ function useAlbumStudioRender({
 
   // ------------------------------------------------------------------ saving
 
-  async function save(mode: SaveMode) {
+  /** Save before leaving: wait for a save in flight, then save anything still unsaved. */
+  async function saveBeforeLeave(): Promise<boolean> {
+    if (inFlightRef.current) await inFlightRef.current;
+    if (!dirtyRef.current) return true;
+    return saveRef.current("auto");
+  }
+
+  /** A last-chance save that outlives the page (keepalive). Best effort: bodies over 64 KB
+   * are refused by the browser, which is why in-app navigation saves normally first. */
+  function sendKeepaliveSave() {
+    const snapshot = albumRef.current;
+    if (albumProblem(snapshot)) return;
+    try {
+      void fetch(`/api/albums/${albumId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ album: snapshot }),
+        keepalive: true,
+      }).catch(() => undefined);
+    } catch {
+      // A body too large for keepalive throws synchronously; nothing more can be done here.
+    }
+  }
+
+  /** Save the album. Resolves true once this album state is on the server. */
+  function save(mode: SaveMode): Promise<boolean> {
     if (savingRef.current) {
       // Never two saves at once: an explicit save waits for the one in flight, then runs.
       if (mode !== "auto") queuedRef.current = mode;
-      return;
+      return inFlightRef.current ?? Promise.resolve(false);
     }
+    const run = runSave(mode);
+    inFlightRef.current = run;
+    void run.finally(() => {
+      if (inFlightRef.current === run) inFlightRef.current = null;
+    });
+    return run;
+  }
+
+  async function runSave(mode: SaveMode): Promise<boolean> {
     const snapshot = albumRef.current;
     const problem = albumProblem(snapshot);
     if (problem) {
       setSaveError(problem);
-      return;
+      return false;
     }
     const revision = revisionRef.current;
     const message = mode === "version" ? versionMessage.trim() || undefined : undefined;
@@ -382,6 +433,7 @@ function useAlbumStudioRender({
         frameKeyRef.current = frameKey;
         router.refresh();
       }
+      return true;
     } catch (err) {
       const offline = err instanceof TypeError;
       setSaveError(
@@ -391,6 +443,7 @@ function useAlbumStudioRender({
             ? err.message
             : "Something went wrong on our side.",
       );
+      return false;
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -1286,6 +1339,17 @@ function useAlbumStudioRender({
         </a>
       ) : null}
       {saveBar}
+      <LeavePrompt
+        guard={{
+          ...leaveGuard,
+          // "Leave without saving" means it: no last keepalive save on the way out.
+          leaveAnyway: () => {
+            dirtyRef.current = false;
+            leaveGuard.leaveAnyway();
+          },
+        }}
+        message={`Your latest changes couldn't be saved${saveError ? `: ${saveError}` : ""}. Stay to retry, or leave without them.`}
+      />
       <p className="sr-only" aria-live="polite">
         {navAnnouncement}
       </p>
