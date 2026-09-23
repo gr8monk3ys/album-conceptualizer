@@ -35,7 +35,8 @@ async function createAlbum(page: Page) {
 
 async function remainingCredits(page: Page) {
   await page.goto("/app");
-  const meter = page.getByRole("meter", { name: "Credits" }).first();
+  // The sidebar holding the meter is hidden below md; its value is still in the DOM.
+  const meter = page.getByRole("meter", { name: "Credits", includeHidden: true }).first();
   return Number(await meter.getAttribute("aria-valuenow"));
 }
 
