@@ -5,6 +5,7 @@ import { AlbumStudio } from "@/components/album-studio";
 import { PlayerProvider } from "@/components/player/player-provider";
 import { Playerbar } from "@/components/playerbar";
 import { getAlbum } from "@/server/albums";
+import { getAgentAvailability } from "@/server/engine";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
@@ -31,7 +32,7 @@ export default async function AlbumStudioPage({
 
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
-  const album = await getAlbum(workspace.id, albumId);
+  const [album, aiAvailable] = await Promise.all([getAlbum(workspace.id, albumId), getAgentAvailability()]);
   if (!album) notFound();
 
   return (
@@ -40,6 +41,7 @@ export default async function AlbumStudioPage({
       <AlbumStudio
         albumId={album.id}
         initialAlbum={album.data}
+        aiAvailable={aiAvailable}
         initialSelection={{
           song: param(query.song),
           section: param(query.section),

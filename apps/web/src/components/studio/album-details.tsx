@@ -11,12 +11,14 @@ type AlbumPatch = Partial<
   Pick<StudioAlbum, "title" | "artist" | "primary_genre" | "concept_summary" | "central_themes" | "recurring_motifs">
 >;
 
-/**
- * The album-level fields the Studio edits alongside the tracks. Always open in the wide
- * three-column layout; a disclosure below the editor on narrower screens.
- */
+/** Deep-link targets: `?focus=album` and `?focus=album-motifs`. */
 export const ALBUM_THEMES_INPUT_ID = "album-central-themes";
+export const ALBUM_MOTIFS_INPUT_ID = "album-recurring-motifs";
 
+/**
+ * The album-level fields the Studio edits alongside the tracks, as a disclosure below the
+ * track editor so the writing surface stays first.
+ */
 export function AlbumDetails({
   album,
   onChange,
@@ -26,7 +28,7 @@ export function AlbumDetails({
 }: {
   album: StudioAlbum;
   onChange: (patch: AlbumPatch) => void;
-  /** Whether the disclosure is expanded below the wide layout (always shown at 2xl). */
+  /** Whether the disclosure is expanded. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
   className?: string;
@@ -35,7 +37,7 @@ export function AlbumDetails({
     <section
       id="album-details"
       aria-labelledby="album-details-title"
-      className={cn("min-w-0 scroll-mt-40 border-t border-line pt-5", className)}
+      className={cn("min-w-0 border-t border-line pt-5", className)}
     >
       <h2 id="album-details-title" className="text-lg font-semibold text-ink">
         <button
@@ -43,18 +45,18 @@ export function AlbumDetails({
           aria-expanded={open}
           aria-controls="album-details-body"
           onClick={() => onOpenChange(!open)}
-          className="-mx-2 inline-flex min-h-11 items-center gap-2 rounded px-2 hover:bg-hover 2xl:hidden"
+          className="-mx-2 inline-flex min-h-11 items-center gap-2 rounded px-2 transition-colors hover:bg-hover"
         >
           Album details
           <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} aria-hidden="true" />
         </button>
-        <span className="hidden 2xl:inline">Album details</span>
       </h2>
-      <p className="mt-1 text-sm leading-relaxed text-ink-2">
-        The concept every track answers to. Themes and motifs here become suggestions in each song’s story.
+      <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+        The concept every track answers to. Themes and motifs set here are offered in each
+        song’s story, and the central themes become the columns of the track list.
       </p>
 
-      <div id="album-details-body" className={cn("mt-4 flex-col gap-4", open ? "flex" : "hidden 2xl:flex")}>
+      <div id="album-details-body" hidden={!open} className="mt-4 flex-col gap-4 [&:not([hidden])]:flex">
         <Field label="Album title" htmlFor="album-title">
           <input
             id="album-title"
@@ -99,10 +101,10 @@ export function AlbumDetails({
           values={album.central_themes ?? []}
           onChange={(next) => onChange({ central_themes: next })}
           placeholder="identity, memory, change"
-          hint="The ideas the whole record carries. The coherence report checks each track against them."
+          hint="The ideas the whole record carries. The coherence report checks each track for them."
         />
         <ChipListEditor
-          id="album-recurring-motifs"
+          id={ALBUM_MOTIFS_INPUT_ID}
           label="Recurring motifs"
           noun="recurring motif"
           values={album.recurring_motifs ?? []}

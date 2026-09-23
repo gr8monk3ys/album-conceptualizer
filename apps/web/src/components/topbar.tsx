@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { MobileAppMenu } from "@/components/mobile-app-menu";
-import { TopbarSearch } from "@/components/topbar-search";
-import { buttonClass } from "@/components/ui";
+import { TopbarNewAlbum, TopbarSearch } from "@/components/topbar-search";
 
 export function Topbar({
   workspaceName,
@@ -19,7 +18,7 @@ export function Topbar({
   unreadNotifications?: number;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 items-center gap-3">
       <MobileAppMenu
         workspaceName={workspaceName}
         userName={userName}
@@ -38,10 +37,7 @@ export function Topbar({
         >
           <Search className="h-5 w-5" aria-hidden="true" />
         </Link>
-        <Link href="/app/create" className={buttonClass("primary")}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          New album
-        </Link>
+        <TopbarNewAlbum />
       </div>
     </div>
   );

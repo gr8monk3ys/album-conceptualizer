@@ -34,7 +34,7 @@ function NavLink({
         className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", active ? "bg-accent" : "bg-transparent")}
       />
       <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-ink-3")} aria-hidden="true" />
-      <span className="truncate">{item.label}</span>
+      <span className="min-w-0 break-words py-2">{item.label}</span>
       {badge ? (
         <span className="type-figure ml-auto rounded-sm bg-accent px-1.5 text-xs font-semibold text-accent-ink">
           <span className="sr-only">, </span>
@@ -55,7 +55,7 @@ export function AppNavLinks({
 }) {
   const pathname = usePathname() ?? "/app";
   return (
-    <nav aria-label="Workspace" className="flex flex-col gap-0.5">
+    <nav aria-label="Main" className="flex flex-col gap-0.5">
       {APP_NAV_ITEMS.map((item) => (
         <NavLink
           key={item.href}

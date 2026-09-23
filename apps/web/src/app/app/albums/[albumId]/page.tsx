@@ -6,10 +6,10 @@ import { AlbumDangerZone } from "@/components/album-danger-zone";
 import { FirstProjectChecklist } from "@/components/first-project-checklist";
 import { PublishAlbumButton } from "@/components/publish-album-button";
 import { ShareAlbumButton } from "@/components/share-album-button";
-import { ButtonLink, EmptyState, Section } from "@/components/ui";
-import { getSpineRows } from "@/server/album-songs";
+import { ButtonLink, Section, buttonClass } from "@/components/ui";
+import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
-import { analyzeAlbumCoherence, coherenceFixHref } from "@/server/coherence";
+import { analyzeAlbumCoherence } from "@/server/coherence";
 import { getPrisma } from "@/server/db";
 import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
@@ -22,27 +22,8 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Album overview",
-  description: "The album's tracklist, what to do next, its coherence and how it's released.",
+  description: "What the album needs next, how it holds together, its sound and how it's released.",
 };
-
-type TrackMeta = { key: string | null; tempo: number | null };
-
-/** Key and tempo per track number, read straight from the album snapshot. */
-function trackMeta(data: unknown) {
-  const meta = new Map<number, TrackMeta>();
-  const songs = (data as { songs?: unknown } | null)?.songs;
-  if (!Array.isArray(songs)) return meta;
-  for (const raw of songs) {
-    if (!raw || typeof raw !== "object") continue;
-    const song = raw as { track_number?: unknown; key?: unknown; tempo?: unknown };
-    if (typeof song.track_number !== "number") continue;
-    meta.set(song.track_number, {
-      key: typeof song.key === "string" && song.key.trim() ? song.key.trim() : null,
-      tempo: typeof song.tempo === "number" && song.tempo > 0 ? song.tempo : null,
-    });
-  }
-  return meta;
-}
 
 function plural(count: number, one: string, many = `${one}s`) {
   return `${count} ${count === 1 ? one : many}`;
@@ -53,46 +34,66 @@ function humanize(value: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** One compact row that opens a workspace: a name, a figure and the latest detail. */
-function WorkspaceRow({
+function verdict(score: number) {
+  if (score >= 85) return "Tight";
+  if (score >= 70) return "Solid";
+  if (score >= 50) return "Needs polish";
+  return "Loose";
+}
+
+/** One row that opens a screen: a name, a figure and the latest detail. */
+function StatusRow({
   href,
   label,
   figure,
   detail,
+  trailing,
 }: {
   href: string;
   label: string;
   figure: string;
   detail: string;
+  /** Visible words before the arrow, when the row needs to say where it goes. */
+  trailing?: string;
 }) {
   return (
     <li>
       <Link href={href} className="group flex min-h-11 items-start gap-4 py-3 pr-1 transition-colors hover:bg-hover">
         <span className="min-w-0 flex-1 sm:flex sm:gap-4">
-          <span className="block text-sm font-semibold text-ink sm:w-48 sm:shrink-0">{label}</span>
+          <span className="block text-sm font-semibold text-ink sm:min-w-0 sm:shrink sm:basis-48">{label}</span>
           <span className="mt-1 block min-w-0 flex-1 sm:mt-0">
             <span className="type-figure block text-sm text-ink">{figure}</span>
-            <span className="mt-0.5 block truncate text-xs text-ink-3">{detail}</span>
+            <span className="mt-0.5 block max-w-[65ch] break-words text-xs leading-relaxed text-ink-3">{detail}</span>
           </span>
         </span>
-        <ArrowRight
-          className="mt-0.5 h-4 w-4 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-ink"
-          aria-hidden="true"
-        />
+        <span className="mt-0.5 flex min-w-0 items-center gap-1 text-sm text-ink-2 group-hover:text-ink">
+          {trailing ? <span className="font-semibold">{trailing}</span> : null}
+          <ArrowRight
+            className="h-4 w-4 shrink-0 text-ink-3 transition-colors group-hover:text-ink motion-safe:transition-[color,transform] motion-safe:group-hover:translate-x-0.5"
+            aria-hidden="true"
+          />
+        </span>
       </Link>
     </li>
   );
 }
 
-export default async function AlbumOverviewPage({ params }: { params: Promise<{ albumId: string }> }) {
+export default async function AlbumOverviewPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ albumId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { albumId } = await params;
+  const { welcome } = await searchParams;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
 
   const prisma = getPrisma();
-  const [shareLink, onboarding, references] = await Promise.all([
+  const [shareLink, onboarding, references, openComments, openTasks] = await Promise.all([
     prisma.albumShareLink.findUnique({
       where: { albumId: album.id },
       select: { token: true, revokedAt: true },
@@ -104,16 +105,17 @@ export default async function AlbumOverviewPage({ params }: { params: Promise<{ 
       isPublic: album.isPublic,
     }),
     listAlbumReferences(workspace.id, album.id),
+    prisma.albumSectionComment.count({ where: { albumId: album.id, deletedAt: null, resolvedAt: null } }),
+    prisma.albumTask.count({ where: { albumId: album.id, deletedAt: null, status: { not: "done" } } }),
   ]);
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const initialShareLink =
     shareLink && !shareLink.revokedAt ? `${appUrl}/share/${shareLink.token}` : null;
 
   const base = `/app/albums/${album.id}`;
-  const rows = getSpineRows(album.data);
-  const meta = trackMeta(album.data);
+  const step = nextAlbumStep(album.id, album.data);
   const coherence = analyzeAlbumCoherence(album.data);
-  const topAction = coherence.nextActions[0] ?? null;
+  const weakest = coherence.breakdown.reduce((low, item) => (item.score < low.score ? item : low));
   const styleBible = getAlbumStyleBible(album.data);
   const styleSummary = summarizeStyleBible(styleBible, references);
   const roughDemos = listAlbumRoughDemos(album.data);
@@ -123,118 +125,49 @@ export default async function AlbumOverviewPage({ params }: { params: Promise<{ 
 
   return (
     <div className="flex flex-col gap-10">
-      {album.conceptSummary ? (
-        <p className="max-w-[68ch] text-base leading-relaxed text-ink-2">{album.conceptSummary}</p>
+      {welcome === "1" ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded border border-line bg-raised px-4 py-3">
+          <p className="min-w-0 max-w-[65ch] break-words text-sm text-ink">
+            <span className="font-semibold">{album.title}</span> is saved. Next:{" "}
+            {step.action.charAt(0).toLowerCase() + step.action.slice(1)}.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <ButtonLink href={step.href} tone="primary">
+              {step.action}
+            </ButtonLink>
+            <Link href={base} className={buttonClass("ghost")}>
+              Dismiss
+            </Link>
+          </div>
+        </div>
       ) : null}
 
-      {/* On xl screens the layout's spine already shows the sequence. */}
-      <Section
-        id="album-tracklist"
-        title="Tracklist"
-        description="Open a track to write it in the Studio."
-        className="xl:hidden"
-      >
-        {rows.length ? (
-          <ol className="divide-y divide-line border-y border-line">
-            {rows.map((row) => {
-              const { key, tempo } = meta.get(row.trackNumber) ?? { key: null, tempo: null };
-              const subtitle = [
-                plural(row.sections, "section"),
-                key,
-                tempo ? `${tempo} bpm` : null,
-                row.sections ? `lyrics ${row.lyricSections}/${row.sections}` : "no lyrics yet",
-              ]
-                .filter(Boolean)
-                .join(" · ");
-              return (
-                <li key={row.trackNumber}>
-                  <Link
-                    href={`${base}/studio?song=${row.trackNumber}`}
-                    className="group flex min-h-11 items-center gap-4 py-2.5 pr-1 transition-colors hover:bg-hover"
-                  >
-                    <span className="type-figure w-8 shrink-0 text-xl font-semibold text-ink-3 group-hover:text-accent">
-                      {String(row.trackNumber).padStart(2, "0")}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-ink">{row.title}</span>
-                      <span className="type-figure block truncate text-xs text-ink-3">{subtitle}</span>
-                    </span>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
-                  </Link>
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <EmptyState
-            title="No tracks yet"
-            action={
-              <ButtonLink href={`${base}/studio`} tone="primary">
-                Add the first track
-              </ButtonLink>
-            }
-          >
-            Start the sequence in the Studio: name the opener, then build the arc from there.
-          </EmptyState>
-        )}
-      </Section>
-
-      <Section id="album-next" title="What's next" description="The path from a blueprint to a handoff.">
+      <Section id="album-next" title="What's next" description="The path from a blueprint to a handoff pack.">
         <FirstProjectChecklist summary={onboarding} />
       </Section>
 
-      <Section
-        id="album-coherence"
-        title="Coherence"
-        actions={<ButtonLink href={`${base}/coherence`}>View report</ButtonLink>}
-      >
-        {coherence.insufficient ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-ink">{coherence.summary}</p>
-            {coherence.missing.length ? (
-              <ul className="flex flex-col gap-1 text-sm">
-                {coherence.missing.map((piece) => (
-                  <li key={piece.id}>
-                    <Link
-                      href={coherenceFixHref(album.id, piece.fix)}
-                      className="inline-flex min-h-11 items-center gap-2 text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink hover:decoration-ink-3"
-                    >
-                      {piece.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
-            <p className="type-figure text-4xl font-semibold text-ink">
-              {coherence.score}
-              <span className="text-base font-normal text-ink-3">/100</span>
-            </p>
-            <div className="min-w-0 flex-1 basis-64">
-              {topAction ? (
-                <>
-                  <p className="text-xs text-ink-3">Top next action</p>
-                  <Link
-                    href={coherenceFixHref(album.id, topAction.fix)}
-                    className="mt-0.5 inline-flex min-h-11 items-center text-sm font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
-                  >
-                    {topAction.title}
-                  </Link>
-                  <p className="text-sm leading-relaxed text-ink-2">{topAction.detail}</p>
-                </>
-              ) : (
-                <p className="text-sm text-ink-2">No open issues. The tracks hold together on this draft.</p>
-              )}
-            </div>
-          </div>
-        )}
-      </Section>
-
-      <Section id="album-materials" title="References, style and demos">
+      <Section id="album-status" title="Where it stands">
         <ul className="divide-y divide-line border-y border-line">
-          <WorkspaceRow
+          <StatusRow
+            href={`${base}/coherence`}
+            label="Coherence"
+            figure={coherence.insufficient ? "Not scored yet" : `${coherence.score}/100 · ${verdict(coherence.score)}`}
+            detail={
+              coherence.insufficient
+                ? coherence.summary
+                : coherence.issues.length
+                  ? `Weakest area: ${weakest.label}. ${plural(coherence.issues.length, "finding")} to work through.`
+                  : "No open findings. The tracks hold together on this draft."
+            }
+            trailing="View report"
+          />
+          <StatusRow
+            href={`${base}/style`}
+            label="Voice / style bible"
+            figure={`${styleSummary.filledCount} of ${styleSummary.totalCount} set`}
+            detail={styleBible.lead_voice || "Define the vocal identity, palette and mix limits before export."}
+          />
+          <StatusRow
             href={`${base}/references`}
             label="Reference tracks"
             figure={plural(references.length, "saved", "saved")}
@@ -244,13 +177,7 @@ export default async function AlbumOverviewPage({ params }: { params: Promise<{ 
                 : "Pin down the opener, closer, vocal and mix references before exporting."
             }
           />
-          <WorkspaceRow
-            href={`${base}/style`}
-            label="Voice / style bible"
-            figure={`${styleSummary.filledCount} of ${styleSummary.totalCount} set`}
-            detail={styleBible.lead_voice || "Define the vocal identity, palette and mix limits before export."}
-          />
-          <WorkspaceRow
+          <StatusRow
             href={`${base}/demos`}
             label="Rough demos"
             figure={`${demoSummary.count} captured · ${demoReviewSummary.readyCount} ready`}
@@ -261,6 +188,16 @@ export default async function AlbumOverviewPage({ params }: { params: Promise<{ 
                 : demoSummary.sourceKinds.length
                   ? demoSummary.sourceKinds.map(humanize).join(", ")
                   : "Capture the memo, rehearsal or riff sketch before it disappears.")
+            }
+          />
+          <StatusRow
+            href={`${base}/inbox`}
+            label="Comments and tasks"
+            figure={`${plural(openComments, "open comment")} · ${plural(openTasks, "open task")}`}
+            detail={
+              openComments || openTasks
+                ? "Resolve notes left on sections and close the tasks that are done."
+                : "Nothing waiting. Comments left on sections and tasks show up here."
             }
           />
         </ul>
@@ -275,10 +212,8 @@ export default async function AlbumOverviewPage({ params }: { params: Promise<{ 
           <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
           <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
           <div className="flex flex-wrap items-center gap-3">
-            <ButtonLink href={`${base}/versions`}>
-              Version history
-            </ButtonLink>
-            <p className="min-w-0 text-sm text-ink-2">Save a snapshot before a big rewrite, or restore one.</p>
+            <ButtonLink href={`${base}/versions`}>Version history</ButtonLink>
+            <p className="min-w-0 max-w-[65ch] text-sm text-ink-2">Save a version before a big rewrite, or restore one.</p>
           </div>
         </div>
       </Section>

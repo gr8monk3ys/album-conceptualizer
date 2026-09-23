@@ -24,6 +24,12 @@ export function forkAlbumJson(
     ...album,
     id: newId(),
     title: `${album.title}${titleSuffix}`.trim().slice(0, 200),
+    // Provenance: which album this remix started from. Plain strings only, so it stays
+    // JSON-safe; the album schema passes unknown keys through.
+    remixed_from: {
+      title: album.title,
+      artist: typeof album.artist === "string" && album.artist.trim() ? album.artist.trim() : null,
+    },
     created_at: now,
     updated_at: now,
     songs: album.songs.map((song) => ({
@@ -36,7 +42,6 @@ export function forkAlbumJson(
     })),
   };
 }
-
 
 /**
  * Fork a published or shared album snapshot into the caller's workspace: charge the fork,

@@ -19,6 +19,8 @@ type IdeationAiProps = {
   references: string;
   themes: string;
   trackCount: number;
+  /** False when this server can't run AI workflows: the button stays visible but disabled. */
+  aiAvailable: boolean;
   /** Applies the chosen parts and returns a function that undoes exactly that change. */
   onApply: (patch: BrainstormPatch) => () => void;
 };
@@ -292,7 +294,7 @@ function BrainstormResult({ output, onApply }: { output: string; onApply: Ideati
                 type="checkbox"
                 checked={takeConcept}
                 onChange={(event) => setTakeConcept(event.target.checked)}
-                className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+                className="mt-0.5 h-5 w-5 shrink-0 accent-ink"
               />
               <span className="text-sm text-ink">
                 {parsed.structured ? "Use its concept" : "Use the whole result as the concept"}
@@ -307,7 +309,7 @@ function BrainstormResult({ output, onApply }: { output: string; onApply: Ideati
                 type="checkbox"
                 checked={takeThemes}
                 onChange={(event) => setTakeThemes(event.target.checked)}
-                className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+                className="mt-0.5 h-5 w-5 shrink-0 accent-ink"
               />
               <span className="min-w-0 text-sm text-ink">
                 Use its {parsed.themes.length} {parsed.themes.length === 1 ? "theme" : "themes"}
@@ -322,7 +324,7 @@ function BrainstormResult({ output, onApply }: { output: string; onApply: Ideati
                 type="checkbox"
                 checked={takeTracks}
                 onChange={(event) => setTakeTracks(event.target.checked)}
-                className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+                className="mt-0.5 h-5 w-5 shrink-0 accent-ink"
               />
               <span className="min-w-0 text-sm text-ink">
                 Use its {parsed.trackTitles.length} track titles
@@ -365,7 +367,14 @@ function BrainstormResult({ output, onApply }: { output: string; onApply: Ideati
  * suggests a direction. Its result is shown as text; nothing reaches the blueprint until the
  * artist picks parts of it and presses "Apply to blueprint".
  */
-export function IdeationAi({ concept, references, themes, trackCount, onApply }: IdeationAiProps) {
+export function IdeationAi({
+  concept,
+  references,
+  themes,
+  trackCount,
+  aiAvailable,
+  onApply,
+}: IdeationAiProps) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
@@ -436,9 +445,15 @@ export function IdeationAi({ concept, references, themes, trackCount, onApply }:
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Button
-          disabled={isBusy || !hasEnoughInput}
+          disabled={!aiAvailable || isBusy || !hasEnoughInput}
           onClick={() => void start()}
-          aria-describedby={!hasEnoughInput ? "brainstorm-needs-concept" : undefined}
+          aria-describedby={
+            !aiAvailable
+              ? "brainstorm-unavailable"
+              : !hasEnoughInput
+                ? "brainstorm-needs-concept"
+                : undefined
+          }
         >
           {isBusy ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -447,7 +462,11 @@ export function IdeationAi({ concept, references, themes, trackCount, onApply }:
           )}
           {label}
         </Button>
-        {!hasEnoughInput && !jobId ? (
+        {!aiAvailable ? (
+          <p id="brainstorm-unavailable" className="max-w-[65ch] text-xs text-ink-3">
+            AI drafting isn&apos;t set up on this server. Everything else works without it.
+          </p>
+        ) : !hasEnoughInput && !jobId ? (
           <p id="brainstorm-needs-concept" className="text-xs text-ink-3">
             Write a concept summary first; the brainstorm builds on it.
           </p>

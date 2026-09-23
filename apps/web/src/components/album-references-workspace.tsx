@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { RelativeTime } from "@/components/relative-time";
+import { LeavePrompt } from "@/components/sound-nav";
 import {
   Button,
   Chip,
@@ -15,6 +16,7 @@ import {
   selectClass,
   textareaClass,
 } from "@/components/ui";
+import { mergeStringFields, useDraftState, useLeaveGuard } from "@/lib/use-autosave";
 import type { AlbumSongOption } from "@/server/album-songs";
 import type { AlbumReferenceRecord } from "@/server/references";
 
@@ -31,7 +33,7 @@ type ReferenceFormState = {
   songTrackNumber: string;
 };
 
-type Status = { tone: "ok" | "danger" | "neutral"; text: string } | null;
+type Notice = { tone: "ok" | "neutral"; text: string } | null;
 
 type ReferenceResponse = {
   reference: AlbumReferenceRecord;
@@ -152,19 +154,28 @@ function toForm(reference: AlbumReferenceRecord): ReferenceFormState {
   };
 }
 
-/** Status text that clears itself after a success; errors stay until the next action. */
-function useStatus() {
-  const [status, setStatus] = useState<Status>(null);
+function sameForm(left: ReferenceFormState, right: ReferenceFormState) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/** Smooth scrolling, unless the viewer asked the system for less motion. */
+function scrollBehavior(): ScrollBehavior {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
+/** A success notice that clears itself. Its live region is always rendered, so it is heard. */
+function useNotice() {
+  const [notice, setNotice] = useState<Notice>(null);
   const timer = useRef<number | null>(null);
   useEffect(() => () => {
     if (timer.current) window.clearTimeout(timer.current);
   }, []);
-  function show(tone: "ok" | "danger" | "neutral", text: string) {
+  function show(tone: "ok" | "neutral", text: string) {
     if (timer.current) window.clearTimeout(timer.current);
-    setStatus({ tone, text });
-    if (tone !== "danger") timer.current = window.setTimeout(() => setStatus(null), 4000);
+    setNotice({ tone, text });
+    timer.current = window.setTimeout(() => setNotice(null), 6000);
   }
-  return [status, show] as const;
+  return [notice, show] as const;
 }
 
 /** Delete with a confirm step in place, so a stray tap can't remove a saved reference. */
@@ -227,14 +238,55 @@ export function AlbumReferencesWorkspace({
   const [references, setReferences] = useState<AlbumReferenceRecord[]>(() =>
     sortReferences(initialReferences),
   );
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<ReferenceFormState>(() => emptyForm());
+  // The add form is a draft kept for this tab, so a stray click away never loses it.
+  const addDraft = useDraftState<ReferenceFormState>(
+    `album-conceptualizer:${albumId}:reference-draft`,
+    {
+      initial: emptyForm,
+      parse: (raw) => (raw ? mergeStringFields(emptyForm(), raw) : null),
+      isPristine: (value) => sameForm(value, emptyForm()),
+    },
+  );
+  // null until the viewer opens or closes the add form; a restored draft opens it.
+  const [addOpenChoice, setAddOpenChoice] = useState<boolean | null>(null);
+  const [editing, setEditing] = useState<{ id: string; form: ReferenceFormState } | null>(null);
   const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null);
-  const [formStatus, showFormStatus] = useStatus();
-  const [listStatus, showListStatus] = useStatus();
+  const [formError, setFormError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [notice, showNotice] = useNotice();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const pendingFocus = useRef<string | null>(null);
+
+  const editingRecord = editing
+    ? (references.find((reference) => reference.id === editing.id) ?? null)
+    : null;
+  const editDirty = Boolean(
+    editing && editingRecord && !sameForm(editing.form, toForm(editingRecord)),
+  );
+  const addOpen = !editing && (addOpenChoice ?? addDraft.restored);
+  const form = editing ? editing.form : addDraft.value;
+
+  const guard = useLeaveGuard({
+    when: editDirty || !addDraft.pristine,
+    // An add-form draft is kept in the tab; unsaved edits to a saved reference are not.
+    beforeLeave: () => !editDirty && addDraft.persist(),
+  });
+
+  // Move focus once the element it belongs to has rendered.
+  useEffect(() => {
+    const id = pendingFocus.current;
+    if (!id) return;
+    pendingFocus.current = null;
+    const element = document.getElementById(id);
+    if (!element) return;
+    element.focus({ preventScroll: true });
+    element.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+  });
+
+  function focusSoon(id: string) {
+    pendingFocus.current = id;
+  }
 
   const songScopedCount = references.filter((reference) => reference.songTrackNumber).length;
   const uniqueRoles = new Set(
@@ -244,18 +296,49 @@ export function AlbumReferencesWorkspace({
   ).size;
 
   function update<K extends keyof ReferenceFormState>(key: K, value: ReferenceFormState[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
+    if (editing) {
+      setEditing((current) => (current ? { ...current, form: { ...current.form, [key]: value } } : current));
+    } else {
+      addDraft.setValue((current) => ({ ...current, [key]: value }));
+    }
   }
 
-  function focusForm(fieldId = FIRST_FIELD_ID) {
-    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    document.getElementById(fieldId)?.focus({ preventScroll: true });
-  }
-
-  function resetEditor() {
-    setEditingId(null);
-    setForm(emptyForm());
+  function clearFormMessages() {
     setFieldError(null);
+    setFormError(null);
+  }
+
+  function openAdd() {
+    clearFormMessages();
+    setAddOpenChoice(true);
+    focusSoon(FIRST_FIELD_ID);
+  }
+
+  function closeAdd() {
+    clearFormMessages();
+    setAddOpenChoice(false);
+    focusSoon(references.length ? "reference-add-trigger" : "reference-add-first");
+  }
+
+  function discardDraft() {
+    clearFormMessages();
+    addDraft.reset();
+    setAddOpenChoice(true);
+    showNotice("neutral", "Draft discarded.");
+    focusSoon(FIRST_FIELD_ID);
+  }
+
+  function startEdit(reference: AlbumReferenceRecord) {
+    clearFormMessages();
+    setEditing({ id: reference.id, form: toForm(reference) });
+    focusSoon(FIRST_FIELD_ID);
+  }
+
+  function cancelEdit() {
+    if (!editing) return;
+    clearFormMessages();
+    focusSoon(`reference-row-${editing.id}`);
+    setEditing(null);
   }
 
   function errorProps(fieldId: string) {
@@ -272,9 +355,9 @@ export function AlbumReferencesWorkspace({
       document.getElementById(problem.field)?.focus();
       return;
     }
-    setFieldError(null);
+    clearFormMessages();
 
-    const wasEditing = Boolean(editingId);
+    const editingId = editing?.id ?? null;
     setIsSubmitting(true);
     try {
       const response = await fetch(
@@ -306,11 +389,17 @@ export function AlbumReferencesWorkspace({
         next.unshift(saved);
         return sortReferences(next);
       });
-      showFormStatus("ok", wasEditing ? "Reference updated." : "Reference added.");
-      resetEditor();
+      if (editingId) {
+        setEditing(null);
+        showNotice("ok", "Reference updated.");
+      } else {
+        addDraft.reset();
+        setAddOpenChoice(false);
+        showNotice("ok", "Reference added.");
+      }
+      focusSoon(`reference-row-${saved.id}`);
     } catch (error) {
-      showFormStatus(
-        "danger",
+      setFormError(
         error instanceof Error
           ? error.message
           : "The reference didn't save. Check your connection and try again.",
@@ -322,6 +411,7 @@ export function AlbumReferencesWorkspace({
 
   async function deleteReference(reference: AlbumReferenceRecord) {
     setDeletingId(reference.id);
+    setListError(null);
     try {
       const response = await fetch(`/api/albums/${albumId}/references/${reference.id}`, {
         method: "DELETE",
@@ -332,14 +422,13 @@ export function AlbumReferencesWorkspace({
           payload?.error ?? "The reference wasn't removed. Check your connection and try again.",
         );
       }
-      setReferences((current) => current.filter((item) => item.id !== reference.id));
-      if (editingId === reference.id) {
-        resetEditor();
-      }
-      showListStatus("ok", `Reference removed: ${reference.title}.`);
+      const remaining = references.filter((item) => item.id !== reference.id);
+      setReferences(remaining);
+      if (editing?.id === reference.id) setEditing(null);
+      showNotice("ok", `Reference removed: ${reference.title}.`);
+      focusSoon(remaining.length ? "references-list-heading" : "reference-add-first");
     } catch (error) {
-      showListStatus(
-        "danger",
+      setListError(
         error instanceof Error
           ? error.message
           : "The reference wasn't removed. Check your connection and try again.",
@@ -349,10 +438,209 @@ export function AlbumReferencesWorkspace({
     }
   }
 
-  const list = references.length ? (
+  function renderForm(mode: "add" | "edit") {
+    return (
+      <Panel className="@container max-w-3xl scroll-mt-24">
+        <form
+          onSubmit={(event) => void submitReference(event)}
+          noValidate
+          aria-labelledby="reference-form-title"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 id="reference-form-title" className="text-base font-semibold text-ink">
+                {mode === "edit" ? "Edit reference" : "Add a reference"}
+              </h3>
+              <p className="mt-1 max-w-[65ch] text-sm text-ink-2">
+                Source the record&apos;s energy, palette, and mix targets.
+              </p>
+              {mode === "add" && addDraft.restored ? (
+                <p className="mt-1 max-w-[65ch] text-sm text-ink-3">
+                  Draft restored from earlier in this session.
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {mode === "add" && !addDraft.pristine ? (
+                <Button tone="ghost" className="px-3" onClick={discardDraft}>
+                  Discard draft
+                </Button>
+              ) : null}
+              <Button
+                tone="ghost"
+                className="px-3"
+                onClick={mode === "edit" ? cancelEdit : closeAdd}
+              >
+                {mode === "edit" ? "Cancel" : "Close"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-4 @md:grid-cols-2">
+            <Field
+              label="Reference title"
+              htmlFor="reference-title"
+              error={fieldError?.field === "reference-title" ? fieldError.message : undefined}
+            >
+              <input
+                id="reference-title"
+                value={form.title}
+                onChange={(event) => update("title", event.target.value)}
+                className={inputClass}
+                placeholder="Track title"
+                autoComplete="off"
+                {...errorProps("reference-title")}
+              />
+            </Field>
+
+            <Field label="Artist" htmlFor="reference-artist">
+              <input
+                id="reference-artist"
+                value={form.artist}
+                onChange={(event) => update("artist", event.target.value)}
+                className={inputClass}
+                placeholder="Artist or band"
+                autoComplete="off"
+              />
+            </Field>
+
+            <Field label="Target role" htmlFor="reference-role">
+              <select
+                id="reference-role"
+                value={form.targetRole}
+                onChange={(event) => update("targetRole", event.target.value)}
+                className={selectClass}
+              >
+                <option value="">Album-wide</option>
+                {ROLE_OPTIONS.map((role) => (
+                  <option key={role} value={role}>
+                    {formatRole(role)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Song target" htmlFor="reference-song">
+              <select
+                id="reference-song"
+                value={form.songTrackNumber}
+                onChange={(event) => update("songTrackNumber", event.target.value)}
+                className={selectClass}
+              >
+                <option value="">Whole album</option>
+                {songOptions.map((song) => (
+                  <option key={`${song.trackNumber}-${song.title}`} value={String(song.trackNumber)}>
+                    {formatTrack(song.trackNumber)} · {song.title}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field
+              label="BPM"
+              htmlFor="reference-bpm"
+              error={fieldError?.field === "reference-bpm" ? fieldError.message : undefined}
+            >
+              <input
+                id="reference-bpm"
+                value={form.bpm}
+                onChange={(event) => update("bpm", event.target.value)}
+                className={`${inputClass} type-figure`}
+                inputMode="numeric"
+                placeholder="e.g. 118"
+                {...errorProps("reference-bpm")}
+              />
+            </Field>
+
+            <Field label="Key" htmlFor="reference-key">
+              <input
+                id="reference-key"
+                value={form.key}
+                onChange={(event) => update("key", event.target.value)}
+                className={inputClass}
+                placeholder="e.g. C minor"
+                autoComplete="off"
+              />
+            </Field>
+
+            <Field
+              label="Source URL"
+              htmlFor="reference-source-url"
+              className="@md:col-span-2"
+              error={fieldError?.field === "reference-source-url" ? fieldError.message : undefined}
+            >
+              <input
+                id="reference-source-url"
+                type="url"
+                value={form.sourceUrl}
+                onChange={(event) => update("sourceUrl", event.target.value)}
+                className={inputClass}
+                placeholder="https://open.spotify.com/…"
+                {...errorProps("reference-source-url")}
+              />
+            </Field>
+
+            <Field label="Mood tags" htmlFor="reference-mood" hint="Separate with commas.">
+              <input
+                id="reference-mood"
+                value={form.moodTagsRaw}
+                onChange={(event) => update("moodTagsRaw", event.target.value)}
+                className={inputClass}
+                placeholder="e.g. cinematic, tense, urgent"
+                aria-describedby="reference-mood-hint"
+                autoComplete="off"
+              />
+            </Field>
+
+            <Field label="Arrangement tags" htmlFor="reference-arrangement" hint="Separate with commas.">
+              <input
+                id="reference-arrangement"
+                value={form.arrangementTagsRaw}
+                onChange={(event) => update("arrangementTagsRaw", event.target.value)}
+                className={inputClass}
+                placeholder="e.g. wide drums, stacked vocals"
+                aria-describedby="reference-arrangement-hint"
+                autoComplete="off"
+              />
+            </Field>
+
+            <Field
+              label="Why this reference matters"
+              htmlFor="reference-notes"
+              className="@md:col-span-2"
+            >
+              <textarea
+                id="reference-notes"
+                value={form.notes}
+                onChange={(event) => update("notes", event.target.value)}
+                className={textareaClass}
+                rows={4}
+                placeholder="What exactly should this track teach the album?"
+              />
+            </Field>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Button type="submit" tone="primary" disabled={isSubmitting}>
+              {isSubmitting ? "Saving…" : mode === "edit" ? "Update reference" : "Add reference"}
+            </Button>
+            {formError ? <StatusMessage tone="danger">{formError}</StatusMessage> : null}
+          </div>
+        </form>
+      </Panel>
+    );
+  }
+
+  const list = (
     <div className="min-w-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line pb-3">
-        <h3 className="text-base font-semibold text-ink">Saved references</h3>
+        <h3
+          id="references-list-heading"
+          tabIndex={-1}
+          className="scroll-mt-24 text-base font-semibold text-ink"
+        >
+          Saved references
+        </h3>
         <p className="text-sm text-ink-2">
           <span className="type-figure text-ink">{references.length}</span> saved ·{" "}
           <span className="type-figure text-ink">{songScopedCount}</span> song-specific ·{" "}
@@ -360,14 +648,14 @@ export function AlbumReferencesWorkspace({
           {uniqueRoles === 1 ? "role" : "roles"}
         </p>
       </div>
-      {listStatus ? (
-        <StatusMessage tone={listStatus.tone} className="mt-3">
-          {listStatus.text}
+      {listError ? (
+        <StatusMessage tone="danger" className="mt-3">
+          {listError}
         </StatusMessage>
       ) : null}
       <ul className="divide-y divide-line">
         {references.map((reference) => {
-          const isEditing = editingId === reference.id;
+          const isEditing = editing?.id === reference.id;
           const hasFacts =
             Boolean(reference.bpm) ||
             Boolean(reference.key) ||
@@ -376,124 +664,134 @@ export function AlbumReferencesWorkspace({
           return (
             <li
               key={reference.id}
+              id={`reference-row-${reference.id}`}
+              tabIndex={-1}
               aria-current={isEditing ? "true" : undefined}
-              className={isEditing ? "-mx-3 bg-selected px-3 py-4" : "py-4"}
+              className="scroll-mt-24 py-4"
             >
-              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-                <div className="min-w-0">
-                  <p className="break-words text-sm font-semibold text-ink">{reference.title}</p>
-                  <p className="mt-0.5 text-sm text-ink-2">
-                    {reference.artist || "Artist not set"}
-                    {" · "}
-                    {reference.songTrackNumber && reference.songTitle ? (
-                      <>
-                        Track <span className="type-figure">{formatTrack(reference.songTrackNumber)}</span>{" "}
-                        {reference.songTitle}
-                      </>
-                    ) : (
-                      "Whole album"
-                    )}
-                  </p>
-                </div>
-                <Chip>{formatRole(reference.targetRole)}</Chip>
-              </div>
+              {isEditing ? (
+                renderForm("edit")
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                    <div className="min-w-0">
+                      <p className="break-words hyphens-auto text-sm font-semibold text-ink">
+                        {reference.title}
+                      </p>
+                      <p className="mt-0.5 break-words text-sm text-ink-2">
+                        {reference.artist || "Artist not set"}
+                        {" · "}
+                        {reference.songTrackNumber && reference.songTitle ? (
+                          <>
+                            Track{" "}
+                            <span className="type-figure">{formatTrack(reference.songTrackNumber)}</span>{" "}
+                            {reference.songTitle}
+                          </>
+                        ) : (
+                          "Whole album"
+                        )}
+                      </p>
+                    </div>
+                    <Chip>{formatRole(reference.targetRole)}</Chip>
+                  </div>
 
-              {hasFacts ? (
-                <dl className="mt-3 flex flex-col gap-2 text-xs">
-                  {reference.bpm || reference.key ? (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <dt className="w-24 shrink-0 text-ink-3">Tempo and key</dt>
-                      {reference.bpm ? (
-                        <dd>
-                          <Chip className="type-figure">{reference.bpm} BPM</Chip>
-                        </dd>
+                  {hasFacts ? (
+                    <dl className="mt-3 flex flex-col gap-2 text-xs">
+                      {reference.bpm || reference.key ? (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <dt className="min-w-24 text-ink-3">Tempo and key</dt>
+                          {reference.bpm ? (
+                            <dd>
+                              <Chip className="type-figure">{reference.bpm} BPM</Chip>
+                            </dd>
+                          ) : null}
+                          {reference.key ? (
+                            <dd>
+                              <Chip>{reference.key}</Chip>
+                            </dd>
+                          ) : null}
+                        </div>
                       ) : null}
-                      {reference.key ? (
-                        <dd>
-                          <Chip>{reference.key}</Chip>
-                        </dd>
+                      {reference.moodTags.length ? (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <dt className="min-w-24 text-ink-3">Mood</dt>
+                          {reference.moodTags.map((tag) => (
+                            <dd key={`${reference.id}-mood-${tag}`}>
+                              <Chip>{tag}</Chip>
+                            </dd>
+                          ))}
+                        </div>
                       ) : null}
-                    </div>
+                      {reference.arrangementTags.length ? (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <dt className="min-w-24 text-ink-3">Arrangement</dt>
+                          {reference.arrangementTags.map((tag) => (
+                            <dd key={`${reference.id}-arrangement-${tag}`}>
+                              <Chip>{tag}</Chip>
+                            </dd>
+                          ))}
+                        </div>
+                      ) : null}
+                    </dl>
                   ) : null}
-                  {reference.moodTags.length ? (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <dt className="w-24 shrink-0 text-ink-3">Mood</dt>
-                      {reference.moodTags.map((tag) => (
-                        <dd key={`${reference.id}-mood-${tag}`}>
-                          <Chip>{tag}</Chip>
-                        </dd>
-                      ))}
-                    </div>
-                  ) : null}
-                  {reference.arrangementTags.length ? (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <dt className="w-24 shrink-0 text-ink-3">Arrangement</dt>
-                      {reference.arrangementTags.map((tag) => (
-                        <dd key={`${reference.id}-arrangement-${tag}`}>
-                          <Chip>{tag}</Chip>
-                        </dd>
-                      ))}
-                    </div>
-                  ) : null}
-                </dl>
-              ) : null}
 
-              {reference.notes ? (
-                <p className="mt-3 max-w-[68ch] text-sm leading-relaxed text-ink-2">
-                  {reference.notes}
-                </p>
-              ) : null}
+                  {reference.notes ? (
+                    <p className="mt-3 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
+                      {reference.notes}
+                    </p>
+                  ) : null}
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                <p className="text-xs text-ink-3">
-                  Updated <RelativeTime date={reference.updatedAt} />
-                  {reference.sourceUrl ? (
-                    <>
-                      {" · "}
-                      <a
-                        href={reference.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex min-h-11 items-center text-ink-2 underline underline-offset-4 hover:text-ink"
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                    <p className="text-xs text-ink-3">
+                      Updated <RelativeTime date={reference.updatedAt} />
+                      {reference.sourceUrl ? (
+                        <>
+                          {" · "}
+                          <a
+                            href={reference.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-11 items-center text-ink-2 underline underline-offset-4 hover:text-ink"
+                          >
+                            Open source
+                            <span className="sr-only"> for {reference.title} (opens in a new tab)</span>
+                          </a>
+                        </>
+                      ) : null}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        tone="ghost"
+                        className="px-3"
+                        aria-label={`Edit ${reference.title}`}
+                        disabled={editDirty}
+                        onClick={() => startEdit(reference)}
                       >
-                        Open source
-                        <span className="sr-only"> for {reference.title} (opens in a new tab)</span>
-                      </a>
-                    </>
-                  ) : null}
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    tone="ghost"
-                    className="px-3"
-                    aria-label={`Edit ${reference.title}`}
-                    onClick={() => {
-                      setEditingId(reference.id);
-                      setForm(toForm(reference));
-                      setFieldError(null);
-                      showFormStatus("neutral", `Editing ${reference.title}.`);
-                      focusForm();
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <DeleteControl
-                    itemLabel={reference.title}
-                    busy={deletingId === reference.id}
-                    onConfirm={() => void deleteReference(reference)}
-                  />
-                </div>
-              </div>
+                        Edit
+                      </Button>
+                      <DeleteControl
+                        itemLabel={reference.title}
+                        busy={deletingId === reference.id}
+                        onConfirm={() => void deleteReference(reference)}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </li>
           );
         })}
       </ul>
     </div>
-  ) : (
+  );
+
+  const emptyState = (
     <EmptyState
       title="No references yet"
       action={
-        <Button onClick={() => focusForm()}>Add your first reference</Button>
+        <Button id="reference-add-first" tone="primary" onClick={openAdd}>
+          Add your first reference
+        </Button>
       }
     >
       <p>Add one to anchor the album&apos;s pacing, texture, or mix direction. A good place to start:</p>
@@ -510,194 +808,24 @@ export function AlbumReferencesWorkspace({
       <Section
         id="references"
         title="Save the tracks you keep pointing at"
-        description="Capture reference songs, what each one teaches the album, and whether it belongs to the whole project or a specific track. Build the album's sonic map before the DAW session gets messy."
+        description="Capture reference songs, what each one teaches the album, and whether it belongs to the whole album or one track. Build the album's sonic map before the DAW session gets messy."
+        actions={
+          references.length && !addOpen && !editing ? (
+            <Button id="reference-add-trigger" onClick={openAdd}>
+              Add a reference
+            </Button>
+          ) : null
+        }
       >
-        <div className="@container">
-          <div className="grid grid-cols-1 gap-8 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] @3xl:items-start">
-            {list}
-
-            <Panel ref={panelRef} className="@container scroll-mt-24">
-              <form onSubmit={(event) => void submitReference(event)} noValidate>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="text-base font-semibold text-ink">
-                      {editingId ? "Edit reference" : "Add a reference"}
-                    </h3>
-                    <p className="mt-1 text-sm text-ink-2">
-                      Source the record&apos;s energy, palette, and mix targets.
-                    </p>
-                  </div>
-                  {editingId ? (
-                    <Button tone="ghost" className="px-3" onClick={resetEditor}>
-                      Cancel
-                    </Button>
-                  ) : null}
-                </div>
-
-                <div className="mt-5 grid grid-cols-1 gap-4 @md:grid-cols-2">
-                  <Field
-                    label="Reference title"
-                    htmlFor="reference-title"
-                    error={fieldError?.field === "reference-title" ? fieldError.message : undefined}
-                  >
-                    <input
-                      id="reference-title"
-                      value={form.title}
-                      onChange={(event) => update("title", event.target.value)}
-                      className={inputClass}
-                      placeholder="Track title"
-                      autoComplete="off"
-                      {...errorProps("reference-title")}
-                    />
-                  </Field>
-
-                  <Field label="Artist" htmlFor="reference-artist">
-                    <input
-                      id="reference-artist"
-                      value={form.artist}
-                      onChange={(event) => update("artist", event.target.value)}
-                      className={inputClass}
-                      placeholder="Artist or band"
-                      autoComplete="off"
-                    />
-                  </Field>
-
-                  <Field label="Target role" htmlFor="reference-role">
-                    <select
-                      id="reference-role"
-                      value={form.targetRole}
-                      onChange={(event) => update("targetRole", event.target.value)}
-                      className={selectClass}
-                    >
-                      <option value="">Album-wide</option>
-                      {ROLE_OPTIONS.map((role) => (
-                        <option key={role} value={role}>
-                          {formatRole(role)}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-
-                  <Field label="Song target" htmlFor="reference-song">
-                    <select
-                      id="reference-song"
-                      value={form.songTrackNumber}
-                      onChange={(event) => update("songTrackNumber", event.target.value)}
-                      className={selectClass}
-                    >
-                      <option value="">Whole album</option>
-                      {songOptions.map((song) => (
-                        <option
-                          key={`${song.trackNumber}-${song.title}`}
-                          value={String(song.trackNumber)}
-                        >
-                          {formatTrack(song.trackNumber)} · {song.title}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-
-                  <Field
-                    label="BPM"
-                    htmlFor="reference-bpm"
-                    error={fieldError?.field === "reference-bpm" ? fieldError.message : undefined}
-                  >
-                    <input
-                      id="reference-bpm"
-                      value={form.bpm}
-                      onChange={(event) => update("bpm", event.target.value)}
-                      className={`${inputClass} type-figure`}
-                      inputMode="numeric"
-                      placeholder="e.g. 118"
-                      {...errorProps("reference-bpm")}
-                    />
-                  </Field>
-
-                  <Field label="Key" htmlFor="reference-key">
-                    <input
-                      id="reference-key"
-                      value={form.key}
-                      onChange={(event) => update("key", event.target.value)}
-                      className={inputClass}
-                      placeholder="e.g. C minor"
-                      autoComplete="off"
-                    />
-                  </Field>
-
-                  <Field
-                    label="Source URL"
-                    htmlFor="reference-source-url"
-                    className="@md:col-span-2"
-                    error={
-                      fieldError?.field === "reference-source-url" ? fieldError.message : undefined
-                    }
-                  >
-                    <input
-                      id="reference-source-url"
-                      type="url"
-                      value={form.sourceUrl}
-                      onChange={(event) => update("sourceUrl", event.target.value)}
-                      className={inputClass}
-                      placeholder="https://open.spotify.com/…"
-                      {...errorProps("reference-source-url")}
-                    />
-                  </Field>
-
-                  <Field label="Mood tags" htmlFor="reference-mood" hint="Separate with commas.">
-                    <input
-                      id="reference-mood"
-                      value={form.moodTagsRaw}
-                      onChange={(event) => update("moodTagsRaw", event.target.value)}
-                      className={inputClass}
-                      placeholder="e.g. cinematic, tense, urgent"
-                      aria-describedby="reference-mood-hint"
-                      autoComplete="off"
-                    />
-                  </Field>
-
-                  <Field
-                    label="Arrangement tags"
-                    htmlFor="reference-arrangement"
-                    hint="Separate with commas."
-                  >
-                    <input
-                      id="reference-arrangement"
-                      value={form.arrangementTagsRaw}
-                      onChange={(event) => update("arrangementTagsRaw", event.target.value)}
-                      className={inputClass}
-                      placeholder="e.g. wide drums, stacked vocals"
-                      aria-describedby="reference-arrangement-hint"
-                      autoComplete="off"
-                    />
-                  </Field>
-
-                  <Field
-                    label="Why this reference matters"
-                    htmlFor="reference-notes"
-                    className="@md:col-span-2"
-                  >
-                    <textarea
-                      id="reference-notes"
-                      value={form.notes}
-                      onChange={(event) => update("notes", event.target.value)}
-                      className={textareaClass}
-                      rows={4}
-                      placeholder="What exactly should this track teach the album?"
-                    />
-                  </Field>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <Button type="submit" tone="primary" disabled={isSubmitting}>
-                    {isSubmitting ? "Saving…" : editingId ? "Update reference" : "Add reference"}
-                  </Button>
-                  {formStatus ? (
-                    <StatusMessage tone={formStatus.tone}>{formStatus.text}</StatusMessage>
-                  ) : null}
-                </div>
-              </form>
-            </Panel>
-          </div>
+        <div className="flex flex-col gap-6">
+          <p
+            role="status"
+            className={notice ? (notice.tone === "ok" ? "text-sm text-ok" : "text-sm text-ink-2") : "sr-only"}
+          >
+            {notice?.text}
+          </p>
+          {addOpen ? renderForm("add") : null}
+          {references.length ? list : addOpen ? null : emptyState}
         </div>
       </Section>
 
@@ -707,7 +835,7 @@ export function AlbumReferencesWorkspace({
           title="Good reference prompts"
           description="Questions worth a reference each, if the album doesn't have an answer yet."
         >
-          <ul className="max-w-[68ch] divide-y divide-line border-y border-line text-sm text-ink-2">
+          <ul className="max-w-[65ch] divide-y divide-line border-y border-line text-sm text-ink-2">
             {REFERENCE_PROMPTS.map((prompt) => (
               <li key={prompt} className="py-3">
                 {prompt}
@@ -716,6 +844,15 @@ export function AlbumReferencesWorkspace({
           </ul>
         </Section>
       ) : null}
+
+      <LeavePrompt
+        guard={guard}
+        message={
+          editDirty
+            ? "Your changes to this reference aren't saved yet. If you leave now, they'll be lost."
+            : "This browser won't keep your reference draft. If you leave now, it will be lost."
+        }
+      />
     </div>
   );
 }

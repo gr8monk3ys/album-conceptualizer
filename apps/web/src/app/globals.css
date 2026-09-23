@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@fontsource-variable/archivo/wdth.css";
 
 /*
  * Label identity program: a warm graphite field, bone-white type and a single signal color
@@ -35,17 +34,8 @@
   --warn: #f39a5c;
   --warn-soft: #2d2017;
 
-  /* Legacy names, kept so every screen renders in this world while it is migrated. */
-  --bg: var(--ground);
-  --bg2: var(--ground);
-  --panel: var(--raised);
-  --panel2: var(--raised);
-  --border: var(--line);
-  --text: var(--ink);
-  --muted: var(--ink-2);
-  --muted2: var(--ink-3);
-  --accent2: var(--accent);
-  --bad: var(--danger);
+  /* Height of the sticky app header. Sticky offsets and scroll padding both read it. */
+  --header-h: 4.3125rem;
 }
 
 @theme inline {
@@ -74,15 +64,29 @@
   --color-foreground: var(--ink);
 
   /* Height of the sticky app header, so anything sticky below it lines up. */
-  --spacing-header: 4.3125rem;
+  --spacing-header: var(--header-h);
 
-  --font-sans: "Archivo Variable", "Archivo", ui-sans-serif, system-ui, sans-serif;
+  /*
+   * Display sizes for the expanded cut. Fluid, so a long title in the widest cut never
+   * overflows a 320px viewport, and capped so it stays a title rather than a poster.
+   */
+  --text-display-md: clamp(1.75rem, 1.2rem + 2.4vw, 2.75rem);
+  --text-display-md--line-height: 1.02;
+  --text-display-lg: clamp(1.625rem, 0.9rem + 4.4vw, 3rem);
+  --text-display-lg--line-height: 1.02;
+  --text-display-xl: clamp(2rem, 1.1rem + 3.9vw, 3.5rem);
+  --text-display-xl--line-height: 1.02;
+
+  /* Archivo is self-hosted by next/font (app/layout.tsx); latin-ext loads only when needed. */
+  --font-sans: var(--font-archivo-ext), var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
 html {
   color-scheme: dark;
   background: var(--ground);
+  /* Anchors and focused fields scroll clear of the sticky app header (WCAG 2.4.11). */
+  scroll-padding-top: calc(var(--header-h) + 1rem);
 }
 
 body {

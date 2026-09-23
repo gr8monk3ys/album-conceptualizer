@@ -157,14 +157,17 @@ export function BillingPlans({
         {error ? <StatusMessage tone="danger">{error}</StatusMessage> : null}
       </div>
 
-      <Section id="plans" title="Compare plans">
+      <Section
+        id="plans"
+        title="Compare plans"
+        description="Every plan includes the Studio, the Album Bible, the coherence report and every export format."
+      >
         <ul className="grid grid-cols-1 divide-y divide-line border-y border-line md:grid-cols-3 md:divide-x md:divide-y-0">
           {PLANS.map((plan) => {
             const isCurrent = plan.key === currentPlan;
             const facts = [
               plan.key === "free" ? `Up to ${freeProjectLimit} albums` : "Unlimited albums",
               `${monthlyCredits[plan.key]} credits each month`,
-              "Studio, Album Bible, coherence report and exports",
             ];
             return (
               <li
@@ -230,13 +233,16 @@ export function BillingPlans({
             { label: "Download the zip export", cost: CREDIT_COSTS.exportZip },
             { label: "Run an agent workflow", cost: CREDIT_COSTS.agentRun },
           ].map((use) => (
-            <div key={use.label} className="flex items-baseline justify-between gap-3 border-b border-line py-2">
-              <dt className="text-sm text-ink-2">{use.label}</dt>
-              <dd className="type-figure shrink-0 text-sm font-semibold text-ink">{use.cost} credits</dd>
+            <div
+              key={use.label}
+              className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-line py-2"
+            >
+              <dt className="min-w-0 text-sm text-ink-2">{use.label}</dt>
+              <dd className="type-figure text-sm font-semibold text-ink">{use.cost} credits</dd>
             </div>
           ))}
         </dl>
-        <p className="mt-3 text-sm text-ink-2">
+        <p className="mt-3 max-w-[65ch] text-sm text-ink-2">
           Each calendar month your plan tops your balance up to its monthly amount. Need a few more?{" "}
           <Link href="/app/challenges" className="inline-flex min-h-11 items-center text-ink underline underline-offset-4">
             Daily challenges earn credits

@@ -31,6 +31,18 @@ async function createAlbumFromWizard(
   await page.waitForURL("**/app/albums/**");
 }
 
+async function openSoundPage(
+  page: import("@playwright/test").Page,
+  name: "Style" | "References" | "Demos",
+) {
+  // One "Sound" album tab; Style, References and Demos are its sub-pages.
+  await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Sound", exact: true }).click();
+  await page.waitForURL("**/style");
+  if (name !== "Style") {
+    await page.getByRole("navigation", { name: "Sound" }).getByRole("link", { name, exact: true }).click();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -50,7 +62,7 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Blueprint saved")).toBeVisible();
   });
 
-  test("created album appears in Recent projects on dashboard", async ({ page }) => {
+  test("created album appears in Recent albums on Home", async ({ page }) => {
     await devLogin(page);
 
     const title = `Dashboard Album ${randomSuffix()}`;
@@ -115,7 +127,9 @@ test.describe("Album Management", () => {
     expect(download.suggestedFilename()).toContain("suno_handoff_pack");
   });
 
-  test("coherence report shows breakdown and next actions", async ({ page }) => {
+  // A fresh album has no written lyrics, so the report must decline to score it and link to
+  // what's missing instead. (The scored breakdown is covered by server/__tests__/coherence.)
+  test("coherence report explains what a fresh album is missing", async ({ page }) => {
     await devLogin(page);
 
     const title = `Coherence ${randomSuffix()}`;
@@ -127,11 +141,14 @@ test.describe("Album Management", () => {
 
     await page.getByRole("main").getByRole("link", { name: "View report" }).click();
     await page.waitForURL("**/coherence");
-    await expect(page.getByText("Coherence report").first()).toBeVisible();
-    await expect(page.getByText("Next actions")).toBeVisible();
-    await expect(page.getByText("Narrative", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Lyrics", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Harmony", { exact: true }).first()).toBeVisible();
+    const report = page.getByRole("region", { name: "Coherence report" });
+    await expect(report.getByText("Not enough material yet")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Next actions" })).toBeVisible();
+
+    const lyricsFix = report.getByRole("link", { name: /Lyrics on 2 more tracks/ });
+    await expect(lyricsFix).toBeVisible();
+    await lyricsFix.click();
+    await page.waitForURL("**/studio?song=1");
   });
 
   test("reference workspace saves a track reference and reflects it on the album page", async ({
@@ -146,8 +163,10 @@ test.describe("Album Management", () => {
       concept: "A concept album about train stations, detours, and messages that arrive too late.",
     });
 
-    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "References", exact: true }).click();
+    await openSoundPage(page, "References");
     await page.waitForURL("**/references");
+    // An empty collection shows its teaching empty state; its button opens the form.
+    await page.getByRole("button", { name: "Add your first reference" }).click();
     await page.getByLabel("Reference title").fill("Dreams Tonite");
     await page.getByLabel("Artist").fill("Alvvays");
     await page.getByLabel("Target role").selectOption("chorus-energy");
@@ -179,8 +198,7 @@ test.describe("Album Management", () => {
       concept: "A concept album about hotel hallways, missed calls, and one long overnight drive.",
     });
 
-    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Style", exact: true }).click();
-    await page.waitForURL("**/style");
+    await openSoundPage(page, "Style");
     await page
       .getByLabel("Lead voice brief")
       .fill("Close-mic alto with hushed verses and a brighter chorus lift.");
@@ -214,8 +232,9 @@ test.describe("Album Management", () => {
       concept: "A concept album about airport lounges, neon vending machines, and the chorus you only hear once.",
     });
 
-    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Demos", exact: true }).click();
+    await openSoundPage(page, "Demos");
     await page.waitForURL("**/demos");
+    await page.getByRole("button", { name: "Add your first demo" }).click();
     await page.getByLabel("Local rough demo file").setInputFiles({
       name: "hallway-memo.wav",
       mimeType: "audio/wav",

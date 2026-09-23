@@ -13,7 +13,7 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await page.getByRole("button", { name: "Continue (dev)" }).click();
 
   await page.waitForURL("**/app");
-  await expect(page.getByText("Recent projects")).toBeVisible();
+  await expect(page.getByText("Recent albums")).toBeVisible();
 
   await page.goto("/app/create");
   await page.getByLabel("Album title").fill(albumTitle);
@@ -54,13 +54,14 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await expect(page.getByText("Published to Discover.")).toBeVisible();
 
   await page.goto("/app/discover");
-  await expect(page.getByText("Community projects")).toBeVisible();
+  await expect(page.getByText("Community albums")).toBeVisible();
 
   const albumCard = page
     .locator('[data-testid="discover-album-card"]', { hasText: albumTitle })
     .first();
-  await albumCard.getByRole("button", { name: "Like", exact: true }).click();
-  await expect(albumCard.getByRole("button", { name: "Liked", exact: true })).toBeVisible();
+  // Like controls are named after their album, so each row's toggle is distinct.
+  await albumCard.getByRole("button", { name: `Like ${albumTitle}`, exact: true }).click();
+  await expect(albumCard.getByRole("button", { name: `Liked ${albumTitle}`, exact: true })).toBeVisible();
 
   await albumCard.getByRole("button", { name: "Remix" }).click();
   await page.waitForURL("**/app/albums/**/studio");

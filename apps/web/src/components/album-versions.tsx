@@ -30,7 +30,7 @@ function VersionTitle({ message }: { message: string | null }) {
       </>
     );
   }
-  return <>{message || "Untitled snapshot"}</>;
+  return <>{message || "Untitled version"}</>;
 }
 
 export function AlbumVersions({ albumId, versions }: { albumId: string; versions: VersionListItem[] }) {
@@ -53,14 +53,14 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message: trimmed }),
       });
-      if (!res.ok) throw new Error(await errorFrom(res, "The snapshot wasn't saved. Try again in a moment."));
+      if (!res.ok) throw new Error(await errorFrom(res, "The version wasn't saved. Try again in a moment."));
       setMessage("");
-      setSaveStatus({ tone: "ok", text: "Snapshot saved." });
+      setSaveStatus({ tone: "ok", text: "Version saved." });
       router.refresh();
     } catch (err) {
       setSaveStatus({
         tone: "danger",
-        text: err instanceof Error ? err.message : "The snapshot wasn't saved. Try again in a moment.",
+        text: err instanceof Error ? err.message : "The version wasn't saved. Try again in a moment.",
       });
     } finally {
       setIsSaving(false);
@@ -89,7 +89,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
     <div className="flex flex-col gap-10">
       <Section
         id="versions-save"
-        title="Save a snapshot"
+        title="Save a version"
         description="Keep the album as it is right now before a big lyric or chord rewrite, so you can come back to it."
       >
         <Panel className="max-w-2xl">
@@ -100,7 +100,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
               void save();
             }}
           >
-            <Field htmlFor="version-message" label="What's in this snapshot" hint="A few words you'll recognise later.">
+            <Field htmlFor="version-message" label="What's in this version" hint="A few words you'll recognise later.">
               <input
                 id="version-message"
                 value={message}
@@ -113,7 +113,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
             </Field>
             <div className="flex flex-wrap items-center gap-3">
               <Button type="submit" tone="primary" disabled={!message.trim() || isSaving}>
-                {isSaving ? "Saving…" : "Save snapshot"}
+                {isSaving ? "Saving…" : "Save version"}
               </Button>
               {saveStatus ? <StatusMessage tone={saveStatus.tone}>{saveStatus.text}</StatusMessage> : null}
             </div>
@@ -139,7 +139,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                 <li key={version.id} className="py-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">
+                      <p className="break-words text-sm font-semibold text-ink">
                         <VersionTitle message={version.message} />
                       </p>
                       <p className="mt-0.5 text-xs text-ink-3">
@@ -157,7 +157,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                       >
                         Restore
                         <span className="sr-only">
-                          {` the version "${version.message || "Untitled snapshot"}"`}
+                          {` the version "${version.message || "Untitled version"}"`}
                         </span>
                       </Button>
                     )}
@@ -190,8 +190,8 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
             })}
           </ol>
         ) : (
-          <EmptyState title="No snapshots yet">
-            Save one above before a big rewrite. You can restore any snapshot later, and restoring
+          <EmptyState title="No versions yet">
+            Save one above before a big rewrite. You can restore any version later, and restoring
             keeps the draft it replaces.
           </EmptyState>
         )}

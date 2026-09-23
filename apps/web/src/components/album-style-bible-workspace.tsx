@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
+import { RelativeTime } from "@/components/relative-time";
+import { LeavePrompt } from "@/components/sound-nav";
 import {
   Button,
   ButtonLink,
@@ -9,15 +11,11 @@ import {
   Field,
   Panel,
   Section,
-  StatusMessage,
   inputClass,
   textareaClass,
 } from "@/components/ui";
+import { useAutosave } from "@/lib/use-autosave";
 import type { AlbumStyleBible } from "@/server/album-json";
-
-type StyleBibleResponse = {
-  styleBible: Required<AlbumStyleBible>;
-};
 
 type StyleBibleSummary = {
   referenceRoles: string[];
@@ -36,7 +34,7 @@ type StyleBibleFormState = {
   referenceStrategy: string;
 };
 
-type Status = { tone: "ok" | "danger"; text: string } | null;
+type StyleBibleBody = ReturnType<typeof buildBody>;
 
 /** The nine sections of a style bible, in the order the form asks for them. */
 const SECTIONS: Array<{ key: keyof StyleBibleFormState; label: string }> = [
@@ -137,25 +135,45 @@ export function AlbumStyleBibleWorkspace({
     songTrackNumber: number | null;
   }>;
 }) {
-  const [savedForm, setSavedForm] = useState<StyleBibleFormState>(() => toForm(initialStyleBible));
   const [form, setForm] = useState<StyleBibleFormState>(() => toForm(initialStyleBible));
-  const [status, setStatusState] = useState<Status>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const timer = useRef<number | null>(null);
-
-  useEffect(() => () => {
-    if (timer.current) window.clearTimeout(timer.current);
-  }, []);
-
-  function setStatus(next: Status) {
-    if (timer.current) window.clearTimeout(timer.current);
-    setStatusState(next);
-    if (next?.tone === "ok") timer.current = window.setTimeout(() => setStatusState(null), 4000);
-  }
+  // When the viewer last pressed "Save style bible"; the indicator names that save plainly.
+  const [explicitSaveAt, setExplicitSaveAt] = useState<number | null>(null);
 
   const filled = SECTIONS.filter((section) => form[section.key].trim().length > 0);
   const open = SECTIONS.filter((section) => !form[section.key].trim());
-  const isDirty = JSON.stringify(buildBody(form)) !== JSON.stringify(buildBody(savedForm));
+  // Compare what would be sent, so a trailing comma or space isn't an unsaved change.
+  const body = useMemo(() => buildBody(form), [form]);
+
+  const save = useCallback(
+    async (value: StyleBibleBody) => {
+      const payload = JSON.stringify(value);
+      let response: Response;
+      try {
+        response = await fetch(`/api/albums/${albumId}/style-bible`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: payload,
+          // Lets the last edits reach the server even as the tab closes.
+          keepalive: payload.length < 60_000,
+        });
+      } catch {
+        throw new Error("Couldn't reach the server. Your text is still here.");
+      }
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: unknown } | null;
+        throw new Error(
+          response.status === 401
+            ? "You're signed out. Sign in again in another tab, then retry."
+            : typeof data?.error === "string" && data.error.trim()
+              ? data.error
+              : "The style bible didn't save. Your text is still here.",
+        );
+      }
+    },
+    [albumId],
+  );
+
+  const autosave = useAutosave({ value: body, save });
 
   function update(key: keyof StyleBibleFormState, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -163,41 +181,13 @@ export function AlbumStyleBibleWorkspace({
 
   async function saveStyleBible(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsSaving(true);
-    try {
-      const response = await fetch(`/api/albums/${albumId}/style-bible`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildBody(form)),
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | StyleBibleResponse
-        | { error?: string }
-        | null;
-      if (!response.ok || !payload || !("styleBible" in payload)) {
-        throw new Error(
-          payload && "error" in payload && payload.error
-            ? payload.error
-            : "The style bible didn't save. Your text is still here; try again in a moment.",
-        );
-      }
-
-      const next = toForm(payload.styleBible);
-      setSavedForm(next);
-      setForm(next);
-      setStatus({ tone: "ok", text: "Style bible saved." });
-    } catch (error) {
-      setStatus({
-        tone: "danger",
-        text:
-          error instanceof Error
-            ? error.message
-            : "The style bible didn't save. Your text is still here; try again in a moment.",
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    if (await autosave.saveNow()) setExplicitSaveAt(Date.now());
   }
+
+  const showExplicit =
+    explicitSaveAt !== null &&
+    (autosave.status === "saved" || autosave.status === "idle") &&
+    explicitSaveAt >= (autosave.lastSavedAt ?? 0);
 
   function textarea(key: keyof StyleBibleFormState, placeholder: string, rows = 3) {
     return (
@@ -245,7 +235,7 @@ export function AlbumStyleBibleWorkspace({
                 ))}
               </div>
               {open.length && open.length < SECTIONS.length ? (
-                <p className="mt-2 text-xs leading-relaxed text-ink-3">
+                <p className="mt-2 max-w-[65ch] text-xs leading-relaxed text-ink-3">
                   Still open: {open.map((section) => section.label).join(", ")}
                 </p>
               ) : null}
@@ -326,18 +316,49 @@ export function AlbumStyleBibleWorkspace({
                 </Group>
               </div>
 
-              <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-line pt-4">
-                <Button type="submit" tone="primary" disabled={isSaving}>
-                  {isSaving ? "Saving…" : "Save style bible"}
+              {/* Stays in view while the viewer works down the form, so the save state is seen. */}
+              <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-raised px-4 py-4 md:-mx-5 md:-mb-5 md:px-5">
+                <Button type="submit" tone="primary" aria-describedby="style-save-state">
+                  Save style bible
                 </Button>
-                {status ? (
-                  <StatusMessage tone={status.tone}>{status.text}</StatusMessage>
-                ) : isDirty ? (
-                  <p className="text-sm text-ink-3">Unsaved changes</p>
-                ) : null}
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  <p id="style-save-state" className="min-w-0">
+                    <span
+                      role="status"
+                      className={autosave.status === "error" ? "text-danger" : showExplicit ? "text-ok" : "text-ink-3"}
+                    >
+                      {autosave.status === "dirty"
+                        ? "Unsaved changes"
+                        : autosave.status === "saving"
+                          ? "Saving…"
+                          : autosave.status === "error"
+                            ? `Couldn't save — ${autosave.error}`
+                            : showExplicit
+                              ? "Style bible saved."
+                              : autosave.status === "saved"
+                                ? "Saved"
+                                : "Changes save as you type."}
+                    </span>
+                    {autosave.status === "saved" && !showExplicit && autosave.lastSavedAt ? (
+                      <span className="text-ink-3">
+                        {" · "}
+                        <RelativeTime date={new Date(autosave.lastSavedAt).toISOString()} />
+                      </span>
+                    ) : null}
+                  </p>
+                  {autosave.status === "error" ? (
+                    <Button tone="secondary" className="px-3" onClick={() => void autosave.retry()}>
+                      Retry
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </form>
           </Panel>
+          <LeavePrompt
+            guard={autosave.leaveGuard}
+            message="Your latest style bible changes didn't save. If you leave now, they'll be lost."
+          />
 
           <aside aria-label="References behind the style bible" className="flex min-w-0 flex-col gap-8">
             <div>

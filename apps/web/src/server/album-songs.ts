@@ -1,4 +1,5 @@
-import { isWrittenLyrics } from "@/lib/lyrics";
+import { lyricProgress } from "@/lib/lyrics";
+import { analyzeAlbumCoherence } from "@/server/coherence";
 
 export type AlbumSongOption = {
   id: string | null;
@@ -33,15 +34,23 @@ export type SpineRow = {
   trackNumber: number;
   title: string;
   sections: number;
+  /** Sections with written lyrics (see `@/lib/lyrics`). */
   lyricSections: number;
   themes: number;
+  /** The track's theme tags, trimmed and lower-cased, for matching against album themes. */
+  themeKeys: string[];
   hasNarrative: boolean;
+  /** The track's role in the arc ("Inciting incident"), when set. */
+  narrativePosition: string | null;
 };
 
 function asList(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+function text(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
 
 /** One row per track for the album spine: how far each track has come. */
 export function getSpineRows(data: unknown): SpineRow[] {
@@ -51,15 +60,114 @@ export function getSpineRows(data: unknown): SpineRow[] {
     if (!raw || typeof raw !== "object") continue;
     const song = raw as Record<string, unknown>;
     if (typeof song.track_number !== "number" || typeof song.title !== "string") continue;
-    const sections = asList(song.sections);
+    const { written, total } = lyricProgress(song.sections);
+    const themeKeys = Array.from(
+      new Set(asList(song.themes).map((t) => text(t)?.toLowerCase()).filter((t): t is string => Boolean(t))),
+    );
     rows.push({
       trackNumber: song.track_number,
       title: song.title,
-      sections: sections.length,
-      lyricSections: sections.filter((s) => isWrittenLyrics((s as { lyrics?: unknown } | null)?.lyrics)).length,
-      themes: asList(song.themes).filter((t) => typeof t === "string" && t.trim()).length,
-      hasNarrative: typeof song.narrative_summary === "string" && song.narrative_summary.trim().length > 0,
+      sections: total,
+      lyricSections: written,
+      themes: themeKeys.length,
+      themeKeys,
+      hasNarrative: Boolean(text(song.narrative_summary)),
+      narrativePosition: text(song.narrative_position),
     });
   }
   return rows.sort((a, b) => a.trackNumber - b.trackNumber);
+}
+
+/** The album's central themes as the spine shows them: first six, duplicates dropped. */
+export function getSpineThemes(data: unknown, limit = 6): string[] {
+  const seen = new Set<string>();
+  const themes: string[] = [];
+  for (const raw of asList((data as { central_themes?: unknown } | null)?.central_themes)) {
+    const theme = text(raw);
+    if (!theme || seen.has(theme.toLowerCase())) continue;
+    seen.add(theme.toLowerCase());
+    themes.push(theme);
+    if (themes.length === limit) break;
+  }
+  return themes;
+}
+
+export type AlbumNextStep = {
+  /** What the album needs, as a sentence: "Track 3 needs lyrics". */
+  statement: string;
+  /** The button label: "Write track 3". */
+  action: string;
+  href: string;
+  trackNumber?: number;
+  /** The track's title when it says more than "Track 3" (scaffolded titles are left out). */
+  trackTitle?: string;
+};
+
+/**
+ * The single most useful thing to do next on an album, read from its tracklist and its
+ * Coherence report. Home, the release header and the welcome banner all use this, so they
+ * always agree on what comes next.
+ */
+export function nextAlbumStep(albumId: string, data: unknown): AlbumNextStep {
+  const base = `/app/albums/${albumId}`;
+  const studio = `${base}/studio`;
+  const rows = getSpineRows(data);
+  if (!rows.length) {
+    return {
+      statement: "No tracks yet. Sketch the first one to give the record a shape.",
+      action: "Add the first track",
+      href: studio,
+    };
+  }
+
+  const forTrack = (row: SpineRow, statement: string, action: string, focus?: string): AlbumNextStep => ({
+    statement,
+    action,
+    href: `${studio}?song=${row.trackNumber}${focus ? `&focus=${focus}` : ""}`,
+    trackNumber: row.trackNumber,
+    trackTitle: /^track\s*\d+$/i.test(row.title.trim()) ? undefined : row.title,
+  });
+
+  const needsLyrics = rows.find((row) => row.lyricSections === 0);
+  if (needsLyrics) {
+    return forTrack(
+      needsLyrics,
+      `Track ${needsLyrics.trackNumber} needs lyrics`,
+      `Write track ${needsLyrics.trackNumber}`,
+    );
+  }
+  const needsThemes = rows.find((row) => row.themes === 0);
+  if (needsThemes) {
+    return forTrack(
+      needsThemes,
+      `Track ${needsThemes.trackNumber} needs its themes tagged`,
+      `Tag track ${needsThemes.trackNumber}`,
+      "song-themes",
+    );
+  }
+  const needsStory = rows.find((row) => !row.hasNarrative);
+  if (needsStory) {
+    return forTrack(
+      needsStory,
+      `Track ${needsStory.trackNumber} needs a story note`,
+      `Place track ${needsStory.trackNumber}`,
+      "story",
+    );
+  }
+
+  const report = analyzeAlbumCoherence(data);
+  if (report.insufficient || report.score < 70) {
+    return {
+      statement: report.insufficient
+        ? "Every track has a start. The Coherence report says what it still needs."
+        : `Every track has lyrics, themes and a story note. The Coherence report scores it ${report.score}/100.`,
+      action: "Review coherence",
+      href: `${base}/coherence`,
+    };
+  }
+  return {
+    statement: `The tracks hold together (${report.score}/100). Take a handoff pack to your DAW or collaborators.`,
+    action: "Export handoff pack",
+    href: `${base}/export`,
+  };
 }

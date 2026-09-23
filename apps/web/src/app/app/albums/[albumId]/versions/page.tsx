@@ -9,7 +9,7 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Version history",
-  description: "Save snapshots of the album and restore earlier ones.",
+  description: "Save versions of the album and restore earlier ones.",
 };
 
 export default async function VersionsPage({ params }: { params: Promise<{ albumId: string }> }) {

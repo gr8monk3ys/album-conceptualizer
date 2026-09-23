@@ -76,7 +76,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         <main className="mt-10 flex flex-col gap-10 md:mt-14">
           <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-5">
             <div className="min-w-0 max-w-[40rem]">
-              <h1 className="type-display break-words text-4xl text-ink md:text-6xl">{album.title}</h1>
+              <h1 className="type-display text-display-xl break-words hyphens-auto text-ink">{album.title}</h1>
               <p className="type-catalog mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">
                 <span>{album.artist || "No artist yet"}</span>
                 <span aria-hidden="true">·</span>
@@ -110,7 +110,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
               <h2 id="share-concept-title" className="text-lg font-semibold text-ink">
                 Concept
               </h2>
-              <p className="mt-2 max-w-[68ch] whitespace-pre-line text-base leading-relaxed text-ink-2">
+              <p className="mt-2 max-w-[65ch] whitespace-pre-line break-words text-base leading-relaxed text-ink-2">
                 {album.conceptSummary}
               </p>
             </section>
@@ -131,9 +131,9 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                       {String(track.trackNumber).padStart(2, "0")}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="break-words text-base font-semibold text-ink">{track.title}</p>
+                      <p className="break-words text-base font-semibold text-ink hyphens-auto">{track.title}</p>
                       {track.role ? (
-                        <p className="mt-0.5 line-clamp-2 text-sm leading-relaxed text-ink-2">{track.role}</p>
+                        <p className="mt-0.5 line-clamp-2 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">{track.role}</p>
                       ) : null}
                       {track.themes.length ? (
                         <p className="type-catalog mt-1 text-xs text-ink-3">
@@ -151,7 +151,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                 yourself.
               </EmptyState>
             )}
-            <p className="mt-4 max-w-[68ch] text-sm leading-relaxed text-ink-3">
+            <p className="mt-4 max-w-[65ch] text-sm leading-relaxed text-ink-3">
               This is a read-only preview. Remix it to get your own copy in your workspace, where you
               can write, check coherence and export.
             </p>

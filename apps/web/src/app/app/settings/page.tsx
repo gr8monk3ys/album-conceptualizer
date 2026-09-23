@@ -48,7 +48,7 @@ export default async function SettingsPage() {
             <>
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-semibold text-ink">{row.title}</span>
-                <span className="mt-0.5 block text-sm text-ink-2">{row.detail}</span>
+                <span className="mt-0.5 block max-w-[65ch] text-sm text-ink-2">{row.detail}</span>
               </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
             </>

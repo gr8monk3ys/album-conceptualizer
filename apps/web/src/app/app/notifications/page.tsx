@@ -90,7 +90,7 @@ export default async function NotificationsPage() {
                         <Link
                           href={n.url}
                           className={cn(
-                            "inline-flex min-h-11 items-center text-base underline-offset-4 hover:underline",
+                            "inline-block max-w-full break-words py-2.5 text-base underline-offset-4 hover:underline",
                             isUnread ? "font-semibold text-ink" : "text-ink-2",
                           )}
                         >
@@ -99,7 +99,7 @@ export default async function NotificationsPage() {
                       ) : (
                         <p
                           className={cn(
-                            "flex min-h-11 items-center text-base",
+                            "min-w-0 break-words py-2.5 text-base",
                             isUnread ? "font-semibold text-ink" : "text-ink-2",
                           )}
                         >
@@ -112,11 +112,11 @@ export default async function NotificationsPage() {
                       {who} · <RelativeTime date={n.createdAt.toISOString()} />
                     </p>
                     {n.body ? (
-                      <p className="mt-2 max-w-[68ch] text-sm leading-relaxed text-ink-2">{n.body}</p>
+                      <p className="mt-2 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">{n.body}</p>
                     ) : null}
                   </div>
                 </div>
-                <div className="shrink-0 self-end sm:self-start">
+                <div className="self-end sm:self-start">
                   <ToggleNotificationReadButton id={n.id} unread={isUnread} />
                 </div>
               </li>

@@ -159,7 +159,7 @@ export default async function SearchPage({
           </Button>
         </div>
         {shouldSearch ? (
-          <p className="type-catalog text-xs text-ink-2" aria-live="polite">
+          <p className="max-w-[65ch] break-words text-sm text-ink-2" aria-live="polite">
             {totalHits} {totalHits === 1 ? "result" : "results"} for “{q}”
           </p>
         ) : null}
@@ -204,12 +204,12 @@ export default async function SearchPage({
                         {String(song.trackNumber).padStart(2, "0")}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-ink">{song.title}</span>
-                        <span className="type-catalog mt-1 block truncate text-xs text-ink-2">
+                        <span className="block break-words text-sm font-semibold text-ink">{song.title}</span>
+                        <span className="type-catalog mt-1 block break-words text-xs text-ink-2">
                           {song.album.title} · Track {song.trackNumber}
                         </span>
                         {song.narrativeSummary ? (
-                          <span className="mt-1 block text-sm text-ink-2">
+                          <span className="mt-1 block max-w-[65ch] break-words text-sm text-ink-2">
                             {snippet(song.narrativeSummary, q)}
                           </span>
                         ) : null}
@@ -235,15 +235,15 @@ export default async function SearchPage({
                         {String(section.song.trackNumber).padStart(2, "0")}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-ink">
+                        <span className="block break-words text-sm font-semibold text-ink">
                           {section.song.title}
                           <span className="font-normal text-ink-2"> · {sectionName(section.sectionType)}</span>
                         </span>
-                        <span className="type-catalog mt-1 block truncate text-xs text-ink-2">
+                        <span className="type-catalog mt-1 block break-words text-xs text-ink-2">
                           {section.song.album.title} · Track {section.song.trackNumber}
                         </span>
                         {section.lyrics ? (
-                          <span className="mt-1.5 block text-sm leading-relaxed text-ink">
+                          <span className="mt-1.5 block max-w-[65ch] break-words text-sm leading-relaxed text-ink">
                             {snippet(section.lyrics, q)}
                           </span>
                         ) : null}

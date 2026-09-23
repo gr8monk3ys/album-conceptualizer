@@ -64,7 +64,7 @@ export function PublishAlbumButton({
           )}
           {busy ? (isPublic ? "Unpublishing…" : "Publishing…") : isPublic ? "Unpublish" : "Publish"}
         </Button>
-        <p className="min-w-0 text-sm text-ink-2">
+        <p className="min-w-0 max-w-[65ch] text-sm text-ink-2">
           {isPublic
             ? "On Discover: anyone signed in can find it and remix it."
             : "Private: only you, and anyone you send a share link, can open it."}

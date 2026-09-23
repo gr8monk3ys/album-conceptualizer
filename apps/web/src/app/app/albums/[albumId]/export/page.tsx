@@ -9,7 +9,7 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Album Export",
+  title: "Export",
   description: "Download album bundles as MIDI, ChordPro, MusicXML, JSON, and text.",
 };
 

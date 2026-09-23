@@ -41,7 +41,7 @@ test.describe("Authentication", () => {
 
   test("dev login authenticates user and redirects to dashboard", async ({ page }) => {
     await devLogin(page, randomEmail("sign-in"), "Sign-In Test User");
-    await expect(page.getByText("Recent projects")).toBeVisible();
+    await expect(page.getByText("Recent albums")).toBeVisible();
   });
 
   test("authenticated user can access /app directly", async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe("Authentication", () => {
     // Navigate away then back
     await page.goto("/app/discover");
     await page.goto("/app");
-    await expect(page.getByText("Recent projects")).toBeVisible();
+    await expect(page.getByText("Recent albums")).toBeVisible();
   });
 
   test("authenticated user can navigate to settings from the shell", async ({ page }) => {

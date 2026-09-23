@@ -121,7 +121,7 @@ describe("analyzeAlbumCoherence on a template scaffold", () => {
       label: "Lyrics on 2 more tracks (0 of 2 written)",
       fix: { focus: "song", trackNumber: 1 },
     });
-    expect(report.missing[1].fix).toEqual({ focus: "story", trackNumber: 1 });
+    expect(report.missing[1].fix).toEqual({ focus: "song-themes", trackNumber: 1 });
   });
 
   it("keeps the existing report shape for other callers", () => {
@@ -185,16 +185,28 @@ describe("where coherence issues are fixed", () => {
   const report = analyzeAlbumCoherence(album(songs));
   const fixOf = (id: string) => report.issues.find((issue) => issue.id === id)?.fix;
 
-  it("sends theme drift to the first drifting track's story", () => {
-    expect(fixOf("theme_drift")).toEqual({ focus: "story", trackNumber: 1 });
+  it("sends theme drift to the theme tags of the first track lacking an album theme", () => {
+    expect(fixOf("theme_drift")).toEqual({ focus: "song-themes", trackNumber: 1 });
+    const drift = report.issues.find((issue) => issue.id === "theme_drift");
+    expect(drift?.relatedTracks).toEqual([1, 2, 3, 4]);
+    expect(drift?.trackFocus).toBe("song-themes");
+    expect(drift?.detail).toBe("No track carries one of the album's themes yet.");
   });
 
   it("sends missing story notes to the first track without one", () => {
     expect(fixOf("missing_narrative_summaries")).toEqual({ focus: "story", trackNumber: 1 });
   });
 
-  it("sends album-level motif work to the album story", () => {
-    expect(fixOf("missing_callbacks")).toEqual({ focus: "album" });
+  it("sends a motif that never returns to the closer's motif tags", () => {
+    expect(fixOf("missing_callbacks")).toEqual({ focus: "motifs", trackNumber: 4 });
+    const callbacks = report.issues.find((issue) => issue.id === "missing_callbacks");
+    expect(callbacks?.relatedTracks).toEqual([4, 3]);
+    expect(callbacks?.suggestion).toContain("“phone”");
+  });
+
+  it("sends an album without motifs to the album's motifs", () => {
+    const bare = analyzeAlbumCoherence(album([scaffoldSong(0, { verse: "Words" })]));
+    expect(bare.issues.find((issue) => issue.id === "no_motifs")?.fix).toEqual({ focus: "album-motifs" });
   });
 
   it("carries the fix onto next actions", () => {
@@ -213,7 +225,61 @@ describe("where coherence issues are fixed", () => {
       "/app/albums/a1/studio?song=2",
     );
     expect(coherenceFixHref("a1", { focus: "style" })).toBe("/app/albums/a1/style");
+    expect(coherenceFixHref("a1", { focus: "song-themes", trackNumber: 4 })).toBe(
+      "/app/albums/a1/studio?song=4&focus=song-themes",
+    );
+    expect(coherenceFixHref("a1", { focus: "motifs", trackNumber: 1 })).toBe(
+      "/app/albums/a1/studio?song=1&focus=motifs",
+    );
+    expect(coherenceFixHref("a1", { focus: "album-motifs" })).toBe("/app/albums/a1/studio?focus=album-motifs");
     expect(coherenceFixHref("a1", undefined)).toBe("/app/albums/a1/studio");
+  });
+});
+
+describe("coherence copy", () => {
+  it("says the album, never the project, and pluralises track counts", () => {
+    const report = analyzeAlbumCoherence(scaffoldAlbum(4));
+    for (const issue of report.issues) {
+      const text = `${issue.title} ${issue.detail} ${issue.suggestion ?? ""}`;
+      expect(text).not.toMatch(/\bproject\b/i);
+      expect(text).not.toMatch(/\(s\)/);
+      expect(text).not.toMatch(/\d+\/\d+ tracks/);
+    }
+    expect(report.issues.find((issue) => issue.id === "missing_lyrics")).toMatchObject({
+      title: "4 tracks still need lyrics",
+      detail: "All 4 tracks have only placeholders or no lyrics.",
+    });
+  });
+
+  it("names a shared tempo instead of a zero spread", () => {
+    const report = analyzeAlbumCoherence(scaffoldAlbum(4));
+    const energy = report.issues.find((issue) => issue.id === "repeated_energy_profile");
+    expect(energy?.detail).toContain("Every track has the same tempo (120 BPM).");
+    expect(energy?.detail).not.toMatch(/spread|\b0 BPM/);
+  });
+
+  it("says what is missing when no tempo is set", () => {
+    const songs = Array.from({ length: 4 }, (_, index) => ({ ...scaffoldSong(index), tempo: null }));
+    const energy = analyzeAlbumCoherence(album(songs)).issues.find(
+      (issue) => issue.id === "repeated_energy_profile",
+    );
+    expect(energy?.detail).toContain("No track has a tempo yet");
+  });
+
+  it("uses the singular for one track", () => {
+    const songs = [
+      scaffoldSong(0, { verse: "Words", narrative: "She leaves." }),
+      scaffoldSong(1, { verse: "Words" }),
+    ];
+    const missing = analyzeAlbumCoherence(album(songs)).issues.find(
+      (issue) => issue.id === "missing_narrative_summaries",
+    );
+    expect(missing).toMatchObject({
+      title: "One track has no story note",
+      detail: "1 of 2 tracks has no narrative summary, so its place in the arc can't be checked.",
+      relatedTracks: [2],
+      trackFocus: "story",
+    });
   });
 });
 

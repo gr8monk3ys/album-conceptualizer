@@ -133,7 +133,7 @@ export function ExampleAlbum({ className }: { className?: string }) {
         tabIndex={0}
         aria-label="Example album sequence and themes"
       >
-        <table className="w-full min-w-[22rem] border-collapse text-left sm:min-w-[40rem]">
+        <table className="w-full border-collapse text-left">
           <caption className="sr-only">
             Sequence of the example album {EXAMPLE_ALBUM.title}: each track with its narrative role, and
             which of the album&apos;s themes it carries.
@@ -151,9 +151,13 @@ export function ExampleAlbum({ className }: { className?: string }) {
                 <th
                   key={theme}
                   scope="col"
-                  className="type-catalog w-12 px-0.5 py-2 text-center align-bottom text-xs leading-tight text-ink-2 sm:w-[4.75rem] sm:px-1"
+                  className="type-catalog w-8 px-0.5 py-2 text-center align-bottom text-xs leading-tight text-ink-2 sm:w-[4.5rem] sm:px-1"
                 >
-                  {theme}
+                  {/* Narrow screens show the initial; the key under the grid spells it out. */}
+                  <span aria-hidden="true" className="sm:hidden">
+                    {theme.charAt(0)}
+                  </span>
+                  <span className="max-sm:sr-only">{theme}</span>
                 </th>
               ))}
             </tr>
@@ -172,7 +176,7 @@ export function ExampleAlbum({ className }: { className?: string }) {
                   </span>
                 </th>
                 {THEMES.map((theme) => (
-                  <td key={theme} className="px-1 align-middle">
+                  <td key={theme} className="px-0.5 align-middle sm:px-1">
                     <ThemeMark on={track.themes.includes(theme)} />
                   </td>
                 ))}
@@ -194,6 +198,14 @@ export function ExampleAlbum({ className }: { className?: string }) {
           </tfoot>
         </table>
       </div>
+
+      <p className="type-catalog mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-3 sm:hidden" aria-hidden="true">
+        {THEMES.map((theme) => (
+          <span key={theme}>
+            <span className="text-ink-2">{theme.charAt(0)}</span> {theme}
+          </span>
+        ))}
+      </p>
 
       <p className="mt-4 max-w-[62ch] text-sm leading-relaxed text-ink-2">
         <span className="font-semibold text-ink">What the grid shows: </span>

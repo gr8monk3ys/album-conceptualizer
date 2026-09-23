@@ -50,13 +50,14 @@ export function toAlbumListItem(album: {
 
 /**
  * A catalog line (artist · tracks · edited) whose separators stay with the item that follows,
- * so a wrapped line never starts or ends on a dangling dot.
+ * so a wrapped line never ends on a dangling dot. Items may wrap inside themselves, so a long
+ * artist name still fits a narrow screen or 200% text.
  */
 export function CatalogItems({ items }: { items: ReactNode[] }) {
   return (
     <>
       {items.filter(Boolean).map((item, index) => (
-        <span key={index} className="whitespace-nowrap">
+        <span key={index} className="min-w-0 break-words">
           {index > 0 ? <span aria-hidden="true" className="mr-2">·</span> : null}
           {item}
         </span>
@@ -91,7 +92,7 @@ export function AlbumCard({
       )}
     >
       <div className="min-w-0 flex-1">
-        <p className="type-display truncate text-lg text-ink md:text-xl">{album.title}</p>
+        <p className="type-display break-words text-lg text-ink hyphens-auto md:text-xl">{album.title}</p>
         <p className="type-catalog mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
           <CatalogItems
             items={[
@@ -104,11 +105,11 @@ export function AlbumCard({
           />
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-3">
-        <Chip>{albumStatusLabel(album.status)}</Chip>
-        {album.isPublic ? <Chip className="hidden sm:inline-flex">On Discover</Chip> : null}
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {/* One badge per fact: publishing sets both the status and Discover visibility. */}
+        <Chip>{album.isPublic ? "Published" : albumStatusLabel(album.status)}</Chip>
         {hint ? <span className="hidden text-sm text-ink-2 group-hover:text-ink md:inline">{hint}</span> : null}
-        <ChevronRight className="h-4 w-4 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+        <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
       </div>
     </Link>
   );

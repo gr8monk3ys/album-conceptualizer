@@ -4,7 +4,7 @@ import { AlbumList, CatalogItems, albumStatusLabel, toAlbumListItem } from "@/co
 import { RelativeTime } from "@/components/relative-time";
 import { ButtonLink, EmptyState, PageHeader, Section } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
-import { getSpineRows, type SpineRow } from "@/server/album-songs";
+import { getSpineRows, nextAlbumStep } from "@/server/album-songs";
 import { getAlbum, listAlbums } from "@/server/albums";
 import { getDailyChallenge } from "@/server/challenges";
 import { requireUser } from "@/server/identity";
@@ -18,64 +18,15 @@ export const metadata = {
 
 const RECENT_LIMIT = 8;
 
-type NextStep = { statement: string; action: string; href: string; trackNumber?: number };
-
-/** The single most useful thing to do next on an album, read from its tracklist. */
-function nextStepFor(albumId: string, rows: SpineRow[]): NextStep {
-  const studio = `/app/albums/${albumId}/studio`;
-  if (!rows.length) {
-    return {
-      statement: "No tracks yet. Sketch the first one to give the record a shape.",
-      action: "Add the first track",
-      href: studio,
-    };
-  }
-  const needsLyrics = rows.find((row) => row.sections === 0 || row.lyricSections < row.sections);
-  if (needsLyrics) {
-    return {
-      statement: `Track ${needsLyrics.trackNumber} needs lyrics`,
-      action: `Write track ${needsLyrics.trackNumber}`,
-      href: `${studio}?song=${needsLyrics.trackNumber}`,
-      trackNumber: needsLyrics.trackNumber,
-    };
-  }
-  const needsThemes = rows.find((row) => row.themes === 0);
-  if (needsThemes) {
-    return {
-      statement: `Track ${needsThemes.trackNumber} needs its themes tagged`,
-      action: `Tag track ${needsThemes.trackNumber}`,
-      href: `${studio}?song=${needsThemes.trackNumber}`,
-      trackNumber: needsThemes.trackNumber,
-    };
-  }
-  const needsNarrative = rows.find((row) => !row.hasNarrative);
-  if (needsNarrative) {
-    return {
-      statement: `Track ${needsNarrative.trackNumber} needs its narrative role`,
-      action: `Place track ${needsNarrative.trackNumber}`,
-      href: `${studio}?song=${needsNarrative.trackNumber}`,
-      trackNumber: needsNarrative.trackNumber,
-    };
-  }
-  return {
-    statement: "Every track has lyrics, themes and a narrative role. Check how they hold together.",
-    action: "Read the coherence report",
-    href: `/app/albums/${albumId}/coherence`,
-  };
-}
-
 export default async function AppHomePage() {
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
   const albums = await listAlbums(workspace.id);
   const latest = albums[0] ? await getAlbum(workspace.id, albums[0].id) : null;
   const latestRows = latest ? getSpineRows(latest.data) : [];
-  const step = latest ? nextStepFor(latest.id, latestRows) : null;
-  const stepTrack = step?.trackNumber
-    ? latestRows.find((row) => row.trackNumber === step.trackNumber)
-    : null;
-  // Scaffolded titles ("Track 3") add nothing next to "Track 3 needs lyrics".
-  const stepTitle = stepTrack && !/^track\s*\d+$/i.test(stepTrack.title.trim()) ? stepTrack.title : null;
+  // The same next step the album's release header shows, so the two never disagree.
+  const step = latest ? nextAlbumStep(latest.id, latest.data) : null;
+  const stepTitle = step?.trackTitle ?? null;
 
   const recent = albums.slice(0, RECENT_LIMIT).map(toAlbumListItem);
   const { challenge } = getDailyChallenge();
@@ -100,7 +51,7 @@ export default async function AppHomePage() {
             <div className="min-w-0 max-w-[68ch]">
               <Link
                 href={`/app/albums/${latest.id}`}
-                className="type-display inline-flex min-h-11 items-center text-2xl text-ink underline-offset-4 hover:underline md:text-4xl"
+                className="type-display inline-block max-w-full break-words py-2 text-2xl text-ink hyphens-auto underline-offset-4 hover:underline md:text-4xl"
               >
                 {latest.title}
               </Link>
@@ -118,11 +69,12 @@ export default async function AppHomePage() {
                   ]}
                 />
               </p>
-              <p className="mt-4 text-base text-ink">
+              <p className="mt-4 max-w-[65ch] break-words text-base text-ink">
                 {step.statement}
                 {stepTitle ? <span className="text-ink-2">{` · “${stepTitle}”`}</span> : null}
               </p>
             </div>
+            {/* Continuing the record is Home's one primary action. */}
             <ButtonLink tone="primary" href={step.href}>
               {step.action}
             </ButtonLink>
@@ -132,7 +84,7 @@ export default async function AppHomePage() {
 
       <Section
         id="recent"
-        title="Recent projects"
+        title="Recent albums"
         description={latest ? "Your albums, most recently edited first." : undefined}
         actions={
           albums.length > RECENT_LIMIT ? (

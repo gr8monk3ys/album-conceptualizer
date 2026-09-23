@@ -287,7 +287,7 @@ function WizardProgress({
                     : "border-transparent text-ink-2 hover:text-ink disabled:text-ink-3 disabled:hover:text-ink-3",
                 )}
               >
-                <span className="truncate text-sm font-semibold">{item.title}</span>
+                <span className="max-w-full break-words text-sm font-semibold hyphens-auto">{item.title}</span>
                 <span className="flex items-center gap-1 text-xs text-ink-3">
                   {done ? (
                     <>
@@ -396,7 +396,7 @@ function QuickStartStepFields({
                     value={option.key}
                     checked={selected}
                     onChange={() => setField("narrativeStructure", option.key)}
-                    className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-ink"
                   />
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-ink">{option.label}</span>
@@ -461,7 +461,7 @@ function QuickStartStepFields({
           value={form.trackCount}
           onChange={(event) => setField("trackCount", Number(event.target.value))}
           aria-describedby="quickstart-track-count-hint"
-          className="h-11 w-full cursor-pointer accent-accent"
+          className="h-11 w-full cursor-pointer accent-ink"
         />
         <p id="quickstart-track-count-hint" className="text-xs leading-relaxed text-ink-3">
           Between {MIN_TRACKS} and {MAX_TRACKS}. You can add or remove tracks later in the Studio.
@@ -509,7 +509,7 @@ function BlueprintPreview({
       <h2 id="blueprint-preview-title" className="text-lg font-semibold text-ink">
         Blueprint preview
       </h2>
-      <p className="mt-1 text-sm text-ink-2">How the album will open once you save it.</p>
+      <p className="mt-1 max-w-[65ch] text-sm text-ink-2">How the album will open once you save it.</p>
 
       <div className="mt-6 border-t border-line-strong pt-5">
         <p className={cn("type-display break-words text-3xl md:text-4xl", title ? "text-ink" : "text-ink-3")}>
@@ -527,7 +527,7 @@ function BlueprintPreview({
           ) : null}
         </p>
         {form.conceptSummary.trim() ? (
-          <p className="mt-4 line-clamp-4 max-w-[68ch] whitespace-pre-line text-sm leading-relaxed text-ink-2">
+          <p className="mt-4 line-clamp-4 max-w-[65ch] whitespace-pre-line break-words text-sm leading-relaxed text-ink-2">
             {form.conceptSummary.trim()}
           </p>
         ) : null}
@@ -549,11 +549,19 @@ function BlueprintPreview({
             <li key={index} className="flex items-baseline gap-4 border-b border-line py-2.5">
               <span className="type-figure w-9 shrink-0 text-2xl font-semibold text-ink-3">{pad(index + 1)}</span>
               <div className="min-w-0 flex-1">
-                <p className={cn("truncate text-sm font-semibold", trackTitle ? "text-ink" : "text-ink-3")}>
+                <p
+                  className={cn(
+                    "break-words text-sm font-semibold",
+                    trackTitle ? "text-ink" : "text-ink-3",
+                  )}
+                >
                   {trackTitle || `Track ${index + 1}`}
                 </p>
                 <p className="mt-0.5 text-xs text-ink-3">
-                  Verse and chorus, not written yet · starting chords{" "}
+                  Verse and chorus to write
+                  <span aria-hidden="true"> · </span>
+                  <span className="sr-only">; </span>
+                  starting-point chords to replace:{" "}
                   <span className="type-figure">{progression.chords.join(" ")}</span>
                 </p>
               </div>
@@ -561,7 +569,7 @@ function BlueprintPreview({
           );
         })}
       </ol>
-      <p className="mt-3 max-w-[68ch] text-xs leading-relaxed text-ink-3">
+      <p className="mt-3 max-w-[65ch] text-xs leading-relaxed text-ink-3">
         Each track starts with an empty verse and chorus. The chord loops are only there so you can
         hear a track right away; replace them when you write.
       </p>
@@ -577,7 +585,7 @@ function BlueprintPreview({
           <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
         <div className="mt-3">
-          <p className="max-w-[68ch] text-xs leading-relaxed text-ink-3">
+          <p className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
             The blueprint as structured data, exactly as it will be saved. Keep a copy or use it
             with your own tools.
           </p>
@@ -602,7 +610,20 @@ function BlueprintPreview({
   );
 }
 
-export function QuickStartComposer() {
+/** The first field on a step that blocks moving on, so focus can land on it. */
+function firstInvalidField(step: number, form: QuickStartFormState): string | null {
+  if (step !== 0) return null;
+  if (!form.title.trim()) return "quickstart-title";
+  if (!form.conceptSummary.trim()) return "quickstart-concept";
+  return null;
+}
+
+/** Focus a field after React has rendered its error, so the error is read with it. */
+function focusField(id: string) {
+  requestAnimationFrame(() => document.getElementById(id)?.focus());
+}
+
+export function QuickStartComposer({ aiAvailable }: { aiAvailable: boolean }) {
   const router = useRouter();
   const draftIdsRef = useRef<DraftAlbumIds>({
     albumId: newId(),
@@ -667,13 +688,14 @@ export function QuickStartComposer() {
   function goNext() {
     if (!getStepValidity(step, form)) {
       setShowErrors(true);
-      setStatus({
-        tone: "error",
-        text:
-          step === 0
-            ? "Add an album title and a concept summary to continue."
-            : "Pick a narrative arc, or add a theme or reference, to continue.",
-      });
+      const invalid = firstInvalidField(step, form);
+      if (invalid) {
+        // The field's own error says what's missing; focus takes the artist straight there.
+        setStatus(null);
+        focusField(invalid);
+      } else {
+        setStatus({ tone: "error", text: "Pick a narrative arc, or add a theme or reference, to continue." });
+      }
       return;
     }
     goTo(Math.min(step + 1, lastStep));
@@ -738,7 +760,9 @@ export function QuickStartComposer() {
       hasMovedRef.current = true;
       setStep(0);
       setShowErrors(true);
-      setStatus({ tone: "error", text: "Add an album title and a concept summary first." });
+      setStatus(null);
+      const invalid = firstInvalidField(0, form);
+      if (invalid) focusField(invalid);
       return;
     }
     if (!getStepValidity(1, form)) {
@@ -815,6 +839,7 @@ export function QuickStartComposer() {
               references={form.referenceAlbumsRaw}
               themes={form.centralThemesRaw}
               trackCount={form.trackCount}
+              aiAvailable={aiAvailable}
               onApply={applyBrainstorm}
             />
           </div>

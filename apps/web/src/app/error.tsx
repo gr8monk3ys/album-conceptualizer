@@ -24,7 +24,7 @@ export default function RootError({
           <Wordmark />
         </Link>
         <main className="mt-16 max-w-[36rem] md:mt-24">
-          <h1 className="type-display text-4xl text-ink md:text-5xl">This page didn&apos;t load</h1>
+          <h1 className="type-display text-display-lg break-words hyphens-auto text-ink">This page didn&apos;t load</h1>
           <p className="mt-4 text-base leading-relaxed text-ink-2">
             Something went wrong on our side while opening it. Try again; if it keeps happening, go
             back to the start and open the page from there in a minute or two.

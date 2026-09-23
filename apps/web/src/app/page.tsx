@@ -42,7 +42,7 @@ export default function HomePage() {
         <main className="flex flex-col">
           <section className="grid grid-cols-[minmax(0,1fr)] gap-x-12 gap-y-10 pt-12 md:pt-16 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
             <div className="min-w-0">
-              <h1 className="type-display max-w-[16ch] text-4xl text-ink sm:text-5xl xl:text-[3.5rem]">
+              <h1 className="type-display text-display-xl max-w-[16ch] text-ink">
                 Build a concept album that actually holds together.
               </h1>
               <p className="mt-6 max-w-[48ch] text-base leading-relaxed text-ink-2">
@@ -70,7 +70,7 @@ export default function HomePage() {
           <section
             id="how-it-works"
             aria-labelledby="how-it-works-title"
-            className="mt-20 scroll-mt-6 border-t border-line pt-8 md:mt-24"
+            className="mt-20 border-t border-line pt-8 md:mt-24"
           >
             <h2 id="how-it-works-title" className="type-display text-2xl text-ink md:text-3xl">
               How it works

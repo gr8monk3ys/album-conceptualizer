@@ -104,7 +104,7 @@ export function ShareAlbumButton({
               {busy === "revoke" ? "Revoking…" : "Revoke"}
             </Button>
           </div>
-          <p className="text-xs leading-relaxed text-ink-3">
+          <p className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
             Anyone with this link can read the album without signing in. Revoke it to shut it off.
           </p>
         </>
@@ -114,7 +114,7 @@ export function ShareAlbumButton({
             <Link2 className="h-4 w-4" aria-hidden="true" />
             {busy === "create" ? "Creating link…" : "Create share link"}
           </Button>
-          <p className="min-w-0 text-sm text-ink-2">
+          <p className="min-w-0 max-w-[65ch] text-sm text-ink-2">
             A read-only link for collaborators who aren&apos;t in your workspace.
           </p>
         </div>

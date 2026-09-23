@@ -20,21 +20,23 @@ export function CreditsMeter({ credits }: { credits?: { remaining: number; total
         role="meter"
         aria-label="Credits"
         aria-valuemin={0}
-        aria-valuemax={total}
+        aria-valuemax={Math.max(total, remaining)}
         aria-valuenow={remaining}
         aria-valuetext={`${remaining} of ${total} monthly credits left`}
         className="mt-2 h-1 w-full overflow-hidden rounded-full bg-line"
       >
         <div className="h-full rounded-full bg-ink-2" style={{ width: `${Math.round(ratio * 100)}%` }} />
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-ink-3">
+      <p className="mt-2 max-w-[65ch] text-xs leading-relaxed text-ink-3">
         Creating an album costs {CREDIT_COSTS.albumCreate}, a remix {CREDIT_COSTS.albumFork}, an export{" "}
-        {CREDIT_COSTS.exportZip} and an AI run {CREDIT_COSTS.agentRun}. Refills monthly;{" "}
-        <Link href="/app/challenges" className="text-ink-2 underline hover:text-ink">
-          challenges
-        </Link>{" "}
-        add more.
+        {CREDIT_COSTS.exportZip} and an AI run {CREDIT_COSTS.agentRun}. Your balance refills monthly.
       </p>
+      <Link
+        href="/app/challenges"
+        className="mt-1 inline-flex min-h-11 items-center text-xs text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink hover:decoration-ink"
+      >
+        Earn more with daily challenges
+      </Link>
     </div>
   );
 }

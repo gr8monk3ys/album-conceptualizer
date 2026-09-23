@@ -68,10 +68,13 @@ export function DailyChallengeCard({
           {challenge.title}
         </h2>
         <p className="type-catalog mt-2 text-xs text-ink-2">
-          <span className="type-figure">{day}</span> · Completing earns{" "}
+          <time dateTime={day} className="type-figure">
+            {day}
+          </time>
+          <span aria-hidden="true"> · </span>
           <span className="type-figure">{challenge.credits}</span> credits
         </p>
-        <p className="mt-3 max-w-[68ch] text-sm leading-relaxed text-ink">{challenge.description}</p>
+        <p className="mt-3 max-w-[65ch] text-sm leading-relaxed text-ink">{challenge.description}</p>
 
         <form onSubmit={submit} className="mt-5 flex flex-col gap-4">
           <Field

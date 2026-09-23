@@ -50,6 +50,7 @@ export default async function DiscoverPage({
         id: true,
         title: true,
         artist: true,
+        conceptSummary: true,
         primaryGenre: true,
         trackCount: true,
         publishedAt: true,
@@ -67,7 +68,7 @@ export default async function DiscoverPage({
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title="Community projects"
+        title="Community albums"
         description={`Albums artists have published to Discover, yours included. Like the ones that move you, or remix one: it becomes a new private album in your workspace for ${CREDIT_COSTS.albumFork} credits, and the original stays untouched.`}
       />
 
@@ -93,7 +94,7 @@ export default async function DiscoverPage({
             Search
           </Button>
         </div>
-        <p className="type-catalog text-xs text-ink-2" aria-live="polite">
+        <p className="max-w-[65ch] break-words text-sm text-ink-2" aria-live="polite">
           {countLine}
         </p>
       </form>
@@ -108,6 +109,7 @@ export default async function DiscoverPage({
                   id: album.id,
                   title: album.title,
                   artist: album.artist,
+                  conceptSummary: album.conceptSummary?.trim() || null,
                   primaryGenre: album.primaryGenre,
                   trackCount: album.trackCount,
                   publishedAt: album.publishedAt?.toISOString() ?? null,

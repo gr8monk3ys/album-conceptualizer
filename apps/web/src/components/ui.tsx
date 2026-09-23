@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 type Tone = "primary" | "secondary" | "ghost" | "danger";
 
 const BUTTON_BASE =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 const BUTTON_TONES: Record<Tone, string> = {
   primary: "bg-accent text-accent-ink hover:bg-accent-hover",
@@ -84,10 +84,12 @@ export function PageHeader({
 }) {
   return (
     <header className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-4", className)}>
-      <div className="min-w-0 max-w-[68ch]">
-        <h1 className="type-display text-3xl text-ink md:text-[2.75rem]">{title}</h1>
+      <div className="min-w-0">
+        <h1 className="type-display text-display-md break-words hyphens-auto text-ink">{title}</h1>
         {catalog ? <p className="type-catalog mt-3 text-xs text-ink-2">{catalog}</p> : null}
-        {description ? <p className="mt-3 text-sm leading-relaxed text-ink-2">{description}</p> : null}
+        {description ? (
+          <p className="mt-3 max-w-[65ch] text-sm leading-relaxed text-ink-2">{description}</p>
+        ) : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
@@ -116,11 +118,16 @@ export function Section({
   return (
     <section aria-labelledby={id ? `${id}-title` : undefined} className={cn("border-t border-line pt-6", className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 max-w-[68ch]">
-          <Heading id={id ? `${id}-title` : undefined} className="text-lg font-semibold text-ink">
+        <div className="min-w-0">
+          <Heading
+            id={id ? `${id}-title` : undefined}
+            className="break-words text-lg font-semibold text-ink"
+          >
             {title}
           </Heading>
-          {description ? <p className="mt-1 text-sm leading-relaxed text-ink-2">{description}</p> : null}
+          {description ? (
+            <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">{description}</p>
+          ) : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
@@ -164,11 +171,11 @@ export function Field({
       </label>
       {children}
       {error ? (
-        <p id={`${htmlFor}-error`} className="text-sm text-danger">
+        <p id={`${htmlFor}-error`} className="max-w-[65ch] text-sm text-danger">
           {error}
         </p>
       ) : hint ? (
-        <p id={`${htmlFor}-hint`} className="text-xs leading-relaxed text-ink-3">
+        <p id={`${htmlFor}-hint`} className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
           {hint}
         </p>
       ) : null}
@@ -232,8 +239,10 @@ export function EmptyState({
 }) {
   return (
     <div className={cn("rounded border border-dashed border-line-strong px-5 py-8", className)}>
-      <p className="text-base font-semibold text-ink">{title}</p>
-      {children ? <div className="mt-2 max-w-[60ch] text-sm leading-relaxed text-ink-2">{children}</div> : null}
+      <p className="max-w-[65ch] break-words text-base font-semibold text-ink">{title}</p>
+      {children ? (
+        <div className="mt-2 max-w-[65ch] text-sm leading-relaxed text-ink-2">{children}</div>
+      ) : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );

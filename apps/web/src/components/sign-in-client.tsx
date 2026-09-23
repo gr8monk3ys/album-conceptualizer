@@ -62,7 +62,7 @@ export function SignInClient({
         <SiteHeader showSignIn={false} />
 
         <main className="mt-12 w-full max-w-[34rem] md:mt-16">
-          <h1 className="type-display text-4xl text-ink md:text-5xl">Album Conceptualizer</h1>
+          <h1 className="type-display text-display-lg text-ink">Album Conceptualizer</h1>
           <p className="mt-4 max-w-[52ch] text-base leading-relaxed text-ink-2">
             Sign in to plan, write and export your concept albums. Your first sign-in sets up your
             workspace.
@@ -86,7 +86,7 @@ export function SignInClient({
                 <h2 id="magic-link-title" className="text-base font-semibold text-ink">
                   Email me a sign-in link
                 </h2>
-                <p className="mt-1 text-sm text-ink-2">
+                <p className="mt-1 max-w-[65ch] text-sm text-ink-2">
                   We&apos;ll send a one-time link. Open it on this device to sign in.
                 </p>
                 <form
@@ -118,7 +118,7 @@ export function SignInClient({
                       aria-describedby={magicError ? "magic-email-error" : undefined}
                     />
                   </Field>
-                  <Button type="submit" tone={primary === "email" ? "primary" : "secondary"} className="shrink-0">
+                  <Button type="submit" tone={primary === "email" ? "primary" : "secondary"}>
                     Send link
                   </Button>
                 </form>
@@ -130,7 +130,7 @@ export function SignInClient({
                 <h2 id="dev-login-title" className="text-base font-semibold text-ink">
                   Dev login
                 </h2>
-                <p className="mt-1 text-sm text-ink-2">
+                <p className="mt-1 max-w-[65ch] text-sm text-ink-2">
                   Development sign-in is enabled on this server.
                 </p>
                 {/* Not a <form>: a click before hydration must not reload the page. */}

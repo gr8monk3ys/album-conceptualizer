@@ -79,7 +79,7 @@ export async function getAlbumOnboardingSummary(input: {
     {
       key: "direction_locked",
       label: "Lock the direction",
-      description: "Add a concept, narrative shape, and at least one theme or reference album.",
+      description: "Add a concept, a narrative shape, and at least one theme or reference album.",
       href: `${base}/studio?focus=album`,
       complete: hasDirectionLocked(input.data),
     },
@@ -95,7 +95,7 @@ export async function getAlbumOnboardingSummary(input: {
       key: "bible_reviewed",
       label: "Tag themes on a track",
       description: "Mark which of the album's themes a track carries so the Bible can map them.",
-      href: coherenceFixHref(input.albumId, { focus: "story", trackNumber: untagged?.trackNumber }),
+      href: coherenceFixHref(input.albumId, { focus: "song-themes", trackNumber: untagged?.trackNumber }),
       complete: songs.some((song) => song.hasThemes),
     },
     {
@@ -108,22 +108,24 @@ export async function getAlbumOnboardingSummary(input: {
     {
       key: "style_bible_locked",
       label: "Lock the voice and style",
-      description: "Set the singer brief, palette, and mix priorities before handoff.",
+      description: "Set at least three parts of the Style bible, such as the singer brief, palette and mix priorities.",
       href: `${base}/style`,
-      complete: trackedEvents.has("album_style_bible_saved") || hasStyleBibleLocked(input.data),
+      // Read from the album itself: a Style bible saved and later cleared is not done.
+      complete: hasStyleBibleLocked(input.data),
     },
     {
       key: "rough_demo_captured",
       label: "Capture a rough demo",
-      description: "Save one memo, rehearsal take, or riff sketch while the idea is fresh.",
+      description: "Save one memo, rehearsal take or riff sketch while the idea is fresh.",
       href: `${base}/demos`,
-      complete: trackedEvents.has("album_demo_added") || hasRoughDemoCaptured(input.data),
+      complete: hasRoughDemoCaptured(input.data),
     },
     {
       key: "export_or_publish",
       label: "Export or publish",
       description: "Download a handoff pack for your DAW or collaborators, or publish the album to Discover.",
       href: `${base}/export`,
+      // An export leaves no trace in the album itself, so this one reads the event log.
       complete: trackedEvents.has("album_export_requested") || input.isPublic,
     },
   ];

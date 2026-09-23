@@ -12,6 +12,7 @@ type DiscoverAlbum = {
   id: string;
   title: string;
   artist: string | null;
+  conceptSummary: string | null;
   primaryGenre: string | null;
   trackCount: number;
   publishedAt: string | null;
@@ -19,7 +20,10 @@ type DiscoverAlbum = {
   liked: boolean;
 };
 
-/** One published album as a row: title and catalog line, then Like and Remix. */
+/**
+ * One published album as a row: title, catalog line and the first lines of its concept (the
+ * reason to open it), then Like and Remix.
+ */
 export function DiscoverAlbumCard({
   album,
   creditsRemaining,
@@ -36,12 +40,12 @@ export function DiscoverAlbumCard({
       data-testid="discover-album-card"
       data-album-id={album.id}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 md:flex-1">
         <Link
           href={`/app/discover/${album.id}`}
-          className="type-display inline-flex min-h-11 max-w-full items-center text-xl text-ink underline-offset-4 hover:underline md:text-2xl"
+          className="type-display inline-block max-w-full break-words py-2 text-xl text-ink hyphens-auto underline-offset-4 hover:underline md:text-2xl"
         >
-          <span className="truncate">{album.title}</span>
+          {album.title}
         </Link>
         <p className="type-catalog mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
           <CatalogItems
@@ -57,17 +61,28 @@ export function DiscoverAlbumCard({
             ]}
           />
         </p>
+        {album.conceptSummary ? (
+          <p className="mt-2 line-clamp-2 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
+            {album.conceptSummary}
+          </p>
+        ) : null}
         {error ? <StatusMessage tone="danger" className="mt-2">{error}</StatusMessage> : null}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-start gap-3">
+      <div className="flex min-w-0 flex-wrap items-start gap-3">
         <LikeToggle
           albumId={album.id}
+          albumTitle={album.title}
           initialLiked={album.liked}
           initialLikes={album.likes}
           onError={setError}
         />
-        <RemixButton albumId={album.id} creditsRemaining={creditsRemaining} onError={setError} />
+        <RemixButton
+          albumId={album.id}
+          albumTitle={album.title}
+          creditsRemaining={creditsRemaining}
+          onError={setError}
+        />
       </div>
     </div>
   );

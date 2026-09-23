@@ -119,9 +119,9 @@ export default async function DiscoverAlbumPage({
                     {String(track.trackNumber).padStart(2, "0")}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-base font-semibold text-ink">{track.title}</p>
+                    <p className="break-words text-base font-semibold text-ink hyphens-auto">{track.title}</p>
                     {track.narrative ? (
-                      <p className="mt-1 max-w-[68ch] text-sm leading-relaxed text-ink-2">{track.narrative}</p>
+                      <p className="mt-1 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">{track.narrative}</p>
                     ) : null}
                     {track.themes.length ? (
                       <p className="type-catalog mt-1.5 text-xs text-ink-3">
@@ -140,7 +140,7 @@ export default async function DiscoverAlbumPage({
           )}
         </section>
 
-        <aside className="flex min-w-0 flex-col gap-8">
+        <aside aria-label="About this album" className="flex min-w-0 flex-col gap-8">
           <Section
             title="How it holds together"
             headingLevel={2}
@@ -163,13 +163,13 @@ export default async function DiscoverAlbumPage({
           </Section>
 
           <Section title="Remixing">
-            <p className="text-sm leading-relaxed text-ink-2">
+            <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
               A remix copies this album&apos;s concept, sequence, lyrics and chords into your
               workspace as a new private album, opened in the Studio. It costs{" "}
               {CREDIT_COSTS.albumFork} credits. The original and its artist are not affected.
             </p>
             <ButtonLink tone="ghost" href="/app/discover" className="mt-3 -ml-4">
-              Back to community projects
+              Back to community albums
             </ButtonLink>
           </Section>
         </aside>

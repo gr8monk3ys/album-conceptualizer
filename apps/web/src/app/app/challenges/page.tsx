@@ -113,15 +113,18 @@ export default async function ChallengesPage() {
           >
             <dl className="border-t border-line">
               {CREDIT_USES.map((use) => (
-                <div key={use.label} className="flex items-baseline justify-between gap-3 border-b border-line py-2">
-                  <dt className="text-sm text-ink-2">{use.label}</dt>
-                  <dd className="type-figure shrink-0 text-sm font-semibold text-ink">
+                <div
+                  key={use.label}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-line py-2"
+                >
+                  <dt className="min-w-0 text-sm text-ink-2">{use.label}</dt>
+                  <dd className="type-figure text-sm font-semibold text-ink">
                     {use.cost} credits
                   </dd>
                 </div>
               ))}
             </dl>
-            <p className="mt-3 text-sm text-ink-3">Writing, saving and the Album Bible never cost credits.</p>
+            <p className="mt-3 max-w-[65ch] text-sm text-ink-3">Writing, saving and the Album Bible never cost credits.</p>
           </Section>
         </div>
       </div>

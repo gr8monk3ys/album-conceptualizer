@@ -14,7 +14,7 @@ const ALL_FORMATS: Array<{ key: ExportFormat; title: string; desc: string }> = [
   { key: "midi", title: "MIDI", desc: "Chord progressions and basic timing, ready to drop into a DAW." },
   { key: "chordpro", title: "ChordPro", desc: "Lyrics with chords for OnSong or SongBook." },
   { key: "musicxml", title: "MusicXML", desc: "Notation for MuseScore, Finale or Sibelius." },
-  { key: "json", title: "JSON", desc: "The full project, for backups or moving the album elsewhere." },
+  { key: "json", title: "JSON", desc: "The full album, for backups or moving it elsewhere." },
   { key: "text", title: "Text", desc: "The tracklist as plain text." },
 ];
 
@@ -195,15 +195,15 @@ export function AlbumExport({
           {HANDOFF_PACKS.map((pack) => (
             <li
               key={pack.key}
-              className="grid grid-cols-1 gap-4 py-5 @2xl:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_auto] @2xl:gap-6"
+              className="grid grid-cols-1 gap-4 py-5 @2xl:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_minmax(0,auto)] @2xl:gap-6"
             >
               <div className="min-w-0">
                 <h3 className="text-lg font-semibold text-ink">{pack.destination}</h3>
-                <p className="mt-1 text-sm text-ink-2">{pack.use}</p>
+                <p className="mt-1 max-w-[65ch] text-sm text-ink-2">{pack.use}</p>
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-ink-3">What&apos;s inside</p>
-                <ul className="mt-1.5 list-disc space-y-1 pl-5 text-sm leading-relaxed text-ink-2 marker:text-ink-3">
+                <ul className="mt-1.5 max-w-[65ch] list-disc space-y-1 pl-5 text-sm leading-relaxed text-ink-2 marker:text-ink-3">
                   {pack.contents.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
@@ -215,7 +215,7 @@ export function AlbumExport({
                   download
                   aria-busy={handoffBusy === pack.key || undefined}
                   onClick={(event) => void downloadHandoff(event, pack)}
-                  className={buttonClass("secondary", "whitespace-nowrap")}
+                  className={buttonClass("secondary", "text-center")}
                 >
                   Download {pack.title}
                 </a>
@@ -224,7 +224,7 @@ export function AlbumExport({
           ))}
         </ul>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <p className="text-sm text-ink-3">
+          <p className="max-w-[65ch] text-sm text-ink-3">
             Every pack also carries the album blueprint, the style bible, your references, rough
             demo reviews and the top coherence fixes. Handoff packs don&apos;t use credits.
           </p>
@@ -250,7 +250,7 @@ export function AlbumExport({
                     <li key={fmt.key} className="py-1.5">
                       <label
                         htmlFor={inputId}
-                        className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold text-ink"
+                        className="flex min-h-11 min-w-0 cursor-pointer items-center gap-3 text-sm font-semibold text-ink"
                       >
                         <input
                           id={inputId}
@@ -258,11 +258,11 @@ export function AlbumExport({
                           checked={selected.has(fmt.key)}
                           onChange={() => toggle(fmt.key)}
                           aria-describedby={`${inputId}-desc`}
-                          className="h-5 w-5 shrink-0 cursor-pointer accent-accent"
+                          className="h-5 w-5 shrink-0 cursor-pointer accent-ink"
                         />
                         {fmt.title}
                       </label>
-                      <p id={`${inputId}-desc`} className="-mt-1.5 pb-1.5 pl-8 text-sm text-ink-2">
+                      <p id={`${inputId}-desc`} className="-mt-1.5 max-w-[65ch] pb-1.5 pl-8 text-sm text-ink-2">
                         {fmt.desc}
                       </p>
                     </li>
@@ -276,7 +276,7 @@ export function AlbumExport({
                 <legend className="text-sm font-semibold text-ink">Options</legend>
                 <label
                   htmlFor="include-production-notes"
-                  className="mt-2 flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold text-ink"
+                  className="mt-2 flex min-h-11 min-w-0 cursor-pointer items-center gap-3 text-sm font-semibold text-ink"
                 >
                   <input
                     id="include-production-notes"
@@ -284,11 +284,11 @@ export function AlbumExport({
                     checked={includeProductionNotes}
                     onChange={() => setIncludeProductionNotes((v) => !v)}
                     aria-describedby="include-production-notes-desc"
-                    className="h-5 w-5 shrink-0 cursor-pointer accent-accent"
+                    className="h-5 w-5 shrink-0 cursor-pointer accent-ink"
                   />
                   Include production notes
                 </label>
-                <p id="include-production-notes-desc" className="-mt-1.5 pl-8 text-sm text-ink-2">
+                <p id="include-production-notes-desc" className="-mt-1.5 max-w-[65ch] pl-8 text-sm text-ink-2">
                   Adds your production notes to the formats that can carry them.
                 </p>
               </fieldset>
@@ -311,7 +311,7 @@ export function AlbumExport({
                     You have {credits(remaining)}.
                   </p>
                 ) : (
-                  <p id="export-zip-cost" className="text-sm text-warn">
+                  <p id="export-zip-cost" className="max-w-[65ch] text-sm text-warn">
                     A zip costs {credits(cost)} and you have {credits(remaining)}. Earn more from{" "}
                     <Link href="/app/challenges" className="underline underline-offset-4 hover:text-ink">
                       challenges

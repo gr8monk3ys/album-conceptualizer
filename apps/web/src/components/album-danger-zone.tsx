@@ -45,7 +45,7 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
       <h2 id="album-delete-title" className="text-lg font-semibold text-ink">
         Delete album
       </h2>
-      <p className="mt-1 max-w-[68ch] text-sm leading-relaxed text-ink-2">
+      <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
         Removes the album, its songs, versions, references and demos for good. Remixes other people
         made stay in their workspaces.
       </p>

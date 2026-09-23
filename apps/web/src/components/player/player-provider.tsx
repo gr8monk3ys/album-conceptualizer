@@ -2,9 +2,8 @@
 
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import * as Tone from "tone";
-import { Midi } from "@tonejs/midi";
-import Soundfont, { type Player as SoundfontPlayer } from "soundfont-player";
+import type * as ToneModule from "tone";
+import type { Player as SoundfontPlayer } from "soundfont-player";
 
 type PlayerStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
@@ -59,6 +58,19 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+type Tone = typeof ToneModule;
+
+// The audio stack (Tone, the MIDI parser and the soundfont loader) is loaded on the first
+// preview, not with the page, and the AudioContext is only created after that user gesture.
+let tonePromise: Promise<Tone> | null = null;
+function loadTone(): Promise<Tone> {
+  tonePromise ??= import("tone").catch((err: unknown) => {
+    tonePromise = null;
+    throw err;
+  });
+  return tonePromise;
+}
+
 type PlayerProviderProps = { children: ReactNode };
 
 function usePlayerProviderRender({ children }: PlayerProviderProps) {
@@ -80,8 +92,10 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const activeInstrumentRef = useRef<SoundfontPlayer | null>(null);
 
   const partRef = useRef<
-    Tone.Part<{ time: number; name: string; duration: number; velocity: number }> | null
+    ToneModule.Part<{ time: number; name: string; duration: number; velocity: number }> | null
   >(null);
+  // Set once the audio stack has loaded; every transport call reads it.
+  const toneRef = useRef<Tone | null>(null);
 
   const rafRef = useRef<number | null>(null);
   const durationRef = useRef(0);
@@ -107,14 +121,20 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const currentMidiNotesRef = useRef<string[]>([]);
   const lastInputRef = useRef<LoadMidiInput | null>(null);
 
-  function getAudioContext(): AudioContext {
-    return Tone.getContext().rawContext as AudioContext;
+  const ensureTone = useCallback(async () => {
+    if (!toneRef.current) toneRef.current = await loadTone();
+    return toneRef.current;
+  }, []);
+
+  function getAudioContext(tone: Tone): AudioContext {
+    return tone.getContext().rawContext as AudioContext;
   }
 
-  const ensureAudioGraph = useCallback(() => {
-    if (masterGainRef.current && analyserRef.current && waveformBufferRef.current) return;
+  const ensureAudioGraph = useCallback(async () => {
+    const tone = await ensureTone();
+    if (masterGainRef.current && analyserRef.current && waveformBufferRef.current) return tone;
 
-    const ac = getAudioContext();
+    const ac = getAudioContext(tone);
     const master = ac.createGain();
     master.gain.value = volume;
     const analyser = ac.createAnalyser();
@@ -126,7 +146,8 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
     masterGainRef.current = master;
     analyserRef.current = analyser;
     waveformBufferRef.current = new Uint8Array(analyser.fftSize);
-  }, [volume]);
+    return tone;
+  }, [ensureTone, volume]);
 
   function stopAllSound() {
     for (const instrumentPlayer of instrumentsRef.current.values()) {
@@ -141,17 +162,21 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const setVolume = useCallback((value: number) => {
     const next = clamp(value, 0, 1);
     setVolumeState(next);
-    if (masterGainRef.current) {
-      masterGainRef.current.gain.setTargetAtTime(next, getAudioContext().currentTime, 0.03);
+    const tone = toneRef.current;
+    if (masterGainRef.current && tone) {
+      masterGainRef.current.gain.setTargetAtTime(next, getAudioContext(tone).currentTime, 0.03);
     }
   }, []);
 
   const stopInternal = useCallback((opts?: { keepPosition?: number }) => {
-    Tone.Transport.stop();
-    Tone.Transport.cancel(0);
+    const tone = toneRef.current;
+    if (tone) {
+      tone.Transport.stop();
+      tone.Transport.cancel(0);
+      tone.Transport.seconds = 0;
+    }
     stopAllSound();
     const keep = opts?.keepPosition;
-    Tone.Transport.seconds = 0;
     setStatus((prev) => (prev === "idle" ? "idle" : "ready"));
     if (typeof keep === "number") {
       setPosition(keep);
@@ -166,7 +191,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
   const pause = useCallback(() => {
     if (status !== "playing") return;
-    Tone.Transport.pause();
+    toneRef.current?.Transport.pause();
     stopAllSound();
     setStatus("paused");
   }, [status]);
@@ -174,19 +199,20 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const seek = useCallback((seconds: number) => {
     if (!durationRef.current) return;
     const next = clamp(seconds, 0, durationRef.current);
-    Tone.Transport.seconds = next;
+    if (toneRef.current) toneRef.current.Transport.seconds = next;
     setPosition(next);
     positionRef.current = next;
   }, []);
 
   const arm = useCallback(async () => {
     // Needs a user gesture in most browsers. Call from click handlers (Play/Preview).
-    await Tone.start();
-  }, []);
+    const tone = await ensureTone();
+    await tone.start();
+  }, [ensureTone]);
 
   const ensureInstrumentLoaded = useCallback(
     async (next: PreviewInstrument, requiredNotes: string[]) => {
-      ensureAudioGraph();
+      const tone = await ensureAudioGraph();
       const dest = masterGainRef.current;
       if (!dest) throw new Error("Audio output not initialized.");
 
@@ -204,7 +230,8 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
       setInstrumentLoading(true);
       try {
-        const ac = getAudioContext();
+        const ac = getAudioContext(tone);
+        const { default: Soundfont } = await import("soundfont-player");
         const soundfontSet = process.env.NEXT_PUBLIC_SOUNDFONT || "MusyngKite";
         const fromBase = process.env.NEXT_PUBLIC_SOUNDFONT_BASE_URL;
 
@@ -256,11 +283,11 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       setPosition(0);
 
       try {
-        ensureAudioGraph();
+        const [tone, { Midi }] = await Promise.all([ensureAudioGraph(), import("@tonejs/midi")]);
 
-        Tone.Transport.stop();
-        Tone.Transport.seconds = 0;
-        Tone.Transport.cancel(0);
+        tone.Transport.stop();
+        tone.Transport.seconds = 0;
+        tone.Transport.cancel(0);
         stopAllSound();
         if (partRef.current) {
           partRef.current.dispose();
@@ -269,7 +296,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
         const parsed = new Midi(input.midi);
         const bpm = parsed.header.tempos[0]?.bpm ?? 120;
-        Tone.Transport.bpm.value = bpm;
+        tone.Transport.bpm.value = bpm;
 
         const events: Array<{
           time: number;
@@ -303,7 +330,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
         await ensureInstrumentLoaded(instrument, uniqueNotes);
 
-        const part = new Tone.Part((time, value) => {
+        const part = new tone.Part((time, value) => {
           const instrumentPlayer = activeInstrumentRef.current;
           if (!instrumentPlayer) return;
 
@@ -332,18 +359,19 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const play = useCallback(async () => {
     if (!partRef.current) return;
     if (instrumentLoading) return;
+    const tone = await ensureTone();
 
     // If we ended the previous playback, restart from the beginning.
     if (durationRef.current && positionRef.current >= durationRef.current - 0.01) {
-      Tone.Transport.seconds = 0;
+      tone.Transport.seconds = 0;
       setPosition(0);
       positionRef.current = 0;
     }
 
     await arm();
-    Tone.Transport.start();
+    tone.Transport.start();
     setStatus("playing");
-  }, [arm, instrumentLoading]);
+  }, [arm, ensureTone, instrumentLoading]);
 
   const retry = useCallback(async () => {
     const input = lastInputRef.current;
@@ -364,8 +392,10 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       return;
     }
 
+    const tone = toneRef.current;
+    if (!tone) return;
     const tick = () => {
-      const next = Tone.Transport.seconds;
+      const next = tone.Transport.seconds;
       setPosition(next);
       positionRef.current = next;
 

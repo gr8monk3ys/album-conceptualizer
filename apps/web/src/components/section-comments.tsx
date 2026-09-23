@@ -50,6 +50,11 @@ type SectionCommentsProps = {
 
 const MAX_LENGTH = 2000;
 
+function excerpt(body: string) {
+  const line = body.trim().split(/\s+/g).join(" ");
+  return line.length > 40 ? `${line.slice(0, 40)}…` : line;
+}
+
 function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   const sectionId = section.id;
   const [comments, setComments] = useState<SectionComment[]>([]);
@@ -183,7 +188,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
       if (!response.ok) {
         throw new Error(await readApiError(response, "Couldn't create the task. Try again."));
       }
-      setUi((prev) => ({ ...prev, status: "Task created. Find it in the album Inbox." }));
+      setUi((prev) => ({ ...prev, status: "Task created. Find it in Comments and tasks on the Overview." }));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't create the task.";
       setUi((prev) => ({ ...prev, error: message }));
@@ -228,11 +233,15 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
             {comments.map((comment) => {
               const isDeleted = Boolean(comment.deletedAt);
               const isResolved = Boolean(comment.resolvedAt);
+              // Each comment's buttons name the comment they act on, so the names stay unique.
+              const about = `${comment.author.name || "Collaborator"}’s comment “${excerpt(comment.body)}”`;
               return (
                 <li key={comment.id} className="flex items-start justify-between gap-3 py-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                      <span className="truncate font-semibold text-ink">{comment.author.name || "Collaborator"}</span>
+                      <span className="min-w-0 break-words font-semibold text-ink">
+                        {comment.author.name || "Collaborator"}
+                      </span>
                       <span className="text-ink-3">
                         <RelativeTime date={comment.createdAt} />
                       </span>
@@ -244,27 +253,28 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                       ) : null}
                       {isDeleted ? <Chip>Deleted</Chip> : null}
                     </div>
-                    <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-2">
+                    <p className="mt-1.5 max-w-[65ch] whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-2">
                       {isDeleted ? "This comment was deleted." : comment.body}
                     </p>
                   </div>
 
                   {!isDeleted ? (
                     <div className="flex flex-none items-center">
-                      <IconButton label="Create task" onClick={() => void makeTask(comment)}>
+                      <IconButton label={`Create task from ${about}`} title="Create task" onClick={() => void makeTask(comment)}>
                         <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
                       </IconButton>
                       {isResolved ? (
-                        <IconButton label="Reopen" onClick={() => void unresolve(comment.id)}>
+                        <IconButton label={`Reopen ${about}`} title="Reopen" onClick={() => void unresolve(comment.id)}>
                           <RotateCcw className="h-4 w-4" aria-hidden="true" />
                         </IconButton>
                       ) : (
-                        <IconButton label="Resolve" onClick={() => void resolve(comment.id)}>
+                        <IconButton label={`Resolve ${about}`} title="Resolve" onClick={() => void resolve(comment.id)}>
                           <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                         </IconButton>
                       )}
                       <IconButton
-                        label="Delete comment"
+                        label={`Delete ${about}`}
+                        title="Delete comment"
                         onClick={() => void remove(comment.id)}
                         className="hover:bg-danger-soft hover:text-danger"
                       >
@@ -277,7 +287,9 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
             })}
           </ul>
         ) : (
-          <p className="text-sm text-ink-2">No comments on this section yet. Notes you leave here stay with it.</p>
+          <p className="max-w-[65ch] text-sm text-ink-2">
+            No comments on this section yet. Notes you leave here stay with it.
+          </p>
         )}
       </div>
 
@@ -300,7 +312,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
           className={textareaClass}
           placeholder="What should change, and why?"
         />
-        <p id={`${inputId}-hint`} className="text-xs leading-relaxed text-ink-3">
+        <p id={`${inputId}-hint`} className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
           Concrete notes work best: what to change and why.
         </p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">

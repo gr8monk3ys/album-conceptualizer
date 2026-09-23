@@ -23,6 +23,8 @@ export function ForkShareButton({ token }: { token: string }) {
         throw new Error(body?.error || "The remix didn't go through. Try again in a moment.");
       }
       setStatus({ tone: "neutral", text: "Remixed. Opening your copy…" });
+      // Open the new album, then refresh so the workspace's credit balance re-renders. (A
+      // navigation discards a pending refresh, so the refresh is queued after it.)
       router.push(`/app/albums/${body.id}`);
       router.refresh();
     } catch (err) {

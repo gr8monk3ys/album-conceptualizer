@@ -52,13 +52,13 @@ export function MobileAppMenu({
         onClick={(event) => {
           if (event.target === event.currentTarget) setOpen(false);
         }}
-        className="m-0 h-full max-h-none w-[min(20rem,88vw)] max-w-none border-r border-line bg-ground p-0 text-ink backdrop:bg-black/70 md:hidden"
+        className="m-0 h-full max-h-none w-[min(20rem,88vw)] max-w-none border-r border-line bg-ground p-0 text-ink backdrop:bg-sunken/80 md:hidden"
       >
         <div className="flex h-full flex-col gap-6 px-3 py-4">
           <div className="flex items-start justify-between gap-2 pl-3">
             <div className="min-w-0 pt-2">
               <Wordmark />
-              <span className="mt-1 block truncate text-xs text-ink-3">{workspaceName}</span>
+              <span className="mt-1 block break-words text-xs text-ink-3">{workspaceName}</span>
             </div>
             <IconButton label="Close navigation menu" onClick={() => setOpen(false)}>
               <X className="h-5 w-5" aria-hidden="true" />
@@ -70,7 +70,7 @@ export function MobileAppMenu({
           <CreditsMeter credits={credits} />
           <div className="border-t border-line pt-4">
             <div className="px-3">
-              <p className="truncate text-sm font-medium text-ink">{userName || "You"}</p>
+              <p className="break-words text-sm font-medium text-ink">{userName || "You"}</p>
               <p className="text-xs capitalize text-ink-3">{plan ?? "free"} plan</p>
             </div>
             <div className="mt-2 flex flex-col gap-0.5">

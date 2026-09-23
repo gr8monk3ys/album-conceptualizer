@@ -65,11 +65,11 @@ export default async function AnalyticsPage() {
               >
                 <div className="min-w-0">
                   <p className="font-semibold text-ink">{eventLabel(event.event)}</p>
-                  <p className="mt-0.5 text-ink-2">
+                  <p className="mt-0.5 break-words text-ink-2">
                     {event.album ? (
                       <Link
                         href={`/app/albums/${event.album.id}`}
-                        className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-ink"
+                        className="inline-block py-3 underline underline-offset-4 hover:text-ink"
                       >
                         {event.album.title}
                       </Link>
@@ -80,14 +80,14 @@ export default async function AnalyticsPage() {
                     {event.user?.name || event.user?.email || "Someone"}
                   </p>
                 </div>
-                <p className="shrink-0 text-xs text-ink-3">
+                <p className="text-xs text-ink-3">
                   <RelativeTime date={event.createdAt.toISOString()} />
                 </p>
               </li>
             ))}
           </ol>
         ) : (
-          <p className="text-sm text-ink-2">
+          <p className="max-w-[65ch] text-sm text-ink-2">
             Nothing yet. Activity appears here once someone creates, writes or exports an album.
           </p>
         )}

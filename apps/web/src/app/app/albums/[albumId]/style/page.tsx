@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { AlbumStyleBibleWorkspace } from "@/components/album-style-bible-workspace";
+import { SoundNav } from "@/components/sound-nav";
 import { getAlbum } from "@/server/albums";
 import { requireUser } from "@/server/identity";
 import { listAlbumReferences } from "@/server/references";
@@ -10,11 +11,12 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Voice / Style Bible",
+  title: "Style bible",
   description: "Define the vocal identity, sonic palette, and production rules for your album.",
 };
 
-// The album layout renders the title, catalog line, album tabs and spine above this page.
+// The album layout renders the title, catalog line, album tabs and spine above this page;
+// the Sound sub-navigation comes first in the page itself.
 export default async function AlbumStyleBiblePage({
   params,
 }: {
@@ -31,7 +33,8 @@ export default async function AlbumStyleBiblePage({
   const summary = summarizeStyleBible(styleBible, references);
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
+      <SoundNav albumId={album.id} current="style" />
       <AlbumPageViewTracker
         albumId={album.id}
         event="album_style_bible_viewed"
@@ -50,6 +53,6 @@ export default async function AlbumStyleBiblePage({
           songTrackNumber: reference.songTrackNumber,
         }))}
       />
-    </>
+    </div>
   );
 }

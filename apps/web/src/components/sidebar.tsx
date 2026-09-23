@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span className={cn("type-catalog text-sm text-ink", className)}>
-      Album <span className="text-accent">Conceptualizer</span>
+    <span className={cn("type-catalog break-words text-sm text-ink", className)}>
+      Album <span className="font-extrabold">Conceptualizer</span>
     </span>
   );
 }
@@ -32,14 +32,16 @@ export function Sidebar({
 
   return (
     <aside
+      aria-label="Workspace"
       className={cn(
-        "sticky top-0 flex h-screen w-64 shrink-0 flex-col gap-6 border-r border-line px-3 py-5",
+        // Capped by the viewport so enlarged text (rem) can never squeeze the page to nothing.
+        "sticky top-0 flex h-screen w-64 max-w-[33vw] shrink-0 flex-col gap-6 border-r border-line px-3 py-5",
         className,
       )}
     >
       <Link href="/app" className="block rounded px-3 py-1">
         <Wordmark />
-        <span className="mt-1 block truncate text-xs text-ink-3">{workspaceName}</span>
+        <span className="mt-1 block break-words text-xs text-ink-3">{workspaceName}</span>
       </Link>
 
       <div className="flex-1 overflow-auto">
@@ -49,15 +51,15 @@ export function Sidebar({
       <CreditsMeter credits={credits} />
 
       <div className="border-t border-line pt-4">
-        <div className="flex items-center justify-between gap-2 px-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 px-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-ink">{userName || "You"}</p>
+            <p className="break-words text-sm font-medium text-ink">{userName || "You"}</p>
             <p className="text-xs capitalize text-ink-3">{plan ?? "free"} plan</p>
           </div>
           {showUpgrade ? (
             <Link
               href="/app/settings/billing"
-              className="inline-flex min-h-11 items-center rounded px-2 text-sm font-semibold text-accent hover:underline"
+              className="inline-flex min-h-11 items-center rounded px-2 text-sm font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink"
             >
               Upgrade
             </Link>

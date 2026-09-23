@@ -31,7 +31,8 @@ export default async function LibraryPage() {
         <EmptyState
           title="Your library is empty"
           action={
-            <ButtonLink tone="primary" href="/app/create">
+            // Secondary: the header's "New album" is this page's primary action.
+            <ButtonLink tone="secondary" href="/app/create">
               Start your first album
             </ButtonLink>
           }

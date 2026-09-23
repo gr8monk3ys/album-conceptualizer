@@ -19,14 +19,19 @@ function likesLabel(count: number) {
   return `${count} ${count === 1 ? "like" : "likes"}`;
 }
 
-/** A Like toggle (aria-pressed) with the album's like count beside it. */
+/**
+ * A Like toggle (aria-pressed) with the album's like count beside it. In a list, pass
+ * `albumTitle` so each toggle's accessible name says which album it likes.
+ */
 export function LikeToggle({
   albumId,
+  albumTitle,
   initialLiked,
   initialLikes,
   onError,
 }: {
   albumId: string;
+  albumTitle?: string;
   initialLiked: boolean;
   initialLikes: number;
   onError: (message: string | null) => void;
@@ -59,10 +64,11 @@ export function LikeToggle({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Button tone="secondary" aria-pressed={state.liked} onClick={toggle} disabled={busy}>
         <Heart className={cn("h-4 w-4", state.liked && "fill-current")} aria-hidden="true" />
         {state.liked ? "Liked" : "Like"}
+        {albumTitle ? <span className="sr-only"> {albumTitle}</span> : null}
       </Button>
       <span className="type-figure min-w-[4.5rem] text-sm text-ink-2">{likesLabel(state.likes)}</span>
     </div>
@@ -71,15 +77,18 @@ export function LikeToggle({
 
 /**
  * Remix: copies a published album into the viewer's workspace as a new private album and
- * opens it in the Studio. The label carries its credit cost.
+ * opens it in the Studio. The label carries its credit cost; in a list, pass `albumTitle` so
+ * each button's accessible name says which album it remixes.
  */
 export function RemixButton({
   albumId,
+  albumTitle,
   tone = "secondary",
   creditsRemaining,
   onError,
 }: {
   albumId: string;
+  albumTitle?: string;
   tone?: "primary" | "secondary";
   creditsRemaining?: number;
   onError: (message: string | null) => void;
@@ -98,8 +107,15 @@ export function RemixButton({
         throw new Error(await readApiError(response, "The remix didn't go through. Try again."));
       }
       const payload = (await response.json().catch(() => null)) as { id?: string } | null;
-      if (!payload?.id) throw new Error("The remix was created but couldn't be opened. Find it in your Library.");
+      if (!payload?.id) {
+        router.refresh();
+        throw new Error("The remix was created but couldn't be opened. Find it in your Library.");
+      }
+      // Open the new album, then refresh so the workspace chrome (the credits meter) re-renders
+      // with the spent credits. The order matters: a navigation discards a refresh that is
+      // still pending, while a refresh queued after it runs once the album has opened.
       router.push(`/app/albums/${payload.id}/studio`);
+      router.refresh();
     } catch (err) {
       onError(err instanceof Error ? err.message : "The remix didn't go through. Try again.");
       setBusy(false);
@@ -110,10 +126,12 @@ export function RemixButton({
     <div className="flex flex-col items-start gap-1">
       <Button tone={tone} onClick={remix} disabled={busy || cannotAfford}>
         <Shuffle className="h-4 w-4" aria-hidden="true" />
-        {busy ? "Remixing…" : `Remix · ${cost} credits`}
+        {busy ? "Remixing" : "Remix"}
+        {albumTitle ? <span className="sr-only"> {albumTitle}</span> : null}
+        {busy ? "…" : ` · ${cost} credits`}
       </Button>
       {cannotAfford ? (
-        <p className="text-xs text-ink-2">
+        <p className="max-w-[65ch] text-xs text-ink-2">
           You have {creditsRemaining} {creditsRemaining === 1 ? "credit" : "credits"}.{" "}
           <Link href="/app/challenges" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-ink">
             Earn more
