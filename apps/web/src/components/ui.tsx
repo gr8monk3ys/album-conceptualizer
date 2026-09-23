@@ -41,6 +41,10 @@ export function buttonClass(tone: Tone = "secondary", className?: string) {
   return cn(BUTTON_BASE, BUTTON_TONES[tone], className);
 }
 
+function preventWhileBusy(event: { preventDefault: () => void }) {
+  event.preventDefault();
+}
+
 /**
  * A button. `busy` is for a control whose own work is running (saving, previewing): it stays
  * focusable and announces itself unavailable (aria-disabled, aria-busy) and ignores clicks,
@@ -60,13 +64,9 @@ export function Button({
       className={buttonClass(tone, className)}
       aria-disabled={busy || props["aria-disabled"] || undefined}
       aria-busy={busy || undefined}
-      onClick={(event) => {
-        if (busy) {
-          event.preventDefault();
-          return;
-        }
-        onClick?.(event);
-      }}
+      // Only a client caller can be busy or pass a handler; a Server Component renders this
+      // with neither, and must not be handed a function (it can't be serialised).
+      onClick={busy ? preventWhileBusy : onClick}
       {...props}
     />
   );
