@@ -1,12 +1,29 @@
-"""In-memory job store for async agent workflows."""
+"""In-memory job store and runner for the engine's async work (agent workflows, renders).
+
+Work that outlives an HTTP request is submitted here: the caller gets a job id back at once
+and polls. The runner supervises each job on a background thread with a hard timeout, so a
+job always ends COMPLETED or FAILED, never stuck RUNNING. Jobs started on behalf of an owner
+are visible only to that owner.
+"""
 
 from __future__ import annotations
 
+import builtins
+import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from typing import Literal
 from uuid import uuid4
+
+
+logger = logging.getLogger(__name__)
+
+Outcome = Literal["completed", "timeout", "error"]
 
 
 class JobStatus(StrEnum):
@@ -92,6 +109,93 @@ class JobStore:
             # whole class of mistake.
             if job.status in self._TERMINAL_STATUSES and job.completed_at is None:
                 job.completed_at = time.time()
+
+    @staticmethod
+    def _visible(job: Job, owner_id: str | None) -> bool:
+        # An owned job is visible only to its owner; a job started without an owner is
+        # visible to anyone. 404 rather than 403 elsewhere keeps job ids unenumerable.
+        return job.owner_id is None or job.owner_id == owner_id
+
+    def get_for(self, job_id: str, owner_id: str | None) -> Job | None:
+        """The job, if it exists and ``owner_id`` may see it."""
+        job = self.get(job_id)
+        return job if job is not None and self._visible(job, owner_id) else None
+
+    def list_for(self, owner_id: str | None, status: JobStatus | None = None) -> builtins.list[Job]:
+        return [job for job in self.list(status=status) if self._visible(job, owner_id)]
+
+    def submit(
+        self,
+        kind: str,
+        work: Callable[[], dict],
+        *,
+        owner_id: str | None,
+        timeout_seconds: float,
+        timeout_message: str,
+        expected_errors: tuple[type[BaseException], ...] = (),
+        on_finish: Callable[[Outcome], None] | None = None,
+    ) -> Job:
+        """Create a job and run ``work`` for it on a supervised background thread.
+
+        Returns a snapshot of the job as submitted (PENDING); poll ``get_for`` for progress.
+
+        ``work`` returns the job's result. It fails the job if it raises or runs past
+        ``timeout_seconds``. Exceptions in ``expected_errors`` are already written for
+        people and are logged as warnings; anything else is logged with its traceback.
+        """
+        job = self.create(kind, owner_id=owner_id)
+        # The caller gets the job as submitted; the live record changes under the worker.
+        submitted = replace(job)
+        thread = threading.Thread(
+            target=self._supervise,
+            args=(job.id, kind, work, timeout_seconds, timeout_message, expected_errors, on_finish),
+            daemon=True,
+        )
+        thread.start()
+        return submitted
+
+    def _supervise(
+        self,
+        job_id: str,
+        kind: str,
+        work: Callable[[], dict],
+        timeout_seconds: float,
+        timeout_message: str,
+        expected_errors: tuple[type[BaseException], ...],
+        on_finish: Callable[[Outcome], None] | None,
+    ) -> None:
+        self.update(job_id, status=JobStatus.RUNNING)
+        outcome: Outcome
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(work)
+            try:
+                result = future.result(timeout=timeout_seconds)
+                self.update(
+                    job_id, status=JobStatus.COMPLETED, result=result, completed_at=time.time()
+                )
+                outcome = "completed"
+            except FutureTimeoutError:
+                future.cancel()
+                self.update(
+                    job_id, status=JobStatus.FAILED, error=timeout_message, completed_at=time.time()
+                )
+                logger.warning("job_timeout", extra={"job_id": job_id, "kind": kind})
+                outcome = "timeout"
+            except Exception as exc:  # a job must never die silently
+                self.update(
+                    job_id, status=JobStatus.FAILED, error=str(exc), completed_at=time.time()
+                )
+                if isinstance(exc, expected_errors):
+                    logger.warning(
+                        "job_failed", extra={"job_id": job_id, "kind": kind, "error": str(exc)}
+                    )
+                else:
+                    logger.exception(
+                        "job_error", exc_info=exc, extra={"job_id": job_id, "kind": kind}
+                    )
+                outcome = "error"
+        if on_finish is not None:
+            on_finish(outcome)
 
     def delete(self, job_id: str) -> bool:
         with self._lock:

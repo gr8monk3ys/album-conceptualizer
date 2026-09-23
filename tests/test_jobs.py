@@ -94,3 +94,77 @@ class TestJobStore:
         for t in threads:
             t.join()
         assert len(store.list()) == 200
+
+
+class TestSubmit:
+    """The runner: every submitted job ends COMPLETED or FAILED, and owners see only theirs."""
+
+    def _wait(self, store, job_id, owner=None):
+        import time as _time
+
+        for _ in range(100):
+            job = store.get_for(job_id, owner)
+            if job and job.status in (JobStatus.COMPLETED, JobStatus.FAILED):
+                return job
+            _time.sleep(0.02)
+        raise AssertionError("job did not finish")
+
+    def test_completes_with_result_and_returns_pending_snapshot(self):
+        store = JobStore()
+        outcomes = []
+        job = store.submit(
+            "k",
+            lambda: {"ok": 1},
+            owner_id="a",
+            timeout_seconds=5,
+            timeout_message="late",
+            on_finish=outcomes.append,
+        )
+        assert job.status == JobStatus.PENDING
+        done = self._wait(store, job.id, "a")
+        assert done.status == JobStatus.COMPLETED
+        assert done.result == {"ok": 1}
+        assert outcomes == ["completed"]
+
+    def test_timeout_fails_with_message(self):
+        import time as _time
+
+        store = JobStore()
+        job = store.submit(
+            "k",
+            lambda: _time.sleep(1) or {},
+            owner_id=None,
+            timeout_seconds=0.1,
+            timeout_message="Timed out.",
+        )
+        done = self._wait(store, job.id)
+        assert done.status == JobStatus.FAILED
+        assert done.error == "Timed out."
+
+    def test_error_fails_with_its_message(self):
+        store = JobStore()
+
+        def boom():
+            raise ValueError("provider said no")
+
+        job = store.submit(
+            "k",
+            boom,
+            owner_id=None,
+            timeout_seconds=5,
+            timeout_message="late",
+            expected_errors=(ValueError,),
+        )
+        done = self._wait(store, job.id)
+        assert done.status == JobStatus.FAILED
+        assert done.error == "provider said no"
+
+    def test_owned_jobs_are_visible_only_to_their_owner(self):
+        store = JobStore()
+        owned = store.create("k", owner_id="alice")
+        shared = store.create("k", owner_id=None)
+        assert store.get_for(owned.id, "alice") is not None
+        assert store.get_for(owned.id, "bob") is None
+        assert store.get_for(owned.id, None) is None
+        assert store.get_for(shared.id, "bob") is not None
+        assert {j.id for j in store.list_for("bob")} == {shared.id}

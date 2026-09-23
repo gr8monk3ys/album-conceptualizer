@@ -12,13 +12,10 @@ import logging
 import mimetypes
 import os
 import re
-import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -166,68 +163,29 @@ def _persist_render(audio: bytes, content_type: str) -> str:
     return f"/api/v1/audio/renders/{name}"
 
 
-def _run_generation(job_id: str, payload: GenerateRequest) -> None:
-    _render_jobs.update(job_id, status=JobStatus.RUNNING)
+def _render(payload: GenerateRequest) -> dict:
+    """Render ``payload`` with the configured provider; the job's result."""
     brief = payload.to_brief()
-    prompt = build_generation_prompt(brief)
     generation = GenerationRequest(
-        prompt=prompt,
+        prompt=build_generation_prompt(brief),
         duration_seconds=payload.duration_seconds,
         negative_prompt=build_negative_prompt(brief),
         seed=payload.seed,
     )
-
-    def _call() -> dict:
-        result = get_provider().generate(generation)
-        audio_url = result.audio_url
-        if result.audio_bytes is not None:
-            # Persist BEFORE reporting success. Nothing else hosts these
-            # bytes, so a job that returns without writing them has produced
-            # a result that points at nothing.
-            audio_url = _persist_render(result.audio_bytes, result.content_type)
-        return {
-            "audio_url": audio_url,
-            "provider": result.provider,
-            "model": result.model,
-            "duration_seconds": result.duration_seconds,
-            "prompt": result.prompt,
-            "seed": result.seed,
-        }
-
-    # The provider already bounds its own polling, but a hung socket inside
-    # httpx would otherwise pin a job in RUNNING until TTL eviction, which
-    # reads to the caller as "still working" forever.
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_call)
-        try:
-            _render_jobs.update(
-                job_id,
-                status=JobStatus.COMPLETED,
-                result=future.result(timeout=GENERATION_TIMEOUT_SECONDS),
-                completed_at=time.time(),
-            )
-        except FutureTimeoutError:
-            future.cancel()
-            _render_jobs.update(
-                job_id,
-                status=JobStatus.FAILED,
-                error=f"Generation timed out after {GENERATION_TIMEOUT_SECONDS}s.",
-                completed_at=time.time(),
-            )
-            logger.warning("music_generation_timeout", extra={"job_id": job_id})
-        except (ProviderNotConfiguredError, ProviderRequestError) as exc:
-            # Provider errors are the expected failure mode and are already
-            # written for a human; pass them through verbatim rather than
-            # flattening them into "generation failed".
-            _render_jobs.update(
-                job_id, status=JobStatus.FAILED, error=str(exc), completed_at=time.time()
-            )
-            logger.warning("music_generation_failed", extra={"job_id": job_id, "error": str(exc)})
-        except Exception as exc:  # a job must never die silently
-            _render_jobs.update(
-                job_id, status=JobStatus.FAILED, error=str(exc), completed_at=time.time()
-            )
-            logger.exception("music_generation_error", exc_info=exc, extra={"job_id": job_id})
+    result = get_provider().generate(generation)
+    audio_url = result.audio_url
+    if result.audio_bytes is not None:
+        # Persist BEFORE reporting success. Nothing else hosts these bytes, so a job
+        # that returns without writing them has produced a result that points at nothing.
+        audio_url = _persist_render(result.audio_bytes, result.content_type)
+    return {
+        "audio_url": audio_url,
+        "provider": result.provider,
+        "model": result.model,
+        "duration_seconds": result.duration_seconds,
+        "prompt": result.prompt,
+        "seed": result.seed,
+    }
 
 
 @router.post("/prompt-preview", response_model=PromptPreviewResponse)
@@ -243,9 +201,7 @@ async def preview_prompt(payload: GenerateRequest) -> PromptPreviewResponse:
 
 
 @router.post("/generate", response_model=RenderJobResponse, status_code=202)
-async def generate(
-    payload: GenerateRequest, request: Request, background_tasks: BackgroundTasks
-) -> RenderJobResponse:
+async def generate(payload: GenerateRequest, request: Request) -> RenderJobResponse:
     provider = get_provider()
     if provider.name == "unconfigured":
         # Fail before creating a job: a job that can only ever fail is worse
@@ -271,18 +227,24 @@ async def generate(
             headers={"retry-after": "30"},
         )
 
-    job = _render_jobs.create("music_generation", owner_id=owner)
-    background_tasks.add_task(_run_generation, job.id, payload)
+    # The provider bounds its own polling, but a hung socket would otherwise pin the job
+    # in RUNNING until TTL eviction; the runner's timeout guarantees it ends. Provider
+    # errors are the expected failure mode and are already written for a human.
+    job = _render_jobs.submit(
+        "music_generation",
+        lambda: _render(payload),
+        owner_id=owner,
+        timeout_seconds=GENERATION_TIMEOUT_SECONDS,
+        timeout_message=f"Generation timed out after {GENERATION_TIMEOUT_SECONDS}s.",
+        expected_errors=(ProviderNotConfiguredError, ProviderRequestError),
+    )
     return _job_to_response(job)
 
 
 @router.get("/generate/{job_id}", response_model=RenderJobResponse)
 async def get_render_job(job_id: str, request: Request) -> RenderJobResponse:
-    job = _render_jobs.get(job_id)
-    # Scope by owner so one tenant cannot read another's render, and return
-    # 404 rather than 403 so job ids are not enumerable.
-    owner = _owner_id(request)
-    if job is None or (job.owner_id is not None and job.owner_id != owner):
+    job = _render_jobs.get_for(job_id, _owner_id(request))
+    if job is None:
         raise HTTPException(status_code=404, detail="Render job not found.")
     return _job_to_response(job)
 
