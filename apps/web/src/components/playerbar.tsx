@@ -141,12 +141,22 @@ export function Playerbar() {
         ? "Loading instrument…"
         : (player.nowPlaying?.subtitle ?? "");
 
+  // While the bar is docked, the page's bottom scroll padding matches it, so a control that
+  // receives focus near the bottom of the viewport scrolls clear of the bar, not under it.
   useEffect(() => {
     const el = barRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => setBarHeight(Math.ceil(el.getBoundingClientRect().height)));
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => {
+      const height = Math.ceil(el.getBoundingClientRect().height);
+      setBarHeight(height);
+      root.style.scrollPaddingBottom = `${height + 16}px`;
+    });
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("scroll-padding-bottom");
+    };
   }, [loaded]);
 
   if (!loaded) return null;

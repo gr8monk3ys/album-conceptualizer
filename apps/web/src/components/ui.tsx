@@ -1,5 +1,13 @@
 import Link from "next/link";
-import type { ComponentProps, ReactNode } from "react";
+import {
+  Children,
+  cloneElement,
+  Fragment,
+  isValidElement,
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -10,14 +18,23 @@ import { cn } from "@/lib/utils";
 
 type Tone = "primary" | "secondary" | "ghost" | "danger";
 
+// Every tone has a 1px border, transparent where the design shows none: in forced-colors
+// (Windows High Contrast) mode backgrounds are dropped and borders are drawn in the system
+// colour, so the border is what keeps a primary or ghost button looking like a button.
 const BUTTON_BASE =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded border border-transparent px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+
+/**
+ * Marks the one saffron action on a screen. It carries no style; the album release header
+ * reads it to step its own next-step button back when the screen already has a primary.
+ */
+export const PRIMARY_ACTION_MARKER = "primary-action";
 
 const BUTTON_TONES: Record<Tone, string> = {
-  primary: "bg-accent text-accent-ink hover:bg-accent-hover",
-  secondary: "border border-line-strong bg-transparent text-ink hover:border-ink-3 hover:bg-hover",
+  primary: `${PRIMARY_ACTION_MARKER} bg-accent text-accent-ink hover:bg-accent-hover`,
+  secondary: "border-line-strong bg-transparent text-ink hover:border-ink-3 hover:bg-hover",
   ghost: "text-ink-2 hover:bg-hover hover:text-ink",
-  danger: "border border-danger/60 bg-transparent text-danger hover:bg-danger-soft",
+  danger: "border-danger/60 bg-transparent text-danger hover:bg-danger-soft",
 };
 
 export function buttonClass(tone: Tone = "secondary", className?: string) {
@@ -55,7 +72,7 @@ export function IconButton({
       aria-label={label}
       title={label}
       className={cn(
-        "grid h-11 w-11 shrink-0 place-items-center rounded text-ink-2 transition-colors hover:bg-hover hover:text-ink disabled:opacity-50",
+        "grid h-11 w-11 shrink-0 place-items-center rounded border border-transparent text-ink-2 transition-colors hover:bg-hover hover:text-ink disabled:opacity-50",
         className,
       )}
       {...props}
@@ -148,7 +165,66 @@ export const inputClass = cn(CONTROL, "min-h-11");
 export const textareaClass = cn(CONTROL, "min-h-24 py-2.5 leading-relaxed");
 export const selectClass = cn(CONTROL, "min-h-11 appearance-auto");
 
-/** A labelled control. The label is always visible; hints and errors are tied to the control. */
+/** The props Field gives its control so the hint or error is read with it. */
+export type FieldControlProps = {
+  id: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: true;
+};
+
+/** Ids a Field owns for its control's description; any others the caller set are kept. */
+function fieldDescriptionIds(htmlFor: string) {
+  return new Set([`${htmlFor}-hint`, `${htmlFor}-error`]);
+}
+
+/** The caller's own describedby ids (minus the Field's) followed by the one the Field shows. */
+export function mergeDescribedBy(existing: unknown, htmlFor: string, current: string | null) {
+  const owned = fieldDescriptionIds(htmlFor);
+  const ids = (typeof existing === "string" ? existing.split(/\s+/) : []).filter(
+    (id) => id && !owned.has(id),
+  );
+  if (current) ids.push(current);
+  return ids.length ? Array.from(new Set(ids)).join(" ") : undefined;
+}
+
+type ElementProps = { id?: unknown; children?: ReactNode; "aria-describedby"?: unknown; "aria-invalid"?: unknown };
+
+/**
+ * Finds the element whose id is `htmlFor` among `node` and its plain descendants (fragments
+ * and wrapper elements written inline) and gives it the description props. Returns the node
+ * unchanged, and `found: false`, when the control isn't there (e.g. it is rendered inside
+ * another component; pass a render function then).
+ */
+function wireControl(
+  node: ReactNode,
+  htmlFor: string,
+  describe: (element: ReactElement<ElementProps>) => Partial<ElementProps>,
+): { node: ReactNode; found: boolean } {
+  let found = false;
+  const visit = (child: ReactNode): ReactNode => {
+    if (found || !isValidElement<ElementProps>(child)) return child;
+    if (child.props.id === htmlFor) {
+      found = true;
+      return cloneElement(child, describe(child));
+    }
+    const inner = child.props.children;
+    if (inner === undefined || inner === null || typeof inner === "string") return child;
+    // Only walk into fragments and host elements: a component's children are its own business.
+    if (child.type !== Fragment && typeof child.type !== "string") return child;
+    const mapped = Children.map(inner, visit);
+    return found ? cloneElement(child, undefined, ...(mapped ?? [])) : child;
+  };
+  const result = Children.count(node) === 1 ? visit(node) : Children.map(node, visit);
+  return { node: result, found };
+}
+
+/**
+ * A labelled control. The label is always visible, and the hint or error below it is tied to
+ * the control: the Field gives the control (the element whose id is `htmlFor`) its
+ * `aria-describedby` and, with an error, `aria-invalid`, so a caller can't forget them. Ids the
+ * caller already set on the control are kept. When the control is rendered by another
+ * component, pass a function instead: `{(control) => <Picker {...control} />}`.
+ */
 export function Field({
   label,
   hint,
@@ -160,16 +236,30 @@ export function Field({
   label: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
-  children: ReactNode;
+  children: ReactNode | ((control: FieldControlProps) => ReactNode);
   className?: string;
   htmlFor: string;
 }) {
+  const describedBy = error ? `${htmlFor}-error` : hint ? `${htmlFor}-hint` : null;
+  let control: ReactNode;
+  if (typeof children === "function") {
+    control = children({
+      id: htmlFor,
+      "aria-describedby": describedBy ?? undefined,
+      "aria-invalid": error ? true : undefined,
+    });
+  } else {
+    control = wireControl(children, htmlFor, (element) => ({
+      "aria-describedby": mergeDescribedBy(element.props["aria-describedby"], htmlFor, describedBy),
+      "aria-invalid": error ? true : (element.props["aria-invalid"] as ElementProps["aria-invalid"]),
+    })).node;
+  }
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       <label htmlFor={htmlFor} className="text-sm font-medium text-ink">
         {label}
       </label>
-      {children}
+      {control}
       {error ? (
         <p id={`${htmlFor}-error`} className="max-w-[65ch] text-sm text-danger">
           {error}

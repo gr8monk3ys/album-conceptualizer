@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { AppNavLinks, SettingsNavLink } from "@/components/app-nav-links";
+import { AppNavLinks, HelpNavLink, SettingsNavLink } from "@/components/app-nav-links";
 import { CreditsMeter } from "@/components/credits-meter";
 import { SignOutButton } from "@/components/sign-out-button";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,9 @@ export function Sidebar({
       aria-label="Workspace"
       className={cn(
         // Capped by the viewport so enlarged text (rem) can never squeeze the page to nothing.
-        "sticky top-0 flex h-screen w-64 max-w-[33vw] shrink-0 flex-col gap-6 border-r border-line px-3 py-5",
+        // The whole column scrolls when it is taller than the window (a short landscape
+        // screen, 200% text); nothing in it shrinks, so the navigation never collapses.
+        "sticky top-0 flex h-dvh w-64 max-w-[33vw] shrink-0 flex-col gap-6 overflow-y-auto border-r border-line px-3 py-5 *:shrink-0",
         className,
       )}
     >
@@ -44,11 +46,12 @@ export function Sidebar({
         <span className="mt-1 block break-words text-xs text-ink-3">{workspaceName}</span>
       </Link>
 
-      <div className="flex-1 overflow-auto">
-        <AppNavLinks unreadNotifications={unreadNotifications} />
-      </div>
+      <AppNavLinks unreadNotifications={unreadNotifications} />
 
-      <CreditsMeter credits={credits} />
+      {/* Credits and the account block sit at the bottom when there is room. */}
+      <div className="mt-auto">
+        <CreditsMeter credits={credits} />
+      </div>
 
       <div className="border-t border-line pt-4">
         <div className="flex flex-wrap items-center justify-between gap-x-2 px-3">
@@ -67,6 +70,7 @@ export function Sidebar({
         </div>
         <div className="mt-2 flex flex-col gap-0.5">
           <SettingsNavLink />
+          <HelpNavLink />
           <SignOutButton />
         </div>
       </div>

@@ -9,11 +9,12 @@ import { ShareAlbumButton } from "@/components/share-album-button";
 import { ButtonLink, Section, buttonClass } from "@/components/ui";
 import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
-import { analyzeAlbumCoherence } from "@/server/coherence";
+import { analyzeAlbumCoherence, verdictText } from "@/server/coherence";
 import { getPrisma } from "@/server/db";
 import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
 import { getAlbumOnboardingSummary } from "@/server/onboarding";
+import { getAlbumReadiness } from "@/server/readiness";
 import { analyzeAlbumRoughDemos, summarizeRoughDemoReviews } from "@/server/rough-demo-review";
 import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
@@ -32,13 +33,6 @@ function plural(count: number, one: string, many = `${one}s`) {
 function humanize(value: string) {
   const text = value.replace(/[-_]+/g, " ").trim();
   return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function verdict(score: number) {
-  if (score >= 85) return "Tight";
-  if (score >= 70) return "Solid";
-  if (score >= 50) return "Needs polish";
-  return "Loose";
 }
 
 /** One row that opens a screen: a name, a figure and the latest detail. */
@@ -122,6 +116,8 @@ export default async function AlbumOverviewPage({
   const demoSummary = summarizeRoughDemos(roughDemos);
   const demoReviewSummary = summarizeRoughDemoReviews(analyzeAlbumRoughDemos(album.data));
   const firstReference = references[0];
+  const readiness = getAlbumReadiness(album.id, album.data);
+  const emptyTracks = coherence.stats.songCount - coherence.stats.songsWithLyrics;
 
   return (
     <div className="flex flex-col gap-10">
@@ -132,9 +128,8 @@ export default async function AlbumOverviewPage({
             {step.action.charAt(0).toLowerCase() + step.action.slice(1)}.
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <ButtonLink href={step.href} tone="primary">
-              {step.action}
-            </ButtonLink>
+            {/* Secondary: the release header already carries this step as the screen's primary. */}
+            <ButtonLink href={step.href}>{step.action}</ButtonLink>
             <Link href={base} className={buttonClass("ghost")}>
               Dismiss
             </Link>
@@ -142,7 +137,7 @@ export default async function AlbumOverviewPage({
         </div>
       ) : null}
 
-      <Section id="album-next" title="What's next" description="The path from a blueprint to a handoff pack.">
+      <Section id="album-next" title="What's next" description="The next steps from a blueprint to a handoff pack.">
         <FirstProjectChecklist summary={onboarding} />
       </Section>
 
@@ -151,13 +146,19 @@ export default async function AlbumOverviewPage({
           <StatusRow
             href={`${base}/coherence`}
             label="Coherence"
-            figure={coherence.insufficient ? "Not scored yet" : `${coherence.score}/100 · ${verdict(coherence.score)}`}
+            figure={
+              coherence.insufficient
+                ? verdictText(coherence.verdict)
+                : `${coherence.score}/100 · ${verdictText(coherence.verdict)}`
+            }
             detail={
               coherence.insufficient
                 ? coherence.summary
-                : coherence.issues.length
-                  ? `Weakest area: ${weakest.label}. ${plural(coherence.issues.length, "finding")} to work through.`
-                  : "No open findings. The tracks hold together on this draft."
+                : emptyTracks > 0
+                  ? `Lyrics come first: ${plural(emptyTracks, "track")} still ${emptyTracks === 1 ? "has" : "have"} none. ${plural(coherence.issues.length, "finding")} in all.`
+                  : coherence.issues.length
+                    ? `Weakest area: ${weakest.label}. ${plural(coherence.issues.length, "finding")} to work through.`
+                    : "No open findings. The tracks hold together on this draft."
             }
             trailing="View report"
           />
@@ -203,22 +204,39 @@ export default async function AlbumOverviewPage({
         </ul>
       </Section>
 
+      {/* Release is quiet: plain rows, no primary, and delete at the very end, away from the
+          work. Publish asks once when the album isn't finished. */}
       <Section
         id="album-release"
         title="Release"
         description="Publish to Discover for others to find and remix, or send a private link."
       >
-        <div className="flex flex-col gap-6">
-          <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
-          <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
-          <div className="flex flex-wrap items-center gap-3">
-            <ButtonLink href={`${base}/versions`}>Version history</ButtonLink>
-            <p className="min-w-0 max-w-[65ch] text-sm text-ink-2">Save a version before a big rewrite, or restore one.</p>
-          </div>
-        </div>
+        <ul className="divide-y divide-line border-y border-line">
+          <li className="py-4">
+            <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} readiness={readiness} />
+          </li>
+          <li className="py-4">
+            <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
+          </li>
+          <li>
+            <Link
+              href={`${base}/versions`}
+              className="group flex min-h-11 items-center justify-between gap-4 py-3 pr-1 transition-colors hover:bg-hover"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink">Version history</span>
+                <span className="mt-0.5 block max-w-[65ch] text-xs leading-relaxed text-ink-3">
+                  Save a version before a big rewrite, or restore one.
+                </span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+            </Link>
+          </li>
+          <li className="py-4">
+            <AlbumDangerZone albumId={album.id} albumTitle={album.title} />
+          </li>
+        </ul>
       </Section>
-
-      <AlbumDangerZone albumId={album.id} albumTitle={album.title} />
     </div>
   );
 }

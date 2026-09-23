@@ -3,7 +3,7 @@
 import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { AppNavLinks, SettingsNavLink } from "@/components/app-nav-links";
+import { AppNavLinks, HelpNavLink, SettingsNavLink } from "@/components/app-nav-links";
 import { CreditsMeter } from "@/components/credits-meter";
 import { Wordmark } from "@/components/sidebar";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -52,9 +52,11 @@ export function MobileAppMenu({
         onClick={(event) => {
           if (event.target === event.currentTarget) setOpen(false);
         }}
-        className="m-0 h-full max-h-none w-[min(20rem,88vw)] max-w-none border-r border-line bg-ground p-0 text-ink backdrop:bg-sunken/80 md:hidden"
+        className="m-0 h-full max-h-none w-[min(20rem,88vw)] max-w-none overflow-y-auto border-r border-line bg-ground p-0 text-ink backdrop:bg-sunken/80 md:hidden"
       >
-        <div className="flex h-full flex-col gap-6 px-3 py-4">
+        {/* The sheet scrolls as one column; nothing in it shrinks, so the navigation stays whole
+            on a short landscape screen or with enlarged text. */}
+        <div className="flex min-h-full flex-col gap-6 px-3 py-4 *:shrink-0">
           <div className="flex items-start justify-between gap-2 pl-3">
             <div className="min-w-0 pt-2">
               <Wordmark />
@@ -64,10 +66,10 @@ export function MobileAppMenu({
               <X className="h-5 w-5" aria-hidden="true" />
             </IconButton>
           </div>
-          <div className="flex-1 overflow-auto">
-            <AppNavLinks unreadNotifications={unreadNotifications} onNavigate={() => setOpen(false)} />
+          <AppNavLinks unreadNotifications={unreadNotifications} onNavigate={() => setOpen(false)} />
+          <div className="mt-auto">
+            <CreditsMeter credits={credits} />
           </div>
-          <CreditsMeter credits={credits} />
           <div className="border-t border-line pt-4">
             <div className="px-3">
               <p className="break-words text-sm font-medium text-ink">{userName || "You"}</p>
@@ -75,6 +77,7 @@ export function MobileAppMenu({
             </div>
             <div className="mt-2 flex flex-col gap-0.5">
               <SettingsNavLink onNavigate={() => setOpen(false)} />
+              <HelpNavLink onNavigate={() => setOpen(false)} />
               <SignOutButton />
             </div>
           </div>

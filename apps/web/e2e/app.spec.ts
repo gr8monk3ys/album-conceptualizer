@@ -13,7 +13,7 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await page.getByRole("button", { name: "Continue (dev)" }).click();
 
   await page.waitForURL("**/app");
-  await expect(page.getByText("Recent albums")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
 
   await page.goto("/app/create");
   await page.getByLabel("Album title").fill(albumTitle);
@@ -24,22 +24,28 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
+  // Saving spends credits, so it asks once: the trigger, then the confirm.
+
   await page.getByRole("button", { name: "Save and continue" }).click();
+
+  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
   await page.waitForURL("**/app/albums/**");
 
   await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
   await page.waitForURL("**/studio");
 
   await page.getByLabel("Lyrics draft").fill("This is an E2E lyrics draft.\nSecond line.");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save now", exact: true }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
 
   await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Export", exact: true }).click();
   await page.waitForURL("**/export");
 
+  // The zip spends credits, so it asks once: open the confirm, then download.
+  await page.getByRole("button", { name: "Download zip · 2 credits" }).click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "Download zip" }).click(),
+    page.getByRole("button", { name: "Download zip", exact: true }).click(),
   ]);
 
   const filename = download.suggestedFilename();
@@ -51,6 +57,8 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await page.goto("/app");
   await page.getByRole("link", { name: albumTitle }).first().click();
   await page.getByRole("button", { name: "Publish" }).click();
+  // The album isn't finished, so Publish asks once before it goes out.
+  await page.getByRole("button", { name: "Publish anyway" }).click();
   await expect(page.getByText("Published to Discover.")).toBeVisible();
 
   await page.goto("/app/discover");
@@ -63,6 +71,8 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await albumCard.getByRole("button", { name: `Like ${albumTitle}`, exact: true }).click();
   await expect(albumCard.getByRole("button", { name: `Liked ${albumTitle}`, exact: true })).toBeVisible();
 
-  await albumCard.getByRole("button", { name: "Remix" }).click();
+  // Your own published album opens in the Studio from Discover: no remix, no credits spent.
+  await expect(albumCard.getByRole("button", { name: /Remix/ })).toHaveCount(0);
+  await albumCard.getByRole("link", { name: /Open in Studio/ }).click();
   await page.waitForURL("**/app/albums/**/studio");
 });

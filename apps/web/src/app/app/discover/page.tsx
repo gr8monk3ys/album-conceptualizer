@@ -1,6 +1,8 @@
 import { DiscoverAlbumCard } from "@/components/discover-album-card";
 import { Button, ButtonLink, EmptyState, Field, PageHeader, inputClass } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { writtenSummaryLine } from "@/lib/discover";
+import { getSpineRows, getSpineThemes } from "@/server/album-songs";
 import { getCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
@@ -52,7 +54,8 @@ export default async function DiscoverPage({
         artist: true,
         conceptSummary: true,
         primaryGenre: true,
-        trackCount: true,
+        workspaceId: true,
+        data: true,
         publishedAt: true,
         _count: { select: { likes: true } },
         likes: { where: { userId }, select: { id: true } },
@@ -69,7 +72,7 @@ export default async function DiscoverPage({
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Community albums"
-        description={`Albums artists have published to Discover, yours included. Like the ones that move you, or remix one: it becomes a new private album in your workspace for ${CREDIT_COSTS.albumFork} credits, and the original stays untouched.`}
+        description={`Albums artists have published to Discover, yours included. Open one to read its sequence and lyrics first. Like the ones that move you, or remix one: it becomes a new private album in your workspace for ${CREDIT_COSTS.albumFork} credits, and the original stays untouched.`}
       />
 
       <form action="/app/discover" method="get" role="search" aria-label="Published albums search" className="flex flex-col gap-2">
@@ -101,24 +104,33 @@ export default async function DiscoverPage({
 
       {albums.length ? (
         <ul aria-label="Published albums" className="border-t border-line">
-          {albums.map((album) => (
-            <li key={album.id} className="border-b border-line">
-              <DiscoverAlbumCard
-                creditsRemaining={credits.remaining}
-                album={{
-                  id: album.id,
-                  title: album.title,
-                  artist: album.artist,
-                  conceptSummary: album.conceptSummary?.trim() || null,
-                  primaryGenre: album.primaryGenre,
-                  trackCount: album.trackCount,
-                  publishedAt: album.publishedAt?.toISOString() ?? null,
-                  likes: album._count.likes,
-                  liked: Boolean(album.likes.length),
-                }}
-              />
-            </li>
-          ))}
+          {albums.map((album) => {
+            const rows = getSpineRows(album.data);
+            const written = writtenSummaryLine({
+              tracks: rows.length,
+              withLyrics: rows.filter((row) => row.lyricSections > 0).length,
+            });
+            return (
+              <li key={album.id} className="border-b border-line">
+                <DiscoverAlbumCard
+                  creditsRemaining={credits.remaining}
+                  album={{
+                    id: album.id,
+                    title: album.title,
+                    artist: album.artist,
+                    conceptSummary: album.conceptSummary?.trim() || null,
+                    primaryGenre: album.primaryGenre,
+                    written,
+                    themes: getSpineThemes(album.data),
+                    isOwn: album.workspaceId === workspace.id,
+                    publishedAt: album.publishedAt?.toISOString() ?? null,
+                    likes: album._count.likes,
+                    liked: Boolean(album.likes.length),
+                  }}
+                />
+              </li>
+            );
+          })}
         </ul>
       ) : shouldSearch ? (
         <EmptyState

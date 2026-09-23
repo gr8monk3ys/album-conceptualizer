@@ -8,9 +8,12 @@ import { Field, inputClass, textareaClass } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 export const SONG_STORY_ID = "song-story";
-/** Deep-link targets inside the story (`?focus=story|themes|song-themes|motifs`). */
+/** Deep-link targets inside the story (`?focus=story|role|song-themes|motifs`). */
 export const STORY_FOCUS_TARGETS = {
-  story: "song-narrative-position",
+  /** The Story note (`narrative_summary`). */
+  story: "song-narrative-summary",
+  /** The Role (`narrative_position`). */
+  role: "song-narrative-position",
   themes: "song-themes",
   motifs: "song-motifs",
 } as const;
@@ -19,7 +22,7 @@ type StoryField = "narrative_position" | "narrative_summary" | "themes" | "motif
 
 /** "Inciting incident · grief, signal": the story in one line, or what is still missing. */
 export function storySummary(song: StudioSong): string {
-  const position = song.narrative_position?.trim() || "No narrative position";
+  const position = song.narrative_position?.trim() || "No role yet";
   const themes = (song.themes ?? []).filter((t) => t.trim());
   const shown = themes.slice(0, 3).join(", ");
   const more = themes.length > 3 ? ` +${themes.length - 3}` : "";
@@ -27,8 +30,8 @@ export function storySummary(song: StudioSong): string {
 }
 
 /**
- * Where this track sits in the album's story and what it carries: its narrative role, a
- * summary, and the themes, motifs and characters the coherence report reads. Collapsed to a
+ * Where this track sits in the album's story and what it carries: its role, a story note,
+ * and the themes, motifs and characters the coherence report reads. Collapsed to a
  * one-line summary so the writing surface comes first; it expands in place.
  */
 export function SongStoryEditor({
@@ -75,8 +78,8 @@ export function SongStoryEditor({
 
         <div className="mt-4 grid grid-cols-1 gap-4">
           <Field
-            label="Narrative position"
-            htmlFor={STORY_FOCUS_TARGETS.story}
+            label="Role"
+            htmlFor={STORY_FOCUS_TARGETS.role}
             hint={
               <span className="block max-w-[65ch]">
                 A short role in the arc: “inciting incident”, “turning point”, “aftermath”.
@@ -84,19 +87,18 @@ export function SongStoryEditor({
             }
           >
             <input
-              id={STORY_FOCUS_TARGETS.story}
+              id={STORY_FOCUS_TARGETS.role}
               value={song.narrative_position ?? ""}
               onChange={(e) => onChange("narrative_position", e.target.value || null)}
               maxLength={120}
-              aria-describedby={`${STORY_FOCUS_TARGETS.story}-hint`}
               className={inputClass}
               placeholder="Inciting incident"
             />
           </Field>
 
-          <Field label="Narrative summary" htmlFor="song-narrative-summary">
+          <Field label="Story note" htmlFor={STORY_FOCUS_TARGETS.story}>
             <textarea
-              id="song-narrative-summary"
+              id={STORY_FOCUS_TARGETS.story}
               value={song.narrative_summary ?? ""}
               onChange={(e) => onChange("narrative_summary", e.target.value || null)}
               rows={3}
@@ -124,7 +126,7 @@ export function SongStoryEditor({
             values={song.motifs ?? []}
             onChange={(next) => onChange("motifs", next)}
             suggestions={albumMotifs}
-            suggestionsLabel={albumMotifs.length ? "From the album’s recurring motifs:" : undefined}
+            suggestionsLabel={albumMotifs.length ? "From the album’s motifs:" : undefined}
             placeholder="An image, phrase or sound that returns"
           />
 

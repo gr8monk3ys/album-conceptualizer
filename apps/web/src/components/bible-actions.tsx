@@ -25,7 +25,7 @@ export function BibleActions({ albumId }: { albumId: string }) {
             : "No tags were added. Try again in a moment.",
         );
       }
-      setStatus({ tone: "ok", text: "Tags added from the lyrics. Review them in each track's story notes." });
+      setStatus({ tone: "ok", text: "Tags added from the lyrics. Review each track's themes and motifs in the Studio." });
       router.refresh();
     } catch (err) {
       setStatus({

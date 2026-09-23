@@ -42,7 +42,7 @@ export default async function AlbumLayout({
     <div className="flex min-w-0 flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div className="flex min-w-0 max-w-full flex-col gap-3">
-          <h1 className="type-display max-w-[24ch] break-words text-4xl text-ink hyphens-auto md:text-6xl">
+          <h1 className="type-display text-display-release max-w-[24ch] break-words text-ink hyphens-auto">
             {album.title}
           </h1>
           <p className="type-catalog flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">

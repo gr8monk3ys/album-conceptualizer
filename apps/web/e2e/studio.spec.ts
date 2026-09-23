@@ -26,7 +26,9 @@ async function createAlbumAndOpenStudio(page: import("@playwright/test").Page, t
     .fill("A concept album about radio transmissions drifting across a desert at night.");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
+  // Saving spends credits, so it asks once: the trigger, then the confirm.
   await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
   await page.waitForURL("**/app/albums/**");
   await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
   await page.waitForURL("**/studio");
@@ -50,7 +52,7 @@ test.describe("Studio", () => {
     await createAlbumAndOpenStudio(page, title);
 
     await page.getByLabel("Lyrics draft").fill("These lyrics were written by the E2E test.\nSecond line here.");
-    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByRole("button", { name: "Save now", exact: true }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
   });
 
@@ -63,9 +65,11 @@ test.describe("Studio", () => {
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Export", exact: true }).click();
     await page.waitForURL("**/export");
 
+    // The zip spends credits, so it asks once: open the confirm, then download.
+    await page.getByRole("button", { name: "Download zip · 2 credits" }).click();
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: "Download zip" }).click(),
+      page.getByRole("button", { name: "Download zip", exact: true }).click(),
     ]);
 
     expect(download.suggestedFilename()).toMatch(/_export\.zip$/);

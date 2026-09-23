@@ -40,24 +40,28 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
     }
   }
 
+  // Quiet by design: a danger-text button at the end of the Release rows, away from the
+  // writing path. The real delete sits behind a typed confirmation.
   return (
-    <section aria-labelledby="album-delete-title" className="border-t border-line pt-6">
-      <h2 id="album-delete-title" className="text-lg font-semibold text-ink">
-        Delete album
-      </h2>
-      <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
-        Removes the album, its songs, versions, references and demos for good. Remixes other people
-        made stay in their workspaces.
-      </p>
-
+    <div className="flex flex-col gap-3">
       {confirming ? (
         <form
-          className="mt-4 flex max-w-xl flex-col gap-4 rounded border border-danger/60 p-4"
+          aria-labelledby={`${inputId}-title`}
+          className="flex max-w-xl flex-col gap-4 rounded border border-danger/60 p-4"
           onSubmit={(event) => {
             event.preventDefault();
             void remove();
           }}
         >
+          <div>
+            <h3 id={`${inputId}-title`} className="text-sm font-semibold text-ink">
+              Delete album
+            </h3>
+            <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+              Removes the album, its songs, versions, references and demos for good. Remixes other
+              people made stay in their workspaces.
+            </p>
+          </div>
           <Field
             htmlFor={inputId}
             label={
@@ -97,12 +101,15 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
           {error ? <StatusMessage tone="danger">{error}</StatusMessage> : null}
         </form>
       ) : (
-        <div className="mt-4">
-          <Button tone="danger" onClick={() => setConfirming(true)}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Button tone="ghost" className="text-danger hover:bg-danger-soft hover:text-danger" onClick={() => setConfirming(true)}>
             Delete album…
           </Button>
+          <p className="min-w-0 max-w-[65ch] text-xs leading-relaxed text-ink-3">
+            Removes the album and everything in it for good. It asks you to type the title first.
+          </p>
         </div>
       )}
-    </section>
+    </div>
   );
 }

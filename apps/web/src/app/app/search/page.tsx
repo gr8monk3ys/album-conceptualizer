@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 
 import { AlbumList, toAlbumListItem } from "@/components/album-card";
 import { Button, EmptyState, Field, PageHeader, Section, inputClass } from "@/components/ui";
+import { findTagMatches, searchSnippet, type TagMatch } from "@/lib/search-match";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
@@ -19,23 +20,27 @@ function normalizeQuery(value: string | string[] | undefined) {
   return "";
 }
 
-function snippet(text: string, q: string) {
-  const maxLen = 140;
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (!normalized) return "";
-  const idx = normalized.toLowerCase().indexOf(q.toLowerCase());
-  if (idx < 0) return normalized.slice(0, maxLen) + (normalized.length > maxLen ? "…" : "");
-  const start = Math.max(0, idx - 40);
-  const end = Math.min(normalized.length, idx + 80);
-  const prefix = start > 0 ? "…" : "";
-  const suffix = end < normalized.length ? "…" : "";
-  return `${prefix}${normalized.slice(start, end)}${suffix}`;
-}
-
 function sectionName(type: string) {
   const words = type.replace(/[-_]+/g, " ").trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Section";
 }
+
+/** Where a matching tag is edited: the track's theme or motif tags, or the album's. */
+function tagHref(match: TagMatch, qParam: string) {
+  const base = `/app/albums/${match.albumId}/studio`;
+  if (match.track) {
+    const focus = match.kind === "theme" ? "song-themes" : "motifs";
+    return `${base}?song=${match.track.number}&focus=${focus}&q=${qParam}`;
+  }
+  return `${base}?focus=${match.kind === "theme" ? "album" : "album-motifs"}&q=${qParam}`;
+}
+
+function tagLabel(match: TagMatch) {
+  const kind = match.kind === "theme" ? "theme" : "motif";
+  return match.track ? `Track ${kind}` : `Album ${kind}`;
+}
+
+const TAG_RESULT_LIMIT = 30;
 
 const rowLink =
   "group flex min-h-11 items-center gap-4 px-1 py-3 transition-colors hover:bg-hover";
@@ -55,7 +60,7 @@ export default async function SearchPage({
   const shouldSearch = q.length >= 2;
   const qParam = encodeURIComponent(q);
 
-  const [albums, songs, sections] = await Promise.all([
+  const [albums, songs, sections, snapshots] = await Promise.all([
     shouldSearch
       ? prisma.album.findMany({
           where: {
@@ -122,16 +127,26 @@ export default async function SearchPage({
           },
         })
       : [],
+    // Themes and motifs live only in the album snapshot, so tags are matched here, not in SQL.
+    shouldSearch
+      ? prisma.album.findMany({
+          where: { workspaceId: workspace.id },
+          orderBy: { updatedAt: "desc" },
+          take: 200,
+          select: { id: true, title: true, data: true },
+        })
+      : [],
   ]);
 
-  const totalHits = albums.length + songs.length + sections.length;
+  const tagMatches = findTagMatches(snapshots, q).slice(0, TAG_RESULT_LIMIT);
+  const totalHits = albums.length + songs.length + tagMatches.length + sections.length;
   const tooShort = q.length === 1;
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Search"
-        description="Find an album by title, artist or concept, a song by name or narrative role, or a line you wrote in any lyric draft."
+        description="Find an album by title, artist or concept, a song by name or story note, a theme or motif you tagged, or a line you wrote in any lyric draft."
       />
 
       <form action="/app/search" method="get" role="search" aria-label="Workspace search" className="flex flex-col gap-2">
@@ -149,7 +164,7 @@ export default async function SearchPage({
               defaultValue={q}
               autoComplete="off"
               spellCheck={false}
-              placeholder="Album title, song name, lyric line"
+              placeholder="Album, song, theme or lyric line"
               aria-describedby={tooShort ? "search-q-error" : undefined}
               className={inputClass}
             />
@@ -168,15 +183,17 @@ export default async function SearchPage({
       {!shouldSearch ? (
         <EmptyState title="Search everything you have written">
           <p>
-            Results are grouped into albums, songs and lyrics. Lyric results open the Studio on the
-            song and section where the line appears, so you can keep writing from there.
+            Results are grouped into albums, songs, themes and motifs, and lyrics. Lyric results
+            open the Studio on the song and section where the line appears, so you can keep
+            writing from there.
           </p>
         </EmptyState>
       ) : totalHits === 0 ? (
         <EmptyState title={`Nothing matches “${q}”`}>
           <p>
-            Search looks at album titles, artists and concepts, song titles and narrative roles,
-            and lyric drafts. Try a shorter phrase or a single distinctive word from a line.
+            Search looks at album titles, artists and concepts, song titles and story notes, album
+            and track themes and motifs, and lyric drafts. Try a shorter phrase or a single
+            distinctive word from a line.
           </p>
         </EmptyState>
       ) : (
@@ -210,9 +227,43 @@ export default async function SearchPage({
                         </span>
                         {song.narrativeSummary ? (
                           <span className="mt-1 block max-w-[65ch] break-words text-sm text-ink-2">
-                            {snippet(song.narrativeSummary, q)}
+                            {searchSnippet(song.narrativeSummary, q)}
                           </span>
                         ) : null}
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
+
+          {tagMatches.length ? (
+            <Section id="results-tags" title={`Themes and motifs (${tagMatches.length})`}>
+              <ul aria-label="Matching themes and motifs" className="border-t border-line">
+                {tagMatches.map((match) => (
+                  <li
+                    key={`${match.albumId}-${match.track?.number ?? "album"}-${match.kind}-${match.tag}`}
+                    className="border-b border-line"
+                  >
+                    <Link href={tagHref(match, qParam)} className={rowLink}>
+                      <span className="type-figure w-8 shrink-0 text-lg font-semibold text-ink-3">
+                        {match.track ? String(match.track.number).padStart(2, "0") : null}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block break-words text-sm font-semibold text-ink">
+                          {match.track ? match.track.title : match.albumTitle}
+                        </span>
+                        {match.track ? (
+                          <span className="type-catalog mt-1 block break-words text-xs text-ink-2">
+                            {match.albumTitle} · Track {match.track.number}
+                          </span>
+                        ) : null}
+                        <span className="mt-1 block max-w-[65ch] break-words text-sm text-ink">
+                          <span className="text-ink-2">{tagLabel(match)}: </span>
+                          {match.tag}
+                        </span>
                       </span>
                       <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
                     </Link>
@@ -244,7 +295,7 @@ export default async function SearchPage({
                         </span>
                         {section.lyrics ? (
                           <span className="mt-1.5 block max-w-[65ch] break-words text-sm leading-relaxed text-ink">
-                            {snippet(section.lyrics, q)}
+                            {searchSnippet(section.lyrics, q)}
                           </span>
                         ) : null}
                       </span>

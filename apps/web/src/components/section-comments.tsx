@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, ClipboardCheck, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ClipboardCheck, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
 
 import { RelativeTime } from "@/components/relative-time";
 import { readApiError } from "@/components/studio/studio-model";
 import { Button, Chip, IconButton, textareaClass } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 type CommentAuthor = {
   id: string;
@@ -46,17 +47,22 @@ type SectionCommentsProps = {
     /** The section's display label, e.g. "Chorus 2", the same one the Studio shows. */
     label?: string;
   };
+  /** Start expanded, e.g. when the page was opened from a link to this section's comments. */
+  defaultOpen?: boolean;
 };
 
 const MAX_LENGTH = 2000;
+/** The length counter appears only once a comment gets close to the limit. */
+const COUNTER_FROM = 1800;
 
 function excerpt(body: string) {
   const line = body.trim().split(/\s+/g).join(" ");
   return line.length > 40 ? `${line.slice(0, 40)}…` : line;
 }
 
-function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
+function useSectionCommentsRender({ albumId, section, defaultOpen = false }: SectionCommentsProps) {
   const sectionId = section.id;
+  const [open, setOpen] = useState(defaultOpen);
   const [comments, setComments] = useState<SectionComment[]>([]);
   const [ui, setUi] = useState<SectionCommentsUiState>({
     loading: false,
@@ -209,16 +215,41 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   }
 
   const length = body.trim().length;
+  const showCounter = body.length >= COUNTER_FROM;
+  // Deleted comments stay in the thread as a marker but don't count.
+  const count = comments.filter((comment) => !comment.deletedAt).length;
+  const openCount = comments.filter((comment) => !comment.deletedAt && !comment.resolvedAt).length;
+  const bodyId = `comments-${sectionId}-body`;
 
+  // Collapsed to one quiet line under the writing surface: "Comments (2)". Opening it shows
+  // the thread, the composer and the section link.
   return (
-    <section aria-labelledby={`comments-${sectionId}-title`} className="border-t border-line pt-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 id={`comments-${sectionId}-title`} className="text-base font-semibold text-ink">
-            Comments
-          </h3>
-          <p className="mt-1 text-sm text-ink-2">{header}</p>
-        </div>
+    <section aria-labelledby={`comments-${sectionId}-title`} className="border-t border-line pt-3">
+      <h3 id={`comments-${sectionId}-title`} className="text-base text-ink">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setOpen(!open)}
+          className="-mx-2 inline-flex min-h-11 max-w-full flex-wrap items-center gap-x-2 rounded px-2 text-left transition-colors hover:bg-hover"
+        >
+          <span className="font-semibold">
+            Comments{" "}
+            <span className="type-figure font-normal text-ink-2">
+              {/* No count until it is known: "(0)" while loading or after a failed load would be untrue. */}
+              {!comments.length && (loading || error) ? "" : `(${count})`}
+            </span>
+          </span>
+          {openCount && openCount !== count ? (
+            <span className="type-figure text-sm text-ink-2">· {openCount} open</span>
+          ) : null}
+          <ChevronDown className={cn("h-4 w-4 text-ink-2 transition-transform", open && "rotate-180")} aria-hidden="true" />
+        </button>
+      </h3>
+
+      <div id={bodyId} hidden={!open}>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 text-sm text-ink-2">{header}</p>
         <Button tone="ghost" onClick={() => void copyLink()}>
           <Copy className="h-4 w-4" aria-hidden="true" />
           Copy link
@@ -294,13 +325,15 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
       </div>
 
       <div className="mt-4 flex flex-col gap-1.5">
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
           <label htmlFor={inputId} className="text-sm font-medium text-ink">
             Add a comment
           </label>
-          <span id={`${inputId}-count`} className="type-figure text-xs text-ink-3">
-            {length}/{MAX_LENGTH}
-          </span>
+          {showCounter ? (
+            <span id={`${inputId}-count`} className="type-figure text-xs text-ink-3">
+              {body.length}/{MAX_LENGTH}
+            </span>
+          ) : null}
         </div>
         <textarea
           id={inputId}
@@ -308,9 +341,8 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
           onChange={(e) => setUi((prev) => ({ ...prev, body: e.target.value }))}
           rows={3}
           maxLength={MAX_LENGTH}
-          aria-describedby={`${inputId}-hint ${inputId}-count`}
+          aria-describedby={showCounter ? `${inputId}-hint ${inputId}-count` : `${inputId}-hint`}
           className={textareaClass}
-          placeholder="What should change, and why?"
         />
         <p id={`${inputId}-hint`} className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
           Concrete notes work best: what to change and why.
@@ -330,6 +362,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
             {submitting ? "Posting…" : "Post comment"}
           </Button>
         </div>
+      </div>
       </div>
     </section>
   );

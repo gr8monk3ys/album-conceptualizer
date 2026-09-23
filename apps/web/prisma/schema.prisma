@@ -134,6 +134,7 @@ model Album {
   tasks     AlbumTask[]
   notifications Notification[]
   analyticsEvents AnalyticsEvent[]
+  challengeCompletions ChallengeCompletion[]
   @@schema("album_conceptualizer")
 }
 
@@ -264,10 +265,14 @@ model ChallengeCompletion {
   // UTC day string (YYYY-MM-DD) to avoid timezone ambiguity.
   challengeDay String
   notes        String?
+  /// The album (and optionally the track) the entry was written for, if the artist said.
+  albumId      String?
+  trackNumber  Int?
   creditsEarned Int @default(0)
   createdAt    DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  album     Album?    @relation(fields: [albumId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, challengeKey, challengeDay])
   @@index([workspaceId, challengeDay])

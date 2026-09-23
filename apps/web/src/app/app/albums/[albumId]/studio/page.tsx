@@ -5,8 +5,10 @@ import { AlbumStudio } from "@/components/album-studio";
 import { PlayerProvider } from "@/components/player/player-provider";
 import { Playerbar } from "@/components/playerbar";
 import { getAlbum } from "@/server/albums";
+import { getCredits } from "@/server/credits";
 import { getAgentAvailability } from "@/server/engine";
 import { requireUser } from "@/server/identity";
+import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +34,12 @@ export default async function AlbumStudioPage({
 
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
-  const [album, aiAvailable] = await Promise.all([getAlbum(workspace.id, albumId), getAgentAvailability()]);
+  const [album, aiAvailable, credits] = await Promise.all([
+    getAlbum(workspace.id, albumId),
+    getAgentAvailability(),
+    // For the AI drafting confirm: "You'll have N left."
+    getCredits({ workspaceId: workspace.id, plan: effectivePlan(workspace.subscription) }),
+  ]);
   if (!album) notFound();
 
   return (
@@ -42,6 +49,7 @@ export default async function AlbumStudioPage({
         albumId={album.id}
         initialAlbum={album.data}
         aiAvailable={aiAvailable}
+        creditsRemaining={credits.remaining}
         initialSelection={{
           song: param(query.song),
           section: param(query.section),

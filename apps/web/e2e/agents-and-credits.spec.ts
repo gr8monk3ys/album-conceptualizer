@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { getDailyChallenge } from "../src/server/challenges";
+
 // The engine has no copy of web albums, so agent workflows must receive the album snapshot.
 // CI's engine runs without ANTHROPIC_API_KEY, which lets us prove the request got past the
 // album lookup (a 503 "not available", not a 404 "Album not found") without calling an LLM.
@@ -80,5 +82,30 @@ test.describe("Agent workflows and credits", () => {
     const body = (await response.json()) as { error: string; details?: string[] };
     expect(body.error).toBe("Invalid album payload.");
     expect(body.details?.length).toBeGreaterThan(0);
+  });
+
+  test("a challenge entry links to the album it was written for, only within the workspace", async ({
+    page,
+  }) => {
+    await devLogin(page);
+    const albumId = await createAlbum(page);
+    const { challenge } = getDailyChallenge();
+    const notes = "Drafted a chorus hook and a four-chord loop for the opener.";
+
+    const foreign = await page.request.post("/api/challenges/complete", {
+      data: { challengeKey: challenge.key, notes, albumId: "not-my-album" },
+    });
+    expect(foreign.status()).toBe(404);
+
+    const before = await remainingCredits(page);
+    const done = await page.request.post("/api/challenges/complete", {
+      data: { challengeKey: challenge.key, notes, albumId, trackNumber: 1 },
+    });
+    expect(done.status()).toBe(200);
+    expect(await remainingCredits(page)).toBe(before + challenge.credits);
+
+    await page.goto("/app/challenges");
+    await expect(page.getByRole("link", { name: /Lighthouse Static · 01 Foghorn/ })).toBeVisible();
+    await expect(page.getByText(notes)).toBeVisible();
   });
 });

@@ -5,11 +5,13 @@ import { ExampleAlbum } from "@/components/landing/example-album";
 import { Wordmark } from "@/components/sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { ButtonLink } from "@/components/ui";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { FREE_PROJECT_LIMIT, planMonthlyCredits } from "@/server/plan";
 
 export const metadata: Metadata = {
   title: { absolute: "Album Conceptualizer" },
   description:
-    "Plan a concept album that holds together: a narrative arc, an album bible, lyrics and chords for every track, and a clean handoff to your DAW.",
+    "Plan a concept album that holds together: a narrative arc, an Album Bible, lyrics and chords for every track, and a clean handoff to your DAW.",
 };
 
 const MOVES = [
@@ -19,7 +21,7 @@ const MOVES = [
   },
   {
     title: "Write inside the sequence",
-    body: "Draft sections, lyrics and chords track by track with the whole record in view. The album bible and the coherence report show which tracks carry the themes and which ones drift.",
+    body: "Draft sections, lyrics and chords track by track with the whole record in view. The Album Bible and the Coherence report show which tracks carry the themes and which ones drift.",
   },
   {
     title: "Hand off to your DAW or generator",
@@ -58,6 +60,11 @@ export default function HomePage() {
                   See how it works
                 </ButtonLink>
               </div>
+              {/* What it costs, said plainly before anyone signs up. */}
+              <p className="mt-4 max-w-[48ch] text-sm leading-relaxed text-ink-2">
+                The free plan comes with {planMonthlyCredits("free")} credits a month and up to{" "}
+                {FREE_PROJECT_LIMIT} albums. Creating an album uses {CREDIT_COSTS.albumCreate}.
+              </p>
               <p className="mt-6 max-w-[48ch] text-sm leading-relaxed text-ink-3">
                 Not an audio generator. It plans the record so the audio you make later has
                 something to hold on to.

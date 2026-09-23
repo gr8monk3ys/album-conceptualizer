@@ -3,8 +3,10 @@
 import { useId, useMemo, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 
+import { ConfirmSpend } from "@/components/confirm-spend";
 import { Button, StatusMessage } from "@/components/ui";
 import { useAgentJob } from "@/hooks/use-agent-job";
+import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 /** What the artist chose to take from a brainstorm into the blueprint. */
@@ -21,6 +23,8 @@ type IdeationAiProps = {
   trackCount: number;
   /** False when this server can't run AI workflows: the button stays visible but disabled. */
   aiAvailable: boolean;
+  /** The workspace balance, so the spend confirm can say what's left after. */
+  creditsRemaining?: number;
   /** Applies the chosen parts and returns a function that undoes exactly that change. */
   onApply: (patch: BrainstormPatch) => () => void;
 };
@@ -373,6 +377,7 @@ export function IdeationAi({
   themes,
   trackCount,
   aiAvailable,
+  creditsRemaining,
   onApply,
 }: IdeationAiProps) {
   const [jobId, setJobId] = useState<string | null>(null);
@@ -413,12 +418,8 @@ export function IdeationAi({
     }
   }
 
-  const pollMessage = pollError
-    ? /HTTP \d+|endpoint|fetch|network/i.test(pollError)
-      ? "Lost contact with the brainstorm while it was running. Try again in a moment."
-      : pollError
-    : null;
-  const error = startError ?? pollMessage;
+  // The job hook's errors are already written for the artist.
+  const error = startError ?? pollError;
   const isBusy = isStarting || isPolling;
   const output = job?.status === "completed" ? (job.result?.output ?? "").trim() : "";
   const failed = job?.status === "failed";
@@ -438,35 +439,42 @@ export function IdeationAi({
       <h3 id="brainstorm-title" className="text-base font-semibold text-ink">
         Need a starting point? <span className="font-normal text-ink-3">Optional</span>
       </h3>
-      <p id="brainstorm-hint" className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-2">
-        The AI reads your concept summary and suggests a direction, themes and a tracklist. It takes
-        30 to 90 seconds. Nothing changes in your blueprint until you choose what to apply.
-      </p>
+      {aiAvailable ? (
+        <p id="brainstorm-hint" className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-2">
+          The AI reads your concept summary and suggests a direction, themes and a tracklist. It
+          takes 30 to 90 seconds. Nothing changes in your blueprint until you choose what to apply.
+        </p>
+      ) : (
+        <p id="brainstorm-hint" className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+          {AI_UNAVAILABLE_MESSAGE}
+        </p>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button
-          disabled={!aiAvailable || isBusy || !hasEnoughInput}
-          onClick={() => void start()}
-          aria-describedby={
-            !aiAvailable
-              ? "brainstorm-unavailable"
-              : !hasEnoughInput
-                ? "brainstorm-needs-concept"
-                : undefined
-          }
-        >
-          {isBusy ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : (
+        {aiAvailable ? (
+          <ConfirmSpend
+            cost={cost}
+            remaining={creditsRemaining}
+            actionLabel={jobId ? "Brainstorm again" : "Brainstorm"}
+            onConfirm={start}
+            busy={isBusy}
+            disabled={!hasEnoughInput}
+          >
+            {isBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+            )}
+            {label}
+          </ConfirmSpend>
+        ) : (
+          // Can't run here: no price on a button that can't spend; the line above says why.
+          <Button disabled aria-describedby="brainstorm-hint">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
-          )}
-          {label}
-        </Button>
-        {!aiAvailable ? (
-          <p id="brainstorm-unavailable" className="max-w-[65ch] text-xs text-ink-3">
-            AI drafting isn&apos;t set up on this server. Everything else works without it.
-          </p>
-        ) : !hasEnoughInput && !jobId ? (
+            Brainstorm with AI
+          </Button>
+        )}
+        {aiAvailable && !hasEnoughInput && !jobId ? (
           <p id="brainstorm-needs-concept" className="text-xs text-ink-3">
             Write a concept summary first; the brainstorm builds on it.
           </p>

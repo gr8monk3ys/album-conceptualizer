@@ -1,5 +1,6 @@
 import type { AlbumBible } from "@/server/bible";
 import { buildMotifCharacterGraph } from "@/server/bible-relationships";
+import { albumMotifIndex } from "@/lib/motifs";
 
 function lineWrap(text: string, max = 92) {
   const t = text.trim();
@@ -29,8 +30,31 @@ function mdList(values: string[], emptyText: string) {
   return values.map((v) => `- ${v}`).join("\n");
 }
 
+/** One "**Label:** value" line, or nothing: the Bible never prints "_none_" for an unset field. */
+function field(label: string, value: string | string[] | null | undefined, prefix = "") {
+  const text = Array.isArray(value)
+    ? value.map((item) => item.trim()).filter(Boolean).join(", ")
+    : (value ?? "").trim();
+  return text ? `${prefix}**${label}:** ${lineWrap(text)}` : null;
+}
+
+function block(fields: Array<string | null>, emptyLine: string) {
+  const set = fields.filter((line): line is string => Boolean(line));
+  return set.length ? set : [emptyLine];
+}
+
+/** Section numbers as the artist reads them: the first section is #1, whichever base it's stored in. */
+function sectionOrdinal(order: number) {
+  return order >= 1 ? order : order + 1;
+}
+
 export function buildBibleMarkdown(bible: AlbumBible) {
   const lines: string[] = [];
+  // Album motifs plus track motif tags: the same source as the Bible page and Coherence report.
+  const motifs = albumMotifIndex({
+    recurring_motifs: bible.recurringMotifs,
+    songs: bible.tracks.map((track) => ({ track_number: track.trackNumber, motifs: track.motifs })),
+  });
 
   lines.push(`# ${bible.title}`);
   if (bible.artist) lines.push(`**Artist:** ${bible.artist}`);
@@ -38,104 +62,104 @@ export function buildBibleMarkdown(bible: AlbumBible) {
   lines.push(`**Generated:** ${new Date().toISOString()}`);
   lines.push("");
 
-  lines.push("## Logline");
-  lines.push(bible.conceptSummary?.trim() ? lineWrap(bible.conceptSummary) : "_No concept summary set._");
-  lines.push("");
-
-  lines.push("## Album Themes");
-  lines.push(mdList(bible.centralThemes, "_No album-level themes set._"));
-  lines.push("");
-
-  lines.push("## Recurring Motifs");
-  lines.push(mdList(bible.recurringMotifs, "_No album-level motifs set._"));
-  lines.push("");
-
-  lines.push("## Voice / Style Bible");
+  lines.push("## Concept");
   lines.push(
-    bible.styleBible.lead_voice?.trim()
-      ? `**Lead voice:** ${lineWrap(bible.styleBible.lead_voice)}`
-      : "_No lead voice brief set._",
-  );
-  if (bible.styleBible.narrator_perspective) {
-    lines.push(`**Narrator perspective:** ${lineWrap(bible.styleBible.narrator_perspective)}`);
-  }
-  lines.push(`**Vocal attributes:** ${bible.styleBible.vocal_attributes.length ? bible.styleBible.vocal_attributes.join(", ") : "_none_"}`);
-  lines.push(`**Sonic palette:** ${bible.styleBible.sonic_palette.length ? bible.styleBible.sonic_palette.join(", ") : "_none_"}`);
-  lines.push(`**Arrangement rules:** ${bible.styleBible.arrangement_rules.length ? bible.styleBible.arrangement_rules.join(", ") : "_none_"}`);
-  lines.push(`**Mix priorities:** ${bible.styleBible.mix_priorities.length ? bible.styleBible.mix_priorities.join(", ") : "_none_"}`);
-  lines.push(`**Avoid list:** ${bible.styleBible.avoid_list.length ? bible.styleBible.avoid_list.join(", ") : "_none_"}`);
-  lines.push(`**Emotional targets:** ${bible.styleBible.emotional_targets.length ? bible.styleBible.emotional_targets.join(", ") : "_none_"}`);
-  lines.push(
-    `**Reference strategy:** ${
-      bible.styleBible.reference_strategy?.trim()
-        ? lineWrap(bible.styleBible.reference_strategy)
-        : "_none_"
-    }`,
+    bible.conceptSummary?.trim()
+      ? lineWrap(bible.conceptSummary)
+      : "Not set yet — add a concept summary in the Studio.",
   );
   lines.push("");
 
-  const warnings = bible.issues.filter((i) => i.level === "warn");
-  const infos = bible.issues.filter((i) => i.level === "info");
+  lines.push("## Album themes");
+  lines.push(mdList(bible.centralThemes, "Not set yet — add the album's themes in the Studio."));
+  lines.push("");
 
-  lines.push("## Issues");
-  if (!warnings.length && !infos.length) {
-    lines.push("_No issues detected._");
-  } else {
-    if (warnings.length) {
-      lines.push("### Warnings");
-      for (const issue of warnings) {
-        lines.push(`- **${issue.title}**: ${issue.detail}`);
-      }
-      lines.push("");
-    }
-    if (infos.length) {
-      lines.push("### Info");
-      for (const issue of infos) {
-        lines.push(`- **${issue.title}**: ${issue.detail}`);
-      }
-    }
-  }
+  lines.push("## Motifs");
+  lines.push(
+    mdList(
+      motifs.map((motif) => {
+        const where = motif.trackNumbers.length
+          ? `${motif.trackNumbers.length === 1 ? "track" : "tracks"} ${motif.trackNumbers.join(", ")}`
+          : "on no track yet";
+        return `**${motif.name}**${motif.albumLevel ? " (album motif)" : ""}: ${where}`;
+      }),
+      "Not set yet — name the album's motifs in the Studio.",
+    ),
+  );
+  lines.push("");
+
+  const style = bible.styleBible;
+  lines.push("## Voice / style bible");
+  lines.push(
+    ...block(
+      [
+        field("Lead voice", style.lead_voice),
+        field("Narrator perspective", style.narrator_perspective),
+        field("Vocal attributes", style.vocal_attributes),
+        field("Sonic palette", style.sonic_palette),
+        field("Arrangement rules", style.arrangement_rules),
+        field("Mix priorities", style.mix_priorities),
+        field("Avoid list", style.avoid_list),
+        field("Emotional targets", style.emotional_targets),
+        field("Reference strategy", style.reference_strategy),
+      ],
+      "Not set yet — add it in the Style bible.",
+    ),
+  );
+  lines.push("");
+
+  // As on the Bible page: how the threads hang together. Per-track gaps are the Coherence
+  // report's job, and Style bible gaps show as the block above.
+  const threads = bible.issues.filter((i) => i.scope === "structure");
+  lines.push("## Loose threads");
+  lines.push(
+    mdList(
+      threads.map((issue) => `**${issue.title}**: ${issue.detail}`),
+      "Every theme, character and story order holds across the album.",
+    ),
+  );
   lines.push("");
 
   const graph = buildMotifCharacterGraph(bible, { maxCharacters: 16, maxMotifs: 16, minEdgeWeight: 1 });
-  lines.push("## Relationship Map (Characters x Motifs)");
+  lines.push("## Characters and motifs");
   if (!graph.edges.length) {
-    lines.push("_No relationships found (tag characters and motifs per track)._");
+    lines.push("No connections yet — tag characters and motifs on the same tracks.");
   } else {
     for (const edge of graph.edges.slice(0, 60)) {
       lines.push(`- **${edge.character}** ↔ **${edge.motif}** (tracks: ${edge.trackNumbers.join(", ")})`);
     }
     if (graph.edges.length > 60) {
       lines.push("");
-      lines.push(`_…${graph.edges.length - 60} more_`);
+      lines.push(`…and ${graph.edges.length - 60} more.`);
     }
   }
   lines.push("");
 
-  lines.push("## Timeline");
-  lines.push(
-    `_Mode: ${
-      bible.timeline.mode === "chronological" ? "chronological_order" : "track_number"
-    }_`,
-  );
+  lines.push("## Story beats");
+  lines.push(bible.timeline.mode === "chronological" ? "In story order." : "In tracklist order.");
   lines.push("");
 
   for (const track of bible.timeline.tracks) {
     lines.push(`### Track ${track.trackNumber}: ${track.title}`);
-    if (typeof track.chronologicalOrder === "number") {
-      lines.push(`- **Chronological order:** ${track.chronologicalOrder}`);
-    }
-    lines.push(`- **Narrative summary:** ${track.narrativeSummary?.trim() ? track.narrativeSummary.trim() : "_missing_"}`);
-    lines.push(`- **Themes:** ${track.themes.length ? track.themes.join(", ") : "_none_"}`);
-    lines.push(`- **Motifs:** ${track.motifs.length ? track.motifs.join(", ") : "_none_"}`);
-    lines.push(`- **Characters:** ${track.characters.length ? track.characters.join(", ") : "_none_"}`);
+    lines.push(
+      ...block(
+        [
+          typeof track.chronologicalOrder === "number" ? `- **Story order:** ${track.chronologicalOrder}` : null,
+          field("Story note", track.narrativeSummary, "- "),
+          field("Themes", track.themes, "- "),
+          field("Motifs", track.motifs, "- "),
+          field("Characters", track.characters, "- "),
+        ],
+        "Nothing set for this track yet — add a story note, themes and motifs in the Studio.",
+      ),
+    );
     if (track.sections.length) {
       lines.push("");
       lines.push("Sections:");
       for (const section of track.sections) {
         const parts: string[] = [];
-        parts.push(`${section.sectionType} #${section.order + 1}`);
-        if (section.narrativeFunction) parts.push(`role: ${section.narrativeFunction}`);
+        parts.push(`${section.sectionType} #${sectionOrdinal(section.order)}`);
+        if (section.narrativeFunction) parts.push(`function: ${section.narrativeFunction}`);
         if (section.emotionalArc) parts.push(`arc: ${section.emotionalArc}`);
         if (section.chordCount) parts.push(`${section.chordCount} chords`);
         lines.push(`- ${parts.join(" · ")}`);
@@ -144,22 +168,13 @@ export function buildBibleMarkdown(bible: AlbumBible) {
     lines.push("");
   }
 
-  lines.push("## Character Index");
-  if (!bible.characterIndex.length) lines.push("_No characters tagged._");
-  else {
-    for (const c of bible.characterIndex) {
-      lines.push(`- **${c.name}**: ${c.trackNumbers.join(", ")}`);
-    }
-  }
-  lines.push("");
-
-  lines.push("## Motif Index");
-  if (!bible.motifIndex.length) lines.push("_No motifs tagged._");
-  else {
-    for (const m of bible.motifIndex) {
-      lines.push(`- **${m.name}**: ${m.trackNumbers.join(", ")}`);
-    }
-  }
+  lines.push("## Characters");
+  lines.push(
+    mdList(
+      bible.characterIndex.map((c) => `**${c.name}**: ${c.trackNumbers.length === 1 ? "track" : "tracks"} ${c.trackNumbers.join(", ")}`),
+      "No characters tagged yet.",
+    ),
+  );
   lines.push("");
 
   return lines.join("\n");

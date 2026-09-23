@@ -245,8 +245,8 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       issues.push({
         level: "info",
         scope: "coverage",
-        title: `Track ${track.trackNumber} is missing a narrative summary`,
-        detail: "Add a one- or two-sentence summary so the arc can be checked across the album.",
+        title: `Track ${track.trackNumber} has no story note`,
+        detail: "Add a story note of a sentence or two so the arc can be checked across the album.",
         fix: { focus: "story", trackNumber: track.trackNumber },
       });
     }

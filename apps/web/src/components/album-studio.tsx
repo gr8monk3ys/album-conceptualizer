@@ -1,27 +1,40 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Download, Loader2, Play, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, Download, Loader2, Play, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 
 import { usePlayerControls, PREVIEW_FAILED_MESSAGE } from "@/components/player/player-provider";
 import { RelativeTime } from "@/components/relative-time";
 import { SectionComments } from "@/components/section-comments";
 import { SongDevelopmentAi } from "@/components/song-development-ai";
-import { ALBUM_MOTIFS_INPUT_ID, ALBUM_THEMES_INPUT_ID, AlbumDetails } from "@/components/studio/album-details";
+import {
+  ALBUM_CONCEPT_INPUT_ID,
+  ALBUM_MOTIFS_INPUT_ID,
+  ALBUM_THEMES_INPUT_ID,
+  AlbumDetails,
+  albumFocusTarget,
+} from "@/components/studio/album-details";
+import { MoreMenu } from "@/components/studio/more-menu";
 import { SongStoryEditor, STORY_FOCUS_TARGETS } from "@/components/studio/song-story-editor";
+import { SECTION_KEYSHORTCUTS, studioShortcut } from "@/components/studio/studio-shortcuts";
 import {
   KEY_OPTIONS,
   SECTION_TYPES,
   TEMPO_MAX,
   TEMPO_MIN,
+  albumFrameKey,
   albumProblem,
   buildNewSection,
   buildNewSong,
   chordsOf,
   clampIndex,
   clampTempo,
+  firstUnwrittenSection,
   isWritten,
+  moveItem,
+  moveTrack,
+  nextToWrite,
   normalizeOrders,
   normalizeTrackNumbers,
   parseChordProgression,
@@ -30,12 +43,19 @@ import {
   sectionLabels,
   sectionTypeLabel,
   stringifyChordProgression,
+  toggleTheme,
   type StudioAlbum,
   type StudioSection,
   type StudioSong,
 } from "@/components/studio/studio-model";
-import { MAX_THEME_COLUMNS, STUDIO_GRID_COLUMNS, TrackList, pad2 } from "@/components/studio/track-list";
-import { Button, EmptyState, Field, IconButton, Section, inputClass, selectClass, textareaClass } from "@/components/ui";
+import {
+  MAX_THEME_COLUMNS,
+  STUDIO_GRID_BASE,
+  STUDIO_GRID_COLUMNS,
+  TrackList,
+  pad2,
+} from "@/components/studio/track-list";
+import { Button, EmptyState, Field, Section, inputClass, selectClass, textareaClass } from "@/components/ui";
 import { lyricProgress } from "@/lib/lyrics";
 import { cn } from "@/lib/utils";
 
@@ -45,8 +65,11 @@ type SelectionInput = {
   sid?: string;
   q?: string;
   /**
-   * story | themes | song-themes | motifs: open the selected song's story and focus that field.
-   * album | album-motifs: open Album details and focus its central themes or recurring motifs.
+   * Deep-link focus, always with `song=<trackNumber>` for the track-level ones:
+   * story (Story note) | role | song-themes | motifs: open the song's story, focus that field.
+   * album (the first empty album field) | album-motifs: open Album details, focus that field.
+   * lyrics: select the song's first unwritten section and focus its lyrics.
+   * Older links keep working: themes = song-themes, position = role, album-themes, album-concept.
    */
   focus?: string;
 };
@@ -57,6 +80,8 @@ type AlbumStudioProps = {
   initialSelection?: SelectionInput;
   /** From `getAgentAvailability()`: false when AI drafting can't run on this server. */
   aiAvailable?: boolean;
+  /** The workspace's credit balance, so AI drafting can confirm "You'll have N left." */
+  creditsRemaining?: number;
 };
 
 type SaveMode = "auto" | "manual" | "version";
@@ -71,6 +96,8 @@ type PreviewNote = { tone: "neutral" | "ok" | "danger"; text: string; retry?: ()
 type PendingFocus = { id: string; scroll: "center" | "nearest" | "none" };
 
 const AUTOSAVE_DELAY_MS = 2000;
+/** Adding, deleting or moving a track saves almost at once, so the header and spine follow. */
+const STRUCTURAL_SAVE_DELAY_MS = 400;
 const UNDO_WINDOW_MS = 10_000;
 /** How long "Saved." stays after an explicit save before the relative time returns. */
 const SAVED_FLASH_MS = 4000;
@@ -93,24 +120,37 @@ function resolveSelection(album: StudioAlbum, selection: SelectionInput | undefi
     const order = Number(selection.section);
     const found = sections.findIndex((s) => s.order === order);
     if (found >= 0) section = found;
+  } else if (selection?.focus === "lyrics") {
+    section = Math.max(0, firstUnwrittenSection(sections));
   }
   return { song, section };
 }
 
+type FocusTarget = { id: string; opens: "story" | "details" | null };
+
 /** A deep-link `focus` value → the field to focus and the disclosure that holds it. */
-function focusTargetFor(focus: string | undefined | null): { id: string; opens: "story" | "details" } | null {
+function focusTargetFor(focus: string | undefined | null, album: StudioAlbum): FocusTarget | null {
   switch (focus) {
     case "story":
       return { id: STORY_FOCUS_TARGETS.story, opens: "story" };
+    case "role":
+    case "position":
+      return { id: STORY_FOCUS_TARGETS.role, opens: "story" };
     case "themes":
     case "song-themes":
       return { id: STORY_FOCUS_TARGETS.themes, opens: "story" };
     case "motifs":
       return { id: STORY_FOCUS_TARGETS.motifs, opens: "story" };
     case "album":
+      return { id: albumFocusTarget(album), opens: "details" };
+    case "album-themes":
       return { id: ALBUM_THEMES_INPUT_ID, opens: "details" };
+    case "album-concept":
+      return { id: ALBUM_CONCEPT_INPUT_ID, opens: "details" };
     case "album-motifs":
       return { id: ALBUM_MOTIFS_INPUT_ID, opens: "details" };
+    case "lyrics":
+      return { id: "section-lyrics", opens: null };
     default:
       return null;
   }
@@ -155,11 +195,22 @@ function Kbd({ children }: { children: string }) {
   return <kbd className="type-figure rounded-sm border border-line px-1 font-sans text-xs text-ink-2">{children}</kbd>;
 }
 
-function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvailable = false }: AlbumStudioProps) {
+/** "Track 4, " when the next section to write is on another track. */
+function trackPrefix(song: StudioSong | undefined) {
+  return song ? `Track ${song.track_number}, ` : "";
+}
+
+function useAlbumStudioRender({
+  albumId,
+  initialAlbum,
+  initialSelection,
+  aiAvailable = false,
+  creditsRemaining,
+}: AlbumStudioProps) {
   const router = useRouter();
   const player = usePlayerControls();
   const initialParsed = useMemo(() => parseInitialAlbum(initialAlbum), [initialAlbum]);
-  const initialTarget = focusTargetFor(initialSelection?.focus);
+  const initialTarget = focusTargetFor(initialSelection?.focus, initialParsed.album);
 
   const [album, setAlbum] = useState<StudioAlbum>(initialParsed.album);
   const [selection, setSelection] = useState(() => resolveSelection(initialParsed.album, initialSelection));
@@ -180,14 +231,17 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
   );
   const [storyOpen, setStoryOpen] = useState(() => initialTarget?.opens === "story");
   const [detailsOpen, setDetailsOpen] = useState(() => initialTarget?.opens === "details");
+  const [versionOpen, setVersionOpen] = useState(false);
+  // A link to one section (`sid`, e.g. from Comments and tasks) opens its comments.
+  const [commentsOpenAtStart] = useState(() => Boolean(initialSelection?.sid));
   const [navAnnouncement, setNavAnnouncement] = useState("");
-  const [stickyTop, setStickyTop] = useState<number | null>(null);
 
   const albumRef = useRef(album);
   const revisionRef = useRef(0);
   const savingRef = useRef(false);
   const queuedRef = useRef<SaveMode | null>(null);
-  const headlineRef = useRef(`${album.title}|${album.artist ?? ""}|${album.songs.length}`);
+  const frameKeyRef = useRef(albumFrameKey(album));
+  const structuralRef = useRef(false);
   const saveRef = useRef<(mode: SaveMode) => Promise<void>>(async () => {});
   const stepRef = useRef<(what: "track" | "section", dir: -1 | 1) => void>(() => {});
   const saveBarRef = useRef<HTMLDivElement | null>(null);
@@ -199,11 +253,11 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
   if (appliedSelectionKey !== selectionKey) {
     setAppliedSelectionKey(selectionKey);
     if (initialSelection?.song) setSelection(resolveSelection(album, initialSelection));
-    const target = focusTargetFor(initialSelection?.focus);
+    const target = focusTargetFor(initialSelection?.focus, album);
     if (target) {
       setPendingFocus({ id: target.id, scroll: "center" });
       if (target.opens === "story") setStoryOpen(true);
-      else setDetailsOpen(true);
+      else if (target.opens === "details") setDetailsOpen(true);
     }
   }
 
@@ -220,23 +274,32 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
     albumRef.current = album;
   }, [album]);
 
-  // The track list sticks just below the save bar, which sticks below the app header. Both
-  // offsets are read from the page (the header token and the bar's real height), so the list
-  // moves down when the bar grows, e.g. while Undo is offered.
+  // The sticky stack (app header + save bar) is measured, not assumed, and published as
+  // --sticky-offset on <html> while the Studio is mounted: the page's scroll padding and the
+  // fields' scroll margin read it, so a focused field never hides under the bar, and the track
+  // list sticks just below it. It follows the bar's real height (it grows while Undo is
+  // offered) and drops the bar when the bar stops sticking on short screens.
   useEffect(() => {
     const bar = saveBarRef.current;
     if (!bar) return;
+    const root = document.documentElement;
+    const header = bar.closest("main")?.previousElementSibling;
+    const appHeader = header instanceof HTMLElement && header.tagName === "HEADER" ? header : null;
+    const stuck = (el: HTMLElement) => /^(sticky|fixed)$/.test(getComputedStyle(el).position);
     const measure = () => {
-      const top = Number.parseFloat(getComputedStyle(bar).top) || 0;
-      setStickyTop(Math.round(top + bar.getBoundingClientRect().height));
+      const headerHeight = appHeader && stuck(appHeader) ? appHeader.getBoundingClientRect().height : 0;
+      const barHeight = stuck(bar) ? bar.getBoundingClientRect().height : 0;
+      root.style.setProperty("--sticky-offset", `${Math.round(headerHeight + barHeight)}px`);
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(bar);
+    if (appHeader) observer.observe(appHeader);
     window.addEventListener("resize", measure);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", measure);
+      root.style.removeProperty("--sticky-offset");
     };
   }, []);
 
@@ -247,9 +310,13 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
       const el = document.getElementById(pendingFocus.id);
       if (el) {
         el.focus({ preventScroll: true });
-        if (pendingFocus.scroll !== "none") {
+        // "none" keeps the page still unless the target is out of sight (e.g. Undo in the
+        // save bar on a short screen, where the bar scrolls away with the page).
+        const rect = el.getBoundingClientRect();
+        const offScreen = rect.bottom < 0 || rect.top > window.innerHeight;
+        if (pendingFocus.scroll !== "none" || offScreen) {
           el.scrollIntoView({
-            block: pendingFocus.scroll,
+            block: pendingFocus.scroll === "center" ? "center" : "nearest",
             behavior: prefersReducedMotion() ? "auto" : "smooth",
           });
         }
@@ -316,9 +383,11 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
       if (revisionRef.current === revision) setDirty(false);
       if (mode === "version") setVersionMessage("");
       if (mode !== "auto") setSavedFlash(mode === "version" ? "Saved as a new version." : "Saved.");
-      const headline = `${snapshot.title}|${snapshot.artist ?? ""}|${snapshot.songs.length}`;
-      if (headline !== headlineRef.current) {
-        headlineRef.current = headline;
+      // The album's shared frame (release header, track count, spine on the other tabs) is
+      // rendered by the layout; refresh it whenever this save changed something it shows.
+      const frameKey = albumFrameKey(snapshot);
+      if (frameKey !== frameKeyRef.current) {
+        frameKeyRef.current = frameKey;
         router.refresh();
       }
     } catch (err) {
@@ -343,29 +412,27 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
     saveRef.current = save;
   });
 
-  // Autosave ~2s after the last edit, only when there is something to save and nothing in flight.
+  // Autosave ~2s after the last edit (sooner after a structural change), only when there is
+  // something to save and nothing in flight.
   useEffect(() => {
     if (!dirty || saving || saveError) return;
-    const timer = window.setTimeout(() => void saveRef.current("auto"), AUTOSAVE_DELAY_MS);
+    const delay = structuralRef.current ? STRUCTURAL_SAVE_DELAY_MS : AUTOSAVE_DELAY_MS;
+    const timer = window.setTimeout(() => {
+      structuralRef.current = false;
+      void saveRef.current("auto");
+    }, delay);
     return () => window.clearTimeout(timer);
   }, [album, dirty, saving, saveError]);
 
-  // Ctrl/⌘+S saves. Alt+↑/↓ moves between tracks, Alt+Shift+↑/↓ between sections. Plain arrows
-  // are never taken, nothing fires while an IME is composing, and a focused select keeps
-  // Alt+↓ for opening its list.
+  // Ctrl/⌘+S saves; Alt+PageUp/PageDown (anywhere) and Alt+↑/↓ (outside text fields) move
+  // between tracks, with Shift between sections. See studio-shortcuts.ts for the rules.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing || event.keyCode === 229) return;
-      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        void saveRef.current("manual");
-        return;
-      }
-      if (!event.altKey || event.ctrlKey || event.metaKey) return;
-      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-      if (event.target instanceof HTMLSelectElement) return;
+      const shortcut = studioShortcut(event, event.target instanceof Element ? (event.target as HTMLElement) : null);
+      if (!shortcut) return;
       event.preventDefault();
-      stepRef.current(event.shiftKey ? "section" : "track", event.key === "ArrowUp" ? -1 : 1);
+      if (shortcut.kind === "save") void saveRef.current("manual");
+      else stepRef.current(shortcut.what, shortcut.dir);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -436,8 +503,19 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
     updateSections(activeSong?.id, (list) => list.map((s, i) => (i === sectionIndex ? { ...s, [key]: value } : s)));
   }
 
+  /** Selecting from the track list; in one column the editor sits below it, so bring it up. */
+  function openTrack(index: number) {
+    selectSong(index);
+    requestAnimationFrame(() => {
+      const editor = document.getElementById("studio-track");
+      if (!editor || editor.getBoundingClientRect().top < window.innerHeight * 0.75) return;
+      editor.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    });
+  }
+
   function addTrack() {
     const index = songs.length;
+    structuralRef.current = true;
     edit((prev) => ({ ...prev, songs: [...prev.songs, buildNewSong(prev.songs.length + 1)] }));
     setSelection({ song: index, section: 0 });
     setPendingFocus({ id: "song-title", scroll: "nearest" });
@@ -448,6 +526,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
   function deleteTrack(index: number) {
     const song = songs[index];
     if (!song) return;
+    structuralRef.current = true;
     edit((prev) => ({ ...prev, songs: normalizeTrackNumbers(prev.songs.filter((_, i) => i !== index)) }));
     setUndo({ kind: "track", song, index, label: song.title || `Track ${song.track_number}`, key: Date.now() });
     setSelection({ song: Math.max(0, Math.min(index, songs.length - 2)), section: 0 });
@@ -473,6 +552,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
     if (!undo) return;
     if (undo.kind === "track") {
       const { song, index } = undo;
+      structuralRef.current = true;
       edit((prev) => {
         const next = [...prev.songs];
         next.splice(Math.min(index, next.length), 0, song);
@@ -496,13 +576,40 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
 
   function moveSection(index: number, dir: -1 | 1) {
     const target = index + dir;
-    if (target < 0 || target >= sections.length) return;
-    updateSections(activeSong?.id, (list) => {
-      const next = [...list];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+    const section = sections[index];
+    if (!section || !moveItem(sections, index, target)) return;
+    updateSections(activeSong?.id, (list) => moveItem(list, index, target) ?? list);
     setSelection({ song: songIndex, section: target });
+    setNavAnnouncement(`${sectionTypeLabel(section.section_type)} moved to section ${target + 1} of ${sections.length}.`);
+  }
+
+  /** Moves a track one place and renumbers the album; the moved track stays selected. */
+  function moveTrackBy(index: number, dir: -1 | 1) {
+    const song = songs[index];
+    if (!song || !moveTrack(songs, index, dir)) return;
+    structuralRef.current = true;
+    edit((prev) => ({ ...prev, songs: moveTrack(prev.songs, index, dir) ?? prev.songs }));
+    setSelection({ song: index + dir, section: sectionIndex });
+    setNavAnnouncement(`Moved “${song.title || "Untitled"}” to track ${index + dir + 1} of ${songs.length}.`);
+  }
+
+  /** The track list's theme toggles: tag or untag one track with one central theme. */
+  function toggleTrackTheme(index: number, theme: string) {
+    edit((prev) => ({
+      ...prev,
+      songs: prev.songs.map((song, i) => (i === index ? { ...song, themes: toggleTheme(song.themes, theme) } : song)),
+    }));
+  }
+
+  const upNext = activeSong ? nextToWrite(songs, songIndex, sectionIndex) : null;
+
+  function writeNext() {
+    if (!upNext) return;
+    const song = songs[upNext.song];
+    setSelection(upNext);
+    setPendingFocus({ id: "section-lyrics", scroll: "nearest" });
+    const label = sectionLabels(song?.sections ?? [])[upNext.section] ?? "Section";
+    setNavAnnouncement(upNext.song === songIndex ? label : `Track ${song?.track_number}: ${song?.title || "Untitled"}, ${label}`);
   }
 
   function openAlbumField(id: string) {
@@ -625,7 +732,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
       Saving…
     </>
   ) : saveError ? (
-    <span>Couldn&apos;t save: {saveError}</span>
+    <span className="min-w-0 break-words">Couldn&apos;t save — {saveError}</span>
   ) : savedFlash ? (
     <span className="text-ok">{savedFlash}</span>
   ) : dirty ? (
@@ -638,61 +745,61 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
     "No changes yet"
   );
 
+  // One quiet row: the save status, Undo while it is offered, keyboard hints (only with a fine
+  // pointer and room for them) and a ghost "Save now". Autosave does the saving; the saffron on
+  // this screen belongs to the next step of the writing. On short screens (a phone on its
+  // side) the bar scrolls away with the page instead of sticking.
   const saveBar = (
-    <div ref={saveBarRef} className="sticky top-header z-20 -mx-4 border-b border-line bg-ground px-4 py-2 md:-mx-8 md:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <p role="status" className={cn("flex min-h-11 items-center gap-2 text-sm", saveError ? "text-danger" : "text-ink-2")}>
-            {saveStatus}
-          </p>
-          {saveError && !saving ? (
-            <Button tone="secondary" onClick={() => void save("manual")}>
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
-              Retry
-            </Button>
-          ) : null}
-          {undo ? (
-            <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink">
-              <span id="studio-undo-text" className="min-w-0 break-words">
-                Deleted “{undo.label}”.
-              </span>
-              <Button id="studio-undo" key={undo.key} tone="secondary" onClick={restoreDeleted} aria-describedby="studio-undo-text">
-                <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                Undo
-              </Button>
-            </span>
-          ) : null}
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <p className="min-w-0 text-xs text-ink-3">
-            <span className="sm:hidden">
-              <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt ↑↓</Kbd> track
-            </span>
-            <span className="hidden sm:inline">
-              Autosaves · <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt ↑↓</Kbd> track · <Kbd>Alt Shift ↑↓</Kbd> section
-            </span>
-          </p>
-          <Button tone="primary" onClick={() => void save("manual")} aria-keyshortcuts="Control+S Meta+S">
-            <Save className="h-4 w-4" aria-hidden="true" />
-            Save
+    <div
+      ref={saveBarRef}
+      className="z-20 -mx-4 border-b border-line bg-ground px-4 py-0.5 md:-mx-8 md:px-8 [@media(min-height:501px)]:sticky [@media(min-height:501px)]:top-header"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+        <p
+          role="status"
+          className={cn("flex min-h-11 min-w-0 flex-1 basis-32 items-center gap-2 text-sm", saveError ? "text-danger" : "text-ink-2")}
+        >
+          {saveStatus}
+        </p>
+        {saveError && !saving ? (
+          <Button tone="secondary" onClick={() => void save("manual")}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Retry
           </Button>
+        ) : null}
+        {undo ? (
+          <span className="flex min-w-0 items-center gap-x-2 text-sm text-ink">
+            <span id="studio-undo-text" className="min-w-0 max-w-[24ch] truncate" title={`Deleted “${undo.label}”.`}>
+              Deleted “{undo.label}”.
+            </span>
+            <Button id="studio-undo" key={undo.key} tone="secondary" onClick={restoreDeleted} aria-describedby="studio-undo-text">
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              Undo
+            </Button>
+          </span>
+        ) : null}
+        <div className="contents pointer-coarse:hidden">
+          <p className="hidden min-w-0 text-xs text-ink-3 lg:block">
+            <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
+          </p>
         </div>
+        <Button tone="ghost" onClick={() => void save("manual")} disabled={saving} aria-keyshortcuts="Control+S Meta+S">
+          <Save className="h-4 w-4" aria-hidden="true" />
+          Save now
+        </Button>
       </div>
     </div>
   );
-
-  const trackListStyle: CSSProperties | undefined =
-    stickyTop != null ? { top: stickyTop, maxHeight: `calc(100dvh - ${stickyTop + 16}px)` } : undefined;
 
   const trackList = (
     <TrackList
       songs={songs}
       centralThemes={album.central_themes ?? []}
       activeIndex={songIndex}
-      onSelect={selectSong}
+      onSelect={openTrack}
+      onToggleTheme={toggleTrackTheme}
       onAddTrack={addTrack}
       onAddThemes={() => openAlbumField(ALBUM_THEMES_INPUT_ID)}
-      style={trackListStyle}
     />
   );
 
@@ -706,7 +813,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
     : [];
 
   const trackHeader = activeSong ? (
-    <section aria-labelledby="studio-song-title" className="flex min-w-0 flex-col gap-4">
+    <section id="studio-track" aria-labelledby="studio-song-title" className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
           <h2 id="studio-song-title" className="text-2xl font-semibold text-ink">
@@ -749,17 +856,33 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
             <Play className="h-4 w-4" aria-hidden="true" />
             Preview song
           </Button>
-          <Button
-            tone="danger"
-            onClick={() => deleteTrack(songIndex)}
-            aria-describedby="studio-delete-track-hint"
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-            Delete track
-          </Button>
-          <span id="studio-delete-track-hint" className="sr-only">
-            Removes this track and its sections. You can undo for 10 seconds.
-          </span>
+          <MoreMenu
+            label="track actions"
+            items={[
+              {
+                key: "up",
+                label: "Move track up",
+                icon: <ArrowUp className="h-4 w-4" aria-hidden="true" />,
+                disabled: songIndex === 0,
+                onSelect: () => moveTrackBy(songIndex, -1),
+              },
+              {
+                key: "down",
+                label: "Move track down",
+                icon: <ArrowDown className="h-4 w-4" aria-hidden="true" />,
+                disabled: songIndex >= songs.length - 1,
+                onSelect: () => moveTrackBy(songIndex, 1),
+              },
+              {
+                key: "delete",
+                label: "Delete track",
+                hint: "Removes the track and its sections. You can undo for 10 seconds.",
+                icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                danger: true,
+                onSelect: () => deleteTrack(songIndex),
+              },
+            ]}
+          />
         </div>
       </div>
 
@@ -863,15 +986,19 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
                     type="button"
                     onClick={() => selectSection(index)}
                     aria-current={isActive ? "true" : undefined}
-                    aria-keyshortcuts="Alt+Shift+ArrowUp Alt+Shift+ArrowDown"
+                    aria-keyshortcuts={SECTION_KEYSHORTCUTS}
                     className={cn(
-                      "flex min-h-11 w-full items-center justify-between gap-2 px-2 py-1.5 text-left transition-colors",
-                      isActive ? "bg-selected text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
+                      "relative flex min-h-11 w-full items-center justify-between gap-2 px-2 py-1.5 text-left transition-colors",
+                      // The current row's fill and weight vanish in forced colors (High
+                      // Contrast), so it also carries a transparent frame drawn there in Highlight.
+                      isActive
+                        ? "bg-selected text-ink after:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-transparent after:content-[''] forced-colors:after:border-[color:Highlight]"
+                        : "text-ink-2 hover:bg-hover hover:text-ink",
                     )}
                   >
                     <span className="min-w-0">
-                      <span className={cn("block truncate text-sm", isActive && "font-semibold")}>{labels[index]}</span>
-                      <span className="type-figure block truncate text-xs text-ink-3">
+                      <span className={cn("block break-words text-sm", isActive && "font-semibold")}>{labels[index]}</span>
+                      <span className="type-figure block break-words text-xs text-ink-3">
                         {isWritten(section.lyrics) ? "Lyrics written" : "No lyrics yet"} ·{" "}
                         {chordCount ? `${chordCount} ${chordCount === 1 ? "chord" : "chords"}` : "no chords"}
                       </span>
@@ -896,28 +1023,41 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
                     <Play className="h-4 w-4" aria-hidden="true" />
                     Preview section
                   </Button>
-                  <Button tone="ghost" onClick={downloadSectionMp3} disabled={previewing} aria-describedby="studio-mp3-note">
-                    <Download className="h-4 w-4" aria-hidden="true" />
-                    MP3
-                  </Button>
-                  <IconButton
-                    label="Move section up"
-                    onClick={() => moveSection(sectionIndex, -1)}
-                    disabled={sectionIndex === 0}
-                  >
-                    <ArrowUp className="h-4 w-4" aria-hidden="true" />
-                  </IconButton>
-                  <IconButton
-                    label="Move section down"
-                    onClick={() => moveSection(sectionIndex, 1)}
-                    disabled={sectionIndex >= sections.length - 1}
-                  >
-                    <ArrowDown className="h-4 w-4" aria-hidden="true" />
-                  </IconButton>
-                  <Button tone="danger" onClick={() => deleteSection(sectionIndex)}>
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    Delete section
-                  </Button>
+                  <MoreMenu
+                    label="section actions"
+                    items={[
+                      {
+                        key: "mp3",
+                        label: "Download MP3",
+                        hint: "Needs audio rendering on the server, so it may not work on every install. Previews always play in your browser.",
+                        icon: <Download className="h-4 w-4" aria-hidden="true" />,
+                        disabled: previewing,
+                        onSelect: downloadSectionMp3,
+                      },
+                      {
+                        key: "up",
+                        label: "Move section up",
+                        icon: <ArrowUp className="h-4 w-4" aria-hidden="true" />,
+                        disabled: sectionIndex === 0,
+                        onSelect: () => moveSection(sectionIndex, -1),
+                      },
+                      {
+                        key: "down",
+                        label: "Move section down",
+                        icon: <ArrowDown className="h-4 w-4" aria-hidden="true" />,
+                        disabled: sectionIndex >= sections.length - 1,
+                        onSelect: () => moveSection(sectionIndex, 1),
+                      },
+                      {
+                        key: "delete",
+                        label: "Delete section",
+                        hint: "You can undo for 10 seconds.",
+                        icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                        danger: true,
+                        onSelect: () => deleteSection(sectionIndex),
+                      },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -966,10 +1106,15 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
                   />
                 </Field>
               </div>
-              <p id="studio-mp3-note" className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
-                Previews play in your browser. MP3 downloads need audio rendering on the server, so
-                they may not work on every install.
-              </p>
+              {upNext ? (
+                <div>
+                  <Button tone="primary" onClick={writeNext}>
+                    Write next: {upNext.song === songIndex ? "" : trackPrefix(songs[upNext.song])}
+                    {sectionLabels(songs[upNext.song]?.sections ?? [])[upNext.section] ?? "Section"}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </div>
+              ) : null}
 
               {stableIdsPersisted && activeSection.id ? (
                 <SectionComments
@@ -981,20 +1126,22 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
                     sectionOrder: activeSection.order,
                     label: activeLabel,
                   }}
+                  defaultOpen={commentsOpenAtStart}
                 />
               ) : (
-                <section aria-labelledby="comments-pending-title" className="border-t border-line pt-5">
+                <section aria-labelledby="comments-pending-title" className="border-t border-line pt-3">
                   <h3 id="comments-pending-title" className="text-base font-semibold text-ink">
                     Comments
                   </h3>
-                  <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
-                    This album came in without stable section references. Save once to turn on
-                    comments and shareable section links.
-                  </p>
-                  <Button tone="secondary" className="mt-3" onClick={() => void save("manual")} disabled={saving}>
-                    <Save className="h-4 w-4" aria-hidden="true" />
-                    Save to enable comments
-                  </Button>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3">
+                    <p className="min-w-0 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+                      Comments and section links turn on after the first save.
+                    </p>
+                    <Button tone="ghost" onClick={() => void save("manual")} disabled={saving}>
+                      <Save className="h-4 w-4" aria-hidden="true" />
+                      Save to turn on comments
+                    </Button>
+                  </div>
                 </section>
               )}
             </div>
@@ -1033,17 +1180,30 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
         songTitle={songTitle}
         trackNumber={activeSong.track_number}
         aiAvailable={aiAvailable}
+        creditsRemaining={creditsRemaining}
       />
     </div>
   ) : null;
 
+  // Collapsed like Album details: a named snapshot is an occasional act, not part of writing.
   const versionPanel = (
-    <Section
-      id="studio-version"
-      title="Save a version"
-      description={<span className="block max-w-[65ch]">A named snapshot of the album as it is now, kept in its version history.</span>}
-    >
-      <div className="flex flex-col gap-3">
+    <section id="studio-version" aria-labelledby="studio-version-title" className="min-w-0 border-t border-line pt-5">
+      <h2 id="studio-version-title" className="text-lg font-semibold text-ink">
+        <button
+          type="button"
+          aria-expanded={versionOpen}
+          aria-controls="studio-version-body"
+          onClick={() => setVersionOpen(!versionOpen)}
+          className="-mx-2 inline-flex min-h-11 items-center gap-2 rounded px-2 transition-colors hover:bg-hover"
+        >
+          Save a version
+          <ChevronDown className={cn("h-4 w-4 transition-transform", versionOpen && "rotate-180")} aria-hidden="true" />
+        </button>
+      </h2>
+      <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+        A named snapshot of the album as it is now, kept in its version history.
+      </p>
+      <div id="studio-version-body" hidden={!versionOpen} className="mt-4 flex-col gap-3 [&:not([hidden])]:flex">
         <Field
           label="Version note"
           htmlFor="version-message"
@@ -1064,7 +1224,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
           </Button>
         </div>
       </div>
-    </Section>
+    </section>
   );
 
   return (
@@ -1073,15 +1233,20 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
       <p className="sr-only" aria-live="polite">
         {navAnnouncement}
       </p>
+      {/* The columns follow the room the Studio has (rem container queries), so enlarged text
+          folds it to one column. Fields keep clear of the sticky header and save bar when
+          focus or a deep link scrolls them into view. */}
+      <div className="@container min-w-0">
       <div
         className={cn(
-          "grid min-w-0 grid-cols-1 items-start gap-x-8 gap-y-8 lg:grid-cols-[16rem_minmax(0,1fr)]",
+          "grid min-w-0 grid-cols-1 items-start gap-x-8 gap-y-8",
+          STUDIO_GRID_BASE,
           STUDIO_GRID_COLUMNS[themeColumns],
         )}
       >
         {trackList}
 
-        <div className="@container flex min-w-0 flex-col gap-8">
+        <div className="@container flex min-w-0 flex-col gap-8 **:scroll-mt-[calc(var(--sticky-offset,var(--header-h))_+_1rem)]">
           {songs.length ? (
             <>
               {trackHeader}
@@ -1110,6 +1275,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection, aiAvail
           />
           {versionPanel}
         </div>
+      </div>
       </div>
     </div>
   );

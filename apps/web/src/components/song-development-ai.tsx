@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { Loader2, RotateCcw, Sparkles } from "lucide-react";
 
+import { ConfirmSpend } from "@/components/confirm-spend";
 import { readApiError } from "@/components/studio/studio-model";
 import { Button } from "@/components/ui";
 import { useAgentJob } from "@/hooks/use-agent-job";
+import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 type SongDevelopmentAiProps = {
@@ -14,6 +16,8 @@ type SongDevelopmentAiProps = {
   trackNumber: number;
   /** From `getAgentAvailability()` on the server: false when AI drafting can't run here. */
   aiAvailable: boolean;
+  /** The workspace balance, so the spend confirm can say what's left after. */
+  creditsRemaining?: number;
 };
 
 type StartJobResponse = {
@@ -32,14 +36,17 @@ function formatElapsed(ms: number): string {
 const COST: number = CREDIT_COSTS.agentRun;
 const COST_LABEL = `${COST} ${COST === 1 ? "credit" : "credits"}`;
 
-export const AI_UNAVAILABLE_MESSAGE =
-  "AI drafting isn't set up on this server. Everything else works without it.";
-
 /**
  * Drafts lyrics, harmony ideas and production notes for one track. The draft is shown for the
  * artist to read and copy from; nothing in the Studio is changed by it.
  */
-export function SongDevelopmentAi({ albumId, songTitle, trackNumber, aiAvailable }: SongDevelopmentAiProps) {
+export function SongDevelopmentAi({
+  albumId,
+  songTitle,
+  trackNumber,
+  aiAvailable,
+  creditsRemaining,
+}: SongDevelopmentAiProps) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [startFailure, setStartFailure] = useState<Failure | null>(null);
   const [isStarting, setIsStarting] = useState(false);
@@ -111,15 +118,19 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber, aiAvailable
         ? { text: `The draft couldn't be finished. Your ${COST_LABEL} were refunded.`, retry: "start" }
         : null;
 
-  const buttonLabel = !aiAvailable
-    ? `Develop with AI · ${COST_LABEL}`
-    : isStarting
-      ? "Starting…"
-      : isPolling
-        ? `Drafting… ${formatElapsed(elapsedMs)}`
-        : output
-          ? `Draft again · ${COST_LABEL}`
-          : `Develop with AI · ${COST_LABEL}`;
+  const buttonLabel = isStarting
+    ? "Starting…"
+    : isPolling
+      ? `Drafting… ${formatElapsed(elapsedMs)}`
+      : output
+        ? `Draft again · ${COST_LABEL}`
+        : `Develop with AI · ${COST_LABEL}`;
+
+  const icon = isBusy ? (
+    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+  ) : (
+    <Sparkles className="h-4 w-4" aria-hidden="true" />
+  );
 
   return (
     <section aria-labelledby="song-ai-title" className="flex min-w-0 flex-col gap-3 border-t border-line pt-4">
@@ -127,14 +138,24 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber, aiAvailable
         AI drafting
       </h3>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Button tone="secondary" disabled={!aiAvailable || isBusy} onClick={() => void start()} aria-describedby={hintId}>
-          {isBusy ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
-          )}
-          {buttonLabel}
-        </Button>
+        {aiAvailable ? (
+          <ConfirmSpend
+            cost={COST}
+            remaining={creditsRemaining}
+            actionLabel={output ? "Draft again" : "Develop with AI"}
+            onConfirm={start}
+            busy={isBusy}
+          >
+            {icon}
+            {buttonLabel}
+          </ConfirmSpend>
+        ) : (
+          // Can't run here: no price on a button that can't spend, and one plain line why.
+          <Button tone="secondary" disabled aria-describedby={hintId}>
+            {icon}
+            Develop with AI
+          </Button>
+        )}
         <p id={hintId} className="min-w-0 max-w-[65ch] flex-1 basis-60 text-sm leading-relaxed text-ink-2">
           {aiAvailable
             ? "Drafts lyrics, harmony ideas and production notes for this track from the album’s concept. It takes about a minute; nothing here changes until you copy lines in."
@@ -156,10 +177,10 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber, aiAvailable
               <>
                 <span className="min-w-0 max-w-[65ch]">{failure.text}</span>
                 {failure.retry === "start" ? (
-                  <Button tone="secondary" onClick={() => void start()}>
+                  <ConfirmSpend cost={COST} remaining={creditsRemaining} actionLabel="Retry" onConfirm={start}>
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />
                     Retry · {COST_LABEL}
-                  </Button>
+                  </ConfirmSpend>
                 ) : failure.retry === "poll" ? (
                   <Button tone="secondary" onClick={checkAgain}>
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />

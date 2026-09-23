@@ -9,12 +9,16 @@ const METRICS: Array<{
   hint: string;
 }> = [
   { key: "projectsCreated", label: "Created", hint: "New albums" },
-  { key: "activatedAlbums", label: "Worked on", hint: "Opened in Studio, Bible or review" },
+  { key: "activatedAlbums", label: "Worked on", hint: "Opened in the Studio, Bible or Coherence report" },
   { key: "exportedAlbums", label: "Exported", hint: "Downloaded at least once" },
   { key: "publishedAlbums", label: "Published", hint: "Shared on Discover" },
 ];
 
-/** The funnel as one row of figures: how many albums reached each stage in the window. */
+/**
+ * Album progress as one row of figures: how many albums reached each stage in the window.
+ * Only album stages are shown; sign-up and checkout counts are for the people who run the
+ * service, not for the artist.
+ */
 export function WorkspaceFunnelCard({ summary }: { summary: WorkspaceFunnelSummary }) {
   return (
     <section aria-labelledby="funnel-window-title" className="border-t border-line pt-6">
@@ -32,11 +36,6 @@ export function WorkspaceFunnelCard({ summary }: { summary: WorkspaceFunnelSumma
           </div>
         ))}
       </dl>
-      <p className="mt-3 text-sm text-ink-2">
-        Sign-ups: <span className="type-figure text-ink">{summary.signups}</span>
-        <span aria-hidden="true"> · </span>
-        Plan checkouts started: <span className="type-figure text-ink">{summary.checkoutStarts}</span>
-      </p>
     </section>
   );
 }

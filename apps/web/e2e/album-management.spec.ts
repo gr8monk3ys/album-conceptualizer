@@ -27,7 +27,9 @@ async function createAlbumFromWizard(
   await page.getByLabel("Concept summary").fill(input.concept);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
+  // Saving spends credits, so it asks once: the trigger, then the confirm.
   await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
   await page.waitForURL("**/app/albums/**");
 }
 
@@ -152,7 +154,7 @@ test.describe("Album Management", () => {
     const lyricsFix = report.getByRole("link", { name: /Lyrics on 2 more tracks/ });
     await expect(lyricsFix).toBeVisible();
     await lyricsFix.click();
-    await page.waitForURL("**/studio?song=1");
+    await page.waitForURL("**/studio?song=1&focus=lyrics");
   });
 
   test("reference workspace saves a track reference and reflects it on the album page", async ({
@@ -215,7 +217,8 @@ test.describe("Album Management", () => {
     await page
       .getByLabel("Reference strategy")
       .fill("Use references to keep the opener intimate and the choruses wider without going glossy.");
-    await page.getByRole("button", { name: "Save style bible" }).click();
+    // The style bible autosaves; "Save now" is its quiet manual save.
+    await page.getByRole("button", { name: "Save now", exact: true }).click();
 
     await expect(page.getByText("Style bible saved.")).toBeVisible();
 
@@ -285,7 +288,7 @@ test.describe("Album Management", () => {
     });
 
     await page.goto("/app/settings/analytics");
-    await expect(page.locator("main").getByText("Workspace funnel").first()).toBeVisible();
+    await expect(page.locator("main").getByText("Album progress").first()).toBeVisible();
     await expect(page.getByText("Last 30 days")).toBeVisible();
     await expect(page.getByText("Album created")).toBeVisible();
     await expect(page.getByRole("link", { name: title })).toBeVisible();

@@ -28,6 +28,9 @@ type UseAgentJobReturn = {
 
 const DEFAULT_INTERVAL_MS = 2000;
 
+const LOST_TOUCH =
+  "Lost touch with the AI run while it was working. Check your connection, then check again.";
+
 function isTerminal(status: AgentJobStatus): boolean {
   return status === "completed" || status === "failed";
 }
@@ -56,12 +59,13 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
   const fetchJob = useCallback(async (id: string): Promise<AgentJobSnapshot | null> => {
     const res = await fetch(`/api/agents/jobs/${encodeURIComponent(id)}`, { cache: "no-store" });
     if (!res.ok) {
-      let detail = `HTTP ${res.status}`;
+      // The server's human-written `error` when there is one; never a bare status code.
+      let detail = LOST_TOUCH;
       try {
         const data = (await res.json()) as { error?: unknown };
-        if (typeof data?.error === "string") detail = data.error;
+        if (typeof data?.error === "string" && data.error.trim()) detail = data.error;
       } catch {
-        // swallow; use generic detail
+        // Not JSON: keep the plain message.
       }
       throw new Error(detail);
     }
@@ -95,7 +99,8 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
         }
       } catch (err) {
         if (cancelledRef.current) return;
-        const message = err instanceof Error ? err.message : "Could not reach job endpoint.";
+        // A network failure's own message ("Failed to fetch") is not for the artist.
+        const message = err instanceof TypeError || !(err instanceof Error) ? LOST_TOUCH : err.message;
         setError(message);
         return;
       }

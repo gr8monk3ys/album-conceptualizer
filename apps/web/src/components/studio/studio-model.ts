@@ -1,3 +1,4 @@
+import { isWrittenLyrics, lyricProgress } from "@/lib/lyrics";
 import type { AlbumJson } from "@/server/album-json";
 
 // Pure helpers for the Studio: album parsing, section labels, keys and error text. No React.
@@ -138,6 +139,91 @@ export function normalizeOrders<T extends { order: number }>(sections: T[]): T[]
 
 export function normalizeTrackNumbers<T extends { track_number: number }>(songs: T[]): T[] {
   return songs.map((song, index) => ({ ...song, track_number: index + 1 }));
+}
+
+// ---------------------------------------------------------------- sequencing
+
+/** A copy of `list` with the item at `from` moved to `to`, or null when either is out of range. */
+export function moveItem<T>(list: readonly T[], from: number, to: number): T[] | null {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return null;
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item as T);
+  return next;
+}
+
+/** The tracklist with one track moved a step up (-1) or down (1), renumbered 1…n. */
+export function moveTrack<T extends { track_number: number }>(songs: readonly T[], index: number, dir: -1 | 1): T[] | null {
+  const moved = moveItem(songs, index, index + dir);
+  return moved ? normalizeTrackNumbers(moved) : null;
+}
+
+/** A track's themes with `theme` added, or removed when it is already there (any casing). */
+export function toggleTheme(themes: readonly string[] | null | undefined, theme: string): string[] {
+  const list = (themes ?? []).filter((t) => typeof t === "string");
+  const key = theme.trim().toLowerCase();
+  if (!key) return [...list];
+  const has = list.some((t) => t.trim().toLowerCase() === key);
+  return has ? list.filter((t) => t.trim().toLowerCase() !== key) : [...list, theme.trim()];
+}
+
+/** The album themes a track carries, in the album's order. */
+export function carriedThemes(songThemes: readonly string[] | null | undefined, albumThemes: readonly string[]): string[] {
+  const carried = new Set((songThemes ?? []).map((t) => t.trim().toLowerCase()));
+  return albumThemes.filter((t) => carried.has(t.trim().toLowerCase()));
+}
+
+/** Index of the first section whose lyrics aren't written yet, or -1 when all are. */
+export function firstUnwrittenSection(sections: readonly { lyrics?: unknown }[] | null | undefined): number {
+  return (sections ?? []).findIndex((section) => !isWrittenLyrics(section?.lyrics));
+}
+
+/**
+ * The next section still waiting for lyrics after the current one, reading the album in
+ * order and wrapping round to the start; never the current section itself. Null when every
+ * other section is written.
+ */
+export function nextToWrite(
+  songs: readonly { sections?: readonly { lyrics?: unknown }[] | null }[],
+  songIndex: number,
+  sectionIndex: number,
+): { song: number; section: number } | null {
+  const flat: { song: number; section: number }[] = [];
+  songs.forEach((song, s) => (song.sections ?? []).forEach((_, i) => flat.push({ song: s, section: i })));
+  if (!flat.length) return null;
+  const here = flat.findIndex((p) => p.song === songIndex && p.section === sectionIndex);
+  for (let step = 1; step <= flat.length; step += 1) {
+    const at = flat[((here < 0 ? -1 : here) + step + flat.length) % flat.length];
+    if (!at || (at.song === songIndex && at.section === sectionIndex)) continue;
+    if (!isWrittenLyrics(songs[at.song]?.sections?.[at.section]?.lyrics)) return at;
+  }
+  return null;
+}
+
+/**
+ * What the album's shared frame shows (the release header's title, artist and track count,
+ * and the spine's titles, lyric progress, themes and roles). When a save changes it, the
+ * frame is refreshed so every tab agrees with the Studio.
+ */
+export function albumFrameKey(album: StudioAlbum): string {
+  return JSON.stringify([
+    album.title,
+    album.artist ?? null,
+    (album.central_themes ?? []).map((t) => t.trim().toLowerCase()),
+    album.songs.map((song) => {
+      const { written, total } = lyricProgress(song.sections);
+      return [
+        song.id,
+        song.track_number,
+        song.title,
+        written,
+        total,
+        (song.themes ?? []).map((t) => t.trim().toLowerCase()).sort(),
+        Boolean(song.narrative_summary?.trim()),
+        song.narrative_position?.trim() ?? "",
+      ];
+    }),
+  ]);
 }
 
 function list(value: unknown): string[] {

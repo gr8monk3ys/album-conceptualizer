@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Heart, Shuffle } from "lucide-react";
 
-import { Button, StatusMessage } from "@/components/ui";
+import { ConfirmSpend } from "@/components/confirm-spend";
+import { Button, ButtonLink, StatusMessage } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { cn } from "@/lib/utils";
 
@@ -77,8 +78,9 @@ export function LikeToggle({
 
 /**
  * Remix: copies a published album into the viewer's workspace as a new private album and
- * opens it in the Studio. The label carries its credit cost; in a list, pass `albumTitle` so
- * each button's accessible name says which album it remixes.
+ * opens it in the Studio. It spends credits, so it asks once (cost and balance after) before
+ * spending. In a list, pass `albumTitle` so each button's accessible name says which album it
+ * remixes.
  */
 export function RemixButton({
   albumId,
@@ -90,13 +92,13 @@ export function RemixButton({
   albumId: string;
   albumTitle?: string;
   tone?: "primary" | "secondary";
-  creditsRemaining?: number;
+  creditsRemaining: number;
   onError: (message: string | null) => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const cost = CREDIT_COSTS.albumFork;
-  const cannotAfford = typeof creditsRemaining === "number" && creditsRemaining < cost;
+  const cannotAfford = creditsRemaining < cost;
 
   async function remix() {
     setBusy(true);
@@ -123,13 +125,21 @@ export function RemixButton({
   }
 
   return (
-    <div className="flex flex-col items-start gap-1">
-      <Button tone={tone} onClick={remix} disabled={busy || cannotAfford}>
+    <div className="flex min-w-0 flex-col items-start gap-1">
+      <ConfirmSpend
+        cost={cost}
+        remaining={creditsRemaining}
+        actionLabel="Remix"
+        onConfirm={remix}
+        busy={busy}
+        disabled={cannotAfford}
+        tone={tone}
+      >
         <Shuffle className="h-4 w-4" aria-hidden="true" />
-        {busy ? "Remixing" : "Remix"}
+        {busy ? "Remixing…" : "Remix"}
         {albumTitle ? <span className="sr-only"> {albumTitle}</span> : null}
-        {busy ? "…" : ` · ${cost} credits`}
-      </Button>
+        {busy ? null : ` · ${cost} credits`}
+      </ConfirmSpend>
       {cannotAfford ? (
         <p className="max-w-[65ch] text-xs text-ink-2">
           You have {creditsRemaining} {creditsRemaining === 1 ? "credit" : "credits"}.{" "}
@@ -142,17 +152,43 @@ export function RemixButton({
   );
 }
 
-/** Like and Remix for the Discover album page, where Remix is the page's primary action. */
+/**
+ * Your own published album needs no remix: this opens it in the Studio and spends nothing.
+ * In a list, pass `albumTitle` so the link's accessible name says which album it opens.
+ */
+export function OpenInStudioLink({
+  albumId,
+  albumTitle,
+  tone = "secondary",
+}: {
+  albumId: string;
+  albumTitle?: string;
+  tone?: "primary" | "secondary";
+}) {
+  return (
+    <ButtonLink tone={tone} href={`/app/albums/${albumId}/studio`}>
+      Open in Studio
+      {albumTitle ? <span className="sr-only"> ({albumTitle})</span> : null}
+    </ButtonLink>
+  );
+}
+
+/**
+ * Like and Remix for the Discover album page, where Remix is the page's primary action. On the
+ * viewer's own album, Remix gives way to "Open in Studio".
+ */
 export function DiscoverAlbumActions({
   albumId,
   initialLiked,
   initialLikes,
   creditsRemaining,
+  isOwn,
 }: {
   albumId: string;
   initialLiked: boolean;
   initialLikes: number;
-  creditsRemaining?: number;
+  creditsRemaining: number;
+  isOwn: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
 
@@ -165,12 +201,16 @@ export function DiscoverAlbumActions({
           initialLikes={initialLikes}
           onError={setError}
         />
-        <RemixButton
-          albumId={albumId}
-          tone="primary"
-          creditsRemaining={creditsRemaining}
-          onError={setError}
-        />
+        {isOwn ? (
+          <OpenInStudioLink albumId={albumId} tone="primary" />
+        ) : (
+          <RemixButton
+            albumId={albumId}
+            tone="primary"
+            creditsRemaining={creditsRemaining}
+            onError={setError}
+          />
+        )}
       </div>
       {error ? <StatusMessage tone="danger">{error}</StatusMessage> : null}
     </div>

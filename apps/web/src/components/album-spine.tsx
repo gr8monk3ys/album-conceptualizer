@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 
 import type { SpineRow } from "@/server/album-songs";
 import { ThemeMark } from "@/components/theme-mark";
+import { carriedThemesPhrase, themeAbbreviations } from "@/lib/theme-keys";
 import { cn } from "@/lib/utils";
 
 const FRACTION_GLYPHS: Record<string, string> = {
@@ -38,9 +39,14 @@ function pad(trackNumber: number) {
 }
 
 /**
- * The album's sequence as a grid: track number, title, lyrics written, one narrow column per
- * album theme (a mark where the track carries it) and whether the track has a role in the arc.
- * Every row opens that track in the Studio.
+ * The album's sequence as a track sheet: track number, title, lyrics written, which album
+ * themes the track carries (one mark per theme, under a short key spelled out in a legend)
+ * and whether it has a role in the arc. Every row opens that track in the Studio.
+ *
+ * Built to survive enlarged text: the table sizes itself to its content (never `table-fixed`),
+ * the title keeps at least 8rem, and when that no longer fits the table scrolls sideways
+ * inside its own region rather than squeezing the title to a letter per line. A screen
+ * reader hears each row once: title, lyrics, one phrase for the themes, role.
  */
 export function AlbumSpine({
   albumId,
@@ -59,104 +65,114 @@ export function AlbumSpine({
 }) {
   const base = `/app/albums/${albumId}`;
   const themeKeys = themes.map((theme) => theme.toLowerCase());
+  const abbreviations = themeAbbreviations(themes);
 
   const body = rows.length ? (
-    <table className="w-full table-fixed border-collapse text-sm">
-      <caption className="sr-only">
-        Tracks in sequence: lyrics written, the album themes each track carries, and whether it
-        has a role in the arc. Select a title to open the track in the Studio.
-      </caption>
-      <colgroup>
-        <col className="w-7" />
-        <col />
-        <col className="w-10" />
-        {themes.map((theme) => (
-          <col key={theme} className="w-4" />
-        ))}
-        <col className="w-9" />
-      </colgroup>
-      <thead>
-        <tr className="border-b border-line align-bottom">
-          <th scope="col" className="type-catalog pb-2 text-left text-xs font-semibold text-ink-3">
-            <span aria-hidden="true">#</span>
-            <span className="sr-only">Track number</span>
-          </th>
-          <th scope="col" className="type-catalog pb-2 text-left text-xs font-semibold text-ink-3">
-            Title
-          </th>
-          <th scope="col" className="type-catalog pb-2 text-center text-xs font-semibold text-ink-3">
-            Lyrics
-          </th>
-          {themes.map((theme) => (
-            <th key={theme} scope="col" title={theme} className="h-24 p-0 pb-2 align-bottom font-semibold">
-              {/* Vertical, so six theme names fit over six narrow columns; the full name is read out. */}
-              <span className="type-catalog mx-auto block max-h-24 rotate-180 overflow-hidden text-ellipsis whitespace-nowrap text-xs text-ink-3 [writing-mode:vertical-rl]">
-                {theme}
-              </span>
+    <div className="min-w-0 overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">
+          Tracks in sequence: lyrics written, the album themes each track carries, and whether it
+          has a role in the arc. Select a title to open the track in the Studio.
+        </caption>
+        <thead>
+          <tr className="border-b border-line align-bottom">
+            <th scope="col" className="type-catalog w-6 pb-2 pr-1 text-left text-xs font-semibold text-ink-3">
+              <span aria-hidden="true">#</span>
+              <span className="sr-only">Track number</span>
             </th>
-          ))}
-          <th scope="col" className="type-catalog pb-2 text-center text-xs font-semibold text-ink-3">
-            Role
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => {
-          const lyrics = lyricFraction(row.lyricSections, row.sections);
-          const complete = row.sections > 0 && row.lyricSections === row.sections;
-          return (
-            <tr
-              key={row.trackNumber}
-              className="relative border-b border-line transition-colors hover:bg-hover has-[a:focus-visible]:bg-hover"
-            >
-              <td className="type-figure h-11 py-1.5 pr-1 align-middle text-sm font-semibold text-ink-3">
-                {pad(row.trackNumber)}
-              </td>
-              <td className="py-1.5 pr-2 align-middle">
-                {/* The link covers the whole row, so any cell is a 44px target. */}
-                <Link
-                  href={`${base}/studio?song=${row.trackNumber}`}
-                  title={row.title}
-                  className="line-clamp-2 break-words text-sm text-ink after:absolute after:inset-0"
-                >
-                  {row.title}
-                </Link>
-              </td>
-              <td
-                className={cn(
-                  "type-figure text-center align-middle text-sm",
-                  complete ? "text-ink" : row.lyricSections ? "text-ink-2" : "text-ink-3",
-                )}
-              >
-                <span aria-hidden="true">{lyrics.visible}</span>
-                <span className="sr-only">{lyrics.spoken}</span>
-              </td>
-              {themes.map((theme, index) => {
-                const carries = row.themeKeys.includes(themeKeys[index]);
-                return (
-                  <td key={theme} className="p-0 text-center align-middle">
-                    <ThemeMark
-                      carries={carries}
-                      label={carries ? `carries ${theme}` : `doesn't carry ${theme}`}
-                    />
-                  </td>
-                );
-              })}
-              <td className="text-center align-middle" title={row.narrativePosition ?? undefined}>
-                {row.narrativePosition ? (
-                  <Check className="mx-auto h-4 w-4 text-ink-2" aria-hidden="true" />
-                ) : (
-                  <span aria-hidden="true" className="mx-auto block h-1 w-1 rounded-full bg-line-strong" />
-                )}
-                <span className="sr-only">
-                  {row.narrativePosition ? `Role: ${row.narrativePosition}` : "No role yet"}
+            <th scope="col" className="type-catalog pb-2 pr-2 text-left text-xs font-semibold text-ink-3">
+              Title
+            </th>
+            <th scope="col" className="type-catalog w-8 px-1 pb-2 text-center text-xs font-semibold text-ink-3">
+              Lyrics
+            </th>
+            {themes.length ? (
+              <th scope="col" className="px-0.5 pb-2 font-semibold">
+                <span className="sr-only">Album themes</span>
+                {/* One short key per theme, read left to right like the marks beneath it. */}
+                <span aria-hidden="true" className="flex justify-center">
+                  {themes.map((theme, index) => (
+                    <abbr
+                      key={theme}
+                      title={theme}
+                      className="type-catalog block w-4.5 shrink-0 text-center text-xs text-ink-3 no-underline"
+                    >
+                      {abbreviations[index]}
+                    </abbr>
+                  ))}
                 </span>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+              </th>
+            ) : null}
+            <th scope="col" className="type-catalog w-8 pb-2 pl-1 text-center text-xs font-semibold text-ink-3">
+              Role
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const lyrics = lyricFraction(row.lyricSections, row.sections);
+            const complete = row.sections > 0 && row.lyricSections === row.sections;
+            const carried = themes.filter((_, index) => row.themeKeys.includes(themeKeys[index]));
+            return (
+              <tr
+                key={row.trackNumber}
+                className="relative border-b border-line transition-colors hover:bg-hover has-[a:focus-visible]:bg-hover"
+              >
+                <td className="type-figure h-11 py-1.5 pr-1 align-middle text-sm font-semibold text-ink-3">
+                  {pad(row.trackNumber)}
+                </td>
+                <td className="py-1.5 pr-2 align-middle">
+                  {/* The link covers the whole row, so any cell is a 44px target. The title
+                      keeps a readable width however large the text gets. */}
+                  <Link
+                    href={`${base}/studio?song=${row.trackNumber}`}
+                    title={row.title}
+                    className="line-clamp-2 min-w-[8rem] break-words text-sm text-ink hyphens-auto after:absolute after:inset-0"
+                  >
+                    {row.title}
+                  </Link>
+                </td>
+                <td
+                  className={cn(
+                    "type-figure px-1 text-center align-middle text-sm",
+                    complete ? "text-ink" : row.lyricSections ? "text-ink-2" : "text-ink-3",
+                  )}
+                >
+                  <span aria-hidden="true">{lyrics.visible}</span>
+                  <span className="sr-only">{lyrics.spoken}</span>
+                </td>
+                {themes.length ? (
+                  <td className="px-0.5 align-middle">
+                    <span aria-hidden="true" className="flex justify-center">
+                      {themes.map((theme, index) => (
+                        <span key={theme} className="grid w-4.5 shrink-0 place-items-center">
+                          <ThemeMark carries={row.themeKeys.includes(themeKeys[index])} />
+                        </span>
+                      ))}
+                    </span>
+                    {/* One phrase per row instead of one "doesn't carry" per cell. */}
+                    <span className="sr-only">{carriedThemesPhrase(carried, themes.length)}</span>
+                  </td>
+                ) : null}
+                <td className="pl-1 text-center align-middle" title={row.narrativePosition ?? undefined}>
+                  {row.narrativePosition ? (
+                    <Check className="mx-auto h-4 w-4 text-ink-2" aria-hidden="true" />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="mx-auto block h-1 w-1 rounded-full bg-line-strong forced-colors:bg-[GrayText]"
+                    />
+                  )}
+                  <span className="sr-only">
+                    {row.narrativePosition ? `Role: ${row.narrativePosition}` : "No role yet"}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   ) : (
     <p className="max-w-[65ch] text-sm text-ink-2">
       No tracks yet.{" "}
@@ -175,6 +191,16 @@ export function AlbumSpine({
         </h2>
       ) : null}
       {body}
+      {rows.length && themes.length ? (
+        // The key for the theme columns. Screen readers already hear each theme by name.
+        <p aria-hidden="true" className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-relaxed text-ink-3">
+          {themes.map((theme, index) => (
+            <span key={theme} className="min-w-0 break-words">
+              <span className="type-catalog text-ink-2">{abbreviations[index]}</span> {theme}
+            </span>
+          ))}
+        </p>
+      ) : null}
       {rows.length && !themes.length ? (
         <p className="mt-3 max-w-[65ch] text-xs leading-relaxed text-ink-3">
           Name the album&apos;s themes to see which tracks carry them.{" "}

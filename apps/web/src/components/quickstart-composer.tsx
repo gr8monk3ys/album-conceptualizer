@@ -1,36 +1,27 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown } from "lucide-react";
+import { Check } from "lucide-react";
 
+import { ConfirmSpend } from "@/components/confirm-spend";
 import { IdeationAi, type BrainstormPatch } from "@/components/ideation-ai";
-import {
-  Button,
-  Chip,
-  Field,
-  Panel,
-  StatusMessage,
-  buttonClass,
-  inputClass,
-  textareaClass,
-} from "@/components/ui";
+import { Button, Chip, Field, Panel, StatusMessage, inputClass, textareaClass } from "@/components/ui";
 import { STARTER_PROGRESSIONS } from "@/lib/chords";
+import {
+  CREATE_DRAFT_KEY,
+  EMPTY_DRAFT,
+  MAX_TRACKS,
+  MIN_TRACKS,
+  isBlankForm,
+  parseCreateDraft,
+  type CreateDraft,
+  type NarrativeStructure,
+  type QuickStartFormState,
+} from "@/lib/create-draft";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { clearDraft, useDraftState } from "@/lib/use-autosave";
 import { cn } from "@/lib/utils";
-
-type NarrativeStructure = "three-act" | "hero's-journey" | "circular" | "non-linear";
-
-type QuickStartFormState = {
-  title: string;
-  artist: string;
-  conceptSummary: string;
-  narrativeStructure: NarrativeStructure;
-  centralThemesRaw: string;
-  referenceAlbumsRaw: string;
-  trackCount: number;
-  trackNamesRaw: string;
-};
 
 type StatusTone = "error" | "success" | "info";
 type SetQuickStartField = <K extends keyof QuickStartFormState>(
@@ -49,9 +40,6 @@ type DraftAlbumIds = {
   songIds: string[];
   sectionIds: Record<number, [string, string]>;
 };
-
-const MIN_TRACKS = 4;
-const MAX_TRACKS = 20;
 
 const WIZARD_STEPS: WizardStep[] = [
   {
@@ -238,16 +226,6 @@ function canOpenStep(step: number, form: QuickStartFormState) {
     if (!getStepValidity(index, form)) return false;
   }
   return true;
-}
-
-function slugify(value: string) {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "album"
-  );
 }
 
 function WizardProgress({
@@ -482,19 +460,11 @@ function QuickStartStepFields({
 }
 
 function BlueprintPreview({
-  draftAlbum,
   form,
   trackNames,
-  jsonText,
-  onCopy,
-  onDownload,
 }: {
-  draftAlbum: ReturnType<typeof buildAlbumJson> | null;
   form: QuickStartFormState;
   trackNames: string[];
-  jsonText: string;
-  onCopy: () => void;
-  onDownload: () => void;
 }) {
   const themes = splitListInput(form.centralThemesRaw);
   const arc = NARRATIVE_OPTIONS.find((option) => option.key === form.narrativeStructure)?.label;
@@ -569,39 +539,6 @@ function BlueprintPreview({
         Each track starts with an empty verse and chorus. The chord loops are only there so you can
         hear a track right away; replace them when you write.
       </p>
-
-      <details className="group mt-6">
-        <summary
-          className={buttonClass(
-            "secondary",
-            "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
-          )}
-        >
-          See the data
-          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
-        </summary>
-        <div className="mt-3">
-          <p className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
-            The blueprint as structured data, exactly as it will be saved. Keep a copy or use it
-            with your own tools.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button onClick={onCopy} disabled={!draftAlbum}>
-              Copy
-            </Button>
-            <Button onClick={onDownload} disabled={!draftAlbum}>
-              Download
-            </Button>
-          </div>
-          <pre
-            tabIndex={0}
-            aria-label="Blueprint data"
-            className="mt-3 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded border border-line bg-sunken p-3 text-xs leading-relaxed text-ink-2"
-          >
-            {jsonText || "Add an album title to see the data."}
-          </pre>
-        </div>
-      </details>
     </section>
   );
 }
@@ -619,42 +556,53 @@ function focusField(id: string) {
   requestAnimationFrame(() => document.getElementById(id)?.focus());
 }
 
-export function QuickStartComposer({ aiAvailable }: { aiAvailable: boolean }) {
+export function QuickStartComposer({
+  aiAvailable,
+  creditsRemaining,
+}: {
+  aiAvailable: boolean;
+  /** The workspace balance, so the save (which spends credits) can say what's left after. */
+  creditsRemaining: number;
+}) {
   const router = useRouter();
   const draftIdsRef = useRef<DraftAlbumIds>({
     albumId: newId(),
     songIds: [],
     sectionIds: {},
   });
-  const [step, setStep] = useState(0);
-  const [visited, setVisited] = useState(0);
-  const [showErrors, setShowErrors] = useState(false);
-  const [form, setForm] = useState<QuickStartFormState>({
-    title: "",
-    artist: "",
-    conceptSummary: "",
-    narrativeStructure: "three-act",
-    centralThemesRaw: "",
-    referenceAlbumsRaw: "",
-    trackCount: 10,
-    trackNamesRaw: "",
+  // Every step's fields and the current step live in one sessionStorage-backed draft, restored
+  // after hydration, so a reload doesn't lose the wizard. Without storage it simply isn't kept.
+  const draft = useDraftState<CreateDraft>(CREATE_DRAFT_KEY, {
+    initial: () => EMPTY_DRAFT,
+    parse: (raw) => {
+      const restored = parseCreateDraft(raw);
+      if (!restored) return null;
+      // Never land on a step whose earlier steps aren't done.
+      return canOpenStep(restored.step, restored.form) ? restored : { ...restored, step: 0 };
+    },
+    isPristine: (value) => isBlankForm(value.form),
   });
+  const { form, step, visited } = draft.value;
+  const setDraft = draft.setValue;
+  const [showErrors, setShowErrors] = useState(false);
   const [status, setStatus] = useState<{ tone: StatusTone; text: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const hasMovedRef = useRef(false);
+
+  function setForm(update: (prev: QuickStartFormState) => QuickStartFormState) {
+    setDraft((prev) => ({ ...prev, form: update(prev.form) }));
+  }
+
+  function setStep(next: number) {
+    setDraft((prev) => ({ ...prev, step: next, visited: Math.max(prev.visited, next) }));
+  }
 
   const draftAlbum = useMemo(() => {
     if (!form.title.trim()) return null;
     ensureDraftAlbumIds(draftIdsRef.current, form.trackCount);
     return buildAlbumJson(form, draftIdsRef.current);
   }, [form]);
-
-  const deferredAlbum = useDeferredValue(draftAlbum);
-  const jsonText = useMemo(() => {
-    if (!deferredAlbum) return "";
-    return JSON.stringify(deferredAlbum, null, 2);
-  }, [deferredAlbum]);
 
   const trackNames = useMemo(() => splitTrackNames(form.trackNamesRaw), [form.trackNamesRaw]);
   const currentStep = WIZARD_STEPS[step] ?? WIZARD_STEPS[0];
@@ -672,11 +620,18 @@ export function QuickStartComposer({ aiAvailable }: { aiAvailable: boolean }) {
     if (status) setStatus(null);
   }
 
+  function startOver() {
+    draft.reset();
+    draftIdsRef.current = { albumId: newId(), songIds: [], sectionIds: {} };
+    setShowErrors(false);
+    setStatus(null);
+    focusField("quickstart-title");
+  }
+
   function goTo(next: number) {
     if (next === step || !canOpenStep(next, form)) return;
     hasMovedRef.current = true;
     setStep(next);
-    setVisited((current) => Math.max(current, next));
     setShowErrors(false);
     setStatus(null);
   }
@@ -724,33 +679,6 @@ export function QuickStartComposer({ aiAvailable }: { aiAvailable: boolean }) {
     return () => setForm((prev) => ({ ...prev, ...restore }));
   }
 
-  function downloadAlbumJson() {
-    if (!jsonText) return;
-    const blob = new Blob([jsonText], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${slugify(form.title)}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-    setStatus({ tone: "info", text: "Downloaded the blueprint data." });
-  }
-
-  async function copyToClipboard() {
-    if (!jsonText) return;
-    try {
-      await navigator.clipboard.writeText(jsonText);
-      setStatus({ tone: "success", text: "Copied the blueprint data." });
-    } catch {
-      setStatus({
-        tone: "error",
-        text: "Couldn't copy to the clipboard. Select the text in the data view and copy it instead.",
-      });
-    }
-  }
-
   async function saveAlbum() {
     if (!getStepValidity(0, form)) {
       hasMovedRef.current = true;
@@ -788,6 +716,8 @@ export function QuickStartComposer({ aiAvailable }: { aiAvailable: boolean }) {
         );
       }
       const saved = (await response.json()) as { id: string };
+      // The album exists now; the draft has done its job.
+      clearDraft(CREATE_DRAFT_KEY);
       setStatus({ tone: "success", text: "Saved. Opening your album…" });
       router.push(`/app/albums/${saved.id}?welcome=1`);
       // Creating the album spent credits; refresh so the layout's credits meter shows it.
@@ -804,85 +734,101 @@ export function QuickStartComposer({ aiAvailable }: { aiAvailable: boolean }) {
   }
 
   const statusTone = status?.tone === "error" ? "danger" : status?.tone === "success" ? "ok" : "neutral";
+  const cost = CREDIT_COSTS.albumCreate;
 
   return (
-    <div className="grid grid-cols-1 gap-x-10 gap-y-10 xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] xl:items-start">
-      <Panel className="min-w-0">
-        <WizardProgress step={step} form={form} visited={visited} onStepSelect={goTo} />
-
-        <div className="mt-5">
-          <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold text-ink">
-            {currentStep.title}
-          </h2>
-          <p className="mt-1 text-sm text-ink-2">
-            <span className="type-figure">
-              Step {step + 1} of {WIZARD_STEPS.length}
-            </span>
-            {" · "}
-            {currentStep.detail}
-          </p>
-        </div>
-
-        <div className="mt-5 flex flex-col gap-5">
-          <QuickStartStepFields
-            step={step}
-            form={form}
-            setField={setField}
-            showErrors={showErrors}
-          />
-          {/* Stays mounted across steps so a finished brainstorm (and its undo) isn't lost. */}
-          <div hidden={step !== 0}>
-            <IdeationAi
-              concept={form.conceptSummary}
-              references={form.referenceAlbumsRaw}
-              themes={form.centralThemesRaw}
-              trackCount={form.trackCount}
-              aiAvailable={aiAvailable}
-              onApply={applyBrainstorm}
-            />
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-col gap-3 border-t border-line pt-4">
-          {status ? <StatusMessage tone={statusTone}>{status.text}</StatusMessage> : null}
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {step > 0 ? (
-              <Button tone="ghost" onClick={goBack}>
-                Back
+    // Rem-sized container query, not a viewport breakpoint: with enlarged text the preview folds
+    // under the form instead of being pushed off-screen.
+    <div className="@container">
+      <div className="grid grid-cols-1 gap-x-10 gap-y-10 @4xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @4xl:items-start">
+        <Panel className="min-w-0">
+          {draft.restored ? (
+            <p role="status" className="-mt-1 mb-3 flex flex-wrap items-center gap-x-1 text-sm text-ink-2">
+              <span>Restored your draft</span>
+              <span aria-hidden="true">·</span>
+              <Button tone="ghost" className="-my-1 px-2" onClick={startOver}>
+                Start over
               </Button>
-            ) : (
-              <span aria-hidden="true" />
-            )}
-
-            {step < lastStep ? (
-              <Button tone="primary" onClick={goNext}>
-                Continue
-              </Button>
-            ) : (
-              <Button tone="primary" onClick={() => void saveAlbum()} disabled={isSaving}>
-                {isSaving ? "Saving…" : `Save and continue · ${CREDIT_COSTS.albumCreate} credits`}
-              </Button>
-            )}
-          </div>
-
-          {step === lastStep ? (
-            <p className="text-xs leading-relaxed text-ink-3">
-              Saving creates the album in your workspace and opens it, ready for a first writing
-              pass in the Studio.
             </p>
           ) : null}
-        </div>
-      </Panel>
 
-      <BlueprintPreview
-        draftAlbum={draftAlbum}
-        form={form}
-        trackNames={trackNames}
-        jsonText={jsonText}
-        onCopy={() => void copyToClipboard()}
-        onDownload={downloadAlbumJson}
-      />
+          <WizardProgress step={step} form={form} visited={visited} onStepSelect={goTo} />
+
+          <div className="mt-5">
+            <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold text-ink">
+              {currentStep.title}
+            </h2>
+            <p className="mt-1 text-sm text-ink-2">
+              <span className="type-figure">
+                Step {step + 1} of {WIZARD_STEPS.length}
+              </span>
+              {" · "}
+              {currentStep.detail}
+            </p>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-5">
+            <QuickStartStepFields
+              step={step}
+              form={form}
+              setField={setField}
+              showErrors={showErrors}
+            />
+            {/* Stays mounted across steps so a finished brainstorm (and its undo) isn't lost. */}
+            <div hidden={step !== 0}>
+              <IdeationAi
+                concept={form.conceptSummary}
+                references={form.referenceAlbumsRaw}
+                themes={form.centralThemesRaw}
+                trackCount={form.trackCount}
+                aiAvailable={aiAvailable}
+                creditsRemaining={creditsRemaining}
+                onApply={applyBrainstorm}
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 border-t border-line pt-4">
+            {status ? <StatusMessage tone={statusTone}>{status.text}</StatusMessage> : null}
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {step > 0 ? (
+                <Button tone="ghost" onClick={goBack}>
+                  Back
+                </Button>
+              ) : (
+                <span aria-hidden="true" />
+              )}
+
+              {step < lastStep ? (
+                <Button tone="primary" onClick={goNext}>
+                  Continue
+                </Button>
+              ) : (
+                <ConfirmSpend
+                  cost={cost}
+                  remaining={creditsRemaining}
+                  actionLabel="Save and continue"
+                  onConfirm={saveAlbum}
+                  busy={isSaving}
+                  tone="primary"
+                >
+                  {isSaving ? "Saving…" : `Save and continue · ${cost} credits`}
+                </ConfirmSpend>
+              )}
+            </div>
+
+            {step === lastStep ? (
+              <p className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
+                Saving creates the album in your workspace and opens it, ready for a first writing
+                pass in the Studio.
+              </p>
+            ) : null}
+          </div>
+        </Panel>
+
+        <BlueprintPreview form={form} trackNames={trackNames} />
+      </div>
     </div>
   );
 }

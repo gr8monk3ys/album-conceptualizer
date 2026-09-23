@@ -11,9 +11,21 @@ type AlbumPatch = Partial<
   Pick<StudioAlbum, "title" | "artist" | "primary_genre" | "concept_summary" | "central_themes" | "recurring_motifs">
 >;
 
-/** Deep-link targets: `?focus=album` and `?focus=album-motifs`. */
+/** Deep-link targets: `?focus=album` (see `albumFocusTarget`) and `?focus=album-motifs`. */
+export const ALBUM_TITLE_INPUT_ID = "album-title";
+export const ALBUM_CONCEPT_INPUT_ID = "album-concept";
 export const ALBUM_THEMES_INPUT_ID = "album-central-themes";
 export const ALBUM_MOTIFS_INPUT_ID = "album-recurring-motifs";
+
+/**
+ * Where `?focus=album` lands: the first album field still empty, in the order the record
+ * needs them (the concept, then its central themes), or the title when both are set.
+ */
+export function albumFocusTarget(album: Pick<StudioAlbum, "concept_summary" | "central_themes">): string {
+  if (!album.concept_summary?.trim()) return ALBUM_CONCEPT_INPUT_ID;
+  if (!(album.central_themes ?? []).some((theme) => theme.trim())) return ALBUM_THEMES_INPUT_ID;
+  return ALBUM_TITLE_INPUT_ID;
+}
 
 /**
  * The album-level fields the Studio edits alongside the tracks, as a disclosure below the
@@ -57,9 +69,9 @@ export function AlbumDetails({
       </p>
 
       <div id="album-details-body" hidden={!open} className="mt-4 flex-col gap-4 [&:not([hidden])]:flex">
-        <Field label="Album title" htmlFor="album-title">
+        <Field label="Album title" htmlFor={ALBUM_TITLE_INPUT_ID}>
           <input
-            id="album-title"
+            id={ALBUM_TITLE_INPUT_ID}
             value={album.title ?? ""}
             onChange={(e) => onChange({ title: e.target.value })}
             maxLength={200}
@@ -84,9 +96,9 @@ export function AlbumDetails({
             placeholder="Alt pop"
           />
         </Field>
-        <Field label="Concept summary" htmlFor="album-concept">
+        <Field label="Concept summary" htmlFor={ALBUM_CONCEPT_INPUT_ID}>
           <textarea
-            id="album-concept"
+            id={ALBUM_CONCEPT_INPUT_ID}
             value={album.concept_summary ?? ""}
             onChange={(e) => onChange({ concept_summary: e.target.value || null })}
             rows={5}
@@ -105,12 +117,12 @@ export function AlbumDetails({
         />
         <ChipListEditor
           id={ALBUM_MOTIFS_INPUT_ID}
-          label="Recurring motifs"
-          noun="recurring motif"
+          label="Album motifs"
+          noun="album motif"
           values={album.recurring_motifs ?? []}
           onChange={(next) => onChange({ recurring_motifs: next })}
           placeholder="A phrase or image"
-          hint="Images, phrases or sounds that come back across tracks."
+          hint="Images, phrases or sounds that come back across tracks. Each track tags the ones it uses in its story."
         />
       </div>
     </section>

@@ -9,12 +9,12 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Workspace funnel",
+  title: "Album progress",
   description: "How albums in this workspace move from created to exported and published.",
 };
 
 const EVENT_LABELS: Record<string, string> = {
-  user_signed_up: "Signed up",
+  user_signed_up: "Joined",
   album_created: "Album created",
   album_bible_viewed: "Album Bible reviewed",
   album_studio_viewed: "Studio opened",
@@ -32,7 +32,7 @@ const EVENT_LABELS: Record<string, string> = {
   album_saved: "Studio saved",
   album_export_requested: "Export completed",
   album_published: "Published to Discover",
-  billing_checkout_started: "Plan checkout started",
+  billing_checkout_started: "Started a plan upgrade",
 };
 
 function eventLabel(event: string) {
@@ -49,8 +49,8 @@ export default async function AnalyticsPage() {
   return (
     <div className="flex flex-col gap-10">
       <PageHeader
-        title="Workspace funnel"
-        description="How albums in this workspace move from first draft to export and publishing. Each album counts once per stage."
+        title="Album progress"
+        description="How your albums move from first draft to export and publishing. Each album counts once per stage."
       />
 
       <WorkspaceFunnelCard summary={summary} />

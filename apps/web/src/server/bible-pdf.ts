@@ -181,7 +181,7 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
     if (typeof track.chronologicalOrder === "number") {
       writeParagraph(doc, `Chronological order: ${track.chronologicalOrder}`, { color: "#555555" });
     }
-    writeParagraph(doc, track.narrativeSummary?.trim() || "Narrative summary missing.", { spacing: 0.2 });
+    writeParagraph(doc, track.narrativeSummary?.trim() || "No story note yet.", { spacing: 0.2 });
 
     const tags: string[] = [];
     if (track.themes.length) tags.push(`Themes: ${track.themes.join(", ")}`);

@@ -70,24 +70,74 @@
   --text-display-lg--line-height: 1.02;
   --text-display-xl: clamp(2rem, 1.1rem + 3.9vw, 3.5rem);
   --text-display-xl--line-height: 1.02;
+  /* The album title in the release header on every album screen: 2.25rem on a phone,
+     growing to 3.75rem on a wide screen. */
+  --text-display-release: clamp(2.25rem, 1.35rem + 2.6vw, 3.75rem);
+  --text-display-release--line-height: 1.02;
 
   /* Archivo is self-hosted by next/font (app/layout.tsx); latin-ext loads only when needed. */
   --font-sans: var(--font-archivo-ext), var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
-html {
-  color-scheme: dark;
-  background: var(--ground);
-  /* Anchors and focused fields scroll clear of the sticky app header (WCAG 2.4.11). */
-  scroll-padding-top: calc(var(--header-h) + 1rem);
-}
+/*
+ * Base element styles live in the base layer, under Tailwind's utilities, so a component can
+ * adjust them (an inset focus ring inside a scroller, a forced-colors treatment) with a
+ * utility class instead of fighting an unlayered rule.
+ */
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--ground);
+    /* Anchors and focused fields scroll clear of everything sticky at the top (WCAG 2.4.11):
+       the app header, plus the Studio's save bar, which sets --sticky-offset while mounted. */
+    scroll-padding-top: calc(var(--sticky-offset, var(--header-h)) + 1rem);
+  }
 
-body {
-  background: var(--ground);
-  color: var(--ink);
-  font-family: var(--font-sans);
-  font-feature-settings: "kern", "liga", "tnum" 0;
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "kern", "liga", "tnum" 0;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  /*
+   * One focus treatment everywhere: a saffron ring clear of the control's own edge. Every
+   * element carries the ring's colour before it is focused, so `transition-colors` (which
+   * animates outline-color) has nothing to fade: the ring appears at once, in saffron.
+   * Rows and tabs inside a scroller or a tight list draw it inside themselves instead
+   * (`focus-visible:-outline-offset-2`) so it is never clipped or painted over.
+   */
+  * {
+    outline-color: var(--accent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  :focus:not(:focus-visible) {
+    outline-style: none;
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: var(--accent);
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
 }
 
 /* Album titles and page titles: the expanded cut, the label's display voice. */
@@ -111,33 +161,4 @@ body {
 .type-figure {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
-}
-
-::selection {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-/* One focus treatment everywhere: a saffron ring clear of the control's own edge. */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-:focus:not(:focus-visible) {
-  outline: none;
-}
-
-input,
-textarea,
-select {
-  caret-color: var(--accent);
-}
-
-a {
-  text-underline-offset: 0.2em;
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
 }

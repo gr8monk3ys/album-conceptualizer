@@ -1,6 +1,9 @@
+import { isStarterOrEmptyProgression, trackHasWrittenHarmony } from "@/lib/chords";
+import { trackHasLyrics } from "@/lib/lyrics";
+import { albumMotifIndex } from "@/lib/motifs";
 import { AlbumJsonSchema } from "@/server/album-json";
 import { buildAlbumBible } from "@/server/bible";
-import { analyzeAlbumCoherence } from "@/server/coherence";
+import { analyzeAlbumCoherence, verdictText } from "@/server/coherence";
 import type { AlbumReferenceRecord } from "@/server/references";
 import { analyzeAlbumRoughDemos } from "@/server/rough-demo-review";
 import { getRoughDemoSourceLabel, listAlbumRoughDemos } from "@/server/rough-demos";
@@ -38,9 +41,9 @@ const TARGET_CONFIG: Record<
   daw: {
     title: "DAW Session Notes",
     intro:
-      "Use this pack to prep arrangement, recording, and mix decisions before the project hits a DAW session or collaborator handoff.",
+      "Use this pack to prep arrangement, recording, and mix decisions before the album hits a DAW session or collaborator handoff.",
     albumDirective:
-      "Treat the voice brief, palette, arrangement rules, and mix priorities as non-negotiable defaults for the whole project.",
+      "Treat the voice brief, palette, arrangement rules, and mix priorities as non-negotiable defaults for the whole album.",
     trackDirective:
       "Use the session objective and arrangement notes to build the rough first pass before chasing sound-design details.",
   },
@@ -69,9 +72,29 @@ function lineWrap(text: string, max = 96) {
   return lines.join("\n");
 }
 
-function mdList(values: string[], emptyText = "_none_") {
+function mdList(values: string[], emptyText: string) {
   if (!values.length) return emptyText;
   return values.map((value) => `- ${value}`).join("\n");
+}
+
+/** Empty style block: one plain line instead of a column of blanks. */
+export const STYLE_BIBLE_EMPTY_LINE = "Not set yet — add it in the Style bible.";
+
+/**
+ * One "- **Label:** value" line, or nothing when the value is empty: a pack never prints a
+ * placeholder like "_none_" for a field the artist hasn't set.
+ */
+function field(label: string, value: string | string[] | null | undefined) {
+  const text = Array.isArray(value)
+    ? value.map((item) => item.trim()).filter(Boolean).join(", ")
+    : (value ?? "").trim();
+  return text ? `- **${label}:** ${text}` : null;
+}
+
+/** The set fields of a block, or its one plain empty line. */
+function block(fields: Array<string | null>, emptyLine: string) {
+  const set = fields.filter((line): line is string => Boolean(line));
+  return set.length ? set : [emptyLine];
 }
 
 function normalizeText(value: unknown) {
@@ -133,7 +156,7 @@ function buildGeneratorPrompt(input: {
     input.song.tempo ? `${input.song.tempo} BPM` : null,
     input.song.key ? `key: ${input.song.key}` : null,
     input.song.time_signature ? `time signature: ${input.song.time_signature}` : null,
-    input.song.narrative_summary ?? input.conceptSummary ?? null,
+    normalizeText(input.song.narrative_summary) || normalizeText(input.conceptSummary) || null,
     input.song.themes.length ? `themes: ${input.song.themes.join(", ")}` : null,
     input.song.motifs.length ? `motifs: ${input.song.motifs.join(", ")}` : null,
     input.emotionalTargets.length ? `emotion: ${input.emotionalTargets.join(", ")}` : null,
@@ -145,7 +168,11 @@ function buildGeneratorPrompt(input: {
       : null,
   ];
 
-  return lineWrap(parts.filter(Boolean).join(". ") + ".", 110);
+  const set = parts.filter(Boolean);
+  if (!set.length) {
+    return "Not enough is set for a prompt line yet — add a story note, themes or a sonic palette.";
+  }
+  return lineWrap(set.join(". ") + ".", 110);
 }
 
 function buildDawObjective(input: {
@@ -171,7 +198,9 @@ function buildDawObjective(input: {
       : null,
   ].filter((line): line is string => Boolean(line));
 
-  return lines.length ? lines.map((line) => `- ${line}`).join("\n") : "- No DAW notes yet.";
+  return lines.length
+    ? lines.map((line) => `- ${line}`).join("\n")
+    : "Nothing set for this session yet — add a story note, themes, or Style bible arrangement rules.";
 }
 
 function formatSectionOrdinal(order: number) {
@@ -188,7 +217,7 @@ function buildSectionLines(
     duration_bars?: number | null;
   }>,
 ) {
-  if (!sections.length) return "_No section map captured yet._";
+  if (!sections.length) return "No sections yet.";
 
   return sections
     .slice()
@@ -199,8 +228,11 @@ function buildSectionLines(
         section.narrative_function ?? null,
         section.emotional_arc ?? null,
         section.duration_bars ? `${section.duration_bars} bars` : null,
-        Array.isArray(section.chord_progression) && section.chord_progression.length
-          ? `chords: ${section.chord_progression.join(" - ")}`
+        Array.isArray(section.chord_progression) && section.chord_progression.some((chord) => chord.trim())
+          ? `chords: ${section.chord_progression.join(" - ")}${
+              // Honest about scaffolding: the setup's starter loop isn't the artist's harmony.
+              isStarterOrEmptyProgression(section.chord_progression) ? " (starter loop)" : ""
+            }`
           : null,
       ];
       return `- ${joinMaybe(bits, " · ")}`;
@@ -215,7 +247,7 @@ export function buildHandoffPackMarkdown(input: {
 }) {
   const parsed = AlbumJsonSchema.safeParse(input.albumData);
   if (!parsed.success) {
-    return "# Handoff Pack\n\nAlbum data is invalid. Re-save the project in Studio and try again.";
+    return "# Handoff Pack\n\nThis album couldn't be read. Save it again in the Studio, then download the pack again.";
   }
 
   const album = parsed.data;
@@ -253,79 +285,76 @@ export function buildHandoffPackMarkdown(input: {
   lines.push(lineWrap(config.albumDirective));
   lines.push("");
 
+  const songsWritten = album.songs.filter((song) => trackHasLyrics(song.sections)).length;
+  const songsWithOwnChords = album.songs.filter((song) => trackHasWrittenHarmony(song.sections)).length;
+  const total = album.songs.length;
+  const motifs = albumMotifIndex(album);
+
   lines.push("## Album blueprint");
-  lines.push(`- **Concept:** ${album.concept_summary?.trim() || "_missing_"}`);
-  lines.push(`- **Narrative structure:** ${album.narrative_structure?.trim() || "_unspecified_"}`);
-  lines.push(`- **Central themes:** ${album.central_themes.length ? album.central_themes.join(", ") : "_none_"}`);
   lines.push(
-    `- **Recurring motifs:** ${album.recurring_motifs.length ? album.recurring_motifs.join(", ") : "_none_"}`,
+    ...block(
+      [
+        field("Concept", album.concept_summary),
+        field("Narrative structure", album.narrative_structure),
+        field("Central themes", album.central_themes),
+        field("Motifs", motifs.map((motif) => motif.name)),
+      ],
+      "No concept, themes or motifs yet — add them in the Studio.",
+    ),
   );
-  lines.push(`- **Coherence score:** ${coherence.score}/100`);
+  if (total) {
+    // What's actually written, so nobody downstream mistakes placeholders for a finished album.
+    lines.push(`- **Lyrics written:** ${songsWritten} of ${total} ${total === 1 ? "track" : "tracks"}`);
+    lines.push(
+      `- **Chords of their own:** ${songsWithOwnChords} of ${total} ${total === 1 ? "track" : "tracks"}${
+        songsWithOwnChords < total ? " (the rest are the starter loop or empty)" : ""
+      }`,
+    );
+  }
   lines.push(
-    `- **Priority fixes:** ${
-      coherence.nextActions.length
-        ? coherence.nextActions.slice(0, 3).map((action) => action.title).join(" | ")
-        : "No open issues"
+    `- **Coherence:** ${
+      coherence.insufficient ? "Not scored yet" : `${coherence.score}/100 · ${verdictText(coherence.verdict)}`
     }`,
   );
+  if (coherence.nextActions.length) {
+    lines.push(
+      `- **Priority fixes:** ${coherence.nextActions
+        .slice(0, 3)
+        .map((action) => action.title)
+        .join(" | ")}`,
+    );
+  }
   lines.push("");
 
+  const style = bible.styleBible;
   lines.push("## Voice / style bible");
   lines.push(
-    `- **Lead voice:** ${bible.styleBible.lead_voice?.trim() ? bible.styleBible.lead_voice.trim() : "_none_"}`,
+    ...block(
+      [
+        field("Lead voice", style.lead_voice),
+        field("Narrator perspective", style.narrator_perspective),
+        field("Vocal attributes", style.vocal_attributes),
+        field("Sonic palette", style.sonic_palette),
+        field("Arrangement rules", style.arrangement_rules),
+        field("Mix priorities", style.mix_priorities),
+        field("Avoid list", style.avoid_list),
+        field("Emotional targets", style.emotional_targets),
+        style.reference_strategy?.trim()
+          ? `- **Reference strategy:** ${lineWrap(style.reference_strategy, 108)}`
+          : null,
+      ],
+      STYLE_BIBLE_EMPTY_LINE,
+    ),
   );
-  lines.push(
-    `- **Narrator perspective:** ${
-      bible.styleBible.narrator_perspective?.trim()
-        ? bible.styleBible.narrator_perspective.trim()
-        : "_none_"
-    }`,
-  );
-  lines.push(
-    `- **Vocal attributes:** ${
-      bible.styleBible.vocal_attributes.length ? bible.styleBible.vocal_attributes.join(", ") : "_none_"
-    }`,
-  );
-  lines.push(
-    `- **Sonic palette:** ${
-      bible.styleBible.sonic_palette.length ? bible.styleBible.sonic_palette.join(", ") : "_none_"
-    }`,
-  );
-  lines.push(
-    `- **Arrangement rules:** ${
-      bible.styleBible.arrangement_rules.length
-        ? bible.styleBible.arrangement_rules.join(", ")
-        : "_none_"
-    }`,
-  );
-  lines.push(
-    `- **Mix priorities:** ${
-      bible.styleBible.mix_priorities.length ? bible.styleBible.mix_priorities.join(", ") : "_none_"
-    }`,
-  );
-  lines.push(
-    `- **Avoid list:** ${
-      bible.styleBible.avoid_list.length ? bible.styleBible.avoid_list.join(", ") : "_none_"
-    }`,
-  );
-  lines.push(
-    `- **Emotional targets:** ${
-      bible.styleBible.emotional_targets.length
-        ? bible.styleBible.emotional_targets.join(", ")
-        : "_none_"
-    }`,
-  );
-  if (bible.styleBible.reference_strategy) {
-    lines.push(`- **Reference strategy:** ${lineWrap(bible.styleBible.reference_strategy, 108)}`);
-  }
   lines.push("");
 
   lines.push("## Album-wide references");
-  if (albumWideReferences.length) {
-    lines.push(mdList(albumWideReferences.map((reference) => buildReferenceLine(reference))));
-  } else {
-    lines.push("_No album-wide references saved._");
-  }
+  lines.push(
+    mdList(
+      albumWideReferences.map((reference) => buildReferenceLine(reference)),
+      "None saved yet — add them in References.",
+    ),
+  );
   lines.push("");
 
   lines.push("## Rough demo captures");
@@ -359,7 +388,7 @@ export function buildHandoffPackMarkdown(input: {
       if (demo.external_url) lines.push(`  - URL: ${demo.external_url}`);
     }
   } else {
-    lines.push("_No rough demos saved yet._");
+    lines.push("None saved yet — add one in Demos.");
   }
   lines.push("");
 
@@ -370,16 +399,28 @@ export function buildHandoffPackMarkdown(input: {
   for (const song of album.songs.slice().sort((left, right) => left.track_number - right.track_number)) {
     const songReferences = referencesByTrack.get(song.track_number) ?? [];
     lines.push(`### Track ${song.track_number}: ${song.title}`);
-    lines.push(`- **Narrative summary:** ${normalizeText(song.narrative_summary) || "_missing_"}`);
-    lines.push(`- **Tempo / key:** ${joinMaybe([song.tempo ? `${song.tempo} BPM` : null, song.key ?? null], " · ") || "_unset_"}`);
-    lines.push(`- **Time signature:** ${normalizeText(song.time_signature) || "_unset_"}`);
-    lines.push(`- **Themes:** ${song.themes.length ? song.themes.join(", ") : "_none_"}`);
-    lines.push(`- **Motifs:** ${song.motifs.length ? song.motifs.join(", ") : "_none_"}`);
-    lines.push(`- **Characters:** ${song.characters.length ? song.characters.join(", ") : "_none_"}`);
+    const unfinished = [
+      trackHasLyrics(song.sections) ? null : "no lyrics yet",
+      trackHasWrittenHarmony(song.sections) ? null : "starter chords or none",
+    ].filter(Boolean);
     lines.push(
-      `- **Track references:** ${
-        songReferences.length ? songReferences.map((reference) => buildReferenceLine(reference)).join(" | ") : "_none_"
-      }`,
+      ...block(
+        [
+          unfinished.length ? `- **Still open:** ${unfinished.join("; ")}` : null,
+          field("Story note", song.narrative_summary),
+          field("Role", song.narrative_position),
+          field("Tempo / key", joinMaybe([song.tempo ? `${song.tempo} BPM` : null, song.key ?? null], " · ")),
+          field("Time signature", song.time_signature),
+          field("Themes", song.themes),
+          field("Motifs", song.motifs),
+          field("Characters", song.characters),
+          field(
+            "Track references",
+            songReferences.map((reference) => buildReferenceLine(reference)).join(" | "),
+          ),
+        ],
+        "Nothing set for this track yet — add a story note, themes and motifs in the Studio.",
+      ),
     );
     lines.push("");
 
@@ -420,21 +461,21 @@ export function buildHandoffPackMarkdown(input: {
           references: songReferences.length ? songReferences : albumWideReferences,
         }),
       );
-      lines.push("");
-      lines.push(
-        `**Avoid / negative prompt:** ${
-          bible.styleBible.avoid_list.length ? bible.styleBible.avoid_list.join(", ") : "_none_"
-        }`,
-      );
+      if (bible.styleBible.avoid_list.length) {
+        lines.push("");
+        lines.push(`**Avoid / negative prompt:** ${bible.styleBible.avoid_list.join(", ")}`);
+      }
     }
 
     lines.push("");
     lines.push("#### Section map");
     lines.push(buildSectionLines(song.sections ?? []));
     lines.push("");
-    lines.push("#### Production notes");
-    lines.push(normalizeText(song.production_notes) || "_No production notes captured yet._");
-    lines.push("");
+    if (normalizeText(song.production_notes)) {
+      lines.push("#### Production notes");
+      lines.push(normalizeText(song.production_notes));
+      lines.push("");
+    }
   }
 
   lines.push("## Collaboration note");

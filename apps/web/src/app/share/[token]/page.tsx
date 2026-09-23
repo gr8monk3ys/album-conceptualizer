@@ -5,6 +5,9 @@ import { RelativeTime } from "@/components/relative-time";
 import { SiteHeader } from "@/components/site-header";
 import { ButtonLink, EmptyState } from "@/components/ui";
 import { getAuthSession } from "@/server/auth";
+import { getCredits } from "@/server/credits";
+import { effectivePlan } from "@/server/plan";
+import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { getAlbumSongOptions } from "@/server/album-songs";
 import { findSharedAlbum } from "@/server/share-links";
 
@@ -25,7 +28,7 @@ function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-/** Each track's narrative role and themes, read from the shared album snapshot. */
+/** Each track's role and themes, read from the shared album snapshot. */
 function getShareTracks(data: unknown): ShareTrack[] {
   const songs = (data as { songs?: unknown } | null)?.songs;
   const byNumber = new Map<number, Record<string, unknown>>();
@@ -66,7 +69,16 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
 
   const tracks = getShareTracks(album.data);
   const callbackUrl = `/share/${token}`;
-  const signedIn = Boolean(session?.user?.id);
+  const userId = session?.user?.id;
+  const signedIn = Boolean(userId);
+  // A signed-in viewer's balance, so the remix confirm can say what's left after it.
+  let creditsRemaining: number | undefined;
+  if (userId) {
+    const workspace = await getActiveWorkspaceForUser(userId);
+    creditsRemaining = (
+      await getCredits({ workspaceId: workspace.id, plan: effectivePlan(workspace.subscription) })
+    ).remaining;
+  }
 
   return (
     <div className="min-h-screen bg-ground text-ink">
@@ -93,7 +105,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             </div>
             <div className="flex flex-col items-start gap-2">
               {signedIn ? (
-                <ForkShareButton token={token} />
+                <ForkShareButton token={token} creditsRemaining={creditsRemaining} />
               ) : (
                 <ButtonLink
                   tone="primary"

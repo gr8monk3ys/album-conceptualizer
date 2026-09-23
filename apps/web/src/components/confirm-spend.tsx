@@ -10,8 +10,9 @@ function credits(n: number) {
 
 /**
  * A credit spend that asks once. The trigger opens a small inline confirm (not a modal) naming
- * the cost and the balance after; the spend happens only on the second, explicit choice, so a
- * mis-tap never costs credits. Escape or Cancel closes it and returns focus to the trigger.
+ * the cost and, when the page knows it, the balance after; the spend happens only on the second,
+ * explicit choice, so a mis-tap never costs credits. Escape or Cancel closes it and returns
+ * focus to the trigger. Pass `remaining` whenever the page has the balance.
  */
 export function ConfirmSpend({
   cost,
@@ -25,7 +26,8 @@ export function ConfirmSpend({
   children,
 }: {
   cost: number;
-  remaining: number;
+  /** The balance before the spend; without it the question names only the cost. */
+  remaining?: number;
   /** The verb on the confirm button, e.g. "Remix" or "Download zip". */
   actionLabel: string;
   onConfirm: () => void | Promise<void>;
@@ -41,8 +43,9 @@ export function ConfirmSpend({
   const promptId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const confirmRef = useRef<HTMLButtonElement | null>(null);
-  const after = remaining - cost;
-  const affordable = after >= 0;
+  const known = typeof remaining === "number";
+  const after = known ? remaining - cost : null;
+  const affordable = after === null || after >= 0;
 
   useEffect(() => {
     if (open) confirmRef.current?.focus();
@@ -81,9 +84,11 @@ export function ConfirmSpend({
       }}
     >
       <p id={promptId} className="text-sm text-ink">
-        {affordable
-          ? `${actionLabel} for ${credits(cost)}? You'll have ${after} left.`
-          : `${actionLabel} costs ${credits(cost)} and you have ${credits(remaining)}.`}
+        {after === null
+          ? `${actionLabel} for ${credits(cost)}?`
+          : affordable
+            ? `${actionLabel} for ${credits(cost)}? You'll have ${after} left.`
+            : `${actionLabel} costs ${credits(cost)} and you have ${credits(remaining ?? 0)}.`}
       </p>
       <Button
         ref={confirmRef}

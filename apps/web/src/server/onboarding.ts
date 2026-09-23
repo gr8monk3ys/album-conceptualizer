@@ -1,6 +1,7 @@
 import { AlbumJsonSchema } from "@/server/album-json";
 import { getAlbumTrackedEvents } from "@/server/analytics";
 import { analyzeAlbumCoherence, coherenceFixHref, MIN_WRITTEN_TRACKS_FOR_SCORE } from "@/server/coherence";
+import { STYLE_BIBLE_LOCKED_FIELDS } from "@/server/readiness";
 import { listAlbumRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 
@@ -46,7 +47,7 @@ function songProgress(data: unknown): SongProgress[] {
 
 function hasStyleBibleLocked(data: unknown) {
   const summary = summarizeStyleBible(getAlbumStyleBible(data));
-  return summary.filledCount >= 3;
+  return summary.filledCount >= STYLE_BIBLE_LOCKED_FIELDS;
 }
 
 function hasRoughDemoCaptured(data: unknown) {
@@ -68,14 +69,9 @@ export async function getAlbumOnboardingSummary(input: {
   const chordFix = coherence.issues.find((issue) => issue.id === "missing_chords")?.fix;
   const untagged = songs.find((song) => !song.hasThemes) ?? songs[0];
 
+  // The saved blueprint is where the path starts, not a step on it: counting it would tick a
+  // box on every fresh album. The checklist says "Blueprint saved" above the steps instead.
   const steps: AlbumOnboardingStep[] = [
-    {
-      key: "blueprint_saved",
-      label: "Blueprint saved",
-      description: "The album's concept and tracklist are in your workspace.",
-      href: `${base}/studio?focus=album`,
-      complete: true,
-    },
     {
       key: "direction_locked",
       label: "Lock the direction",
@@ -99,16 +95,17 @@ export async function getAlbumOnboardingSummary(input: {
       complete: songs.some((song) => song.hasThemes),
     },
     {
+      // Read through `@/lib/chords` (via the report): the starter loop is never "written".
       key: "chords_set",
-      label: "Write chords and tempo",
-      description: "Replace the starting loop with a progression and tempo that fit the track.",
+      label: lyricTarget === 1 ? "Write the chords" : "Write chords for two tracks",
+      description: "Change the starter loop into a progression of the track's own. The starter chords don't count.",
       href: coherenceFixHref(input.albumId, chordFix ?? { focus: "song" }),
-      complete: coherence.stats.songsWithChords > 0,
+      complete: coherence.stats.songsWithChords >= lyricTarget,
     },
     {
       key: "style_bible_locked",
       label: "Lock the voice and style",
-      description: "Set at least three parts of the Style bible, such as the singer brief, palette and mix priorities.",
+      description: "Set at least three of the Style bible's fields, such as the lead voice, sonic palette and mix priorities.",
       href: `${base}/style`,
       // Read from the album itself: a Style bible saved and later cleared is not done.
       complete: hasStyleBibleLocked(input.data),

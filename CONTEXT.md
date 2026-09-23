@@ -15,8 +15,23 @@ The album's full JSON document, the source of truth for an Album. Every other re
 _Avoid_: album data blob, payload
 
 **Song**:
-One track of an Album, with a track number, narrative role, themes and Sections.
+One track of an Album, with a track number, a Role, a Story note, themes, Motifs and Sections.
 _Avoid_: track (except for "track number")
+
+**Story note**:
+A Song's one- or two-sentence account of what happens in it (field `narrative_summary`). The same name everywhere: labels, headings, fix links, Coherence findings, handoff packs.
+_Avoid_: narrative summary, song brief, story notes for the album's concept (that is the concept summary)
+
+**Role**:
+A Song's place in the album's arc, such as "Inciting incident" or "Resolution" (field `narrative_position`).
+_Avoid_: narrative position, narrative role, story position (that is the story order)
+
+**Motifs**:
+The album's recurring images, sounds or phrases: the album-level motifs (`recurring_motifs`) plus the motif tags on each Song. The Album Bible, the Coherence report and the handoff packs all read this one merged list (`lib/motifs.ts`), so a motif named only for the album still counts.
+_Avoid_: recurring motifs as a separate list, callbacks (a callback is a motif coming back on a second Song)
+
+**Written**:
+A Section's lyrics are written once anything is left after removing "[…]" placeholders (`lib/lyrics.ts`); its chords are written once they differ from the starter loop the setup writes (`lib/chords.ts`). Placeholders and the starter loop never count as done, anywhere a count is shown.
 
 **Section**:
 A part of a Song (verse, chorus, bridge…) carrying lyrics, chords and its narrative function.
@@ -30,7 +45,7 @@ The voice and sonic guidance inside the Album snapshot (lead voice, palette, arr
 _Avoid_: style guide
 
 **Coherence report**:
-The computed assessment of how well an Album's Songs hold together against its concept, themes and motifs.
+The computed assessment of how well an Album's Songs hold together against its concept, themes and Motifs. Every dimension is capped by the share of Songs with written lyrics, and an Album with any unwritten Song is labelled "Unfinished" (with the count) whatever its score.
 
 **Handoff pack**:
 A Markdown brief for taking an Album into a specific downstream tool (a DAW, a generator, a collaborator).

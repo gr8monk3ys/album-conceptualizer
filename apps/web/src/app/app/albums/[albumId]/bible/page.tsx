@@ -12,6 +12,7 @@ import { coherenceFixHref } from "@/server/coherence";
 import { requireUser } from "@/server/identity";
 import { summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { albumMotifIndex, type MotifEntry } from "@/lib/motifs";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +21,10 @@ export const metadata = {
   description: "Themes, motifs, characters and story beats across the album, and what still needs tagging.",
 };
 
-const THEME_COLUMN_PX = 224;
 /** The map's text version is listed in full up to this many connections, then folded away. */
 const CONNECTIONS_SHOWN = 10;
 const DISCLOSURE =
   "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:bg-hover";
-const TRACK_COLUMN_PX = 48;
 
 function pad(trackNumber: number) {
   return String(trackNumber).padStart(2, "0");
@@ -60,10 +59,9 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
 
   return (
     <div className="relative overflow-x-auto border-y border-line">
-      <table
-        className="w-full table-fixed border-collapse text-sm"
-        style={{ minWidth: THEME_COLUMN_PX + tracks.length * TRACK_COLUMN_PX }}
-      >
+      {/* Auto layout with a rem minimum on the theme column, so larger text widens the table
+          (it scrolls inside this region) instead of starving the theme names. */}
+      <table className="w-full border-collapse text-sm">
         <caption className="sr-only">
           Themes by track. Each row is a theme; a filled mark means the track is tagged with it.
         </caption>
@@ -71,12 +69,12 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
           <tr className="border-b border-line">
             <th
               scope="col"
-              className="sticky left-0 z-10 bg-ground py-2 pr-4 text-left text-xs font-semibold text-ink-3"
+              className="sticky left-0 z-10 min-w-[12rem] bg-ground py-2 pr-4 text-left text-xs font-semibold text-ink-3"
             >
               Theme
             </th>
             {tracks.map((track) => (
-              <th key={track.trackNumber} scope="col" className="p-0 font-normal" style={{ width: TRACK_COLUMN_PX }}>
+              <th key={track.trackNumber} scope="col" className="w-12 min-w-12 p-0 font-normal">
                 <Link
                   href={coherenceFixHref(albumId, { focus: "song-themes", trackNumber: track.trackNumber })}
                   title={`${track.title}: edit its themes`}
@@ -252,6 +250,43 @@ function IssueRow({ albumId, issue }: { albumId: string; issue: BibleIssue }) {
   );
 }
 
+/**
+ * Every motif of the album: its own motifs and the motif tags on its tracks, from the same
+ * source the Coherence report reads (`@/lib/motifs`).
+ */
+function MotifList({ albumId, motifs }: { albumId: string; motifs: MotifEntry[] }) {
+  if (!motifs.length) {
+    return (
+      <p className="text-sm text-ink-2">
+        No motifs yet.{" "}
+        <Link
+          href={coherenceFixHref(albumId, { focus: "album-motifs" })}
+          className="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
+        >
+          Name the album&apos;s motifs in the Studio
+        </Link>
+      </p>
+    );
+  }
+  return (
+    <ul className="divide-y divide-line border-y border-line text-sm">
+      {motifs.map((motif) => (
+        <li key={motif.name} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2">
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <span className="min-w-0 break-words text-ink">{motif.name}</span>
+            {motif.albumLevel ? <span className="text-xs text-ink-3">Album motif</span> : null}
+          </span>
+          <span className="type-figure text-xs text-ink-3">
+            {motif.trackNumbers.length
+              ? `${motif.trackNumbers.length === 1 ? "Track" : "Tracks"} ${motif.trackNumbers.join(", ")}`
+              : "On no track yet"}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function IndexList({ entries, empty }: { entries: Array<{ name: string; trackNumbers: number[] }>; empty: string }) {
   if (!entries.length) return <p className="text-sm text-ink-2">{empty}</p>;
   return (
@@ -278,6 +313,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
   const bible = buildAlbumBible(album.data);
   const styleSummary = summarizeStyleBible(bible.styleBible);
   const graph = buildMotifCharacterGraph(bible, { maxCharacters: 10, maxMotifs: 10, minEdgeWeight: 1 });
+  const motifs = albumMotifIndex(album.data);
   // Track-by-track gaps are the Coherence report's job and Style bible gaps show under
   // "Voice and style"; this page checks only how the album's threads hang together.
   const structure = bible.issues.filter((issue) => issue.scope === "structure");
@@ -303,7 +339,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
               href={coherenceFixHref(album.id, { focus: "album" })}
               className="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
             >
-              Write the logline in the Studio
+              Write the concept summary in the Studio
             </Link>
           </p>
         )}
@@ -375,7 +411,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
                 .map((section) =>
                   [
                     section.sectionType,
-                    section.narrativeFunction ? `role: ${section.narrativeFunction}` : null,
+                    section.narrativeFunction ? `function: ${section.narrativeFunction}` : null,
                     section.emotionalArc ? `arc: ${section.emotionalArc}` : null,
                   ]
                     .filter(Boolean)
@@ -393,7 +429,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
                         {track.title}
                         {typeof track.chronologicalOrder === "number" ? (
                           <span className="type-figure ml-2 text-xs font-normal text-ink-3">
-                            story position {track.chronologicalOrder}
+                            story order {track.chronologicalOrder}
                           </span>
                         ) : null}
                       </h3>
@@ -401,7 +437,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
                         href={coherenceFixHref(album.id, { focus: "story", trackNumber: track.trackNumber })}
                         className="inline-flex min-h-11 items-center gap-1 text-sm text-ink-2 hover:text-ink"
                       >
-                        Edit story
+                        Edit story note
                         <span className="sr-only">{` for ${track.title}`}</span>
                         <ArrowRight className="h-4 w-4" aria-hidden="true" />
                       </Link>
@@ -430,7 +466,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
       <Section
         id="bible-cast"
         title="Characters and motifs"
-        description="Who carries which motif, and where each one comes back."
+        description="Who carries which motif, and where each one comes back. Motifs are the album's own plus the motif tags on its tracks."
       >
         <div className="flex flex-col gap-8">
           <RelationshipMap graph={graph} />
@@ -441,7 +477,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
             </div>
             <div className="min-w-0">
               <h3 className="mb-2 text-sm font-semibold text-ink">Motifs</h3>
-              <IndexList entries={bible.motifIndex} empty="No motifs tagged yet." />
+              <MotifList albumId={album.id} motifs={motifs} />
             </div>
           </div>
         </div>

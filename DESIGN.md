@@ -30,7 +30,7 @@ typography:
     fontVariation: "'wdth' 125"
   display-release:
     fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "3.75rem"
+    fontSize: "clamp(2.25rem, 1.35rem + 2.6vw, 3.75rem)"
     fontWeight: 760
     lineHeight: 1.02
     letterSpacing: "-0.02em"
@@ -254,6 +254,8 @@ A near-monochrome warm palette in which a single saffron is the only saturated v
 
 **The Warm Neutral Rule.** Every neutral sits at a warm hue (about 85–92 in OKLCH) with near-zero chroma. Never substitute a cool or blue-black gray.
 
+**The Forced Colors Rule.** In forced-colors (Windows High Contrast) mode the washes and the saffron are replaced by system colors, so every signal also has a shape the system can draw: the current sidebar row gets a Highlight outline and its bar turns Highlight; the current album tab's underline turns Highlight while idle tabs drop theirs; every button carries a 1px border (transparent by design, drawn by the system); theme marks switch to CanvasText and GrayText.
+
 ## Typography
 
 **Display Font:** Archivo at width 125 (with ui-sans-serif, system-ui)
@@ -263,8 +265,8 @@ A near-monochrome warm palette in which a single saffron is the only saturated v
 **Character:** One variable grotesk, self-hosted, stretched between 62% and 125%. The expanded cut gives album titles the weight of a sleeve; the condensed caps read like the small print on a catalog spine; the normal width does the working UI.
 
 ### Hierarchy
-- **Display** (760, fluid: `display-xl` 2–3.5rem for the landing headline and the shared album title; `display-lg` 1.625–3rem for sign-in, error and not-found; `display-md` 1.75–2.75rem for every page h1 via the page header; line-height 1.02, tracking -0.02em, balanced wrap): one h1 per page, titles only.
-- **Release title** (760, 2.25rem below 768px and 3.75rem above, 1.02, max 24ch): the album title in the release header on every album screen. Long titles break and hyphenate rather than overflow.
+- **Display** (760, fluid: `display-xl` 2–3.5rem for the landing headline and the album title on a public share page; `display-lg` 1.625–3rem for sign-in, error and not-found; `display-md` 1.75–2.75rem for every page h1 via the page header; line-height 1.02, tracking -0.02em, balanced wrap): one h1 per page, titles only.
+- **Release title** (`display-release`: 760, fluid from 2.25rem on a phone to 3.75rem on a wide screen, 1.02, max 24ch): the album title in the release header on every album screen, set with `text-display-release`. Long titles break and hyphenate rather than overflow.
 - **Display, small** (760, 1.125–2.25rem): album titles in catalog rows and Discover, plan names, the example album on the landing page, the "How it works" heading.
 - **Headline** (600, 1.5rem, 1.333): the current track's title in the Studio, set after its two-digit number at 1.875rem in Ash Ink.
 - **Title** (600, 1.125rem, 1.556): every section h2 and list-level h3.
@@ -284,9 +286,9 @@ A near-monochrome warm palette in which a single saffron is the only saturated v
 
 ## Layout
 
-The app shell is a fixed sidebar and a single content column. From 768px the sidebar (16rem, capped at 33vw) is sticky at full height with a hairline right edge; below 768px it becomes a modal sheet (20rem or 88vw) opened from a 44px menu button. The top bar is sticky, 4.3125rem tall, on Warm Graphite with a hairline bottom edge; scroll padding and sticky offsets read the same height so focused fields never hide under it. Content padding is 16px, 32px from 768px, with 24px (32px) vertical padding.
+The app shell is a fixed sidebar and a single content column. From 768px the sidebar (16rem, capped at 33vw) is sticky at full height with a hairline right edge; below 768px it becomes a modal sheet (20rem or 88vw) opened from a 44px menu button. Sidebar and sheet scroll as one column when they are taller than the window (a landscape phone, 200% text): nothing inside them shrinks, so the navigation never collapses, and the credits meter and account block sit at the bottom when there is room. The top bar is sticky, 4.3125rem tall (`--header-h`), on Warm Graphite with a hairline bottom edge. Page scroll padding is `--sticky-offset` plus 1rem, where the Studio sets `--sticky-offset` to its measured header and save bar while it is mounted and every other screen falls back to the header height; a field reached by Tab or a deep link therefore lands clear of everything sticky. Content padding is 16px, 32px from 768px, with 24px (32px) vertical padding.
 
-Album screens share one frame: the release header (title, catalog line, the one next-step action to the right), the album tab bar, then the album body. When the body's own container is at least 56rem wide it splits into the spine (up to 18rem, sticky under the header, scrolling on its own) and the content, 40px apart; with less room, from a sidebar or enlarged text, the spine folds into a "Sequence" disclosure above the content. The Studio replaces the spine with its editable track list, whose column widens from 16rem to 32rem as theme and position columns appear at 1280px and 1536px.
+Album screens share one frame: the release header (title, catalog line, the one next-step action to the right), the album tab bar, then the album body. When the body's own container is at least 56rem wide it splits into the spine (up to 21rem, 24rem once the container reaches 72rem; sticky under the header, scrolling on its own) and the content, 40px apart; with less room, from a sidebar or enlarged text, the spine folds into a "Sequence" disclosure above the content, open by default on the Overview so a phone shows the whole sequence there. The Studio replaces the spine with its editable track list, whose column widens from 16rem to 32rem as theme and position columns appear at 1280px and 1536px.
 
 Vertical rhythm steps on a 4px grid: 8px and 12px inside groups, 16px between a heading and its content, 24px between sections (a hairline and 24px top padding), 40px between major columns. The public pages sit in a 1200px column; the landing hero splits 5:7 from 1024px. Grid tracks use `minmax(0, 1fr)`, text-holding flex children can shrink, and wide tables scroll inside their own region, so nothing scrolls the page sideways at 320px or 1440px.
 
@@ -296,6 +298,10 @@ Vertical rhythm steps on a 4px grid: 8px and 12px inside groups, 16px between a 
 **The 44px Rule.** Every interactive element, including rows that are links and chip remove buttons, is at least 44 by 44px. Row links stretch over the whole row.
 
 **The 65ch Rule.** Body copy, hints and descriptions carry their own max width of 65ch at their own size.
+
+**The Whole Album on a Phone Rule.** A phone gets the whole sequence: no nested scroll box for a tracklist, 7 to 12 rows visible in the page's own scroll. Keyboard hints hide on coarse pointers (`pointer-coarse:hidden`).
+
+**The 200% Table Rule.** Tables survive 200% text. No `table-fixed` with rem-sized columns that can starve the title: the title column keeps at least 8rem, numeric and mark columns stay narrow, and when the row still can't fit, the table scrolls sideways inside its own region instead of squeezing the title.
 
 ## Elevation & Depth
 
@@ -315,14 +321,14 @@ Square-shouldered. One radius, 4px, on buttons, fields, chips, panels, empty sta
 
 ### Buttons
 Plain rectangles with a verb; the label says what spends credits ("Download zip · 2 credits").
-- **Shape:** gently squared corners (4px), at least 44px tall, 16px side padding, 8px icon gap, 600 weight at 0.875rem.
+- **Shape:** gently squared corners (4px), at least 44px tall, 16px side padding, 8px icon gap, 600 weight at 0.875rem, and a 1px border on every tone (transparent on primary and ghost, so forced-colors mode still draws the button's edge).
 - **Primary:** Saffron fill, Saffron Ink label. One per screen. Hover brightens to Bright Saffron.
 - **Secondary:** transparent with a Strong Rule border and Bone Ink label; hover lifts the border to Ash Ink and adds the Hover wash.
 - **Ghost:** Stone Ink label, no border; hover adds the Hover wash and turns the label Bone Ink. Used for "Add track", "Sign in" in the public header, low-stakes toggles.
 - **Danger:** transparent, Coral label and a Coral border at 60%; Coral Wash on hover. Kept apart from the primary action.
 - **Disabled:** 50% opacity and a not-allowed cursor; a disabled priced action still shows its price and one plain line explaining why.
 - **Icon button:** a 44px square, Stone Ink icon, Hover wash on hover; always carries an accessible name.
-- **Focus:** the global saffron ring, 2px, offset 2px. No per-component focus styles.
+- **Focus:** the global saffron ring, 2px, offset 2px. No per-component focus styles, with one exception: rows and tabs inside a scroller or a tight list (sidebar rows, album tabs) draw the ring inset (`focus-visible:-outline-offset-2`) so it is never clipped or painted over by the next row. Every element carries the ring's color before it is focused, so the ring appears at once instead of fading in from the text color under `transition-colors`. The global element styles live in the base layer, beneath the utilities, so these adjustments apply.
 
 ### Chips
 - **Style:** a 4px-cornered outline chip, 0.75rem at 500, 2px by 8px padding. Neutral chips use a Strong Rule border and Stone Ink; state chips use the state color for text and border (50% opacity).
@@ -337,24 +343,45 @@ Plain rectangles with a verb; the label says what spends credits ("Download zip 
 ### Inputs / Fields
 - **Style:** Sunken well, 1px Control Edge border, 4px corners, 44px tall (textarea at least 96px), 12px side padding, Ash Ink placeholder, saffron caret.
 - **Hover / Focus:** hover lifts the border to Ash Ink; focus turns the border saffron and shows the global ring.
-- **Labels and hints:** every field has a visible 500-weight label above it; hints in Ash Ink at 0.75rem below, replaced by a Coral error message when invalid.
+- **Labels and hints:** every field has a visible 500-weight label above it; hints in Ash Ink at 0.75rem below, replaced by a Coral error message when invalid. `Field` ties them to the control itself: it gives the element whose id is `htmlFor` its `aria-describedby` (and `aria-invalid` with an error), keeping any other ids the caller set; a control rendered by another component takes them through a render function.
 - **Disabled:** 60% opacity.
 
 ### Navigation
-- **Sidebar (Main):** 44px rows, 4px corners, a 16px icon and the label. Idle rows are Stone Ink with an Ash Ink icon; hover adds the Hover wash. The current row is Selected Graphite, semibold Bone Ink, with a saffron icon and a 2px saffron bar at its left edge, and carries `aria-current`.
+- **Sidebar (Main):** 44px rows, 4px corners, a 16px icon and the label. Idle rows are Stone Ink with an Ash Ink icon; hover adds the Hover wash. The current row is Selected Graphite, semibold Bone Ink, with a saffron icon and a 2px saffron bar at its left edge, and carries `aria-current`. Settings and Help sit in the account block under the credits meter, as ordinary rows: Help is a place to look things up, never a saffron call to action.
 - **Wordmark:** "Album Conceptualizer" in condensed caps, Bone Ink, with the second word in extra bold. Never saffron.
-- **Album tab bar:** six text tabs (Overview, Studio, Bible, Coherence, Sound, Export) on a hairline baseline. Idle tabs are Stone Ink with a transparent 2px underline that turns Strong Rule on hover; the current tab is semibold Bone Ink with a saffron underline. On narrow screens the strip scrolls inside itself, keeps the current tab centered, and fades the edge that has more tabs past it with a transparency mask.
+- **Album tab bar:** six text tabs (Overview, Studio, Bible, Coherence, Sound, Export) on a hairline baseline. Idle tabs are Stone Ink with a transparent 2px underline that turns Strong Rule on hover; the current tab is semibold Bone Ink with a saffron underline. The six sit in one row when the album column is at least 32rem wide (rem, so enlarged text needs more room); with less, they stack as a ruled grid of three columns, or two below 20rem, each tab on its own hairline, so a phone shows every tab. If a row still overflows, the strip scrolls inside itself, centers the current tab with `scrollLeft` (never `scrollIntoView`, which would move the focus starting point past the skip link) and fades the edge with more tabs past it with a transparency mask.
 - **Second-level nav (Sound):** Style · References · Demos as 44px text links separated by middots; the current one is semibold Bone Ink with a 2px saffron underline offset 8px.
 - **Mobile:** the sidebar's contents move into a modal sheet with the same rows, credits meter and account block.
 
 ### Release Header (signature)
-The top of every album screen: the album title in the expanded cut (2.25rem, 3.75rem from 768px, max 24ch), and beneath it the catalog line in condensed caps, Stone Ink, joined by middots: artist, track count in tabular figures, status (and "On Discover"), remix source when there is one, and when it was edited. The next step for the album sits bottom-right as a button, primary on reading screens (Overview, Bible, Coherence) and secondary where the screen has its own primary.
+The top of every album screen: the album title in the expanded cut (`display-release`, 2.25rem on a phone to 3.75rem wide, max 24ch), and beneath it the catalog line in condensed caps, Stone Ink, joined by middots: artist, track count in tabular figures, status (and "On Discover"), remix source when there is one, and when it was edited. The next step for the album sits bottom-right as a button, weighted by the One Next Step Rule below. It is left out on the screen it points to, in the Studio (which has its own track list), and while the Overview's welcome banner carries the same action.
 
 ### The Spine (signature)
-The album's sequence as a track sheet: a fixed table with columns for the two-digit track number (tabular, Ash Ink, 600), the title (a link stretched over the whole 44px row, clamped to two lines), lyrics written as a fraction glyph ("½", "2/2", "—"), one narrow column per album theme (up to six) with the theme name set vertically in catalog caps, and whether the track has a role in the arc (a check, or a dot). A track that carries a theme shows a solid 10px Bone Ink square; a track that doesn't shows a small Strong Rule dot. Column heads are catalog caps in Ash Ink over a hairline; rows are divided by hairlines and take the Hover wash on hover or keyboard focus. Every cell has a spoken equivalent. In the Studio the same sheet becomes the editable track list: the selected row is Selected Graphite and its number turns saffron.
+The album's sequence as a track sheet: columns for the two-digit track number (tabular, Ash Ink, 600), the title (a link stretched over the whole 44px row, clamped to two lines, never narrower than 8rem), lyrics written as a fraction glyph ("½", "2/2", "—"), the album themes (up to six) and whether the track has a role in the arc (a check, or a dot). The themes share one column: its head is a row of short horizontal keys in catalog caps (the shortest unique initial, "M", "ME", or a letter and position when two themes still clash), each with the full name on hover, and a legend under the table spells every key out; each row shows one mark per theme beneath its key. A track that carries a theme shows a solid 10px Bone Ink square; a track that doesn't shows a small Strong Rule dot (`ThemeMark`, the one mark for every theme matrix). The table sizes itself to its content (never `table-fixed`) and scrolls sideways inside its own region when enlarged text leaves no room. Column heads are catalog caps in Ash Ink over a hairline; rows are divided by hairlines and take the Hover wash on hover or keyboard focus. A screen reader hears each row once: the title, the lyrics fraction in words, one phrase for the themes ("Carries memory and signal", "Carries none of the album themes") and the role; the marks and keys are hidden from it. In the Studio the same sheet becomes the editable track list: the selected row is Selected Graphite and its number turns saffron.
 
 ### Credits Meter
 The workspace balance in the sidebar: "Credits" in Stone Ink with the figure in tabular Bone Ink over "/ total" in Ash Ink, a 4px-tall fully rounded meter (Stone Ink fill on a Hairline track, never saffron), one sentence of what things cost, and a 44px link to daily challenges.
+
+### Confirm Spend
+Every action that spends credits goes through `ConfirmSpend` (components/confirm-spend.tsx). The trigger is an ordinary button whose label carries the price ("Remix · 5 credits"), in the tone its screen calls for. Pressing it swaps the trigger in place for one line, "Remix for 5 credits? You'll have 40 left.", with a primary confirm and a Cancel; Escape cancels and focus returns to the trigger. No other confirm dialog, and never a spend on a single tap. When the balance can't cover it, the confirm says so ("Remix costs 5 credits and you have 3 credits.") and its confirm button stays disabled.
+
+### Help
+One short, task-based page at `/app/help`, linked from the account block of the sidebar and the mobile sheet and from Settings: the path from idea to handoff, what credits pay for and what each plan grants (read from the same constants the buttons use), what counts as written (placeholder lyrics and the starter chord loop don't), and the Studio's keyboard shortcuts set in `kbd` keys. Plain Sections and hairline tables, no cards.
+
+### Named Rules
+**The Honest Signal Rule.** A tick, a score, a fraction or a status never claims work that wasn't done. Placeholder lyrics and the starter chord loop count as not written everywhere they are counted; `@/lib/lyrics` and `@/lib/chords` are the only definitions.
+
+**The One Term Rule.** One word per concept on every surface (labels, headings, fix links, spine heads, search): "Story note" for a track's narrative summary, "Role" for its place in the arc, "Motifs" for album motifs plus track motif tags, read from the same source on the Bible and the Coherence report. CONTEXT.md holds the glossary.
+
+**The One Save Model Rule.** A surface that saves as you work has no primary Save button; it shows its status ("Saved · just now", "Saving…", "Unsaved changes — Retry"). A manual save kept for Ctrl/⌘+S is a quiet ghost button. The saffron on a screen is the next step of the work, never saving.
+
+**The Deliberate Spend Rule.** Credits are spent only after one confirm that names the cost and the balance after (Confirm Spend), or with an Undo that stays at least 10 seconds.
+
+**The Writing Path Rule.** Destructive controls live away from the writing path: ghost or danger-text buttons in a "More" menu or at the end of a row, never directly above or below a text field.
+
+**The One Phrase Rule.** A row of marks is read as one phrase, not one announcement per cell: the spine says "Carries memory and signal" once per track instead of a "doesn't carry" for every theme.
+
+**The One Next Step Rule.** The release header's next step is the album screen's saffron primary, unless the screen's own content shows a primary action (Export's download, a Sound form, an open confirm); then it steps back to secondary, so every album screen has exactly one saffron button. `AlbumNextAction` applies the rule by watching the content column for a primary; screens don't opt in or out.
 
 ## Do's and Don'ts
 
@@ -366,7 +393,8 @@ The workspace balance in the sidebar: "Credits" in Stone Ink with the figure in 
 - **Do** mark the current location with saffron plus a second cue (weight, underline, bar, `aria-current`).
 - **Do** keep every interactive element at least 44 by 44px and let the global saffron focus ring show (2px, offset 2px).
 - **Do** use a transparency mask, not a color, when an overflowing strip needs an edge fade.
-- **Do** say what spends credits on the button itself, and disable priced AI actions with a plain reason when AI can't run.
+- **Do** say what spends credits on the button itself, confirm it once with Confirm Spend, and disable priced AI actions with a plain reason when AI can't run.
+- **Do** give a mark that relies on a wash or saffron a forced-colors equivalent (Highlight, CanvasText, a border).
 
 ### Don't:
 - **Don't** use saffron for headings, the wordmark, links, hovers, badges, checkboxes, meters or decoration, and never more than one saffron button on a screen.
@@ -376,4 +404,5 @@ The workspace balance in the sidebar: "Credits" in Stone Ink with the figure in 
 - **Don't** set a kicker or eyebrow above a heading, or number sections 01/02/03 for decoration (track numbers are data and are fine).
 - **Don't** introduce hex or rgba literals or a second typeface; use the tokens and the Archivo width axis.
 - **Don't** set any text below 12px or run body copy wider than 65ch.
-- **Don't** add per-element focus rings or remove outlines.
+- **Don't** add per-element focus rings or remove outlines; insetting the global ring inside a scroller is the only adjustment.
+- **Don't** use `table-fixed` with rem columns, rotate column heads, or read a matrix out one cell at a time.

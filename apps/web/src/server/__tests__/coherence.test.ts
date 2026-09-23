@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeAlbumCoherence,
   coherenceFixHref,
+  formatTrackList,
   isWrittenLyrics,
+  verdictText,
   type CoherenceReport,
 } from "@/server/coherence";
 
@@ -96,14 +98,17 @@ describe("analyzeAlbumCoherence on a template scaffold", () => {
 
   it("treats bracketed placeholders as unwritten", () => {
     expect(report.stats.songsWithLyrics).toBe(0);
-    expect(report.issues.map((issue) => issue.id)).toContain("placeholder_lyrics");
+    const lyrics = report.issues.find((issue) => issue.id === "missing_lyrics");
+    expect(lyrics?.detail).toContain("Placeholder lines");
   });
 
-  it("does not give harmony full marks for the copied starting loop", () => {
+  it("does not give harmony any credit for the copied starter loop", () => {
     expect(report.stats.songsWithChords).toBe(0);
-    expect(breakdown(report, "harmony").score).toBeLessThan(70);
+    expect(report.stats.songsWithStarterChords).toBe(6);
+    expect(breakdown(report, "harmony").score).toBe(0);
     const chords = report.issues.find((issue) => issue.id === "missing_chords");
-    expect(chords?.detail).toContain("starting loop");
+    expect(chords?.title).toBe("No track has chords of its own yet");
+    expect(chords?.detail).toContain("starter loop");
   });
 
   it("flags the report as insufficient instead of praising it", () => {
@@ -119,7 +124,7 @@ describe("analyzeAlbumCoherence on a template scaffold", () => {
     expect(ids).toEqual(["lyrics", "themes", "narrative"]);
     expect(report.missing[0]).toMatchObject({
       label: "Lyrics on 2 more tracks (0 of 2 written)",
-      fix: { focus: "song", trackNumber: 1 },
+      fix: { focus: "lyrics", trackNumber: 1 },
     });
     expect(report.missing[1].fix).toEqual({ focus: "song-themes", trackNumber: 1 });
   });
@@ -151,11 +156,24 @@ describe("analyzeAlbumCoherence with written material", () => {
     expect(report.summary).toMatch(/^\d+\/100 overall/);
   });
 
-  it("still counts one loop on every section once lyrics exist", () => {
+  it("never counts the starter loop, even once lyrics exist", () => {
     const report = analyzeAlbumCoherence(
       album([scaffoldSong(0, { verse: "Real words" }), scaffoldSong(1, { chorus: "More words" })]),
     );
-    expect(report.stats.songsWithChords).toBe(2);
+    expect(report.stats.songsWithChords).toBe(0);
+    expect(report.stats.songsWithStarterChords).toBe(2);
+    expect(breakdown(report, "harmony").score).toBe(0);
+    expect(breakdown(report, "harmony").summary).toContain("0 of 2 tracks have chords of their own");
+  });
+
+  it("counts a starter loop once one chord of it changes", () => {
+    const report = analyzeAlbumCoherence(
+      album([scaffoldSong(0, { verse: "Words", verseChords: ["C", "G", "Am", "Em"] }), scaffoldSong(1, { verse: "Words" })]),
+    );
+    expect(report.stats.songsWithChords).toBe(1);
+    expect(report.issues.find((issue) => issue.id === "missing_chords")?.title).toBe(
+      "Track 2 has no chords of its own yet",
+    );
   });
 
   it("counts distinct progressions written before lyrics", () => {
@@ -200,8 +218,38 @@ describe("where coherence issues are fixed", () => {
   it("sends a motif that never returns to the closer's motif tags", () => {
     expect(fixOf("missing_callbacks")).toEqual({ focus: "motifs", trackNumber: 4 });
     const callbacks = report.issues.find((issue) => issue.id === "missing_callbacks");
-    expect(callbacks?.relatedTracks).toEqual([4, 3]);
     expect(callbacks?.suggestion).toContain("“phone”");
+  });
+
+  it("offers callback tracks as a sorted suggestion, not as problem tracks", () => {
+    const seven = analyzeAlbumCoherence(
+      album(
+        Array.from({ length: 7 }, (_, index) =>
+          scaffoldSong(index, { verse: "Words", motifs: index === 1 ? ["phone"] : [] }),
+        ),
+      ),
+    );
+    const callbacks = seven.issues.find((issue) => issue.id === "missing_callbacks");
+    expect(callbacks?.relatedTracks).toBeUndefined();
+    expect(callbacks?.suggestedTracks).toEqual([1, 4, 7]);
+    expect(formatTrackList(callbacks?.suggestedTracks ?? [])).toBe("1, 4 and 7");
+  });
+
+  it("sends story-note findings to the Story note, never the Role", () => {
+    const story = report.issues.find((issue) => issue.id === "missing_narrative_summaries");
+    expect(story?.trackFocus).toBe("story");
+    expect(coherenceFixHref("a1", story?.fix)).toBe("/app/albums/a1/studio?song=1&focus=story");
+  });
+
+  it("sends missing lyrics to the first unwritten lyrics", () => {
+    const pending = analyzeAlbumCoherence(album([scaffoldSong(0, { verse: "Words" }), scaffoldSong(1)]));
+    expect(pending.issues.find((issue) => issue.id === "missing_lyrics")).toMatchObject({
+      trackFocus: "lyrics",
+      fix: { focus: "lyrics", trackNumber: 2 },
+    });
+    expect(coherenceFixHref("a1", { focus: "lyrics", trackNumber: 2 })).toBe(
+      "/app/albums/a1/studio?song=2&focus=lyrics",
+    );
   });
 
   it("sends an album without motifs to the album's motifs", () => {
@@ -244,10 +292,12 @@ describe("coherence copy", () => {
       expect(text).not.toMatch(/\bproject\b/i);
       expect(text).not.toMatch(/\(s\)/);
       expect(text).not.toMatch(/\d+\/\d+ tracks/);
+      // One term per concept: "Story note" and "Role", never the field names.
+      expect(text).not.toMatch(/narrative summar|narrative position|narrative role/i);
     }
     expect(report.issues.find((issue) => issue.id === "missing_lyrics")).toMatchObject({
-      title: "4 tracks still need lyrics",
-      detail: "All 4 tracks have only placeholders or no lyrics.",
+      title: "All 4 tracks still need lyrics",
+      detail: expect.stringMatching(/^All 4 tracks have only placeholders or no lyrics\./),
     });
   });
 
@@ -276,10 +326,112 @@ describe("coherence copy", () => {
     );
     expect(missing).toMatchObject({
       title: "One track has no story note",
-      detail: "1 of 2 tracks has no narrative summary, so its place in the arc can't be checked.",
+      detail: "1 of 2 tracks has no story note, so its place in the arc can't be checked.",
       relatedTracks: [2],
       trackFocus: "story",
     });
+  });
+});
+
+/** The critique's album: 7 tracks, lyrics on 3, everything else tagged and in place. */
+function partlyWrittenAlbum(written = 3, total = 7) {
+  return album(
+    Array.from({ length: total }, (_, index) =>
+      scaffoldSong(index, {
+        verse: index < written ? "Streetlights hum the same four notes" : undefined,
+        verseChords: ["Am", "G", "F", "E"],
+        themes: ["distance"],
+        motifs: ["phone"],
+        narrative: "She leaves, then calls.",
+      }),
+    ),
+    { recurring_motifs: ["phone"] },
+  );
+}
+
+describe("honest signals on a half-written album", () => {
+  const report = analyzeAlbumCoherence(partlyWrittenAlbum());
+  const lyrics = () => report.issues.find((issue) => issue.id === "missing_lyrics");
+
+  it("scores it, but calls it Unfinished with the count, never Needs polish", () => {
+    expect(report.insufficient).toBe(false);
+    expect(report.verdict.label).toBe("Unfinished");
+    expect(verdictText(report.verdict)).toBe("Unfinished · 3 of 7 tracks written");
+    expect(report.summary).toContain("unfinished");
+    expect(report.summary).not.toMatch(/Needs polish/);
+  });
+
+  it("rates 4 empty tracks of 7 as an error and ranks it first", () => {
+    expect(lyrics()).toMatchObject({
+      severity: "error",
+      title: "4 of 7 tracks still need lyrics",
+      relatedTracks: [4, 5, 6, 7],
+    });
+    expect(report.issues[0].id).toBe("missing_lyrics");
+    expect(report.nextActions[0].id).toBe("action-missing_lyrics");
+  });
+
+  it("caps every dimension at the share of written tracks", () => {
+    expect(report.scoreCap).toBe(43);
+    for (const item of report.breakdown) expect(item.score).toBeLessThanOrEqual(43);
+    expect(breakdown(report, "lyrics").score).toBeLessThanOrEqual(43);
+    expect(breakdown(report, "lyrics").summary).toContain("Held at 43");
+    expect(report.score).toBeLessThanOrEqual(43);
+  });
+
+  it("ranks missing lyrics first even above another error", () => {
+    const songs = partlyWrittenAlbum().songs as Array<Record<string, unknown>>;
+    songs[1] = { ...songs[1], track_number: 1 };
+    const duplicate = analyzeAlbumCoherence(album(songs));
+    expect(duplicate.issues.map((issue) => issue.id).slice(0, 2)).toEqual([
+      "missing_lyrics",
+      "duplicate_track_numbers",
+    ]);
+  });
+
+  it("treats one empty track of a short album as an error", () => {
+    const short = analyzeAlbumCoherence(partlyWrittenAlbum(2, 3));
+    expect(short.issues[0]).toMatchObject({ id: "missing_lyrics", severity: "error", title: "Track 3 still needs lyrics" });
+    expect(short.verdict.label).toBe("Unfinished");
+  });
+
+  it("keeps one empty track of a long album a warning, still first", () => {
+    const long = analyzeAlbumCoherence(partlyWrittenAlbum(6, 7));
+    expect(long.issues[0]).toMatchObject({ id: "missing_lyrics", severity: "warning" });
+    expect(long.verdict.label).toBe("Unfinished");
+  });
+
+  it("uses the score bands only once every track is written", () => {
+    const done = analyzeAlbumCoherence(partlyWrittenAlbum(7, 7));
+    expect(done.issues.find((issue) => issue.id === "missing_lyrics")).toBeUndefined();
+    expect(done.scoreCap).toBe(100);
+    expect(["Tight", "Solid", "Needs polish", "Loose"]).toContain(done.verdict.label);
+  });
+});
+
+describe("motifs read one source", () => {
+  it("counts album motifs even before any track is tagged", () => {
+    const report = analyzeAlbumCoherence(
+      album([scaffoldSong(0, { verse: "Words" }), scaffoldSong(1, { verse: "Words" })], {
+        recurring_motifs: ["static", "the phone"],
+      }),
+    );
+    expect(report.stats.uniqueMotifs).toBe(2);
+    expect(report.issues.find((issue) => issue.id === "no_motifs")).toBeUndefined();
+    const callbacks = report.issues.find((issue) => issue.id === "missing_callbacks");
+    expect(callbacks?.title).toBe("The album's motifs aren't on any track yet");
+    expect(callbacks?.detail).toContain("“static”");
+  });
+
+  it("counts a motif as a callback when two tracks carry it, album-level or not", () => {
+    const report = analyzeAlbumCoherence(
+      album([
+        scaffoldSong(0, { verse: "Words", motifs: ["Static"] }),
+        scaffoldSong(1, { verse: "Words", motifs: ["static"] }),
+      ]),
+    );
+    expect(report.stats.callbackMotifs).toBe(1);
+    expect(report.issues.find((issue) => issue.id === "missing_callbacks")).toBeUndefined();
   });
 });
 

@@ -4,14 +4,25 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Shuffle } from "lucide-react";
 
-import { Button, StatusMessage } from "@/components/ui";
+import { ConfirmSpend } from "@/components/confirm-spend";
+import { StatusMessage } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
-/** Remix a shared album into the viewer's workspace, then open the new album. */
-export function ForkShareButton({ token }: { token: string }) {
+/**
+ * Remix a shared album into the viewer's workspace, then open the new album. It spends credits,
+ * so it asks once first; pass `creditsRemaining` so the question names the balance after.
+ */
+export function ForkShareButton({
+  token,
+  creditsRemaining,
+}: {
+  token: string;
+  creditsRemaining?: number;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState<{ tone: "neutral" | "danger"; text: string } | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const cost = CREDIT_COSTS.albumFork;
 
   async function remix() {
     setIsBusy(true);
@@ -36,10 +47,17 @@ export function ForkShareButton({ token }: { token: string }) {
 
   return (
     <div className="flex flex-col items-start gap-2">
-      <Button tone="primary" disabled={isBusy} onClick={remix}>
+      <ConfirmSpend
+        cost={cost}
+        remaining={creditsRemaining}
+        actionLabel="Remix"
+        onConfirm={remix}
+        busy={isBusy}
+        tone="primary"
+      >
         <Shuffle className="h-4 w-4" aria-hidden="true" />
-        {isBusy ? "Remixing…" : `Remix into my library · ${CREDIT_COSTS.albumFork} credits`}
-      </Button>
+        {isBusy ? "Remixing…" : `Remix into my library · ${cost} credits`}
+      </ConfirmSpend>
       {status ? <StatusMessage tone={status.tone}>{status.text}</StatusMessage> : null}
     </div>
   );

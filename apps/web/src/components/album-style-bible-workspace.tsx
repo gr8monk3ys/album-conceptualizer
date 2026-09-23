@@ -136,7 +136,7 @@ export function AlbumStyleBibleWorkspace({
   }>;
 }) {
   const [form, setForm] = useState<StyleBibleFormState>(() => toForm(initialStyleBible));
-  // When the viewer last pressed "Save style bible"; the indicator names that save plainly.
+  // When the viewer last pressed "Save now" (or Ctrl/⌘+S); the status names that save plainly.
   const [explicitSaveAt, setExplicitSaveAt] = useState<number | null>(null);
 
   const filled = SECTIONS.filter((section) => form[section.key].trim().length > 0);
@@ -202,6 +202,51 @@ export function AlbumStyleBibleWorkspace({
     );
   }
 
+  // One save model: the form autosaves, so the save state is a status line with a quiet
+  // "Save now" beside it, never a primary button or a bar pinned over the fields.
+  const saveState = (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+      <p className="min-w-0">
+        <span
+          role="status"
+          className={autosave.status === "error" ? "text-danger" : showExplicit ? "text-ok" : "text-ink-2"}
+        >
+          {autosave.status === "dirty"
+            ? "Unsaved changes"
+            : autosave.status === "saving"
+              ? "Saving…"
+              : autosave.status === "error"
+                ? `Unsaved changes — ${autosave.error}`
+                : showExplicit
+                  ? "Style bible saved."
+                  : autosave.status === "saved"
+                    ? "Saved"
+                    : "All changes saved"}
+        </span>
+        {autosave.status === "saved" && !showExplicit && autosave.lastSavedAt ? (
+          <span className="text-ink-3">
+            {" · "}
+            <RelativeTime date={new Date(autosave.lastSavedAt).toISOString()} />
+          </span>
+        ) : null}
+      </p>
+      {autosave.status === "error" ? (
+        <Button tone="ghost" className="px-3" onClick={() => void autosave.retry()}>
+          Retry
+        </Button>
+      ) : (
+        <Button
+          type="submit"
+          tone="ghost"
+          className="px-3"
+          disabled={autosave.status === "saving"}
+        >
+          Save now
+        </Button>
+      )}
+    </div>
+  );
+
   const label = (key: keyof StyleBibleFormState) =>
     SECTIONS.find((section) => section.key === key)?.label ?? key;
 
@@ -220,7 +265,7 @@ export function AlbumStyleBibleWorkspace({
                   <span className="type-figure font-semibold">{filled.length}</span> of{" "}
                   <span className="type-figure">{SECTIONS.length}</span> sections filled
                 </p>
-                <p className="text-xs text-ink-3">List fields take commas or new lines.</p>
+                {saveState}
               </div>
               <div aria-hidden="true" className="mt-2 flex gap-1">
                 {SECTIONS.map((section) => (
@@ -316,43 +361,11 @@ export function AlbumStyleBibleWorkspace({
                 </Group>
               </div>
 
-              {/* Stays in view while the viewer works down the form, so the save state is seen. */}
-              <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-raised px-4 py-4 md:-mx-5 md:-mb-5 md:px-5">
-                <Button type="submit" tone="primary" aria-describedby="style-save-state">
-                  Save style bible
-                </Button>
-                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  <p id="style-save-state" className="min-w-0">
-                    <span
-                      role="status"
-                      className={autosave.status === "error" ? "text-danger" : showExplicit ? "text-ok" : "text-ink-3"}
-                    >
-                      {autosave.status === "dirty"
-                        ? "Unsaved changes"
-                        : autosave.status === "saving"
-                          ? "Saving…"
-                          : autosave.status === "error"
-                            ? `Couldn't save — ${autosave.error}`
-                            : showExplicit
-                              ? "Style bible saved."
-                              : autosave.status === "saved"
-                                ? "Saved"
-                                : "Changes save as you type."}
-                    </span>
-                    {autosave.status === "saved" && !showExplicit && autosave.lastSavedAt ? (
-                      <span className="text-ink-3">
-                        {" · "}
-                        <RelativeTime date={new Date(autosave.lastSavedAt).toISOString()} />
-                      </span>
-                    ) : null}
-                  </p>
-                  {autosave.status === "error" ? (
-                    <Button tone="secondary" className="px-3" onClick={() => void autosave.retry()}>
-                      Retry
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
+              <p className="mt-6 max-w-[65ch] border-t border-line pt-4 text-xs leading-relaxed text-ink-3">
+                List fields take commas or new lines. Changes save as you type;{" "}
+                <span className="pointer-coarse:hidden">press Ctrl or ⌘ + S, or </span>
+                use Save now to save at once.
+              </p>
             </form>
           </Panel>
           <LeavePrompt
@@ -360,7 +373,7 @@ export function AlbumStyleBibleWorkspace({
             message="Your latest style bible changes didn't save. If you leave now, they'll be lost."
           />
 
-          <aside aria-label="References behind the style bible" className="flex min-w-0 flex-col gap-8">
+          <section aria-label="References behind the style bible" className="flex min-w-0 flex-col gap-8">
             <div>
               <h3 className="text-base font-semibold text-ink">Reference roles</h3>
               <p className="mt-1 text-sm text-ink-2">Use the saved references on purpose.</p>
@@ -415,7 +428,7 @@ export function AlbumStyleBibleWorkspace({
                 {referenceTargets.length ? "Manage references" : "Add references"}
               </ButtonLink>
             </div>
-          </aside>
+          </section>
         </div>
       </div>
     </Section>

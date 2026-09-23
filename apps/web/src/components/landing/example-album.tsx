@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils";
 import { ThemeMark } from "@/components/theme-mark";
+import { carriedThemesPhrase } from "@/lib/theme-keys";
 
 /**
  * An invented album, shown on the landing page as a worked example of the product's
- * signature output: the sequence (the spine) with each track's narrative role, and the
+ * signature output: the sequence (the spine) with each track's role, and the
  * theme × track matrix that shows which themes each track carries. It is example content,
  * labelled as such wherever it appears; it describes no real artist or customer.
  */
@@ -87,7 +88,7 @@ export const EXAMPLE_ALBUM: { title: string; arc: string; concept: string; track
 function ExampleThemeCell({ on }: { on: boolean }) {
   return (
     <span className="inline-grid h-8 w-full place-items-center">
-      <ThemeMark carries={on} label={on ? "Yes" : "No"} />
+      <ThemeMark carries={on} />
     </span>
   );
 }
@@ -98,7 +99,8 @@ function pad(value: number) {
 
 /**
  * The example rendered as a release sheet: title and catalog line, then one grid where every
- * row is a track (number, title, narrative role) and every column after it is a theme.
+ * row is a track (number, title, role) and every column after it is a theme. A screen
+ * reader hears each row once, with one phrase for its themes, like the spine.
  */
 export function ExampleAlbum({ className }: { className?: string }) {
   const { tracks } = EXAMPLE_ALBUM;
@@ -132,7 +134,7 @@ export function ExampleAlbum({ className }: { className?: string }) {
       >
         <table className="w-full border-collapse text-left">
           <caption className="sr-only">
-            Sequence of the example album {EXAMPLE_ALBUM.title}: each track with its narrative role, and
+            Sequence of the example album {EXAMPLE_ALBUM.title}: each track with its role, and
             which of the album&apos;s themes it carries.
           </caption>
           <thead>
@@ -148,13 +150,15 @@ export function ExampleAlbum({ className }: { className?: string }) {
                 <th
                   key={theme}
                   scope="col"
+                  // The row header already says which themes a track carries.
+                  aria-hidden="true"
                   className="type-catalog w-8 px-0.5 py-2 text-center align-bottom text-xs leading-tight text-ink-2 sm:w-[4.5rem] sm:px-1"
                 >
                   {/* Narrow screens show the initial; the key under the grid spells it out. */}
                   <span aria-hidden="true" className="sm:hidden">
                     {theme.charAt(0)}
                   </span>
-                  <span className="max-sm:sr-only">{theme}</span>
+                  <span className="max-sm:hidden">{theme}</span>
                 </th>
               ))}
             </tr>
@@ -171,9 +175,15 @@ export function ExampleAlbum({ className }: { className?: string }) {
                     <span className="text-ink-2">{track.role}.</span>{" "}
                     <span className="hidden sm:inline">{track.summary}</span>
                   </span>
+                  <span className="sr-only">
+                    {carriedThemesPhrase(
+                      THEMES.filter((theme) => track.themes.includes(theme)),
+                      THEMES.length,
+                    )}
+                  </span>
                 </th>
                 {THEMES.map((theme) => (
-                  <td key={theme} className="px-0.5 align-middle sm:px-1">
+                  <td key={theme} aria-hidden="true" className="px-0.5 align-middle sm:px-1">
                     <ExampleThemeCell on={track.themes.includes(theme)} />
                   </td>
                 ))}
@@ -185,9 +195,17 @@ export function ExampleAlbum({ className }: { className?: string }) {
               <td className="py-2 pr-2" />
               <th scope="row" className="type-catalog py-2 pr-2 text-xs font-semibold text-ink-3 sm:pr-4">
                 Tracks carrying it
+                <span className="sr-only">
+                  :{" "}
+                  {THEMES.map((theme, index) => `${theme} ${coverage[index]} of ${tracks.length}`).join(", ")}
+                </span>
               </th>
               {coverage.map((count, index) => (
-                <td key={THEMES[index]} className="type-figure px-0.5 py-2 text-center text-sm text-ink-2 sm:px-1">
+                <td
+                  key={THEMES[index]}
+                  aria-hidden="true"
+                  className="type-figure px-0.5 py-2 text-center text-sm text-ink-2 sm:px-1"
+                >
                   {count}/{tracks.length}
                 </td>
               ))}

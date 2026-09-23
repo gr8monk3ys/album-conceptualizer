@@ -1,3 +1,4 @@
+import { trackHasWrittenHarmony } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
 import { analyzeAlbumCoherence } from "@/server/coherence";
 
@@ -40,7 +41,9 @@ export type SpineRow = {
   /** The track's theme tags, trimmed and lower-cased, for matching against album themes. */
   themeKeys: string[];
   hasNarrative: boolean;
-  /** The track's role in the arc ("Inciting incident"), when set. */
+  /** Chords of the track's own (the starter loop doesn't count; see `@/lib/chords`). */
+  writtenHarmony: boolean;
+  /** The track's Role in the arc ("Inciting incident"), when set. */
   narrativePosition: string | null;
 };
 
@@ -72,6 +75,7 @@ export function getSpineRows(data: unknown): SpineRow[] {
       themes: themeKeys.length,
       themeKeys,
       hasNarrative: Boolean(text(song.narrative_summary)),
+      writtenHarmony: trackHasWrittenHarmony(song.sections),
       narrativePosition: text(song.narrative_position),
     });
   }
@@ -134,6 +138,7 @@ export function nextAlbumStep(albumId: string, data: unknown): AlbumNextStep {
       needsLyrics,
       `Track ${needsLyrics.trackNumber} needs lyrics`,
       `Write track ${needsLyrics.trackNumber}`,
+      "lyrics",
     );
   }
   const needsThemes = rows.find((row) => row.themes === 0);
@@ -150,8 +155,16 @@ export function nextAlbumStep(albumId: string, data: unknown): AlbumNextStep {
     return forTrack(
       needsStory,
       `Track ${needsStory.trackNumber} needs a story note`,
-      `Place track ${needsStory.trackNumber}`,
+      `Add track ${needsStory.trackNumber}'s story note`,
       "story",
+    );
+  }
+  const needsChords = rows.find((row) => !row.writtenHarmony);
+  if (needsChords) {
+    return forTrack(
+      needsChords,
+      `Track ${needsChords.trackNumber} still has the starter chords`,
+      `Write chords for track ${needsChords.trackNumber}`,
     );
   }
 
@@ -160,7 +173,7 @@ export function nextAlbumStep(albumId: string, data: unknown): AlbumNextStep {
     return {
       statement: report.insufficient
         ? "Every track has a start. The Coherence report says what it still needs."
-        : `Every track has lyrics, themes and a story note. The Coherence report scores it ${report.score}/100.`,
+        : `Every track has lyrics, chords, themes and a story note. The Coherence report scores it ${report.score}/100.`,
       action: "Review coherence",
       href: `${base}/coherence`,
     };

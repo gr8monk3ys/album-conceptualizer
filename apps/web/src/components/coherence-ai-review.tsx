@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
+import { ConfirmSpend } from "@/components/confirm-spend";
 import { Button, Section, StatusMessage } from "@/components/ui";
 import { useAgentJob } from "@/hooks/use-agent-job";
+import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 type StartJobResponse = { job_id: string };
@@ -16,8 +18,6 @@ function formatElapsed(ms: number): string {
   if (seconds < 60) return `${seconds}s`;
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
-
-const UNAVAILABLE_LINE = "AI drafting isn't set up on this server. Everything else works without it.";
 
 /** Failures that describe setup, not a hiccup: trying again won't change them. */
 const NOT_AVAILABLE = /\b(not|isn.t|aren.t) (available|configured|set up)\b|unavailable/i;
@@ -36,13 +36,13 @@ class StartError extends Error {
   }
 }
 
-/** Status-code-only messages ("HTTP 502") are not something to show an artist. */
 /** End a message with a full stop so another sentence can follow it. */
 function sentence(text: string) {
   const trimmed = text.trim();
   return /[.!?…]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
+/** Status-code-only messages ("HTTP 502") are not something to show an artist. */
 function plain(message: string | null, fallback: string) {
   if (!message || /^HTTP \d+$/.test(message.trim())) return fallback;
   return message;
@@ -50,9 +50,19 @@ function plain(message: string | null, fallback: string) {
 
 /**
  * A written review from the coherence agent, on top of the rule-based checks on this page.
- * It spends credits, so the cost is on the button.
+ * It spends credits, so the cost is on the button and it asks once before spending. When AI
+ * can't run here, the button carries no price and the description is the one plain line why.
  */
-export function CoherenceAiReview({ albumId, aiAvailable }: { albumId: string; aiAvailable: boolean }) {
+export function CoherenceAiReview({
+  albumId,
+  aiAvailable,
+  creditsRemaining,
+}: {
+  albumId: string;
+  aiAvailable: boolean;
+  /** The workspace balance, so the spend confirm can say what's left after. */
+  creditsRemaining?: number;
+}) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [startError, setStartError] = useState<{ text: string; retryable: boolean } | null>(null);
   const [isStarting, setIsStarting] = useState(false);
@@ -126,34 +136,44 @@ export function CoherenceAiReview({ albumId, aiAvailable }: { albumId: string; a
     <Section
       id="coherence-written-review"
       title="Written review"
-      description={`An agent reads the Album Bible and every track, then writes up where the record holds together and where it drifts. Each run costs ${COST} credits and takes about 30 to 90 seconds.`}
+      description={
+        aiAvailable
+          ? `An agent reads the Album Bible and every track, then writes up where the record holds together and where it drifts. Each run costs ${COST} credits and takes about 30 to 90 seconds.`
+          : AI_UNAVAILABLE_MESSAGE
+      }
       actions={
-        <Button
-          onClick={() => void start()}
-          disabled={!aiAvailable || isBusy}
-          aria-busy={isBusy || undefined}
-          aria-describedby={aiAvailable ? undefined : "coherence-ai-unavailable"}
-        >
-          {isBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-          {buttonLabel}
-        </Button>
+        aiAvailable ? (
+          <ConfirmSpend
+            cost={COST}
+            remaining={creditsRemaining}
+            actionLabel={output ? "Run again" : "Run review"}
+            onConfirm={start}
+            busy={isBusy}
+          >
+            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+            {buttonLabel}
+          </ConfirmSpend>
+        ) : (
+          <Button disabled>Run review</Button>
+        )
       }
     >
-      {!aiAvailable ? (
-        <p id="coherence-ai-unavailable" className="max-w-[65ch] text-sm text-ink-2">
-          {UNAVAILABLE_LINE}
-        </p>
-      ) : null}
-
       {error ? (
         <div className="flex flex-wrap items-center gap-3">
           <StatusMessage tone="danger" className="max-w-[65ch]">
             {error.text}
           </StatusMessage>
           {error.retryable && aiAvailable ? (
-            <Button tone="ghost" onClick={() => void start()} disabled={isBusy}>
+            <ConfirmSpend
+              cost={COST}
+              remaining={creditsRemaining}
+              actionLabel="Try again"
+              onConfirm={start}
+              busy={isBusy}
+              tone="ghost"
+            >
               {`Try again · ${COST} credits`}
-            </Button>
+            </ConfirmSpend>
           ) : null}
         </div>
       ) : null}

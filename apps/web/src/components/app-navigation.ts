@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { Bell, Compass, Home, LibraryBig, Settings, Sparkles } from "lucide-react";
+import { Bell, CircleHelp, Compass, Home, LibraryBig, Settings, Sparkles } from "lucide-react";
 
 type AppNavItem = {
   href: string;
@@ -19,6 +19,8 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
 ];
 
 export const APP_SETTINGS_ITEM: AppNavItem = { href: "/app/settings", label: "Settings", icon: Settings };
+
+export const APP_HELP_ITEM: AppNavItem = { href: "/app/help", label: "Help", icon: CircleHelp };
 
 export function isNavItemActive(pathname: string, href: string) {
   if (href === "/app") return pathname === href;

@@ -7,16 +7,21 @@ import { CoherenceAiReview } from "@/components/coherence-ai-review";
 import { Chip, Section } from "@/components/ui";
 import {
   analyzeAlbumCoherence,
+  COHERENCE_BANDS,
   coherenceFixHref,
   coherenceTrackHref,
+  MIN_WRITTEN_TRACKS_FOR_SCORE,
   type CoherenceFix,
   type CoherenceIssue,
   type CoherenceIssueSeverity,
   type CoherenceReport,
+  type CoherenceVerdict,
 } from "@/server/coherence";
 import { getAlbum } from "@/server/albums";
+import { getCredits } from "@/server/credits";
 import { getAgentAvailability } from "@/server/engine";
 import { requireUser } from "@/server/identity";
+import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { cn } from "@/lib/utils";
 
@@ -29,15 +34,16 @@ export const metadata = {
 /** The findings that get the emphasis: the most serious first. */
 const LEAD_FINDINGS = 3;
 
-function verdict(score: number) {
-  if (score >= 85) return { label: "Tight", className: "text-ok" };
-  if (score >= 70) return { label: "Solid", className: "text-ink-2" };
-  if (score >= 50) return { label: "Needs polish", className: "text-warn" };
-  return { label: "Loose", className: "text-danger" };
-}
+const VERDICT_CLASS: Record<CoherenceVerdict["tone"], string> = {
+  ok: "text-ok",
+  neutral: "text-ink-2",
+  warn: "text-warn",
+  danger: "text-danger",
+};
 
+/** Nothing in the report blocks an export, so the top level says what it means: fix it first. */
 const SEVERITY: Record<CoherenceIssueSeverity, { label: string; tone: "danger" | "warn" | "neutral" }> = {
-  error: { label: "Blocking", tone: "danger" },
+  error: { label: "Fix first", tone: "danger" },
   warning: { label: "Warning", tone: "warn" },
   info: { label: "Note", tone: "neutral" },
 };
@@ -46,13 +52,41 @@ function fixLabel(fix: CoherenceFix | undefined) {
   return fix?.focus === "style" ? "Open the Style bible" : "Fix in Studio";
 }
 
-/** What a track link opens, for its accessible name: "Track 3 themes". */
+/** What a track link opens, for its accessible name: "Track 3 story note". */
 const TRACK_LINK_SUFFIX: Record<string, string> = {
   song: "",
-  story: " story",
+  lyrics: " lyrics",
+  story: " story note",
+  role: " role",
   "song-themes": " themes",
   motifs: " motifs",
 };
+
+const TRACK_LINK =
+  "type-figure inline-grid min-h-11 min-w-11 place-items-center rounded-sm text-sm font-semibold text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:bg-hover hover:text-ink";
+
+/** Track numbers as links in a sentence: "1, 4 and 7". */
+function TrackLinks({ albumId, issue, tracks }: { albumId: string; issue: CoherenceIssue; tracks: number[] }) {
+  const suffix = TRACK_LINK_SUFFIX[issue.trackFocus ?? "song"] ?? "";
+  return (
+    <>
+      {tracks.map((trackNumber, index) => (
+        <span key={trackNumber} className="inline-flex items-center">
+          <Link href={coherenceTrackHref(albumId, issue, trackNumber)} className={TRACK_LINK}>
+            <span className="sr-only">Track </span>
+            {trackNumber}
+            {suffix ? <span className="sr-only">{suffix}</span> : null}
+          </Link>
+          {index < tracks.length - 2 ? (
+            <span className="text-ink-3">,</span>
+          ) : index === tracks.length - 2 ? (
+            <span className="px-1 text-xs text-ink-3">and</span>
+          ) : null}
+        </span>
+      ))}
+    </>
+  );
+}
 
 /** A finding: what's wrong, how to fix it, and a link to every track it names. */
 function Finding({
@@ -70,8 +104,8 @@ function Finding({
 }) {
   const severity = SEVERITY[issue.severity];
   const dimension = report.breakdown.find((item) => item.key === issue.category)?.label;
-  const tracks = issue.relatedTracks ?? [];
-  const suffix = TRACK_LINK_SUFFIX[issue.trackFocus ?? "song"] ?? "";
+  const tracks = (issue.relatedTracks ?? []).slice().sort((left, right) => left - right);
+  const suggested = (issue.suggestedTracks ?? []).slice().sort((left, right) => left - right);
   return (
     <li className={cn("flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-6", lead ? "py-5" : "py-4")}>
       <div className="min-w-0 flex-1">
@@ -86,23 +120,22 @@ function Finding({
         {issue.suggestion ? (
           <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-3">{issue.suggestion}</p>
         ) : null}
+        {/* Tracks with the problem and tracks suggested for a fix read differently. */}
         {tracks.length > 1 ? (
-          <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1">
-            <span className="mr-1 text-xs text-ink-3">Tracks</span>
-            {tracks.map((trackNumber) => (
-              <Link
-                key={trackNumber}
-                href={coherenceTrackHref(albumId, issue, trackNumber)}
-                className="type-figure inline-grid min-h-11 min-w-11 place-items-center rounded-sm text-sm font-semibold text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:bg-hover hover:text-ink"
-              >
-                <span className="sr-only">Track </span>
-                {trackNumber}
-                {suffix ? <span className="sr-only">{suffix}</span> : null}
-              </Link>
-            ))}
-          </div>
+          <p className="mt-2 flex flex-wrap items-center gap-y-1">
+            <span className="mr-2 text-xs text-ink-3">On tracks</span>
+            <TrackLinks albumId={albumId} issue={issue} tracks={tracks} />
+          </p>
         ) : tracks.length === 1 ? (
-          <p className="type-figure mt-1 text-xs text-ink-3">Track {tracks[0]}</p>
+          <p className="type-figure mt-1 text-xs text-ink-3">On track {tracks[0]}</p>
+        ) : null}
+        {suggested.length ? (
+          <p className="mt-2 flex flex-wrap items-center gap-y-1">
+            <span className="mr-2 text-xs text-ink-3">
+              Suggestion: try it on {suggested.length === 1 ? "track" : "tracks"}
+            </span>
+            <TrackLinks albumId={albumId} issue={issue} tracks={suggested} />
+          </p>
         ) : null}
       </div>
       {issue.fix ? (
@@ -118,6 +151,77 @@ function Finding({
   );
 }
 
+const DIMENSION_HELP: Array<{ label: string; text: string }> = [
+  {
+    label: "Narrative",
+    text: "The album's concept summary, a story note on every track, tracks that carry the album's themes, and an opener and closer that frame the record.",
+  },
+  {
+    label: "Lyrics",
+    text: "How many tracks have lyrics of their own, and whether they have choruses to hook on.",
+  },
+  {
+    label: "Harmony",
+    text: "Chords of each track's own, a key and a tempo on every track, and more than one key across the album.",
+  },
+  {
+    label: "Sequence",
+    text: "One number per track, at least two sections per song, variety in tempo and section patterns, and the bookends.",
+  },
+  {
+    label: "Motifs",
+    text: "The album's motifs and the motif tags on its tracks, and whether at least one comes back on a second track.",
+  },
+];
+
+/** Plain words on how the report scores, for anyone wondering why a number is what it is. */
+function HowScored({ report }: { report: CoherenceReport }) {
+  const { songCount, songsWithLyrics } = report.stats;
+  const capExample =
+    !report.insufficient && songsWithLyrics < songCount
+      ? `with ${songsWithLyrics} of ${songCount} tracks written, as now, no dimension can score above ${report.scoreCap}`
+      : "with 3 of 7 tracks written, no dimension can score above 43";
+  const bands = COHERENCE_BANDS.map((band, index) => {
+    const upper = index === 0 ? null : COHERENCE_BANDS[index - 1].min - 1;
+    return `${band.label} ${upper === null ? `${band.min} and up` : band.min === 0 ? `below ${upper + 1}` : `${band.min} to ${upper}`}`;
+  });
+  return (
+    <details className="mt-6">
+      <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:bg-hover">
+        How this is scored
+      </summary>
+      <div className="mt-4 flex max-w-[65ch] flex-col gap-4 text-sm leading-relaxed text-ink-2">
+        <p>
+          The report reads the album as it stands. Placeholder lines like &ldquo;[Verse line 1]&rdquo; and
+          the starter chord loop the setup writes don&apos;t count as written: a track counts once it has
+          words, or chords, of its own.
+        </p>
+        <p>
+          It gives a score once {MIN_WRITTEN_TRACKS_FOR_SCORE} tracks have lyrics (a one-track album needs
+          only its track). Each dimension is scored out of 100:
+        </p>
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-[7rem_minmax(0,1fr)]">
+          {DIMENSION_HELP.map((item) => (
+            <div key={item.label} className="contents">
+              <dt className="font-semibold text-ink">{item.label}</dt>
+              <dd>{item.text}</dd>
+            </div>
+          ))}
+        </dl>
+        <p>
+          No dimension scores above the share of tracks that have lyrics: {capExample}. Harmony is also held to the share of tracks with chords of
+          their own. The overall score weighs Narrative most, then Lyrics, Harmony, Sequence and Motifs.
+        </p>
+        <p>
+          <span className="font-semibold text-ink">Unfinished</span> means at least one track still has no
+          lyrics, whatever the score; the label says how many are written. Once every track is written the
+          score gets a band: {bands.join(", ")}.
+        </p>
+      </div>
+    </details>
+  );
+}
+
 export default async function CoherencePage({ params }: { params: Promise<{ albumId: string }> }) {
   const { albumId } = await params;
   const { userId } = await requireUser();
@@ -126,14 +230,17 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
   if (!album) notFound();
 
   const report = analyzeAlbumCoherence(album.data);
-  const aiAvailable = await getAgentAvailability();
+  const [aiAvailable, credits] = await Promise.all([
+    getAgentAvailability(),
+    getCredits({ workspaceId: workspace.id, plan: effectivePlan(workspace.subscription) }),
+  ]);
   const scored = !report.insufficient;
-  const overall = verdict(report.score);
+  const overall = report.verdict;
   const { stats } = report;
   const figures = [
     { label: "Tracks", value: stats.songCount },
     { label: "With lyrics", value: stats.songsWithLyrics },
-    { label: "With chords", value: stats.songsWithChords },
+    { label: "With chords of their own", value: stats.songsWithChords },
     { label: "With a story note", value: stats.songsWithNarrativeSummary },
     { label: "On an album theme", value: stats.songsAlignedToThemes },
     { label: "Motifs that return", value: stats.callbackMotifs },
@@ -158,13 +265,16 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
               {report.score}
               <span className="text-lg font-normal text-ink-3">/100</span>
             </span>
-            <span className={`text-base font-semibold ${overall.className}`}>{overall.label}</span>
+            <span className={`text-base font-semibold ${VERDICT_CLASS[overall.tone]}`}>
+              {overall.label}
+              {overall.detail ? <span className="type-figure font-normal"> · {overall.detail}</span> : null}
+            </span>
           </p>
         ) : (
           <div className="flex flex-col gap-3">
             <p className="max-w-[65ch] text-base font-semibold text-ink">{report.summary}</p>
             <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
-              Placeholder lines and the starting chord loop don&apos;t count. Still missing:
+              Placeholder lines and the starter chord loop don&apos;t count. Still missing:
             </p>
             <ul className="max-w-[65ch] divide-y divide-line border-y border-line">
               {report.missing.map((piece) => (
@@ -190,6 +300,8 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
             </div>
           ))}
         </dl>
+
+        <HowScored report={report} />
       </Section>
 
       {/* The most serious findings, not a second list: the rest follow in the disclosure. */}
@@ -272,7 +384,7 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
         </ul>
       </Section>
 
-      <CoherenceAiReview albumId={album.id} aiAvailable={aiAvailable} />
+      <CoherenceAiReview albumId={album.id} aiAvailable={aiAvailable} creditsRemaining={credits.remaining} />
     </div>
   );
 }
