@@ -15,6 +15,7 @@ import {
   inputClass,
   textareaClass,
 } from "@/components/ui";
+import { STARTER_PROGRESSIONS } from "@/lib/chords";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { cn } from "@/lib/utils";
 
@@ -98,13 +99,8 @@ const NARRATIVE_OPTIONS: Array<{
 ];
 
 // Starting chord loops so each track can be previewed right away. They are placeholders for
-// the artist to replace, not written material, and the preview says so.
-const COMMON_PROGRESSIONS: Array<{ key: string; chords: string[] }> = [
-  { key: "C", chords: ["C", "G", "Am", "F"] },
-  { key: "A minor", chords: ["Am", "F", "C", "G"] },
-  { key: "G", chords: ["G", "D", "Em", "C"] },
-  { key: "D minor", chords: ["Dm", "Bb", "F", "C"] },
-];
+// the artist to replace, not written material (lib/chords), and the preview says so.
+const COMMON_PROGRESSIONS = STARTER_PROGRESSIONS;
 
 function newId() {
   try {
