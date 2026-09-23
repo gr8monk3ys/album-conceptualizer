@@ -60,6 +60,10 @@ test.describe("Album Management", () => {
 
     await expect(page.getByText(title).first()).toBeVisible();
     await expect(page.getByText("Blueprint saved")).toBeVisible();
+
+    // The credits meter lives in the shared layout; it must show the spend without a reload.
+    const meter = page.getByRole("meter", { name: "Credits", includeHidden: true }).first();
+    await expect(meter).toHaveAttribute("aria-valuenow", "45");
   });
 
   test("created album appears in Recent albums on Home", async ({ page }) => {

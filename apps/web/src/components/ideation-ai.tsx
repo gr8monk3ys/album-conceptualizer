@@ -487,8 +487,8 @@ export function IdeationAi({
 
       {failed ? (
         <StatusMessage tone="danger" className="mt-3">
-          The brainstorm didn&apos;t finish. Try again in a minute, or carry on with your own concept:
-          the rest of the setup works without it.
+          The brainstorm didn&apos;t finish, and its {CREDIT_COSTS.agentRun} credits were refunded. Try again
+          in a minute, or carry on with your own concept: the rest of the setup works without it.
         </StatusMessage>
       ) : null}
 

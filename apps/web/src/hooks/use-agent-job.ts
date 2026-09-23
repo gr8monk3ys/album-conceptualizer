@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-
+import { useRouter } from "next/navigation";
 
 export type AgentJobStatus = "pending" | "running" | "completed" | "failed";
 
@@ -37,6 +37,9 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
   const [error, setError] = useState<string | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [trackedJobId, setTrackedJobId] = useState<string | null>(jobId);
+  // The credits meter is rendered by the server layout. Starting a job charged for it and a
+  // failed job is refunded, so re-render the layout at both moments to show the new balance.
+  const router = useRouter();
 
   // Reset state synchronously when jobId changes (React "adjust state on prop change" pattern).
   if (trackedJobId !== jobId) {
@@ -73,6 +76,7 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
 
     cancelledRef.current = false;
     startedAtRef.current = Date.now();
+    router.refresh();
 
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -86,6 +90,7 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
           setElapsedMs(Date.now() - startedAtRef.current);
         }
         if (snapshot && isTerminal(snapshot.status)) {
+          if (snapshot.status === "failed") router.refresh();
           return;
         }
       } catch (err) {
@@ -103,7 +108,7 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
       cancelledRef.current = true;
       if (timer !== null) clearTimeout(timer);
     };
-  }, [jobId, intervalMs, fetchJob]);
+  }, [jobId, intervalMs, fetchJob, router]);
 
   const isPolling =
     jobId !== null && error === null && (job === null || !isTerminal(job.status));

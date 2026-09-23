@@ -794,6 +794,8 @@ export function QuickStartComposer({ aiAvailable }: { aiAvailable: boolean }) {
       const saved = (await response.json()) as { id: string };
       setStatus({ tone: "success", text: "Saved. Opening your album…" });
       router.push(`/app/albums/${saved.id}?welcome=1`);
+      // Creating the album spent credits; refresh so the layout's credits meter shows it.
+      router.refresh();
     } catch (error) {
       const message =
         error instanceof Error && error.message

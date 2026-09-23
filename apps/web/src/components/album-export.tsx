@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type MouseEvent } from "react";
 
 import { Button, Panel, Section, StatusMessage, buttonClass } from "@/components/ui";
@@ -123,6 +124,7 @@ export function AlbumExport({
   const [handoffStatus, setHandoffStatus] = useState<Status>(null);
   const [handoffBusy, setHandoffBusy] = useState<string | null>(null);
 
+  const router = useRouter();
   const cost = CREDIT_COSTS.exportZip;
   const canAfford = remaining >= cost;
 
@@ -159,6 +161,8 @@ export function AlbumExport({
     const left = Math.max(0, remaining - cost);
     setRemaining(left);
     setZipStatus({ tone: "ok", text: `Zip downloaded. ${credits(left)} left.` });
+    // The zip was charged for; re-render the server layout so the credits meter agrees.
+    router.refresh();
   }
 
   async function downloadHandoff(

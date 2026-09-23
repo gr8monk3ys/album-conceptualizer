@@ -84,6 +84,7 @@ model Workspace {
   subscription Subscription?
   creditBalance CreditBalance?
   creditLedger CreditLedgerEntry[]
+  agentJobCharges AgentJobCharge[]
   challengeCompletions ChallengeCompletion[]
   notifications Notification[]
   analyticsEvents AnalyticsEvent[]
@@ -237,6 +238,22 @@ model CreditLedgerEntry {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, createdAt])
+  @@schema("album_conceptualizer")
+}
+
+/// The credits charged for one engine agent job, so a job that fails after it was accepted
+/// is refunded exactly once (the refund claims the row by setting refundedAt).
+model AgentJobCharge {
+  jobId       String    @id
+  workspaceId String
+  amount      Int
+  reason      String
+  createdAt   DateTime  @default(now())
+  refundedAt  DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
   @@schema("album_conceptualizer")
 }
 

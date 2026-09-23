@@ -37,6 +37,12 @@ class StartError extends Error {
 }
 
 /** Status-code-only messages ("HTTP 502") are not something to show an artist. */
+/** End a message with a full stop so another sentence can follow it. */
+function sentence(text: string) {
+  const trimmed = text.trim();
+  return /[.!?…]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
 function plain(message: string | null, fallback: string) {
   if (!message || /^HTTP \d+$/.test(message.trim())) return fallback;
   return message;
@@ -96,7 +102,10 @@ export function CoherenceAiReview({ albumId, aiAvailable }: { albumId: string; a
 
   const isBusy = isStarting || isPolling;
   const output = job?.status === "completed" ? (job.result?.output ?? "") : "";
-  const failedText = job?.status === "failed" ? plain(job.error, "The review stopped before it finished.") : null;
+  const failedText =
+    job?.status === "failed"
+      ? `${sentence(plain(job.error, "The review stopped before it finished."))} Your ${COST} credits were refunded.`
+      : null;
   const error = startError
     ? startError
     : pollError

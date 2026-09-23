@@ -108,7 +108,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber, aiAvailable
     : pollError
       ? { text: "Lost touch with the draft while it was running.", retry: "poll" }
       : job?.status === "failed"
-        ? { text: "The draft couldn't be finished.", retry: "start" }
+        ? { text: `The draft couldn't be finished. Your ${COST_LABEL} were refunded.`, retry: "start" }
         : null;
 
   const buttonLabel = !aiAvailable

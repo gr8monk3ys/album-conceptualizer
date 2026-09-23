@@ -9,8 +9,8 @@ import {
   requireAlbum,
   requireWorkspace,
 } from "@/server/api";
-import { CREDIT_COSTS, withCredits } from "@/server/credits";
-import { startAgentJob, type AgentAction, type AgentInput } from "@/server/engine";
+import { startChargedAgentJob } from "@/server/agent-jobs";
+import type { AgentAction, AgentInput } from "@/server/engine";
 
 export const runtime = "nodejs";
 
@@ -69,18 +69,14 @@ export const POST = apiHandler(
       input = { action, album: album.data };
     }
 
-    const job = await withCredits(
-      {
-        workspaceId,
-        plan,
-        amount: CREDIT_COSTS.agentRun,
-        reason: `agent_${action}`,
-        metadata: { action, albumId },
-        insufficientMessage:
-          "Not enough credits to run an agent workflow. Complete challenges or upgrade.",
-      },
-      () => startAgentJob(input, userId),
-    );
+    const job = await startChargedAgentJob({
+      workspaceId,
+      plan,
+      userId,
+      action,
+      albumId,
+      job: input,
+    });
     return NextResponse.json(job, { status: 202 });
   },
 );
