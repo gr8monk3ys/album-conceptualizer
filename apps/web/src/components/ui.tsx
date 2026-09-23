@@ -158,6 +158,28 @@ export function Panel({ className, ...props }: ComponentProps<"div">) {
   return <div className={cn("rounded border border-line bg-raised p-4 md:p-5", className)} {...props} />;
 }
 
+/**
+ * The one wrapper for a table wider than its column: it scrolls sideways inside itself (a
+ * labelled, focusable region, so keyboard users can scroll it) and never widens the page.
+ * `relative` is the point: screen-reader-only text in the table is absolutely positioned, and
+ * without a positioned ancestor here it is placed against the page and escapes the scroller.
+ */
+export function TableScroller({
+  label,
+  className,
+  ...props
+}: ComponentProps<"div"> & { label: string }) {
+  return (
+    <div
+      role="region"
+      aria-label={label}
+      tabIndex={0}
+      className={cn("relative min-w-0 overflow-x-auto", className)}
+      {...props}
+    />
+  );
+}
+
 const CONTROL =
   "w-full rounded border border-line-control bg-sunken px-3 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-ink-3 focus-visible:border-accent disabled:opacity-60";
 
