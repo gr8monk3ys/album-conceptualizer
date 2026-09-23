@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
@@ -15,6 +14,7 @@ export const metadata = {
   description: "Capture rough demos, voice memos, and riff sketches before they disappear.",
 };
 
+// The album layout renders the title, catalog line, album tabs and spine above this page.
 export default async function AlbumRoughDemosPage({
   params,
 }: {
@@ -30,51 +30,18 @@ export default async function AlbumRoughDemosPage({
   const songOptions = getAlbumSongOptions(album.data);
 
   return (
-    <div className="flex flex-col gap-5">
+    <>
       <AlbumPageViewTracker
         albumId={album.id}
         event="album_rough_demos_viewed"
         path={`/app/albums/${album.id}/demos`}
       />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-ink-3">Rough demos</div>
-          <div className="text-2xl font-semibold tracking-tight text-ink">
-            {album.title}
-          </div>
-          <div className="mt-1 text-sm text-ink-2">
-            {album.artist ? `by ${album.artist}` : "Artist not set"}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/app/albums/${album.id}`}
-            className="rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
-          >
-            Back
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/style`}
-            className="rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
-          >
-            Style
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/export`}
-            className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90"
-          >
-            Export
-          </Link>
-        </div>
-      </div>
-
       <AlbumRoughDemoWorkspace
         albumId={album.id}
         initialDemos={demos}
         initialReviews={reviews}
         songOptions={songOptions}
       />
-    </div>
+    </>
   );
 }

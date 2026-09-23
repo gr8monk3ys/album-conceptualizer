@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 
 import { MobileAppMenu } from "@/components/mobile-app-menu";
+import { TopbarSearch } from "@/components/topbar-search";
 import { buttonClass } from "@/components/ui";
 
 export function Topbar({
@@ -27,23 +28,7 @@ export function Topbar({
         unreadNotifications={unreadNotifications}
       />
 
-      <form action="/app/search" method="get" role="search" className="hidden flex-1 md:block">
-        <div className="relative max-w-xl">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3"
-            aria-hidden="true"
-          />
-          <input
-            name="q"
-            type="search"
-            autoComplete="off"
-            spellCheck={false}
-            aria-label="Search workspace"
-            placeholder="Search albums, tracks, lyrics…"
-            className="min-h-11 w-full rounded border border-line-control bg-sunken pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 hover:border-ink-3 focus-visible:border-accent"
-          />
-        </div>
-      </form>
+      <TopbarSearch />
 
       <div className="ml-auto flex items-center gap-2">
         <Link

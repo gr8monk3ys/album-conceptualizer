@@ -95,18 +95,24 @@ async function call(
     });
   } catch (err) {
     console.error("engine_unreachable", { path, error: err instanceof Error ? err.message : err });
-    throw new ApiError(502, `${init.failure} The engine is unavailable right now.`);
+    throw new ApiError(502, `${init.failure} The service is unreachable right now; try again in a minute.`);
   }
 
   if (!response.ok) {
     const detail = await readDetail(response);
-    const status = response.status >= 400 && response.status < 500 ? response.status : 502;
     const retryAfter = response.headers.get("retry-after");
-    throw new ApiError(
-      status,
-      `${init.failure} ${detail}`,
-      retryAfter ? { "retry-after": retryAfter } : undefined,
-    );
+    const headers = retryAfter ? { "retry-after": retryAfter } : undefined;
+    if (response.status >= 400 && response.status < 500) {
+      // Validation, not-found and rate-limit details are written for people; pass them on.
+      throw new ApiError(response.status, `${init.failure} ${detail}`, headers);
+    }
+    // Server-side failures (including missing configuration) are for operators, not artists.
+    console.error("engine_error", { path, status: response.status, detail });
+    const message =
+      response.status === 503
+        ? `${init.failure} This feature isn't available on this server right now.`
+        : `${init.failure} Something went wrong on our side; try again in a minute.`;
+    throw new ApiError(502, message, headers);
   }
   return response;
 }

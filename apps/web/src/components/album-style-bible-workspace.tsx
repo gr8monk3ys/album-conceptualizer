@@ -1,7 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
+import {
+  Button,
+  ButtonLink,
+  Chip,
+  Field,
+  Panel,
+  Section,
+  StatusMessage,
+  inputClass,
+  textareaClass,
+} from "@/components/ui";
 import type { AlbumStyleBible } from "@/server/album-json";
 
 type StyleBibleResponse = {
@@ -9,9 +20,6 @@ type StyleBibleResponse = {
 };
 
 type StyleBibleSummary = {
-  filledCount: number;
-  totalCount: number;
-  score: number;
   referenceRoles: string[];
   missingReferenceRoles: string[];
 };
@@ -27,6 +35,21 @@ type StyleBibleFormState = {
   emotionalTargets: string;
   referenceStrategy: string;
 };
+
+type Status = { tone: "ok" | "danger"; text: string } | null;
+
+/** The nine sections of a style bible, in the order the form asks for them. */
+const SECTIONS: Array<{ key: keyof StyleBibleFormState; label: string }> = [
+  { key: "leadVoice", label: "Lead voice brief" },
+  { key: "narratorPerspective", label: "Narrator perspective" },
+  { key: "vocalAttributes", label: "Vocal attributes" },
+  { key: "sonicPalette", label: "Sonic palette" },
+  { key: "arrangementRules", label: "Arrangement rules" },
+  { key: "mixPriorities", label: "Mix priorities" },
+  { key: "avoidList", label: "Avoid list" },
+  { key: "emotionalTargets", label: "Emotional targets" },
+  { key: "referenceStrategy", label: "Reference strategy" },
+];
 
 function splitList(raw: string) {
   const seen = new Set<string>();
@@ -81,29 +104,19 @@ function buildBody(form: StyleBibleFormState) {
   };
 }
 
-function buildSummary(styleBible: Required<AlbumStyleBible>, referenceRoles: string[]): StyleBibleSummary {
-  const filledCount = [
-    Boolean(styleBible.lead_voice),
-    Boolean(styleBible.narrator_perspective),
-    styleBible.vocal_attributes.length > 0,
-    styleBible.sonic_palette.length > 0,
-    styleBible.arrangement_rules.length > 0,
-    styleBible.mix_priorities.length > 0,
-    styleBible.avoid_list.length > 0,
-    styleBible.emotional_targets.length > 0,
-    Boolean(styleBible.reference_strategy),
-  ].filter(Boolean).length;
-  const totalCount = 9;
+function fieldId(key: keyof StyleBibleFormState) {
+  return `style-${key}`;
+}
 
-  return {
-    filledCount,
-    totalCount,
-    score: Math.round((filledCount / totalCount) * 100),
-    referenceRoles,
-    missingReferenceRoles: ["opener", "closer", "vocal-texture", "mix-palette"].filter(
-      (role) => !referenceRoles.includes(role),
-    ),
-  };
+function Group({ legend, children }: { legend: string; children: ReactNode }) {
+  return (
+    <fieldset className="min-w-0">
+      <legend className="w-full border-t border-line pt-4 text-sm font-semibold text-ink">
+        {legend}
+      </legend>
+      <div className="mt-3 grid grid-cols-1 gap-4 @xl:grid-cols-2">{children}</div>
+    </fieldset>
+  );
 }
 
 export function AlbumStyleBibleWorkspace({
@@ -124,13 +137,32 @@ export function AlbumStyleBibleWorkspace({
     songTrackNumber: number | null;
   }>;
 }) {
-  const [styleBible, setStyleBible] = useState(initialStyleBible);
+  const [savedForm, setSavedForm] = useState<StyleBibleFormState>(() => toForm(initialStyleBible));
   const [form, setForm] = useState<StyleBibleFormState>(() => toForm(initialStyleBible));
-  const [summary, setSummary] = useState(initialSummary);
-  const [status, setStatus] = useState("");
+  const [status, setStatusState] = useState<Status>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const timer = useRef<number | null>(null);
 
-  async function saveStyleBible() {
+  useEffect(() => () => {
+    if (timer.current) window.clearTimeout(timer.current);
+  }, []);
+
+  function setStatus(next: Status) {
+    if (timer.current) window.clearTimeout(timer.current);
+    setStatusState(next);
+    if (next?.tone === "ok") timer.current = window.setTimeout(() => setStatusState(null), 4000);
+  }
+
+  const filled = SECTIONS.filter((section) => form[section.key].trim().length > 0);
+  const open = SECTIONS.filter((section) => !form[section.key].trim());
+  const isDirty = JSON.stringify(buildBody(form)) !== JSON.stringify(buildBody(savedForm));
+
+  function update(key: keyof StyleBibleFormState, value: string) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function saveStyleBible(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setIsSaving(true);
     try {
       const response = await fetch(`/api/albums/${albumId}/style-bible`, {
@@ -144,265 +176,227 @@ export function AlbumStyleBibleWorkspace({
         | null;
       if (!response.ok || !payload || !("styleBible" in payload)) {
         throw new Error(
-          payload && "error" in payload && payload.error ? payload.error : "Save failed.",
+          payload && "error" in payload && payload.error
+            ? payload.error
+            : "The style bible didn't save. Your text is still here; try again in a moment.",
         );
       }
 
-      setStyleBible(payload.styleBible);
-      setForm(toForm(payload.styleBible));
-      setSummary(buildSummary(payload.styleBible, summary.referenceRoles));
-      setStatus("Style bible saved.");
+      const next = toForm(payload.styleBible);
+      setSavedForm(next);
+      setForm(next);
+      setStatus({ tone: "ok", text: "Style bible saved." });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Save failed.");
+      setStatus({
+        tone: "danger",
+        text:
+          error instanceof Error
+            ? error.message
+            : "The style bible didn't save. Your text is still here; try again in a moment.",
+      });
     } finally {
       setIsSaving(false);
-      window.setTimeout(() => setStatus(""), 1800);
     }
   }
 
+  function textarea(key: keyof StyleBibleFormState, placeholder: string, rows = 3) {
+    return (
+      <textarea
+        id={fieldId(key)}
+        value={form[key]}
+        onChange={(event) => update(key, event.target.value)}
+        rows={rows}
+        className={textareaClass}
+        placeholder={placeholder}
+      />
+    );
+  }
+
+  const label = (key: keyof StyleBibleFormState) =>
+    SECTIONS.find((section) => section.key === key)?.label ?? key;
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="space-y-4">
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="text-xs text-ink-3">Voice / Style Bible</div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-ink">
-            Lock the singer, palette, and production rules before handoff
-          </div>
-          <div className="mt-2 max-w-[72ch] text-sm text-ink-2">
-            Give collaborators a stable target for vocal character, sonic palette, arrangement
-            constraints, and mix priorities.
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
-              <span className="text-xs text-ink-3">Lead voice brief</span>
-              <textarea
-                value={form.leadVoice}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, leadVoice: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="Close-mic alto with conversational phrasing and controlled falsetto lift."
-                aria-label="Lead voice brief"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
-              <span className="text-xs text-ink-3">Narrator perspective</span>
-              <input
-                value={form.narratorPerspective}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    narratorPerspective: event.target.value,
-                  }))
-                }
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="First-person, intimate, slightly unreliable."
-                aria-label="Narrator perspective"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Vocal attributes</span>
-              <textarea
-                value={form.vocalAttributes}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, vocalAttributes: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="breathy, clipped consonants, stacked harmonies"
-                aria-label="Vocal attributes"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Sonic palette</span>
-              <textarea
-                value={form.sonicPalette}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, sonicPalette: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="chorused guitars, pillowy synths, dry drum room"
-                aria-label="Sonic palette"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Arrangement rules</span>
-              <textarea
-                value={form.arrangementRules}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, arrangementRules: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="no full drums before chorus, let bridges drop to bass + vocal"
-                aria-label="Arrangement rules"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Mix priorities</span>
-              <textarea
-                value={form.mixPriorities}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, mixPriorities: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="lead vocal forward, bass warm not boomy, choruses widen hard"
-                aria-label="Mix priorities"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Avoid list</span>
-              <textarea
-                value={form.avoidList}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, avoidList: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="EDM risers, trap hats, glossy pop vocal tuning"
-                aria-label="Avoid list"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
-              <span className="text-xs text-ink-3">Emotional targets</span>
-              <textarea
-                value={form.emotionalTargets}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, emotionalTargets: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="late-night tension, bittersweet release, small-room intimacy"
-                aria-label="Emotional targets"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
-              <span className="text-xs text-ink-3">Reference strategy</span>
-              <textarea
-                value={form.referenceStrategy}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    referenceStrategy: event.target.value,
-                  }))
-                }
-                rows={4}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="Use the opener reference for vocal distance, the chorus reference for lift, and the mix reference for low-end discipline."
-                aria-label="Reference strategy"
-              />
-            </label>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={saveStyleBible}
-              disabled={isSaving}
-              className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSaving ? "Saving..." : "Save style bible"}
-            </button>
-            {status ? <div className="text-xs text-ink-3">{status}</div> : null}
-          </div>
-        </div>
-      </section>
-
-      <aside className="space-y-4">
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="text-xs text-ink-3">Coverage</div>
-          <div className="mt-1 text-lg font-semibold text-ink">{summary.score}/100</div>
-          <div className="mt-2 text-sm text-ink-2">
-            {summary.filledCount} of {summary.totalCount} style anchors are filled.
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {styleBible.vocal_attributes
-              .concat(styleBible.sonic_palette)
-              .slice(0, 6)
-              .map((item) => (
-                <span
-                  key={item}
-                  className="rounded-full border border-line bg-sunken px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3"
-                >
-                  {item}
-                </span>
-              ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="text-xs text-ink-3">Reference roles</div>
-          <div className="mt-1 text-sm font-semibold text-ink">
-            Use the saved references on purpose
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {summary.referenceRoles.length ? (
-              summary.referenceRoles.map((role) => (
-                <span
-                  key={role}
-                  className="rounded-full border border-line bg-sunken px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3"
-                >
-                  {formatRole(role)}
-                </span>
-              ))
-            ) : (
-              <div className="text-xs text-ink-2">No reference roles saved yet.</div>
-            )}
-          </div>
-          {summary.missingReferenceRoles.length ? (
-            <div className="mt-3 text-xs text-ink-3">
-              Still missing: {summary.missingReferenceRoles.map(formatRole).join(", ")}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="text-xs text-ink-3">Saved references</div>
-          <div className="mt-1 text-sm font-semibold text-ink">
-            Current tracks informing the style bible
-          </div>
-          <div className="mt-3 space-y-2">
-            {referenceTargets.length ? (
-              referenceTargets.slice(0, 6).map((reference) => (
-                <div
-                  key={reference.id}
-                  className="rounded-2xl border border-line bg-sunken px-3 py-2"
-                >
-                  <div className="text-xs font-semibold text-ink">
-                    {reference.title}
-                    {reference.artist ? ` · ${reference.artist}` : ""}
-                  </div>
-                  <div className="mt-1 text-[10px] text-ink-3">
-                    {reference.targetRole
-                      ? formatRole(reference.targetRole)
-                      : reference.songTitle
-                        ? `Track ${reference.songTrackNumber}: ${reference.songTitle}`
-                        : "Album-wide"}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-xs text-ink-2">
-                Save reference tracks first if you want concrete vocal, opener, or mix targets.
+    <Section
+      id="style-bible"
+      title="Lock the singer, palette, and production rules before handoff"
+      description="Give collaborators a stable target for vocal character, sonic palette, arrangement constraints, and mix priorities."
+    >
+      <div className="@container">
+        <div className="grid grid-cols-1 gap-8 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] @3xl:items-start">
+          <Panel className="@container">
+            <form onSubmit={(event) => void saveStyleBible(event)}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                <p className="text-sm text-ink">
+                  <span className="type-figure font-semibold">{filled.length}</span> of{" "}
+                  <span className="type-figure">{SECTIONS.length}</span> sections filled
+                </p>
+                <p className="text-xs text-ink-3">List fields take commas or new lines.</p>
               </div>
-            )}
-          </div>
+              <div aria-hidden="true" className="mt-2 flex gap-1">
+                {SECTIONS.map((section) => (
+                  <span
+                    key={section.key}
+                    className={
+                      form[section.key].trim()
+                        ? "h-1 flex-1 rounded-sm bg-ink-2"
+                        : "h-1 flex-1 rounded-sm bg-line"
+                    }
+                  />
+                ))}
+              </div>
+              {open.length && open.length < SECTIONS.length ? (
+                <p className="mt-2 text-xs leading-relaxed text-ink-3">
+                  Still open: {open.map((section) => section.label).join(", ")}
+                </p>
+              ) : null}
+
+              <div className="mt-6 flex flex-col gap-6">
+                <Group legend="Voice">
+                  <Field
+                    label={label("leadVoice")}
+                    htmlFor={fieldId("leadVoice")}
+                    className="@xl:col-span-2"
+                  >
+                    {textarea(
+                      "leadVoice",
+                      "e.g. Close-mic alto with conversational phrasing and controlled falsetto lift.",
+                    )}
+                  </Field>
+                  <Field
+                    label={label("narratorPerspective")}
+                    htmlFor={fieldId("narratorPerspective")}
+                  >
+                    <input
+                      id={fieldId("narratorPerspective")}
+                      value={form.narratorPerspective}
+                      onChange={(event) => update("narratorPerspective", event.target.value)}
+                      className={inputClass}
+                      placeholder="e.g. First-person, intimate, slightly unreliable."
+                      autoComplete="off"
+                    />
+                  </Field>
+                  <Field label={label("vocalAttributes")} htmlFor={fieldId("vocalAttributes")}>
+                    {textarea("vocalAttributes", "e.g. breathy, clipped consonants, stacked harmonies")}
+                  </Field>
+                </Group>
+
+                <Group legend="Sound">
+                  <Field label={label("sonicPalette")} htmlFor={fieldId("sonicPalette")}>
+                    {textarea("sonicPalette", "e.g. chorused guitars, pillowy synths, dry drum room")}
+                  </Field>
+                  <Field label={label("arrangementRules")} htmlFor={fieldId("arrangementRules")}>
+                    {textarea(
+                      "arrangementRules",
+                      "e.g. no full drums before chorus, let bridges drop to bass + vocal",
+                    )}
+                  </Field>
+                  <Field label={label("mixPriorities")} htmlFor={fieldId("mixPriorities")}>
+                    {textarea(
+                      "mixPriorities",
+                      "e.g. lead vocal forward, bass warm not boomy, choruses widen hard",
+                    )}
+                  </Field>
+                  <Field label={label("avoidList")} htmlFor={fieldId("avoidList")}>
+                    {textarea("avoidList", "e.g. EDM risers, trap hats, glossy pop vocal tuning")}
+                  </Field>
+                </Group>
+
+                <Group legend="Direction">
+                  <Field
+                    label={label("emotionalTargets")}
+                    htmlFor={fieldId("emotionalTargets")}
+                    className="@xl:col-span-2"
+                  >
+                    {textarea(
+                      "emotionalTargets",
+                      "e.g. late-night tension, bittersweet release, small-room intimacy",
+                    )}
+                  </Field>
+                  <Field
+                    label={label("referenceStrategy")}
+                    htmlFor={fieldId("referenceStrategy")}
+                    className="@xl:col-span-2"
+                  >
+                    {textarea(
+                      "referenceStrategy",
+                      "e.g. Use the opener reference for vocal distance, the chorus reference for lift, and the mix reference for low-end discipline.",
+                      4,
+                    )}
+                  </Field>
+                </Group>
+              </div>
+
+              <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-line pt-4">
+                <Button type="submit" tone="primary" disabled={isSaving}>
+                  {isSaving ? "Saving…" : "Save style bible"}
+                </Button>
+                {status ? (
+                  <StatusMessage tone={status.tone}>{status.text}</StatusMessage>
+                ) : isDirty ? (
+                  <p className="text-sm text-ink-3">Unsaved changes</p>
+                ) : null}
+              </div>
+            </form>
+          </Panel>
+
+          <aside aria-label="References behind the style bible" className="flex min-w-0 flex-col gap-8">
+            <div>
+              <h3 className="text-base font-semibold text-ink">Reference roles</h3>
+              <p className="mt-1 text-sm text-ink-2">Use the saved references on purpose.</p>
+              {initialSummary.referenceRoles.length ? (
+                <ul className="mt-3 flex flex-wrap gap-1.5">
+                  {initialSummary.referenceRoles.map((role) => (
+                    <li key={role}>
+                      <Chip>{formatRole(role)}</Chip>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-ink-3">No reference roles saved yet.</p>
+              )}
+              {initialSummary.missingReferenceRoles.length ? (
+                <p className="mt-3 text-xs leading-relaxed text-ink-3">
+                  Still missing:{" "}
+                  {initialSummary.missingReferenceRoles.map(formatRole).join(", ")}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <h3 className="text-base font-semibold text-ink">Saved references</h3>
+              <p className="mt-1 text-sm text-ink-2">Current tracks informing the style bible.</p>
+              {referenceTargets.length ? (
+                <ul className="mt-3 divide-y divide-line border-y border-line">
+                  {referenceTargets.slice(0, 6).map((reference) => (
+                    <li key={reference.id} className="py-2.5">
+                      <p className="break-words text-sm font-medium text-ink">
+                        {reference.title}
+                        {reference.artist ? (
+                          <span className="font-normal text-ink-2"> · {reference.artist}</span>
+                        ) : null}
+                      </p>
+                      <p className="mt-0.5 text-xs text-ink-3">
+                        {reference.targetRole
+                          ? formatRole(reference.targetRole)
+                          : reference.songTitle
+                            ? `Track ${reference.songTrackNumber}: ${reference.songTitle}`
+                            : "Album-wide"}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-ink-3">
+                  Save reference tracks first if you want concrete vocal, opener, or mix targets.
+                </p>
+              )}
+              <ButtonLink href={`/app/albums/${albumId}/references`} tone="ghost" className="mt-2 -ml-4">
+                {referenceTargets.length ? "Manage references" : "Add references"}
+              </ButtonLink>
+            </div>
+          </aside>
         </div>
-      </aside>
-    </div>
+      </div>
+    </Section>
   );
 }

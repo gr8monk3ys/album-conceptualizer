@@ -36,7 +36,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         unreadNotifications={unreadNotifications}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b border-line bg-ground px-4 py-3 md:px-8">
+        <header className="sticky top-0 z-30 flex h-header items-center border-b border-line bg-ground px-4 md:px-8">
+          <div className="w-full">
           <Topbar
             workspaceName={workspace.name}
             userName={session.user?.name}
@@ -44,6 +45,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             credits={credits}
             unreadNotifications={unreadNotifications}
           />
+          </div>
         </header>
         <main id="app-main-content" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">
           {children}

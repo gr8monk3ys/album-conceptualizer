@@ -1,27 +1,30 @@
 import Link from "next/link";
 
+import { Wordmark } from "@/components/sidebar";
+import { ButtonLink } from "@/components/ui";
+
 export default function RootNotFound() {
   return (
-    <div className="flex min-h-screen items-center justify-center px-6 py-16">
-      <div className="w-full max-w-md text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-line bg-raised px-3 py-1 text-xs text-ink-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--warn)]" />
-          Page not found
-        </div>
-
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-ink">404</h1>
-        <p className="mt-3 text-sm leading-relaxed text-ink-2">
-          The page you are looking for does not exist or has been moved.
-        </p>
-
-        <div className="mt-8">
-          <Link
-            href="/"
-            className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90"
-          >
-            Go home
-          </Link>
-        </div>
+    <div className="min-h-screen bg-ground px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-[1200px]">
+        <Link href="/" className="inline-flex min-h-11 items-center rounded">
+          <Wordmark />
+        </Link>
+        <main className="mt-16 max-w-[36rem] md:mt-24">
+          <h1 className="type-display text-4xl text-ink md:text-5xl">Page not found</h1>
+          <p className="mt-4 text-base leading-relaxed text-ink-2">
+            There&apos;s nothing at this address. The link may be mistyped, or the album or share
+            link it pointed to may have been removed.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <ButtonLink href="/app" tone="primary">
+              Go to your albums
+            </ButtonLink>
+            <ButtonLink href="/" tone="secondary">
+              Go home
+            </ButtonLink>
+          </div>
+        </main>
       </div>
     </div>
   );

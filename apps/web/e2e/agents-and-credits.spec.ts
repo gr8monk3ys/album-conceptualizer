@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 // The engine has no copy of web albums, so agent workflows must receive the album snapshot.
 // CI's engine runs without ANTHROPIC_API_KEY, which lets us prove the request got past the
-// album lookup (a 503 about the key, not a 404 "Album not found") without calling an LLM.
+// album lookup (a 503 "not available", not a 404 "Album not found") without calling an LLM.
 
 async function devLogin(page: Page) {
   await page.goto("/sign-in");
@@ -58,7 +58,9 @@ test.describe("Agent workflows and credits", () => {
       return;
     }
     expect(body.error ?? "").not.toMatch(/album not found/i);
-    expect(body.error ?? "").toMatch(/ANTHROPIC_API_KEY|agent/i);
+    // Operator detail (the missing key) stays in the server log, not in the artist's message.
+    expect(body.error ?? "").not.toMatch(/ANTHROPIC_API_KEY/);
+    expect(body.error ?? "").toMatch(/isn't available on this server/);
     // The failed start was refunded.
     expect(await remainingCredits(page)).toBe(before);
   });

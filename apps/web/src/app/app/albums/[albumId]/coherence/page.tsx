@@ -1,37 +1,44 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowRight } from "lucide-react";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { CoherenceAiReview } from "@/components/coherence-ai-review";
-import { analyzeAlbumCoherence } from "@/server/coherence";
+import { Chip, Section } from "@/components/ui";
+import {
+  analyzeAlbumCoherence,
+  coherenceFixHref,
+  type CoherenceFix,
+  type CoherenceIssueSeverity,
+} from "@/server/coherence";
 import { getAlbum } from "@/server/albums";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Coherence Report",
-  description: "Inspect narrative and musical coherence across album tracks and sections.",
+  title: "Album coherence",
+  description: "How well the album's songs hold together against its concept, themes and motifs.",
 };
 
-function scoreLabel(score: number) {
-  if (score >= 85) return { label: "Excellent", className: "text-ok" };
+function verdict(score: number) {
+  if (score >= 85) return { label: "Tight", className: "text-ok" };
   if (score >= 70) return { label: "Solid", className: "text-ink-2" };
   if (score >= 50) return { label: "Needs polish", className: "text-warn" };
-  return { label: "Broken", className: "text-danger" };
+  return { label: "Loose", className: "text-danger" };
 }
 
-function actionHref(albumId: string, target: "album" | "bible" | "studio") {
-  if (target === "bible") return `/app/albums/${albumId}/bible`;
-  if (target === "studio") return `/app/albums/${albumId}/studio`;
-  return `/app/albums/${albumId}`;
+const SEVERITY: Record<CoherenceIssueSeverity, { label: string; tone: "danger" | "warn" | "neutral" }> = {
+  error: { label: "Blocking", tone: "danger" },
+  warning: { label: "Warning", tone: "warn" },
+  info: { label: "Note", tone: "neutral" },
+};
+
+function fixLabel(fix: CoherenceFix | undefined) {
+  return fix?.focus === "style" ? "Open the Style bible" : "Fix in Studio";
 }
 
-export default async function CoherencePage({
-  params,
-}: {
-  params: Promise<{ albumId: string }>;
-}) {
+export default async function CoherencePage({ params }: { params: Promise<{ albumId: string }> }) {
   const { albumId } = await params;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
@@ -39,215 +46,177 @@ export default async function CoherencePage({
   if (!album) notFound();
 
   const report = analyzeAlbumCoherence(album.data);
-  const verdict = scoreLabel(report.score);
+  const scored = !report.insufficient;
+  const overall = verdict(report.score);
+  const { stats } = report;
+  const figures = [
+    { label: "Tracks", value: stats.songCount },
+    { label: "With lyrics", value: stats.songsWithLyrics },
+    { label: "With chords", value: stats.songsWithChords },
+    { label: "With a story note", value: stats.songsWithNarrativeSummary },
+    { label: "On an album theme", value: stats.songsAlignedToThemes },
+    { label: "Motifs that return", value: stats.callbackMotifs },
+  ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-10">
       <AlbumPageViewTracker
         albumId={album.id}
         event="album_coherence_viewed"
         path={`/app/albums/${album.id}/coherence`}
       />
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="text-xs text-ink-3">Project</div>
-          <div className="truncate text-2xl font-semibold tracking-tight text-ink">
-            {album.title}
-          </div>
-          <div className="mt-1 text-sm text-ink-2">Coherence report v2</div>
-          <div className="mt-3 max-w-[72ch] text-sm leading-relaxed text-ink-2">
-            {report.summary}
-          </div>
-        </div>
-        <Link
-          href={`/app/albums/${album.id}`}
-          className="rounded-full border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
-        >
-          Back
-        </Link>
-      </div>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-4">
-          <CoherenceAiReview albumId={album.id} />
-          <div className="rounded-2xl border border-line bg-raised p-4">
-            <div className="text-xs text-ink-3">Overall score</div>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <div className="text-4xl font-semibold tracking-tight text-ink">
+      <Section id="coherence-summary" title="Coherence report" description={scored ? report.summary : undefined}>
+        {scored ? (
+          <div className="flex flex-col gap-6">
+            <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <span className="type-figure text-5xl font-semibold text-ink">
                 {report.score}
-                <span className="text-sm text-ink-3">/100</span>
-              </div>
-              <div className={`text-sm font-semibold ${verdict.className}`}>{verdict.label}</div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-              {[
-                { label: "Tracks", value: report.stats.songCount },
-                { label: "Sections", value: report.stats.sectionCount },
-                { label: "Theme-aligned", value: report.stats.songsAlignedToThemes },
-                { label: "Callback motifs", value: report.stats.callbackMotifs },
-                { label: "Keys", value: report.stats.uniqueKeys },
-                { label: "Tempos", value: report.stats.uniqueTempos },
-                { label: "Themes", value: report.stats.uniqueThemes },
-                { label: "Motifs", value: report.stats.uniqueMotifs },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-2xl border border-line bg-sunken px-3 py-2"
-                >
-                  <div className="text-[11px] text-ink-3">{stat.label}</div>
-                  <div className="mt-1 text-sm font-semibold text-ink">
-                    {stat.value}
-                  </div>
-                </div>
-              ))}
-            </div>
+                <span className="text-lg font-normal text-ink-3">/100</span>
+              </span>
+              <span className={`text-base font-semibold ${overall.className}`}>{overall.label}</span>
+            </p>
           </div>
-
-          <div className="rounded-2xl border border-line bg-raised p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs text-ink-3">Breakdown</div>
-                <div className="text-sm font-semibold text-ink">
-                  Narrative, lyrics, harmony, sequence, motifs
-                </div>
-              </div>
-              <div className="text-xs text-ink-2">{report.breakdown.length} areas</div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {report.breakdown.map((item) => (
-                <div
-                  key={item.key}
-                  className="rounded-2xl border border-line bg-sunken px-4 py-3"
-                >
-                  <div className="text-[11px] uppercase tracking-wide text-ink-3">
-                    {item.label}
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold tracking-tight text-ink">
-                    {item.score}
-                    <span className="text-xs text-ink-3">/100</span>
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-ink-2">
-                    {item.summary}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-line bg-raised p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs text-ink-3">Findings</div>
-                <div className="text-sm font-semibold text-ink">
-                  Issues & suggestions
-                </div>
-              </div>
-              <div className="text-xs text-ink-2">{report.issues.length} items</div>
-            </div>
-
-            <div className="mt-3 space-y-2">
-              {report.issues.length ? (
-                report.issues.map((issue) => (
-                  <div
-                    key={issue.id}
-                    className="rounded-2xl border border-line bg-sunken px-4 py-3"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-ink">
-                        {issue.title}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="rounded-full bg-selected px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-3">
-                          {issue.category}
-                        </div>
-                        <div
-                          className={[
-                            "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                            issue.severity === "error"
-                              ? "bg-danger-soft text-danger"
-                              : issue.severity === "warning"
-                                ? "bg-[rgba(255,202,40,0.16)] text-warn"
-                                : "bg-selected text-ink-3",
-                          ].join(" ")}
-                        >
-                          {issue.severity}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-1 text-sm text-ink-2">{issue.detail}</div>
-                    {issue.relatedTracks?.length ? (
-                      <div className="mt-2 text-xs text-ink-3">
-                        Related tracks: {issue.relatedTracks.join(", ")}
-                      </div>
-                    ) : null}
-                    {issue.suggestion ? (
-                      <div className="mt-2 text-xs text-ink-3">
-                        Suggestion: {issue.suggestion}
-                      </div>
-                    ) : null}
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-line bg-sunken px-4 py-10 text-center text-sm text-ink-2">
-                  No issues detected.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-line bg-raised p-4">
-            <div className="text-xs text-ink-3">Next actions</div>
-            <div className="mt-1 text-sm font-semibold text-ink">
-              Fix the highest-leverage issues next
-            </div>
-            <div className="mt-3 space-y-3">
-              {report.nextActions.length ? (
-                report.nextActions.map((action) => (
+        ) : (
+          <div className="flex max-w-[68ch] flex-col gap-3">
+            <p className="text-base font-semibold text-ink">{report.summary}</p>
+            <p className="text-sm leading-relaxed text-ink-2">
+              Placeholder lines and the starting chord loop don&apos;t count. Still missing:
+            </p>
+            <ul className="divide-y divide-line border-y border-line">
+              {report.missing.map((piece) => (
+                <li key={piece.id}>
                   <Link
-                    key={action.id}
-                    href={actionHref(album.id, action.target)}
-                    className="block rounded-2xl border border-line bg-sunken px-4 py-3 hover:bg-sunken"
+                    href={coherenceFixHref(album.id, piece.fix)}
+                    className="group flex min-h-11 items-center justify-between gap-3 py-2 pr-1 text-sm text-ink transition-colors hover:bg-hover"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-ink">
-                        {action.title}
-                      </div>
-                      <div className="rounded-full bg-selected px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-3">
-                        {action.target}
-                      </div>
-                    </div>
-                    <div className="mt-2 text-xs leading-relaxed text-ink-2">
-                      {action.detail}
-                    </div>
+                    <span className="min-w-0">{piece.label}</span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
                   </Link>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-line bg-sunken px-4 py-10 text-center text-sm text-ink-2">
-                  No immediate action items.
-                </div>
-              )}
-            </div>
+                </li>
+              ))}
+            </ul>
           </div>
+        )}
 
-          <div className="rounded-2xl border border-line bg-raised p-4">
-            <div className="text-xs text-ink-3">Coverage snapshot</div>
-            <div className="mt-2 space-y-2 text-sm text-ink-2">
-              <div>
-                Lyrics on {report.stats.songsWithLyrics}/{report.stats.songCount} tracks
-              </div>
-              <div>
-                Chords on {report.stats.songsWithChords}/{report.stats.songCount} tracks
-              </div>
-              <div>
-                Narrative summaries on {report.stats.songsWithNarrativeSummary}/{report.stats.songCount} tracks
-              </div>
+        <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3">
+          {figures.map((figure) => (
+            <div key={figure.label} className="flex flex-col">
+              <dt className="text-xs text-ink-3">{figure.label}</dt>
+              <dd className="type-figure text-xl font-semibold text-ink">{figure.value}</dd>
             </div>
-          </div>
-        </aside>
-      </section>
+          ))}
+        </dl>
+      </Section>
+
+      <Section
+        id="coherence-next"
+        title="Next actions"
+        description="The highest-leverage fixes, each linked to where you make it."
+      >
+        {report.nextActions.length ? (
+          <ol className="divide-y divide-line border-y border-line">
+            {report.nextActions.map((action) => (
+              <li key={action.id}>
+                <Link
+                  href={coherenceFixHref(album.id, action.fix)}
+                  className="group flex min-h-11 items-start gap-4 py-3 pr-1 transition-colors hover:bg-hover"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-ink">{action.title}</span>
+                      <Chip>{report.breakdown.find((item) => item.key === action.category)?.label}</Chip>
+                    </span>
+                    <span className="mt-1 block text-sm leading-relaxed text-ink-2">{action.detail}</span>
+                  </span>
+                  <span className="mt-0.5 flex shrink-0 items-center gap-1 text-sm text-ink-2 group-hover:text-ink">
+                    {fixLabel(action.fix)}
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-sm text-ink-2">Nothing urgent. Every check is passing on this draft.</p>
+        )}
+      </Section>
+
+      <Section
+        id="coherence-breakdown"
+        title="By dimension"
+        description={
+          scored
+            ? "Each dimension scored out of 100."
+            : "Scores appear once enough lyrics are written. Until then, here is what each dimension still needs."
+        }
+      >
+        <ul className="divide-y divide-line border-y border-line">
+          {report.breakdown.map((item) => (
+            <li key={item.key} className="flex flex-wrap items-baseline gap-x-6 gap-y-1 py-3">
+              <span className="w-28 shrink-0 text-sm font-semibold text-ink">{item.label}</span>
+              <span className="type-figure w-16 shrink-0 text-lg font-semibold text-ink">
+                {scored ? (
+                  <>
+                    {item.score}
+                    <span className="text-xs font-normal text-ink-3">/100</span>
+                  </>
+                ) : (
+                  <span className="text-sm font-normal text-ink-3">Not yet</span>
+                )}
+              </span>
+              <span className="min-w-0 flex-1 basis-64 text-sm leading-relaxed text-ink-2">{item.summary}</span>
+            </li>
+          ))}
+        </ul>
+      </Section>
+
+      <Section
+        id="coherence-findings"
+        title="Findings"
+        description={`${report.issues.length} ${report.issues.length === 1 ? "finding" : "findings"}, most serious first.`}
+      >
+        {report.issues.length ? (
+          <ul className="divide-y divide-line border-y border-line">
+            {report.issues.map((issue) => {
+              const severity = SEVERITY[issue.severity];
+              return (
+                <li key={issue.id} className="flex flex-col gap-1.5 py-4 sm:flex-row sm:items-start sm:gap-6">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold text-ink">{issue.title}</h3>
+                      <Chip tone={severity.tone}>{severity.label}</Chip>
+                      <Chip>{report.breakdown.find((item) => item.key === issue.category)?.label}</Chip>
+                    </div>
+                    <p className="mt-1 text-sm leading-relaxed text-ink-2">{issue.detail}</p>
+                    {issue.suggestion ? (
+                      <p className="mt-1 text-sm leading-relaxed text-ink-3">{issue.suggestion}</p>
+                    ) : null}
+                    {issue.relatedTracks?.length ? (
+                      <p className="type-figure mt-1 text-xs text-ink-3">
+                        {issue.relatedTracks.length === 1 ? "Track" : "Tracks"} {issue.relatedTracks.join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
+                  {issue.fix ? (
+                    <Link
+                      href={coherenceFixHref(album.id, issue.fix)}
+                      className="inline-flex min-h-11 shrink-0 items-center gap-1 self-start text-sm font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
+                    >
+                      {fixLabel(issue.fix)}
+                      <span className="sr-only">: {issue.title}</span>
+                    </Link>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-ink-2">No findings. The tracks hold together on this draft.</p>
+        )}
+      </Section>
+
+      <CoherenceAiReview albumId={album.id} />
     </div>
   );
 }

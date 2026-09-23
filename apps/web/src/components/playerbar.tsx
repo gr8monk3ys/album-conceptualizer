@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Pause, Play, Repeat2, SkipBack, SkipForward, Square, Volume2 } from "lucide-react";
+import { Loader2, Pause, Play, Repeat2, RotateCcw, Square, Volume2 } from "lucide-react";
 
 import { usePlayer, type PreviewInstrument } from "@/components/player/player-provider";
+import { Button, IconButton, selectClass } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 function formatClock(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "0:00";
@@ -13,59 +15,37 @@ function formatClock(totalSeconds: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function Playerbar() {
-  const player = usePlayer();
-  const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const waveformRafRef = useRef<number | null>(null);
-  const getWaveform = player.getWaveform;
-
-  const loaded = player.status !== "idle";
-  const playing = player.status === "playing";
-  const canPlay =
-    loaded && player.status !== "loading" && player.status !== "error" && !player.instrumentLoading;
-  const title = player.nowPlaying?.title ?? "No preview loaded";
-  const subtitle =
-    player.status === "loading"
-      ? "Loading preview…"
-      : player.status === "error"
-        ? player.error ?? "Preview failed."
-        : player.instrumentLoading
-          ? "Loading instrument…"
-        : player.nowPlaying?.subtitle ?? "Load a section preview from Studio.";
-
-  const ratio = player.duration ? Math.min(1, Math.max(0, player.position / player.duration)) : 0;
+/** The live signal of the preview, drawn in the muted ink colour. Decorative for readers. */
+function Waveform({ getWaveform }: { getWaveform: () => Uint8Array | null }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    const canvas = waveformCanvasRef.current;
-    if (!canvas) return;
-    const canvasEl: HTMLCanvasElement = canvas;
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return;
     const ctx = canvasEl.getContext("2d");
     if (!ctx) return;
+    let raf = 0;
 
-    function resize() {
+    const draw = () => {
       const dpr = window.devicePixelRatio || 1;
       const width = Math.max(1, Math.floor(canvasEl.clientWidth * dpr));
       const height = Math.max(1, Math.floor(canvasEl.clientHeight * dpr));
-      if (canvasEl.width === width && canvasEl.height === height) return;
-      canvasEl.width = width;
-      canvasEl.height = height;
-    }
-
-    const draw = () => {
-      resize();
-
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvasEl.width / dpr;
-      const h = canvasEl.height / dpr;
+      if (canvasEl.width !== width || canvasEl.height !== height) {
+        canvasEl.width = width;
+        canvasEl.height = height;
+      }
+      const w = width / dpr;
+      const h = height / dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
       const data = getWaveform();
       if (data && data.length) {
         ctx.lineWidth = 1;
-        ctx.strokeStyle = "rgba(255,255,255,0.28)";
+        // The canvas carries `text-ink-3`, so the stroke follows the palette token.
+        ctx.strokeStyle = getComputedStyle(canvasEl).color;
         ctx.beginPath();
-        const stride = Math.max(1, Math.floor(data.length / 220));
+        const stride = Math.max(1, Math.floor(data.length / 160));
         for (let i = 0; i < data.length; i += stride) {
           const x = (i / Math.max(1, data.length - 1)) * w;
           const v = (data[i] - 128) / 128;
@@ -75,157 +55,146 @@ export function Playerbar() {
         }
         ctx.stroke();
       }
-
-      waveformRafRef.current = requestAnimationFrame(draw);
+      raf = requestAnimationFrame(draw);
     };
 
-    waveformRafRef.current = requestAnimationFrame(draw);
-    return () => {
-      if (waveformRafRef.current) cancelAnimationFrame(waveformRafRef.current);
-      waveformRafRef.current = null;
-    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
   }, [getWaveform]);
+
+  return <canvas ref={canvasRef} aria-hidden="true" className="hidden h-8 w-24 shrink-0 text-ink-3 sm:block" />;
+}
+
+/** The preview player, docked to the bottom of the viewport once a preview is loaded. */
+export function Playerbar() {
+  const player = usePlayer();
+
+  const loaded = player.status !== "idle";
+  const playing = player.status === "playing";
+  const loading = player.status === "loading" || player.instrumentLoading;
+  const failed = player.status === "error";
+  const canPlay = loaded && !loading && !failed;
+  const title = player.nowPlaying?.title ?? "Preview";
+  const subtitle =
+    player.status === "loading"
+      ? "Loading preview…"
+      : player.instrumentLoading
+        ? "Loading instrument…"
+        : (player.nowPlaying?.subtitle ?? "");
 
   if (!loaded) return null;
 
   return (
-    <div className="pointer-events-auto fixed bottom-4 left-1/2 z-50 w-[min(1120px,calc(100vw-32px))] -translate-x-1/2 rounded-2xl border border-line bg-[rgba(15,16,21,0.78)] px-4 py-3 shadow-[0_30px_80px_rgba(0,0,0,0.6)] backdrop-blur">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="h-10 w-10 flex-none rounded-xl bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.25),rgba(255,255,255,0.06))]" />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-ink">{title}</div>
-            <div className="truncate text-xs text-ink-3">{subtitle}</div>
-          </div>
-        </div>
-
-        <div className="flex flex-1 flex-col items-center gap-2">
-          <div className="flex items-center gap-2 text-ink-2">
-            <button
-              type="button"
-              disabled
-              className="grid h-9 w-9 place-items-center rounded-full opacity-40"
-              aria-label="Previous (coming soon)"
-              title="Previous (coming soon)"
-            >
-              <SkipBack className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!canPlay) return;
-                if (playing) player.pause();
-                else void player.play();
-              }}
-              disabled={!canPlay}
-              className="grid h-10 w-10 place-items-center rounded-full bg-white text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label={playing ? "Pause" : "Play"}
-              title={playing ? "Pause" : "Play"}
-            >
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!loaded) return;
-                player.stop();
-              }}
-              disabled={!loaded || player.status === "loading"}
-              className="grid h-9 w-9 place-items-center rounded-full hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Stop"
-              title="Stop"
-            >
-              <Square className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              disabled
-              className="grid h-9 w-9 place-items-center rounded-full opacity-40"
-              aria-label="Next (coming soon)"
-              title="Next (coming soon)"
-            >
-              <SkipForward className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => player.toggleLoop()}
-              disabled={!loaded || player.status === "loading"}
-              className={[
-                "grid h-9 w-9 place-items-center rounded-full hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40",
-                player.loop ? "bg-selected text-ink" : "",
-              ].join(" ")}
-              aria-label={player.loop ? "Disable repeat" : "Enable repeat"}
-              title={player.loop ? "Disable repeat" : "Enable repeat"}
-            >
-              <Repeat2 className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="flex w-full max-w-[520px] items-center gap-3">
-            <div className="text-[11px] tabular-nums text-ink-3">
-              {formatClock(player.position)}
+    <>
+      {/* Keeps the end of the page reachable above the docked bar. */}
+      <div aria-hidden="true" className="h-44 sm:h-32" />
+      <section
+        aria-label="Preview player"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line-strong bg-raised md:left-64"
+      >
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-2 md:px-8">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="min-w-0 flex-1 basis-40">
+              <p className="truncate text-sm font-semibold text-ink">{title}</p>
+              <p role="status" className={cn("truncate text-xs", failed ? "text-danger" : "text-ink-2")}>
+                {failed ? (player.error ?? "Couldn't render this preview.") : subtitle}
+              </p>
             </div>
-            <button
-              type="button"
-              onPointerDown={(event) => {
-                if (!player.duration) return;
-                const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                const x = event.clientX - rect.left;
-                const next = clamp((x / rect.width) * player.duration, 0, player.duration);
-                player.seek(next);
-              }}
-              className="relative h-2 flex-1 overflow-hidden rounded-full bg-hover"
-              aria-label="Seek"
-              title="Seek"
-            >
-              <canvas
-                ref={waveformCanvasRef}
-                className="absolute inset-0 h-full w-full opacity-60"
-              />
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-accent"
-                style={{ width: `${Math.round(ratio * 100)}%` }}
-              />
-            </button>
-            <div className="text-[11px] tabular-nums text-ink-3">
-              {formatClock(player.duration)}
+
+            {failed ? (
+              <Button tone="secondary" onClick={() => void player.retry()}>
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Retry
+              </Button>
+            ) : (
+              <div className="flex items-center gap-1">
+                <IconButton
+                  label={playing ? "Pause" : "Play"}
+                  onClick={() => {
+                    if (!canPlay) return;
+                    if (playing) player.pause();
+                    else void player.play();
+                  }}
+                  disabled={!canPlay}
+                  className="border border-line-strong text-ink"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : playing ? (
+                    <Pause className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Play className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </IconButton>
+                <IconButton label="Stop" onClick={() => player.stop()} disabled={loading}>
+                  <Square className="h-4 w-4" aria-hidden="true" />
+                </IconButton>
+                <IconButton
+                  label="Repeat"
+                  aria-pressed={player.loop}
+                  onClick={() => player.toggleLoop()}
+                  disabled={loading}
+                  className={player.loop ? "bg-selected text-ink" : undefined}
+                >
+                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                </IconButton>
+              </div>
+            )}
+
+            <div className="hidden items-center gap-4 md:flex">
+              <label className="flex items-center gap-2 text-xs text-ink-2">
+                <span>Instrument</span>
+                <select
+                  value={player.instrument}
+                  onChange={(e) => void player.setInstrument(e.target.value as PreviewInstrument)}
+                  className={cn(selectClass, "w-auto")}
+                  disabled={player.status === "loading"}
+                >
+                  <option value="piano">Piano</option>
+                  <option value="epiano">Electric piano</option>
+                  <option value="strings">Strings</option>
+                  <option value="pad">Pad</option>
+                </select>
+              </label>
+              <label className="flex min-h-11 items-center gap-2 text-xs text-ink-2">
+                <Volume2 className="h-4 w-4" aria-hidden="true" />
+                <span>Volume</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={player.volume}
+                  onChange={(e) => player.setVolume(Number(e.target.value))}
+                  className="w-24 accent-accent"
+                />
+              </label>
             </div>
           </div>
-        </div>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <label className="hidden lg:flex items-center gap-2 text-xs text-ink-3">
-            <span>Instrument</span>
-            <select
-              value={player.instrument}
-              onChange={(e) => void player.setInstrument(e.target.value as PreviewInstrument)}
-              className="rounded-xl border border-line-strong bg-raised px-3 py-2 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent"
-              aria-label="Instrument"
-              disabled={player.status === "loading"}
-            >
-              <option value="piano">Piano (SoundFont)</option>
-              <option value="epiano">E-Piano</option>
-              <option value="strings">Strings</option>
-              <option value="pad">Pad</option>
-            </select>
-          </label>
-          <Volume2 className="h-4 w-4 text-ink-3" />
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={player.volume}
-            onChange={(e) => player.setVolume(Number(e.target.value))}
-            className="w-28 accent-[var(--accent)]"
-            aria-label="Volume"
-          />
+          {!failed ? (
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="type-figure w-10 shrink-0 text-xs text-ink-2">{formatClock(player.position)}</span>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(player.duration, 0.01)}
+                step={0.1}
+                value={Math.min(player.position, player.duration || 0)}
+                disabled={!player.duration}
+                onChange={(e) => player.seek(Number(e.target.value))}
+                aria-label="Position"
+                aria-valuetext={`${formatClock(player.position)} of ${formatClock(player.duration)}`}
+                className="min-h-11 min-w-0 flex-1 accent-accent"
+              />
+              <span className="type-figure w-10 shrink-0 text-right text-xs text-ink-2">
+                {formatClock(player.duration)}
+              </span>
+              <Waveform getWaveform={player.getWaveform} />
+            </div>
+          ) : null}
         </div>
-      </div>
-    </div>
+      </section>
+    </>
   );
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
 }

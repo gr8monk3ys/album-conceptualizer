@@ -51,13 +51,19 @@ describe("engine client", () => {
 
   it("maps engine 5xx and network failures to 502", async () => {
     stubFetch(new Response("boom", { status: 500 }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(getAgentJob("j", "u")).rejects.toMatchObject({ status: 502 });
 
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    stubFetch(Response.json({ detail: "ANTHROPIC_API_KEY is not configured." }, { status: 503 }));
+    const unavailable = await getAgentJob("j", "u").catch((err) => err);
+    expect(unavailable.status).toBe(502);
+    expect(unavailable.message).not.toContain("ANTHROPIC_API_KEY");
+    expect(unavailable.message).toContain("isn't available");
+
     stubFetch(new TypeError("fetch failed"));
     await expect(getAgentJob("j", "u")).rejects.toMatchObject({
       status: 502,
-      message: expect.stringContaining("unavailable"),
+      message: expect.stringContaining("unreachable"),
     });
     expect(await checkEngineHealth()).toMatchObject({ ok: false });
   });

@@ -1,16 +1,26 @@
-import Link from "next/link";
-
 import { DailyChallengeCard } from "@/components/daily-challenge-card";
-import { getPrisma } from "@/server/db";
+import { PageHeader, Section } from "@/components/ui";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { getDailyChallenge } from "@/server/challenges";
+import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { effectivePlan, planMonthlyCredits } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Challenges",
-  description: "Complete daily songwriting challenges and earn workspace credits.",
+  description: "A short songwriting prompt each day. Completing it earns workspace credits.",
 };
+
+const PLAN_NAME = { free: "Free", pro: "Pro", team: "Team" } as const;
+
+const CREDIT_USES: Array<{ label: string; cost: number }> = [
+  { label: "Create an album", cost: CREDIT_COSTS.albumCreate },
+  { label: "Remix an album from Discover", cost: CREDIT_COSTS.albumFork },
+  { label: "Download the zip export", cost: CREDIT_COSTS.exportZip },
+  { label: "Run an agent workflow", cost: CREDIT_COSTS.agentRun },
+];
 
 function addDaysUtc(day: string, delta: number) {
   const [y, m, d] = day.split("-").map((v) => Number(v));
@@ -32,6 +42,7 @@ function computeStreak(today: string, completedDays: Set<string>) {
 export default async function ChallengesPage() {
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
+  const plan = effectivePlan(workspace.subscription);
   const prisma = getPrisma();
 
   const { day, challenge } = getDailyChallenge();
@@ -62,39 +73,16 @@ export default async function ChallengesPage() {
 
   const completedDays = new Set(recentCompletions.map((row) => row.challengeDay));
   const streak = computeStreak(day, completedDays);
-  const earnedLast30 = recentCompletions.reduce((sum, row) => sum + (row.creditsEarned ?? 0), 0);
+  const earned = recentCompletions.reduce((sum, row) => sum + (row.creditsEarned ?? 0), 0);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xs text-ink-3">Challenges</div>
-          <div className="text-2xl font-semibold tracking-tight text-ink">
-            Earn credits by writing daily
-          </div>
-          <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
-            Tiny prompts that push you forward. Credits can be spent on exports and project
-            creation.
-          </div>
-        </div>
+    <div className="flex flex-col gap-10">
+      <PageHeader
+        title="Challenges"
+        description="One short writing prompt a day, the same for everyone. Write against it in any album, note what you drafted, and your workspace earns the credits shown. A new prompt arrives at 00:00 UTC."
+      />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/app/studio"
-            className="rounded-2xl border border-line bg-raised px-5 py-3 text-sm font-semibold text-ink hover:bg-hover"
-          >
-            Open Studio
-          </Link>
-          <Link
-            href="/app/create"
-            className="rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-accent-ink hover:brightness-110"
-          >
-            New project
-          </Link>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
+      <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
         <DailyChallengeCard
           day={day}
           challenge={challenge}
@@ -103,34 +91,39 @@ export default async function ChallengesPage() {
           completionTime={completion?.createdAt?.toISOString() ?? null}
         />
 
-        <aside className="space-y-3">
-          <div className="rounded-2xl border border-line bg-raised p-4">
-            <div className="text-xs text-ink-3">Streak</div>
-            <div className="mt-1 text-2xl font-semibold text-ink">{streak} days</div>
-            <div className="mt-2 text-xs text-ink-3">
-              Based on completions in the last 30 days (UTC day boundaries).
-            </div>
-          </div>
+        <div className="flex min-w-0 flex-col gap-8">
+          <Section title="Your run">
+            <dl className="grid grid-cols-2 divide-x divide-line">
+              <div className="pr-4">
+                <dt className="type-catalog text-xs text-ink-2">Streak</dt>
+                <dd className="type-figure mt-1 text-3xl font-semibold text-ink">{streak}</dd>
+                <dd className="text-xs text-ink-3">{streak === 1 ? "day" : "days"} in a row</dd>
+              </div>
+              <div className="pl-4">
+                <dt className="type-catalog text-xs text-ink-2">Earned</dt>
+                <dd className="type-figure mt-1 text-3xl font-semibold text-ink">{earned}</dd>
+                <dd className="text-xs text-ink-3">credits, past 30 days</dd>
+              </div>
+            </dl>
+          </Section>
 
-          <div className="rounded-2xl border border-line bg-raised p-4">
-            <div className="text-xs text-ink-3">Earned (30d)</div>
-            <div className="mt-1 text-2xl font-semibold text-ink">
-              +{earnedLast30} credits
-            </div>
-            <div className="mt-2 text-xs text-ink-3">
-              Complete today&apos;s prompt to keep momentum.
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-line bg-raised p-4">
-            <div className="text-xs text-ink-3">How it works</div>
-            <div className="mt-2 space-y-2 text-sm text-ink-2">
-              <div>1. Draft a section in Studio.</div>
-              <div>2. Mark the challenge complete with a quick note.</div>
-              <div>3. Spend credits on exports and new projects.</div>
-            </div>
-          </div>
-        </aside>
+          <Section
+            title="What credits are for"
+            description={`Some actions spend credits. Each calendar month your ${PLAN_NAME[plan]} plan tops your balance up to ${planMonthlyCredits(plan)}; credits earned here are kept on top of that.`}
+          >
+            <dl className="border-t border-line">
+              {CREDIT_USES.map((use) => (
+                <div key={use.label} className="flex items-baseline justify-between gap-3 border-b border-line py-2">
+                  <dt className="text-sm text-ink-2">{use.label}</dt>
+                  <dd className="type-figure shrink-0 text-sm font-semibold text-ink">
+                    {use.cost} credits
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-sm text-ink-3">Writing, saving and the Album Bible never cost credits.</p>
+          </Section>
+        </div>
       </div>
     </div>
   );

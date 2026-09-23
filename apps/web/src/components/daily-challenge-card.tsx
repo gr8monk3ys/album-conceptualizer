@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
 
+import { RelativeTime } from "@/components/relative-time";
+import { Button, Field, Panel, StatusMessage, textareaClass } from "@/components/ui";
 import type { DailyChallenge } from "@/server/challenges";
 
+const MIN_NOTE = 10;
+
+/** Today's prompt as a small form: write a note on what you drafted, then mark it done. */
 export function DailyChallengeCard({
   day,
   challenge,
@@ -18,103 +23,109 @@ export function DailyChallengeCard({
   completionNote: string | null;
   completionTime: string | null;
 }) {
+  const router = useRouter();
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [doneOverride, setDoneOverride] = useState<boolean | null>(null);
-  const note = noteDraft ?? (completionNote ?? "");
-  const done = doneOverride ?? completed;
+  const [justCompleted, setJustCompleted] = useState(false);
+  const note = noteDraft ?? completionNote ?? "";
+  const done = justCompleted || completed;
+  const remaining = Math.max(0, MIN_NOTE - note.trim().length);
 
-  async function submit() {
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (done || remaining > 0) return;
     setSubmitting(true);
     setError(null);
     try {
       const response = await fetch("/api/challenges/complete", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          challengeKey: challenge.key,
-          notes: note,
-        }),
+        body: JSON.stringify({ challengeKey: challenge.key, notes: note }),
       });
-
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `Request failed (${response.status}).`);
+        const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+        throw new Error(
+          typeof body?.error === "string" && body.error
+            ? body.error
+            : "The challenge wasn't marked complete. Try again in a moment.",
+        );
       }
-
-      setDoneOverride(true);
-      // Reload so sidebar credits + streak sidebar reflect latest server state.
-      window.setTimeout(() => window.location.reload(), 600);
+      setJustCompleted(true);
+      // Refresh the server-rendered credit balance and streak without losing this message.
+      router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not complete challenge.";
-      setError(message);
+      setError(err instanceof Error ? err.message : "The challenge wasn't marked complete. Try again in a moment.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <section className="rounded-2xl border border-line bg-raised p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-line-strong bg-raised px-3 py-1 text-xs text-ink-2">
-            <Sparkles className="h-3.5 w-3.5 text-accent" />
-            Daily challenge · {day} (UTC)
-          </div>
-          <div className="mt-3 text-xl font-semibold tracking-tight text-ink">
-            {challenge.title}
-          </div>
-          <div className="mt-2 max-w-[70ch] text-sm leading-relaxed text-ink-2">
-            {challenge.description}
-          </div>
-        </div>
+    <Panel>
+      <section aria-labelledby="challenge-title">
+        <h2 id="challenge-title" className="type-display text-2xl text-ink">
+          {challenge.title}
+        </h2>
+        <p className="type-catalog mt-2 text-xs text-ink-2">
+          <span className="type-figure">{day}</span> · Completing earns{" "}
+          <span className="type-figure">{challenge.credits}</span> credits
+        </p>
+        <p className="mt-3 max-w-[68ch] text-sm leading-relaxed text-ink">{challenge.description}</p>
 
-        <div className="rounded-2xl bg-ok-soft px-4 py-3 text-center">
-          <div className="text-xs text-ink-3">Reward</div>
-          <div className="mt-1 text-lg font-semibold text-ok">
-            +{challenge.credits}
-          </div>
-          <div className="text-xs text-ink-3">credits</div>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-2xl border border-line-strong bg-sunken p-4">
-        <div className="text-xs text-ink-3">Completion note</div>
-        <div className="mt-1 text-sm text-ink-2">
-          What did you draft today? (Used to keep you honest and help future you.)
-        </div>
-        <textarea
-          value={note}
-          onChange={(e) => setNoteDraft(e.target.value)}
-          rows={4}
-          disabled={done}
-          className="mt-3 w-full resize-y rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-70"
-          placeholder="e.g., Drafted chorus lyrics for Track 3 + locked a C–Am–F–G loop."
-        />
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          {done ? (
-            <div className="inline-flex items-center gap-2 text-sm font-semibold text-ok">
-              <CheckCircle2 className="h-4 w-4" />
-              Completed{completionTime ? ` at ${new Date(completionTime).toLocaleTimeString()}` : ""}
-            </div>
-          ) : (
-            <div className="text-xs text-ink-3">One completion per day.</div>
-          )}
-
-          <button
-            type="button"
-            onClick={submit}
-            disabled={done || submitting || note.trim().length < 10}
-            className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
+        <form onSubmit={submit} className="mt-5 flex flex-col gap-4">
+          <Field
+            htmlFor="challenge-note"
+            label="What did you write?"
+            hint={
+              done
+                ? "Your note for today."
+                : remaining > 0
+                  ? `A sentence is enough: which album, which track, what you drafted. ${remaining} more ${remaining === 1 ? "character" : "characters"} to go.`
+                  : "A sentence is enough: which album, which track, what you drafted."
+            }
           >
-            {submitting ? "Completing…" : challenge.cta}
-          </button>
-        </div>
+            <textarea
+              id="challenge-note"
+              value={note}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              rows={4}
+              maxLength={800}
+              readOnly={done}
+              aria-describedby="challenge-note-hint"
+              className={textareaClass}
+              placeholder="Drafted the chorus for track 3 and locked a C–Am–F–G loop."
+            />
+          </Field>
 
-        {error ? <div className="mt-3 text-xs text-ink-2">{error}</div> : null}
-      </div>
-    </section>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {done ? null : (
+              <Button tone="primary" type="submit" disabled={submitting || remaining > 0}>
+                {submitting ? "Saving…" : `${challenge.cta} · earn ${challenge.credits} credits`}
+              </Button>
+            )}
+            {done ? (
+              <StatusMessage tone="ok">
+                {justCompleted ? (
+                  `Done for today. ${challenge.credits} credits added to your workspace.`
+                ) : (
+                  <>
+                    Done for today
+                    {completionTime ? (
+                      <>
+                        {" "}
+                        (<RelativeTime date={completionTime} />)
+                      </>
+                    ) : null}
+                    . A new prompt arrives at 00:00 UTC.
+                  </>
+                )}
+              </StatusMessage>
+            ) : null}
+            {error ? <StatusMessage tone="danger">{error}</StatusMessage> : null}
+          </div>
+        </form>
+      </section>
+    </Panel>
   );
 }

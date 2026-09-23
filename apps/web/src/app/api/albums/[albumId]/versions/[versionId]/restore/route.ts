@@ -25,7 +25,7 @@ export const POST = apiHandler(
     if (!version) throw new ApiError(404, "Not found.");
 
     const parsed = AlbumJsonSchema.safeParse(version.data);
-    if (!parsed.success) throw new ApiError(400, "Version snapshot is invalid album JSON.");
+    if (!parsed.success) throw new ApiError(422, "This version can't be restored because it was saved in a format this app no longer reads.");
 
     const restored = { ...parsed.data, updated_at: new Date().toISOString() };
     const label = version.message ?? version.createdAt.toISOString();

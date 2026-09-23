@@ -1,11 +1,16 @@
 import { DiscoverAlbumCard } from "@/components/discover-album-card";
+import { Button, ButtonLink, EmptyState, Field, PageHeader, inputClass } from "@/components/ui";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { getCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { effectivePlan } from "@/server/plan";
+import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Discover",
-  description: "Find public concept albums and fork ideas into your own projects.",
+  description: "Browse albums other artists have published, and remix one into your workspace.",
 };
 
 function normalizeQuery(value: string | string[] | undefined) {
@@ -24,98 +29,119 @@ export default async function DiscoverPage({
   const shouldSearch = q.length >= 2;
 
   const { userId } = await requireUser();
+  const workspace = await getActiveWorkspaceForUser(userId);
   const prisma = getPrisma();
 
-  const albums = await prisma.album.findMany({
-    where: shouldSearch
-      ? {
-          isPublic: true,
-          OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { artist: { contains: q, mode: "insensitive" } },
-            { conceptSummary: { contains: q, mode: "insensitive" } },
-          ],
-        }
-      : { isPublic: true },
-    orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
-    take: 40,
-    select: {
-      id: true,
-      title: true,
-      artist: true,
-      primaryGenre: true,
-      trackCount: true,
-      coverUrl: true,
-      publishedAt: true,
-      _count: { select: { likes: true } },
-      likes: { where: { userId }, select: { id: true } },
-    },
-  });
+  const [albums, credits] = await Promise.all([
+    prisma.album.findMany({
+      where: shouldSearch
+        ? {
+            isPublic: true,
+            OR: [
+              { title: { contains: q, mode: "insensitive" } },
+              { artist: { contains: q, mode: "insensitive" } },
+              { conceptSummary: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : { isPublic: true },
+      orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+      take: 40,
+      select: {
+        id: true,
+        title: true,
+        artist: true,
+        primaryGenre: true,
+        trackCount: true,
+        publishedAt: true,
+        _count: { select: { likes: true } },
+        likes: { where: { userId }, select: { id: true } },
+      },
+    }),
+    getCredits({ workspaceId: workspace.id, plan: effectivePlan(workspace.subscription) }),
+  ]);
+
+  const countLine = shouldSearch
+    ? `${albums.length} ${albums.length === 1 ? "match" : "matches"} for “${q}”`
+    : `${albums.length} published ${albums.length === 1 ? "album" : "albums"}`;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <div className="text-xs text-ink-3">Discover</div>
-        <div className="text-2xl font-semibold tracking-tight text-ink">
-          Community projects
-        </div>
-        <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
-          Browse published projects, like what hits, and fork a remix into your workspace.
-        </div>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Community projects"
+        description={`Albums artists have published to Discover, yours included. Like the ones that move you, or remix one: it becomes a new private album in your workspace for ${CREDIT_COSTS.albumFork} credits, and the original stays untouched.`}
+      />
 
-      <form
-        action="/app/discover"
-        method="get"
-        className="flex flex-col gap-3 rounded-2xl border border-line bg-raised p-4"
-      >
-        <label className="flex flex-col gap-2">
-          <span className="text-xs text-ink-3">Search</span>
-          <input
-            name="q"
-            defaultValue={q}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Search published projects…"
-            className="w-full rounded-2xl border border-line-strong bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        </label>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-ink-3">
-            {shouldSearch ? `${albums.length} results` : `${albums.length} trending`}
-          </div>
-          <button
-            type="submit"
-            className="rounded-2xl bg-white px-5 py-2 text-xs font-semibold text-black hover:bg-white/90"
+      <form action="/app/discover" method="get" role="search" aria-label="Published albums search" className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-end gap-3">
+          <Field
+            htmlFor="discover-q"
+            label="Search published albums"
+            className="min-w-0 flex-1 basis-64"
           >
+            <input
+              id="discover-q"
+              name="q"
+              type="search"
+              defaultValue={q}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Title, artist or concept"
+              className={inputClass}
+            />
+          </Field>
+          <Button tone="secondary" type="submit">
             Search
-          </button>
+          </Button>
         </div>
+        <p className="type-catalog text-xs text-ink-2" aria-live="polite">
+          {countLine}
+        </p>
       </form>
 
-      <div className="grid grid-cols-1 gap-3">
-        {albums.map((album) => (
-          <DiscoverAlbumCard
-            key={album.id}
-            album={{
-              id: album.id,
-              title: album.title,
-              artist: album.artist,
-              primaryGenre: album.primaryGenre,
-              trackCount: album.trackCount,
-              coverUrl: album.coverUrl,
-              publishedAt: album.publishedAt?.toISOString() ?? null,
-              likes: album._count.likes,
-              liked: Boolean(album.likes.length),
-            }}
-          />
-        ))}
-      </div>
-
-      {albums.length ? null : (
-        <div className="rounded-2xl border border-line bg-raised p-6 text-sm text-ink-2">
-          Nothing published yet. Publish a project from its details page to seed the feed.
-        </div>
+      {albums.length ? (
+        <ul aria-label="Published albums" className="border-t border-line">
+          {albums.map((album) => (
+            <li key={album.id} className="border-b border-line">
+              <DiscoverAlbumCard
+                creditsRemaining={credits.remaining}
+                album={{
+                  id: album.id,
+                  title: album.title,
+                  artist: album.artist,
+                  primaryGenre: album.primaryGenre,
+                  trackCount: album.trackCount,
+                  publishedAt: album.publishedAt?.toISOString() ?? null,
+                  likes: album._count.likes,
+                  liked: Boolean(album.likes.length),
+                }}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : shouldSearch ? (
+        <EmptyState
+          title={`Nothing published matches “${q}”`}
+          action={
+            <ButtonLink tone="secondary" href="/app/discover">
+              Clear search
+            </ButtonLink>
+          }
+        >
+          Search looks at album titles, artist names and concept summaries. Try a single word from
+          the concept, such as a mood or a place.
+        </EmptyState>
+      ) : (
+        <EmptyState
+          title="Nothing published yet"
+          action={
+            <ButtonLink tone="secondary" href="/app/library">
+              Open your library
+            </ButtonLink>
+          }
+        >
+          When an artist publishes an album from its overview page, it shows up here for others to
+          like and remix. Publish one of yours to be the first.
+        </EmptyState>
       )}
     </div>
   );

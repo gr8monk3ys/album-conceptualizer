@@ -1,7 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
+import {
+  Button,
+  Chip,
+  EmptyState,
+  Field,
+  Panel,
+  Section,
+  StatusMessage,
+  inputClass,
+  selectClass,
+  textareaClass,
+} from "@/components/ui";
 import type { AlbumSongOption } from "@/server/album-songs";
 import type { AlbumRoughDemoRecord } from "@/server/rough-demos";
 import type { RoughDemoCollection, RoughDemoReview } from "@/server/rough-demo-review";
@@ -23,6 +35,8 @@ type RoughDemoFormState = {
   } | null;
 };
 
+type Status = { tone: "ok" | "danger" | "neutral"; text: string } | null;
+
 const SOURCE_OPTIONS = [
   "voice-memo",
   "phone-demo",
@@ -31,6 +45,14 @@ const SOURCE_OPTIONS = [
   "acoustic-pass",
   "hook-sketch",
 ] as const;
+
+const INPUT_CHECKLIST = [
+  "Capture what the demo proves, not just what it is.",
+  "Tag the track if you already know where the idea belongs.",
+  "Write the next move while the idea is still fresh.",
+];
+
+const FIRST_FIELD_ID = "demo-file";
 
 function getRoughDemoSourceLabel(sourceKind: string) {
   return (
@@ -95,9 +117,7 @@ function toForm(demo: AlbumRoughDemoRecord): RoughDemoFormState {
 }
 
 function sortDemos(demos: AlbumRoughDemoRecord[]) {
-  return demos
-    .slice()
-    .sort((left, right) => right.updated_at.localeCompare(left.updated_at));
+  return demos.slice().sort((left, right) => right.updated_at.localeCompare(left.updated_at));
 }
 
 function formatBytes(value: number | null) {
@@ -105,6 +125,24 @@ function formatBytes(value: number | null) {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDuration(seconds: number | null) {
+  if (!seconds) return null;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/** "audio/x-wav" → "WAV": the file kind an artist recognizes, not the media type. */
+function formatFileKind(mime: string | null) {
+  if (!mime) return null;
+  const subtype = mime.split("/")[1] ?? "";
+  const kind = subtype.replace(/^x-/, "").replace(/^mpeg$/, "mp3").toUpperCase();
+  return kind || null;
+}
+
+function formatTrack(trackNumber: number) {
+  return String(trackNumber).padStart(2, "0");
 }
 
 function buildBody(form: RoughDemoFormState) {
@@ -121,6 +159,21 @@ function buildBody(form: RoughDemoFormState) {
   };
 }
 
+function validate(form: RoughDemoFormState): { field: string; message: string } | null {
+  if (!form.title.trim()) {
+    return { field: "demo-title", message: "Add a demo title before saving." };
+  }
+  const url = form.externalUrl.trim();
+  if (url) {
+    try {
+      new URL(url);
+    } catch {
+      return { field: "demo-url", message: "Paste the full link, starting with https://" };
+    }
+  }
+  return null;
+}
+
 function indexReviews(reviews: RoughDemoReview[]) {
   return Object.fromEntries(reviews.map((review) => [review.demoId, review])) as Record<
     string,
@@ -130,6 +183,138 @@ function indexReviews(reviews: RoughDemoReview[]) {
 
 function getPayloadError(payload: RoughDemoCollection | { error?: string } | null, fallback: string) {
   return payload && "error" in payload && payload.error ? payload.error : fallback;
+}
+
+function readinessTone(label: RoughDemoReview["readinessLabel"]) {
+  if (label === "Ready") return "ok" as const;
+  if (label === "Needs shape") return "warn" as const;
+  return "neutral" as const;
+}
+
+/** Status text that clears itself after a success; errors stay until the next action. */
+function useStatus() {
+  const [status, setStatus] = useState<Status>(null);
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (timer.current) window.clearTimeout(timer.current);
+  }, []);
+  function show(tone: "ok" | "danger" | "neutral", text: string) {
+    if (timer.current) window.clearTimeout(timer.current);
+    setStatus({ tone, text });
+    if (tone !== "danger") timer.current = window.setTimeout(() => setStatus(null), 4000);
+  }
+  return [status, show] as const;
+}
+
+/** Delete with a confirm step in place, so a stray tap can't remove a saved demo. */
+function DeleteControl({
+  itemLabel,
+  busy,
+  onConfirm,
+}: {
+  itemLabel: string;
+  busy: boolean;
+  onConfirm: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const wasConfirming = useRef(false);
+
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+    else if (wasConfirming.current) triggerRef.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
+
+  if (!confirming) {
+    return (
+      <Button
+        ref={triggerRef}
+        tone="danger"
+        className="px-3"
+        aria-label={`Delete ${itemLabel}`}
+        onClick={() => setConfirming(true)}
+      >
+        Delete
+      </Button>
+    );
+  }
+
+  return (
+    <div role="group" aria-label={`Delete ${itemLabel}?`} className="flex flex-wrap items-center gap-2">
+      <span className="text-sm text-ink-2">Delete this demo?</span>
+      <Button ref={confirmRef} tone="danger" className="px-3" disabled={busy} onClick={onConfirm}>
+        {busy ? "Deleting…" : "Yes, delete"}
+      </Button>
+      <Button tone="ghost" className="px-3" disabled={busy} onClick={() => setConfirming(false)}>
+        Keep
+      </Button>
+    </div>
+  );
+}
+
+function ReviewBlock({ demoId, review }: { demoId: string; review: RoughDemoReview }) {
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold text-ink">Structured review</h4>
+          <p className="mt-0.5 text-sm text-ink">{review.headline}</p>
+        </div>
+        <Chip tone={readinessTone(review.readinessLabel)}>
+          <span className="type-figure">{review.signalScore}/100</span> · {review.readinessLabel}
+        </Chip>
+      </div>
+
+      <dl className="mt-3 grid grid-cols-1 gap-3 @xl:grid-cols-2">
+        <div>
+          <dt className="text-xs text-ink-3">Suggested placement</dt>
+          <dd className="mt-0.5 text-sm leading-relaxed text-ink-2">{review.suggestedPlacement}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-3">Track fit</dt>
+          <dd className="mt-0.5 text-sm leading-relaxed text-ink-2">
+            {review.recommendedTrack ? (
+              <>
+                Track <span className="type-figure">{review.recommendedTrack.trackNumber}</span>:{" "}
+                {review.recommendedTrack.title}
+              </>
+            ) : (
+              "Still album-wide until a track becomes obvious."
+            )}
+          </dd>
+          {review.recommendedTrack ? (
+            <dd className="mt-0.5 text-xs leading-relaxed text-ink-3">
+              {review.recommendedTrack.reason}
+            </dd>
+          ) : null}
+        </div>
+      </dl>
+
+      {review.focusTags.length ? (
+        <ul className="mt-3 flex flex-wrap gap-1.5">
+          {review.focusTags.map((item) => (
+            <li key={`${demoId}-focus-${item}`}>
+              <Chip>{item}</Chip>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {review.nextMoves.length ? (
+        <p className="mt-3 text-sm text-ink-2">
+          <span className="text-ink-3">Next:</span> {review.nextMoves.join(" · ")}
+        </p>
+      ) : null}
+
+      {review.concerns.length ? (
+        <p className="mt-1 text-sm text-ink-2">
+          <span className="text-warn">Watch:</span> {review.concerns.join(" · ")}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export function AlbumRoughDemoWorkspace({
@@ -147,22 +332,52 @@ export function AlbumRoughDemoWorkspace({
   const [reviewsById, setReviewsById] = useState(() => indexReviews(initialReviews));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RoughDemoFormState>(() => emptyForm());
-  const [status, setStatus] = useState("");
+  const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null);
+  const [formStatus, showFormStatus] = useStatus();
+  const [listStatus, showListStatus] = useStatus();
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function applyCollection(payload: RoughDemoCollection) {
     setDemos(sortDemos(payload.demos));
     setReviewsById(indexReviews(payload.reviews));
   }
 
-  async function saveDemo() {
-    const body = buildBody(form);
-    if (!body.title) {
-      setStatus("Add a demo title before saving.");
+  function update<K extends keyof RoughDemoFormState>(key: K, value: RoughDemoFormState[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function resetEditor() {
+    setEditingId(null);
+    setForm(emptyForm());
+    setFieldError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function focusForm(fieldId = FIRST_FIELD_ID) {
+    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById(fieldId)?.focus({ preventScroll: true });
+  }
+
+  function errorProps(fieldId: string) {
+    return fieldError?.field === fieldId
+      ? { "aria-invalid": true, "aria-describedby": `${fieldId}-error` }
+      : {};
+  }
+
+  async function saveDemo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const problem = validate(form);
+    if (problem) {
+      setFieldError(problem);
+      document.getElementById(problem.field)?.focus();
       return;
     }
+    setFieldError(null);
 
+    const wasEditing = Boolean(editingId);
     setIsSaving(true);
     try {
       const response = await fetch(
@@ -170,7 +385,7 @@ export function AlbumRoughDemoWorkspace({
         {
           method: editingId ? "PATCH" : "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify(buildBody(form)),
         },
       );
       const payload = (await response.json().catch(() => null)) as
@@ -178,25 +393,30 @@ export function AlbumRoughDemoWorkspace({
         | { error?: string }
         | null;
       if (!response.ok || !payload || !("demos" in payload) || !("reviews" in payload)) {
-        throw new Error(getPayloadError(payload, "Save failed."));
+        throw new Error(
+          getPayloadError(payload, "The demo didn't save. Check your connection and try again."),
+        );
       }
 
       applyCollection(payload);
-      setStatus(editingId ? "Demo updated." : "Demo added.");
-      setEditingId(null);
-      setForm(emptyForm());
+      showFormStatus("ok", wasEditing ? "Demo updated." : "Demo added.");
+      resetEditor();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Save failed.");
+      showFormStatus(
+        "danger",
+        error instanceof Error
+          ? error.message
+          : "The demo didn't save. Check your connection and try again.",
+      );
     } finally {
       setIsSaving(false);
-      window.setTimeout(() => setStatus(""), 1800);
     }
   }
 
-  async function deleteDemo(demoId: string) {
-    setDeletingId(demoId);
+  async function deleteDemo(demo: AlbumRoughDemoRecord) {
+    setDeletingId(demo.id);
     try {
-      const response = await fetch(`/api/albums/${albumId}/rough-demos/${demoId}`, {
+      const response = await fetch(`/api/albums/${albumId}/rough-demos/${demo.id}`, {
         method: "DELETE",
       });
       const payload = (await response.json().catch(() => null)) as
@@ -204,19 +424,24 @@ export function AlbumRoughDemoWorkspace({
         | { error?: string }
         | null;
       if (!response.ok || !payload || !("demos" in payload) || !("reviews" in payload)) {
-        throw new Error(getPayloadError(payload, "Delete failed."));
+        throw new Error(
+          getPayloadError(payload, "The demo wasn't removed. Check your connection and try again."),
+        );
       }
       applyCollection(payload);
-      if (editingId === demoId) {
-        setEditingId(null);
-        setForm(emptyForm());
+      if (editingId === demo.id) {
+        resetEditor();
       }
-      setStatus("Demo removed.");
+      showListStatus("ok", `Demo removed: ${demo.title}.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Delete failed.");
+      showListStatus(
+        "danger",
+        error instanceof Error
+          ? error.message
+          : "The demo wasn't removed. Check your connection and try again.",
+      );
     } finally {
       setDeletingId(null);
-      window.setTimeout(() => setStatus(""), 1800);
     }
   }
 
@@ -270,372 +495,360 @@ export function AlbumRoughDemoWorkspace({
     .filter((review): review is RoughDemoReview => Boolean(review));
   const readyCount = reviews.filter((review) => review.readyForHandoff).length;
   const unassignedCount = reviews.filter((review) => review.targetMode === "unassigned").length;
-  const topHeadline = reviews[0]?.headline ?? null;
+
+  const fileFacts = form.localFile
+    ? [
+        formatDuration(form.localFile.duration_seconds),
+        formatBytes(form.localFile.size_bytes),
+        formatFileKind(form.localFile.mime_type),
+      ].filter(Boolean)
+    : [];
+
+  const list = demos.length ? (
+    <div className="min-w-0">
+      <div className="border-b border-line pb-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 className="text-base font-semibold text-ink">Captured demos</h3>
+          <p className="text-sm text-ink-2">
+            <span className="type-figure text-ink">{demos.length}</span>{" "}
+            {demos.length === 1 ? "demo" : "demos"} ·{" "}
+            <span className="type-figure text-ink">{targetedCount}</span> song-targeted ·{" "}
+            <span className="type-figure text-ink">{importedCount}</span> local{" "}
+            {importedCount === 1 ? "import" : "imports"}
+          </p>
+        </div>
+        <p className="mt-1 text-sm text-ink-2">
+          <span className="type-figure text-ink">{readyCount}</span> handoff-ready ·{" "}
+          <span className="type-figure text-ink">{unassignedCount}</span> still need a track
+          decision
+        </p>
+      </div>
+      {listStatus ? (
+        <StatusMessage tone={listStatus.tone} className="mt-3">
+          {listStatus.text}
+        </StatusMessage>
+      ) : null}
+      <ul className="@container divide-y divide-line">
+        {demos.map((demo) => {
+          const review = reviewsById[demo.id];
+          const isEditing = editingId === demo.id;
+
+          return (
+            <li
+              key={demo.id}
+              aria-current={isEditing ? "true" : undefined}
+              className={isEditing ? "-mx-3 bg-selected px-3 py-4" : "py-4"}
+            >
+              <div className="min-w-0">
+                <p className="break-words text-sm font-semibold text-ink">{demo.title}</p>
+                <p className="mt-0.5 break-words text-sm text-ink-2">
+                  {getRoughDemoSourceLabel(demo.source_kind)}
+                  {demo.song_track_number ? (
+                    <>
+                      {" · Track "}
+                      <span className="type-figure">{demo.song_track_number}</span>
+                    </>
+                  ) : (
+                    " · Album-wide"
+                  )}
+                  {demo.local_file?.name ? ` · ${demo.local_file.name}` : ""}
+                </p>
+              </div>
+
+              {demo.capture_notes ? (
+                <p className="mt-3 max-w-[68ch] text-sm leading-relaxed text-ink-2">
+                  {demo.capture_notes}
+                </p>
+              ) : null}
+
+              {demo.sonic_traits.length ? (
+                <ul className="mt-3 flex flex-wrap gap-1.5">
+                  {demo.sonic_traits.slice(0, 4).map((item) => (
+                    <li key={`${demo.id}-trait-${item}`}>
+                      <Chip>{item}</Chip>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {review ? <ReviewBlock demoId={demo.id} review={review} /> : null}
+
+              {demo.next_actions.length ? (
+                <p className="mt-3 text-sm text-ink-2">
+                  <span className="text-ink-3">Saved next moves:</span>{" "}
+                  {demo.next_actions.join(" · ")}
+                </p>
+              ) : null}
+
+              <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  tone="ghost"
+                  className="px-3"
+                  aria-label={`Edit ${demo.title}`}
+                  onClick={() => {
+                    setEditingId(demo.id);
+                    setForm(toForm(demo));
+                    setFieldError(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                    showFormStatus("neutral", `Editing ${demo.title}.`);
+                    focusForm("demo-title");
+                  }}
+                >
+                  Edit
+                </Button>
+                <DeleteControl
+                  itemLabel={demo.title}
+                  busy={deletingId === demo.id}
+                  onConfirm={() => void deleteDemo(demo)}
+                />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  ) : (
+    <EmptyState
+      title="No rough demos yet"
+      action={<Button onClick={() => focusForm()}>Capture your first demo</Button>}
+    >
+      <p>
+        Save a voice memo, riff sketch, or rehearsal pass before it gets lost. A structured review
+        will appear as soon as you save one.
+      </p>
+      <ul className="mt-2 list-disc space-y-1 pl-5">
+        {INPUT_CHECKLIST.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </EmptyState>
+  );
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="space-y-4">
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="text-xs text-ink-3">Rough demo intake</div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-ink">
-            Capture the voice memo before the good idea disappears
-          </div>
-          <div className="mt-2 max-w-[72ch] text-sm text-ink-2">
-            Save rough demo metadata, notes, and next moves. Local audio files are read only for
-            metadata here and are not uploaded or stored on the server.
-          </div>
-        </div>
+    <div className="flex flex-col gap-10">
+      <Section
+        id="rough-demos"
+        title="Capture the voice memo before the good idea disappears"
+        description="Save rough demo metadata, notes, and next moves. Local audio files are read only for metadata here and are not uploaded or stored on the server."
+      >
+        <div className="@container">
+          <div className="grid grid-cols-1 gap-8 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] @3xl:items-start">
+            {list}
 
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs text-ink-3">
-                {editingId ? "Edit rough demo" : "Add rough demo"}
-              </div>
-              <div className="mt-1 text-sm font-semibold text-ink">
-                Turn a memo, riff, or rehearsal pass into a structured next step
-              </div>
-            </div>
-            {editingId ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingId(null);
-                  setForm(emptyForm());
-                }}
-                className="rounded-full border border-line bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-hover"
-              >
-                Cancel
-              </button>
-            ) : null}
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Demo title</span>
-              <input
-                value={form.title}
-                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="Hallway chorus memo"
-                aria-label="Demo title"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Source kind</span>
-              <select
-                value={form.sourceKind}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, sourceKind: event.target.value }))
-                }
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent"
-                aria-label="Source kind"
-              >
-                {SOURCE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {getRoughDemoSourceLabel(option)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Song target</span>
-              <select
-                value={form.songTrackNumber}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, songTrackNumber: event.target.value }))
-                }
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent"
-                aria-label="Song target"
-              >
-                <option value="">Album-wide</option>
-                {songOptions.map((song) => (
-                  <option key={`${song.trackNumber}-${song.title}`} value={String(song.trackNumber)}>
-                    {song.trackNumber}. {song.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">External URL</span>
-              <input
-                value={form.externalUrl}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, externalUrl: event.target.value }))
-                }
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="https://..."
-                aria-label="External URL"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
-              <span className="text-xs text-ink-3">Local rough demo file</span>
-              <input
-                type="file"
-                accept="audio/*"
-                onChange={(event) => void handleFileChange(event.target.files?.[0] ?? null)}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink-2 file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-semibold file:text-black"
-                aria-label="Local rough demo file"
-              />
-            </label>
-
-            {form.localFile ? (
-              <div className="rounded-2xl border border-line bg-sunken px-4 py-3 text-xs text-ink-2 md:col-span-2">
-                {form.localFile.name}
-                {form.localFile.duration_seconds ? ` · ${form.localFile.duration_seconds}s` : ""}
-                {formatBytes(form.localFile.size_bytes) ? ` · ${formatBytes(form.localFile.size_bytes)}` : ""}
-                {form.localFile.mime_type ? ` · ${form.localFile.mime_type}` : ""}
-              </div>
-            ) : null}
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
-              <span className="text-xs text-ink-3">What this demo captures</span>
-              <textarea
-                value={form.captureNotes}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, captureNotes: event.target.value }))
-                }
-                rows={4}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="The verse melody is weak, but the chorus rhythm and last line feel worth keeping."
-                aria-label="What this demo captures"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Sonic traits</span>
-              <textarea
-                value={form.sonicTraits}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, sonicTraits: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="muted guitar, handclap pulse, breathy hook"
-                aria-label="Sonic traits"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2">
-              <span className="text-xs text-ink-3">Lyrical fragments</span>
-              <textarea
-                value={form.lyricalFragments}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, lyricalFragments: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="missed the exit, static glow, room 309"
-                aria-label="Lyrical fragments"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm text-ink-2 md:col-span-2">
-              <span className="text-xs text-ink-3">Next moves</span>
-              <textarea
-                value={form.nextActions}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, nextActions: event.target.value }))
-                }
-                rows={3}
-                className="rounded-2xl border border-line-strong bg-sunken px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-                placeholder="rewrite verse 1, test a slower tempo, move this hook to Track 3"
-                aria-label="Next moves"
-              />
-            </label>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={saveDemo}
-              disabled={isSaving}
-              className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSaving ? "Saving..." : editingId ? "Update demo" : "Add demo"}
-            </button>
-            {status ? <div className="text-xs text-ink-3">{status}</div> : null}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {demos.length ? (
-            demos.map((demo) => {
-              const review = reviewsById[demo.id];
-
-              return (
-                <div
-                  key={demo.id}
-                  className="rounded-2xl border border-line bg-raised p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-ink">{demo.title}</div>
-                      <div className="mt-1 text-xs text-ink-3">
-                        {getRoughDemoSourceLabel(demo.source_kind)}
-                        {demo.song_track_number ? ` · Track ${demo.song_track_number}` : " · Album-wide"}
-                        {demo.local_file?.name ? ` · ${demo.local_file.name}` : ""}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingId(demo.id);
-                          setForm(toForm(demo));
-                        }}
-                        className="rounded-full border border-line bg-raised px-3 py-2 text-[10px] font-semibold text-ink hover:bg-hover"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deleteDemo(demo.id)}
-                        disabled={deletingId === demo.id}
-                        className="rounded-full border border-[rgba(255,120,120,0.24)] bg-[rgba(255,120,120,0.10)] px-3 py-2 text-[10px] font-semibold text-[rgba(255,210,210,0.95)] hover:bg-[rgba(255,120,120,0.16)] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {deletingId === demo.id ? "Removing..." : "Delete"}
-                      </button>
-                    </div>
+            <Panel ref={panelRef} className="@container scroll-mt-24">
+              <form onSubmit={(event) => void saveDemo(event)} noValidate>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold text-ink">
+                      {editingId ? "Edit rough demo" : "Add a rough demo"}
+                    </h3>
+                    <p className="mt-1 text-sm text-ink-2">
+                      Turn a memo, riff, or rehearsal pass into a structured next step.
+                    </p>
                   </div>
-
-                  {demo.capture_notes ? (
-                    <div className="mt-3 text-sm leading-relaxed text-ink-2">
-                      {demo.capture_notes}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {demo.sonic_traits.slice(0, 4).map((item) => (
-                      <span
-                        key={`${demo.id}-trait-${item}`}
-                        className="rounded-full border border-line bg-sunken px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3"
-                      >
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-
-                  {review ? (
-                    <div className="mt-4 rounded-2xl border border-line bg-sunken p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-3">
-                            Structured review
-                          </div>
-                          <div className="mt-1 text-sm font-semibold text-ink">
-                            {review.headline}
-                          </div>
-                        </div>
-                        <div className="rounded-full border border-line-strong bg-raised px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3">
-                          {review.signalScore}/100 · {review.readinessLabel}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <div>
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">
-                            Suggested placement
-                          </div>
-                          <div className="mt-1 text-xs leading-relaxed text-ink-2">
-                            {review.suggestedPlacement}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">
-                            Track fit
-                          </div>
-                          <div className="mt-1 text-xs leading-relaxed text-ink-2">
-                            {review.recommendedTrack
-                              ? `Track ${review.recommendedTrack.trackNumber}: ${review.recommendedTrack.title}`
-                              : "Still album-wide until a track becomes obvious."}
-                          </div>
-                          {review.recommendedTrack ? (
-                            <div className="mt-1 text-[11px] text-ink-3">
-                              {review.recommendedTrack.reason}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {review.focusTags.length ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {review.focusTags.map((item) => (
-                            <span
-                              key={`${demo.id}-focus-${item}`}
-                              className="rounded-full border border-line bg-raised px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3"
-                            >
-                              {item}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      {review.nextMoves.length ? (
-                        <div className="mt-3 text-xs text-ink-2">
-                          Next: {review.nextMoves.join(" · ")}
-                        </div>
-                      ) : null}
-
-                      {review.concerns.length ? (
-                        <div className="mt-2 text-[11px] text-ink-3">
-                          Watch: {review.concerns.join(" · ")}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {demo.next_actions.length ? (
-                    <div className="mt-3 text-xs text-ink-3">
-                      Saved next moves: {demo.next_actions.join(" · ")}
-                    </div>
+                  {editingId ? (
+                    <Button tone="ghost" className="px-3" onClick={resetEditor}>
+                      Cancel
+                    </Button>
                   ) : null}
                 </div>
-              );
-            })
-          ) : (
-            <div className="rounded-2xl border border-line bg-raised px-4 py-10 text-center text-sm text-ink-2">
-              No rough demos yet. Save a voice memo, riff sketch, or rehearsal pass before it gets lost.
-            </div>
-          )}
-        </div>
-      </section>
 
-      <aside className="space-y-4">
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="text-xs text-ink-3">Coverage</div>
-          <div className="mt-1 text-lg font-semibold text-ink">{demos.length} demos</div>
-          <div className="mt-2 text-sm text-ink-2">
-            {targetedCount} song-targeted · {importedCount} local imports
-          </div>
-        </div>
+                <div className="mt-5 grid grid-cols-1 gap-4 @md:grid-cols-2">
+                  <Field
+                    label="Local rough demo file"
+                    htmlFor="demo-file"
+                    hint="Read on this device for length and size only. The audio isn't uploaded."
+                    className="@md:col-span-2"
+                  >
+                    <input
+                      ref={fileInputRef}
+                      id="demo-file"
+                      type="file"
+                      accept="audio/*"
+                      onChange={(event) => void handleFileChange(event.target.files?.[0] ?? null)}
+                      aria-describedby="demo-file-hint"
+                      className="block w-full min-w-0 cursor-pointer text-sm text-ink-2 file:mr-3 file:inline-flex file:min-h-11 file:cursor-pointer file:items-center file:rounded file:border file:border-solid file:border-line-strong file:bg-transparent file:px-4 file:text-sm file:font-semibold file:text-ink hover:file:bg-hover"
+                    />
+                  </Field>
 
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="text-xs text-ink-3">Review queue</div>
-          <div className="mt-1 text-lg font-semibold text-ink">
-            {readyCount} handoff-ready
-          </div>
-          <div className="mt-2 text-sm text-ink-2">
-            {unassignedCount} still need a track decision
-          </div>
-          <div className="mt-3 text-xs text-ink-3">
-            {topHeadline ?? "Structured review will appear as soon as you save a demo."}
-          </div>
-        </div>
+                  {form.localFile ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-y border-line py-2 @md:col-span-2">
+                      <p className="min-w-0 break-words text-sm text-ink">
+                        {form.localFile.name}
+                        {fileFacts.length ? (
+                          <span className="type-figure text-ink-2"> · {fileFacts.join(" · ")}</span>
+                        ) : null}
+                      </p>
+                      <Button
+                        tone="ghost"
+                        className="px-3"
+                        aria-label={`Remove file ${form.localFile.name}`}
+                        onClick={() => {
+                          update("localFile", null);
+                          if (fileInputRef.current) fileInputRef.current.value = "";
+                        }}
+                      >
+                        Remove file
+                      </Button>
+                    </div>
+                  ) : null}
 
-        <div className="rounded-2xl border border-line bg-raised p-4">
-          <div className="text-xs text-ink-3">Good input checklist</div>
-          <div className="mt-2 space-y-2 text-sm text-ink-2">
-            <div>Capture what the demo proves, not just what it is.</div>
-            <div>Tag the track if you already know where the idea belongs.</div>
-            <div>Write the next move while the idea is still fresh.</div>
+                  <Field
+                    label="Demo title"
+                    htmlFor="demo-title"
+                    error={fieldError?.field === "demo-title" ? fieldError.message : undefined}
+                  >
+                    <input
+                      id="demo-title"
+                      value={form.title}
+                      onChange={(event) => update("title", event.target.value)}
+                      className={inputClass}
+                      placeholder="e.g. Hallway chorus memo"
+                      autoComplete="off"
+                      {...errorProps("demo-title")}
+                    />
+                  </Field>
+
+                  <Field label="Source kind" htmlFor="demo-source">
+                    <select
+                      id="demo-source"
+                      value={form.sourceKind}
+                      onChange={(event) => update("sourceKind", event.target.value)}
+                      className={selectClass}
+                    >
+                      {SOURCE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {getRoughDemoSourceLabel(option)}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Song target" htmlFor="demo-song">
+                    <select
+                      id="demo-song"
+                      value={form.songTrackNumber}
+                      onChange={(event) => update("songTrackNumber", event.target.value)}
+                      className={selectClass}
+                    >
+                      <option value="">Album-wide</option>
+                      {songOptions.map((song) => (
+                        <option
+                          key={`${song.trackNumber}-${song.title}`}
+                          value={String(song.trackNumber)}
+                        >
+                          {formatTrack(song.trackNumber)} · {song.title}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field
+                    label="External URL"
+                    htmlFor="demo-url"
+                    error={fieldError?.field === "demo-url" ? fieldError.message : undefined}
+                  >
+                    <input
+                      id="demo-url"
+                      type="url"
+                      value={form.externalUrl}
+                      onChange={(event) => update("externalUrl", event.target.value)}
+                      className={inputClass}
+                      placeholder="https://…"
+                      {...errorProps("demo-url")}
+                    />
+                  </Field>
+
+                  <Field
+                    label="What this demo captures"
+                    htmlFor="demo-capture"
+                    className="@md:col-span-2"
+                  >
+                    <textarea
+                      id="demo-capture"
+                      value={form.captureNotes}
+                      onChange={(event) => update("captureNotes", event.target.value)}
+                      rows={4}
+                      className={textareaClass}
+                      placeholder="e.g. The verse melody is weak, but the chorus rhythm and last line feel worth keeping."
+                    />
+                  </Field>
+
+                  <Field label="Sonic traits" htmlFor="demo-traits" hint="Separate with commas.">
+                    <textarea
+                      id="demo-traits"
+                      value={form.sonicTraits}
+                      onChange={(event) => update("sonicTraits", event.target.value)}
+                      rows={3}
+                      className={textareaClass}
+                      placeholder="e.g. muted guitar, handclap pulse, breathy hook"
+                      aria-describedby="demo-traits-hint"
+                    />
+                  </Field>
+
+                  <Field
+                    label="Lyrical fragments"
+                    htmlFor="demo-fragments"
+                    hint="Separate with commas."
+                  >
+                    <textarea
+                      id="demo-fragments"
+                      value={form.lyricalFragments}
+                      onChange={(event) => update("lyricalFragments", event.target.value)}
+                      rows={3}
+                      className={textareaClass}
+                      placeholder="e.g. missed the exit, static glow, room 309"
+                      aria-describedby="demo-fragments-hint"
+                    />
+                  </Field>
+
+                  <Field
+                    label="Next moves"
+                    htmlFor="demo-next"
+                    hint="Separate with commas."
+                    className="@md:col-span-2"
+                  >
+                    <textarea
+                      id="demo-next"
+                      value={form.nextActions}
+                      onChange={(event) => update("nextActions", event.target.value)}
+                      rows={3}
+                      className={textareaClass}
+                      placeholder="e.g. rewrite verse 1, test a slower tempo, move this hook to Track 3"
+                      aria-describedby="demo-next-hint"
+                    />
+                  </Field>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <Button type="submit" tone="primary" disabled={isSaving}>
+                    {isSaving ? "Saving…" : editingId ? "Update demo" : "Add demo"}
+                  </Button>
+                  {formStatus ? (
+                    <StatusMessage tone={formStatus.tone}>{formStatus.text}</StatusMessage>
+                  ) : null}
+                </div>
+              </form>
+            </Panel>
           </div>
         </div>
-      </aside>
+      </Section>
+
+      {demos.length ? (
+        <Section
+          id="demo-checklist"
+          title="Good input checklist"
+          description="What makes a rough demo useful the next time you open the session."
+        >
+          <ul className="max-w-[68ch] divide-y divide-line border-y border-line text-sm text-ink-2">
+            {INPUT_CHECKLIST.map((item) => (
+              <li key={item} className="py-3">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
     </div>
   );
 }

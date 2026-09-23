@@ -24,6 +24,8 @@ export const POST = apiHandler(
       data: {
         isPublic: payload.isPublic,
         publishedAt: payload.isPublic ? now : null,
+        // Status follows publishing, so a published album never reads as a draft.
+        status: payload.isPublic ? "published" : "draft",
       },
       select: { isPublic: true, publishedAt: true },
     });

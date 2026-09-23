@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, ClipboardCheck, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
 
+import { RelativeTime } from "@/components/relative-time";
+import { readApiError } from "@/components/studio/studio-model";
+import { Button, Chip, IconButton, textareaClass } from "@/components/ui";
+
 type CommentAuthor = {
   id: string;
   name: string | null;
@@ -39,13 +43,12 @@ type SectionCommentsProps = {
     songTrackNumber: number;
     sectionType: string;
     sectionOrder: number;
+    /** The section's display label, e.g. "Chorus 2", the same one the Studio shows. */
+    label?: string;
   };
 };
 
-function formatTime(ts: string) {
-  const dt = new Date(ts);
-  return dt.toLocaleString();
-}
+const MAX_LENGTH = 2000;
 
 function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   const sectionId = section.id;
@@ -59,24 +62,20 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   });
   const { loading, submitting, body, status, error } = ui;
 
-  const header = `Track ${section.songTrackNumber} · ${section.sectionType} #${section.sectionOrder + 1}`;
+  const header = `Track ${section.songTrackNumber} · ${section.label ?? `Section ${section.sectionOrder + 1}`}`;
+  const inputId = `comment-body-${sectionId}`;
 
   async function refresh() {
     setUi((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const response = await fetch(
-        `/api/albums/${albumId}/comments?sectionId=${encodeURIComponent(sectionId)}`,
-      );
+      const response = await fetch(`/api/albums/${albumId}/comments?sectionId=${encodeURIComponent(sectionId)}`);
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `Failed to load comments (${response.status}).`);
+        throw new Error(await readApiError(response, "Couldn't load comments. Reload the page to try again."));
       }
-      const payload = (await response.json().catch(() => null)) as
-        | { comments?: SectionComment[] }
-        | null;
-      setComments(Array.isArray(payload?.comments) ? payload!.comments! : []);
+      const payload = (await response.json().catch(() => null)) as { comments?: SectionComment[] } | null;
+      setComments(Array.isArray(payload?.comments) ? payload.comments : []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load comments.";
+      const message = err instanceof Error ? err.message : "Couldn't load comments.";
       setUi((prev) => ({ ...prev, error: message }));
     } finally {
       setUi((prev) => ({ ...prev, loading: false }));
@@ -84,12 +83,12 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   }
 
   useEffect(() => {
-    refresh();
+    void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [albumId, sectionId]);
 
   async function submit() {
-    setUi((prev) => ({ ...prev, submitting: true, error: null, status: null }));
+    setUi((prev) => ({ ...prev, submitting: true, error: null, status: "Posting comment…" }));
     try {
       const response = await fetch(`/api/albums/${albumId}/comments`, {
         method: "POST",
@@ -103,38 +102,35 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
         }),
       });
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `Failed to create comment (${response.status}).`);
+        throw new Error(await readApiError(response, "Couldn't post the comment. Try again."));
       }
       setUi((prev) => ({ ...prev, body: "", status: "Comment added." }));
       await refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to create comment.";
-      setUi((prev) => ({ ...prev, error: message }));
+      const message = err instanceof Error ? err.message : "Couldn't post the comment. Try again.";
+      setUi((prev) => ({ ...prev, status: null, error: message }));
     } finally {
       setUi((prev) => ({ ...prev, submitting: false }));
     }
   }
 
-  async function patch(commentId: string, payload: unknown) {
+  async function patch(commentId: string, payload: unknown, failure: string) {
     const response = await fetch(`/api/albums/${albumId}/comments/${commentId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || `Request failed (${response.status}).`);
-    }
+    if (!response.ok) throw new Error(await readApiError(response, failure));
   }
 
   async function resolve(commentId: string) {
     setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
-      await patch(commentId, { action: "resolve" });
+      await patch(commentId, { action: "resolve" }, "Couldn't resolve the comment. Try again.");
+      setUi((prev) => ({ ...prev, status: "Comment resolved." }));
       await refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to resolve comment.";
+      const message = err instanceof Error ? err.message : "Couldn't resolve the comment.";
       setUi((prev) => ({ ...prev, error: message }));
     }
   }
@@ -142,10 +138,11 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   async function unresolve(commentId: string) {
     setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
-      await patch(commentId, { action: "unresolve" });
+      await patch(commentId, { action: "unresolve" }, "Couldn't reopen the comment. Try again.");
+      setUi((prev) => ({ ...prev, status: "Comment reopened." }));
       await refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to unresolve comment.";
+      const message = err instanceof Error ? err.message : "Couldn't reopen the comment.";
       setUi((prev) => ({ ...prev, error: message }));
     }
   }
@@ -153,17 +150,14 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   async function remove(commentId: string) {
     setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
-      const response = await fetch(`/api/albums/${albumId}/comments/${commentId}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(`/api/albums/${albumId}/comments/${commentId}`, { method: "DELETE" });
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `Delete failed (${response.status}).`);
+        throw new Error(await readApiError(response, "Couldn't delete the comment. Try again."));
       }
       setUi((prev) => ({ ...prev, status: "Comment deleted." }));
       await refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to delete comment.";
+      const message = err instanceof Error ? err.message : "Couldn't delete the comment.";
       setUi((prev) => ({ ...prev, error: message }));
     }
   }
@@ -187,12 +181,11 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
         }),
       });
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `Failed to create task (${response.status}).`);
+        throw new Error(await readApiError(response, "Couldn't create the task. Try again."));
       }
-      setUi((prev) => ({ ...prev, status: "Task created." }));
+      setUi((prev) => ({ ...prev, status: "Task created. Find it in the album Inbox." }));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to create task.";
+      const message = err instanceof Error ? err.message : "Couldn't create the task.";
       setUi((prev) => ({ ...prev, error: message }));
     }
   }
@@ -204,155 +197,129 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
       url.searchParams.set("section", String(section.sectionOrder));
       url.searchParams.set("sid", sectionId);
       await navigator.clipboard.writeText(url.toString());
-      setUi((prev) => ({ ...prev, status: "Copied section link." }));
-      window.setTimeout(() => setUi((prev) => ({ ...prev, status: null })), 1400);
+      setUi((prev) => ({ ...prev, error: null, status: "Link to this section copied." }));
     } catch {
-      setUi((prev) => ({ ...prev, error: "Unable to copy link." }));
+      setUi((prev) => ({ ...prev, error: "Couldn't copy the link. Copy it from the address bar instead." }));
     }
   }
 
+  const length = body.trim().length;
+
   return (
-    <div className="rounded-2xl border border-line bg-raised p-4">
+    <section aria-labelledby={`comments-${sectionId}-title`} className="border-t border-line pt-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-ink-3">Collaboration</div>
-          <div className="mt-1 text-sm font-semibold text-ink">Comments</div>
-          <div className="mt-1 text-xs text-ink-3">{header}</div>
+        <div className="min-w-0">
+          <h3 id={`comments-${sectionId}-title`} className="text-base font-semibold text-ink">
+            Comments
+          </h3>
+          <p className="mt-1 text-sm text-ink-2">{header}</p>
         </div>
-        <button
-          type="button"
-          onClick={copyLink}
-          className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-hover"
-        >
-          <Copy className="h-4 w-4" />
+        <Button tone="ghost" onClick={() => void copyLink()}>
+          <Copy className="h-4 w-4" aria-hidden="true" />
           Copy link
-        </button>
+        </Button>
       </div>
 
-      <div className="mt-3 space-y-2">
-        {loading ? (
-          <div className="text-xs text-ink-3">Loading comments…</div>
+      <div className="mt-3">
+        {loading && !comments.length ? (
+          <p className="text-sm text-ink-3">Loading comments…</p>
         ) : comments.length ? (
-          <div className="max-h-[260px] overflow-auto rounded-2xl border border-line bg-sunken">
-            <ul className="divide-y divide-line">
-              {comments.map((comment) => {
-                const isDeleted = Boolean(comment.deletedAt);
-                const isResolved = Boolean(comment.resolvedAt);
-                return (
-                  <li key={comment.id} className="px-4 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="truncate text-xs font-semibold text-ink">
-                            {comment.author.name || "User"}
-                          </div>
-                          <div className="text-[10px] text-ink-3">
-                            {formatTime(comment.createdAt)}
-                          </div>
-                          {isResolved ? (
-                            <div className="inline-flex items-center gap-1 rounded-full bg-ok-soft px-2 py-0.5 text-[10px] font-semibold text-ok">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Resolved
-                            </div>
-                          ) : null}
-                          {isDeleted ? (
-                            <div className="rounded-full bg-hover px-2 py-0.5 text-[10px] font-semibold text-ink-3">
-                              Deleted
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-ink-2">
-                          {isDeleted ? "[deleted]" : comment.body}
-                        </div>
-                      </div>
-
-                      {!isDeleted ? (
-                        <div className="flex flex-none items-center gap-1 text-ink-2">
-                          <button
-                            type="button"
-                            onClick={() => void makeTask(comment)}
-                            className="grid h-9 w-9 place-items-center rounded-full hover:bg-hover"
-                            aria-label="Create task"
-                            title="Create task"
-                          >
-                            <ClipboardCheck className="h-4 w-4" />
-                          </button>
-                          {isResolved ? (
-                            <button
-                              type="button"
-                              onClick={() => unresolve(comment.id)}
-                              className="grid h-9 w-9 place-items-center rounded-full hover:bg-hover"
-                              aria-label="Unresolve"
-                              title="Unresolve"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => resolve(comment.id)}
-                              className="grid h-9 w-9 place-items-center rounded-full hover:bg-hover"
-                              aria-label="Resolve"
-                              title="Resolve"
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => remove(comment.id)}
-                            className="grid h-9 w-9 place-items-center rounded-full hover:bg-accent-soft"
-                            aria-label="Delete"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+          <ul className="max-h-80 divide-y divide-line overflow-auto border-y border-line">
+            {comments.map((comment) => {
+              const isDeleted = Boolean(comment.deletedAt);
+              const isResolved = Boolean(comment.resolvedAt);
+              return (
+                <li key={comment.id} className="flex items-start justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                      <span className="truncate font-semibold text-ink">{comment.author.name || "Collaborator"}</span>
+                      <span className="text-ink-3">
+                        <RelativeTime date={comment.createdAt} />
+                      </span>
+                      {isResolved ? (
+                        <Chip tone="ok">
+                          <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                          Resolved
+                        </Chip>
                       ) : null}
+                      {isDeleted ? <Chip>Deleted</Chip> : null}
                     </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+                    <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink-2">
+                      {isDeleted ? "This comment was deleted." : comment.body}
+                    </p>
+                  </div>
+
+                  {!isDeleted ? (
+                    <div className="flex flex-none items-center">
+                      <IconButton label="Create task" onClick={() => void makeTask(comment)}>
+                        <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                      </IconButton>
+                      {isResolved ? (
+                        <IconButton label="Reopen" onClick={() => void unresolve(comment.id)}>
+                          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                        </IconButton>
+                      ) : (
+                        <IconButton label="Resolve" onClick={() => void resolve(comment.id)}>
+                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        </IconButton>
+                      )}
+                      <IconButton
+                        label="Delete comment"
+                        onClick={() => void remove(comment.id)}
+                        className="hover:bg-danger-soft hover:text-danger"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </IconButton>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
         ) : (
-          <div className="rounded-2xl border border-line bg-sunken px-4 py-6 text-center text-xs text-ink-3">
-            No comments yet.
-          </div>
+          <p className="text-sm text-ink-2">No comments on this section yet. Notes you leave here stay with it.</p>
         )}
       </div>
 
-      <div className="mt-3 rounded-2xl border border-line bg-sunken p-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-xs font-semibold text-ink">Add comment</div>
-          <div className="text-[10px] text-ink-3">{body.trim().length}/2000</div>
+      <div className="mt-4 flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <label htmlFor={inputId} className="text-sm font-medium text-ink">
+            Add a comment
+          </label>
+          <span id={`${inputId}-count`} className="type-figure text-xs text-ink-3">
+            {length}/{MAX_LENGTH}
+          </span>
         </div>
         <textarea
+          id={inputId}
           value={body}
           onChange={(e) => setUi((prev) => ({ ...prev, body: e.target.value }))}
           rows={3}
-          className="mt-2 w-full resize-y rounded-2xl border border-line-strong bg-raised px-4 py-3 text-xs leading-relaxed text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-          placeholder="Leave feedback for this section…"
+          maxLength={MAX_LENGTH}
+          aria-describedby={`${inputId}-hint ${inputId}-count`}
+          className={textareaClass}
+          placeholder="What should change, and why?"
         />
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[10px] text-ink-3">
-            Tip: write concrete notes (what to change + why).
+        <p id={`${inputId}-hint`} className="text-xs leading-relaxed text-ink-3">
+          Concrete notes work best: what to change and why.
+        </p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          {/* Both regions stay mounted so each change is announced. */}
+          <div className="min-w-0">
+            <p role="status" className={submitting ? "text-sm text-ink-2" : "text-sm text-ok"}>
+              {status && !error ? status : ""}
+            </p>
+            <p role="alert" className="text-sm text-danger">
+              {error ?? ""}
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={submitting || body.trim().length < 2}
-            className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <MessageSquarePlus className="h-4 w-4" />
-            {submitting ? "Posting…" : "Post"}
-          </button>
+          <Button tone="secondary" onClick={() => void submit()} disabled={submitting || length < 2}>
+            <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
+            {submitting ? "Posting…" : "Post comment"}
+          </Button>
         </div>
-
-        {status ? <div className="mt-2 text-[10px] text-ink-3">{status}</div> : null}
-        {error ? <div className="mt-2 text-[10px] text-ink-3">{error}</div> : null}
       </div>
-    </div>
+    </section>
   );
 }
 

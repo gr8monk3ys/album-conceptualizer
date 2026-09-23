@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import type { WorkspaceFunnelSummary } from "@/server/analytics";
 
 const METRICS: Array<{
@@ -8,58 +6,37 @@ const METRICS: Array<{
     "projectsCreated" | "activatedAlbums" | "exportedAlbums" | "publishedAlbums"
   >;
   label: string;
+  hint: string;
 }> = [
-  { key: "projectsCreated", label: "Created" },
-  { key: "activatedAlbums", label: "Activated" },
-  { key: "exportedAlbums", label: "Exported" },
-  { key: "publishedAlbums", label: "Published" },
+  { key: "projectsCreated", label: "Created", hint: "New albums" },
+  { key: "activatedAlbums", label: "Worked on", hint: "Opened in Studio, Bible or review" },
+  { key: "exportedAlbums", label: "Exported", hint: "Downloaded at least once" },
+  { key: "publishedAlbums", label: "Published", hint: "Shared on Discover" },
 ];
 
-export function WorkspaceFunnelCard({
-  summary,
-  href = "/app/settings/analytics",
-}: {
-  summary: WorkspaceFunnelSummary;
-  href?: string;
-}) {
+/** The funnel as one row of figures: how many albums reached each stage in the window. */
+export function WorkspaceFunnelCard({ summary }: { summary: WorkspaceFunnelSummary }) {
   return (
-    <div className="rounded-2xl border border-line bg-raised p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-ink-3">Workspace funnel</div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-ink">
-            Last {summary.windowDays} days
-          </div>
-          <div className="mt-1 max-w-[62ch] text-sm text-ink-2">
-            Measure whether projects are moving from creation to meaningful activation, export, and
-            publishing.
-          </div>
-        </div>
-        <Link
-          href={href}
-          className="rounded-full border border-line bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-hover"
-        >
-          View analytics
-        </Link>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+    <section aria-labelledby="funnel-window-title" className="border-t border-line pt-6">
+      <h2 id="funnel-window-title" className="text-lg font-semibold text-ink">
+        Last {summary.windowDays} days
+      </h2>
+      <dl className="mt-4 grid grid-cols-2 gap-y-5 border-y border-line py-5 md:grid-cols-4 md:divide-x md:divide-line">
         {METRICS.map((metric) => (
-          <div
-            key={metric.key}
-            className="rounded-2xl border border-line bg-sunken p-4"
-          >
-            <div className="text-xs text-ink-3">{metric.label}</div>
-            <div className="mt-2 text-2xl font-semibold tracking-tight text-ink">
+          <div key={metric.key} className="min-w-0 pr-4 md:px-5 md:first:pl-0">
+            <dt className="type-catalog text-xs text-ink-2">{metric.label}</dt>
+            <dd className="type-figure mt-2 text-3xl font-semibold text-ink">
               {summary[metric.key]}
-            </div>
+            </dd>
+            <dd className="mt-1 text-xs text-ink-3">{metric.hint}</dd>
           </div>
         ))}
-      </div>
-
-      <div className="mt-3 text-xs text-ink-3">
-        Signups tracked: {summary.signups}. Billing checkouts started: {summary.checkoutStarts}.
-      </div>
-    </div>
+      </dl>
+      <p className="mt-3 text-sm text-ink-2">
+        Sign-ups: <span className="type-figure text-ink">{summary.signups}</span>
+        <span aria-hidden="true"> · </span>
+        Plan checkouts started: <span className="type-figure text-ink">{summary.checkoutStarts}</span>
+      </p>
+    </section>
   );
 }

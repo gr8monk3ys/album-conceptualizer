@@ -1,15 +1,28 @@
 import Link from "next/link";
 
+import { MarkAllReadButton, ToggleNotificationReadButton } from "@/components/notifications-actions";
+import { RelativeTime } from "@/components/relative-time";
+import { Chip, EmptyState, PageHeader } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
-import { MarkAllReadButton, ToggleNotificationReadButton } from "@/components/notifications-actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Notifications",
-  description: "Review workspace notifications and clear unread updates.",
+  description: "Mentions, comments and tasks on your albums.",
 };
+
+const TYPE_LABEL: Record<string, string> = {
+  mention: "Mention",
+  comment: "Comment",
+  task: "Task",
+};
+
+function typeLabel(type: string) {
+  return TYPE_LABEL[type] ?? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
+}
 
 export default async function NotificationsPage() {
   const { userId } = await requireUser();
@@ -28,93 +41,93 @@ export default async function NotificationsPage() {
       url: true,
       readAt: true,
       createdAt: true,
-      actor: { select: { id: true, name: true, email: true, image: true } },
+      actor: { select: { id: true, name: true, email: true } },
     },
   });
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-ink-3">Notifications</div>
-          <div className="text-2xl font-semibold tracking-tight text-ink">
-            Inbox
-          </div>
-          <div className="mt-2 max-w-[72ch] text-sm text-ink-2">
-            Mentions, comments, and tasks across this workspace.
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="rounded-full bg-hover px-3 py-1 text-xs text-ink-2">
-            {unreadCount ? `${unreadCount} unread` : "all caught up"}
-          </div>
-          <MarkAllReadButton disabled={!unreadCount} />
-        </div>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Notifications"
+        catalog={
+          notifications.length ? (
+            <span className="type-figure">{unreadCount ? `${unreadCount} unread` : "All caught up"}</span>
+          ) : undefined
+        }
+        description="Mentions, comments and tasks left on your albums' sections."
+        actions={notifications.length ? <MarkAllReadButton disabled={!unreadCount} /> : null}
+      />
 
       {notifications.length ? (
-        <div className="overflow-hidden rounded-2xl border border-line bg-raised">
-          <ul className="divide-y divide-line">
-            {notifications.map((n) => {
-              const isUnread = !n.readAt;
-              const meta = n.actor?.name || n.actor?.email || "System";
-              return (
-                <li
-                  key={n.id}
-                  className={[
-                    "px-4 py-4",
-                    isUnread
-                      ? "bg-[linear-gradient(90deg,rgba(109,94,252,0.14),rgba(255,62,165,0.08))]"
-                      : "bg-transparent",
-                  ].join(" ")}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-semibold text-ink">{n.title}</div>
-                        <div className="rounded-full bg-hover px-2 py-0.5 text-[10px] font-semibold text-ink-3">
-                          {n.type}
-                        </div>
-                        {isUnread ? (
-                          <div className="rounded-full bg-ok-soft px-2 py-0.5 text-[10px] font-semibold text-ok">
-                            unread
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="mt-1 text-xs text-ink-3">
-                        {meta} · {n.createdAt.toLocaleString()}
-                      </div>
-                      {n.body ? (
-                        <div className="mt-2 text-xs leading-relaxed text-ink-2">
-                          {n.body}
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="flex flex-none items-center gap-2">
+        <ul aria-label="Notifications" className="border-t border-line">
+          {notifications.map((n) => {
+            const isUnread = !n.readAt;
+            const who = n.actor?.name || n.actor?.email || "Album Conceptualizer";
+            const title = (
+              <>
+                {isUnread ? <span className="sr-only">Unread: </span> : null}
+                {n.title}
+              </>
+            );
+            return (
+              <li
+                key={n.id}
+                className="flex flex-col gap-3 border-b border-line py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6"
+              >
+                <div className="flex min-w-0 gap-3">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-[1.1rem] h-2 w-2 shrink-0 rounded-full",
+                      isUnread ? "bg-ink" : "bg-transparent",
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       {n.url ? (
                         <Link
                           href={n.url}
-                          className="rounded-2xl bg-white px-3 py-2 text-[10px] font-semibold text-black hover:bg-white/90"
+                          className={cn(
+                            "inline-flex min-h-11 items-center text-base underline-offset-4 hover:underline",
+                            isUnread ? "font-semibold text-ink" : "text-ink-2",
+                          )}
                         >
-                          Open
+                          {title}
                         </Link>
-                      ) : null}
-                      <ToggleNotificationReadButton id={n.id} unread={isUnread} />
+                      ) : (
+                        <p
+                          className={cn(
+                            "flex min-h-11 items-center text-base",
+                            isUnread ? "font-semibold text-ink" : "text-ink-2",
+                          )}
+                        >
+                          {title}
+                        </p>
+                      )}
+                      <Chip>{typeLabel(n.type)}</Chip>
                     </div>
+                    <p className="text-xs text-ink-3">
+                      {who} · <RelativeTime date={n.createdAt.toISOString()} />
+                    </p>
+                    {n.body ? (
+                      <p className="mt-2 max-w-[68ch] text-sm leading-relaxed text-ink-2">{n.body}</p>
+                    ) : null}
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+                </div>
+                <div className="shrink-0 self-end sm:self-start">
+                  <ToggleNotificationReadButton id={n.id} unread={isUnread} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       ) : (
-        <div className="rounded-2xl border border-line bg-raised p-6 text-sm text-ink-2">
-          No notifications yet.
-        </div>
+        <EmptyState title="Nothing here yet">
+          When someone comments on a section, mentions you with @name, or assigns you a task on an
+          album, it shows up here with a link straight to that spot in the Studio.
+        </EmptyState>
       )}
     </div>
   );

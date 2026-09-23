@@ -15,6 +15,7 @@ export async function listAlbums(workspaceId: string) {
       trackCount: true,
       coverUrl: true,
       status: true,
+      isPublic: true,
       updatedAt: true,
     },
   });

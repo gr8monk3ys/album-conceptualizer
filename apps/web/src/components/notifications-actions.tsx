@@ -2,61 +2,84 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CheckCircle2, MailOpen, RotateCcw } from "lucide-react";
+import { CheckCheck, MailOpen, RotateCcw } from "lucide-react";
+
+import { Button, StatusMessage } from "@/components/ui";
+
+async function readApiError(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof body?.error === "string" && body.error.trim() ? body.error : fallback;
+}
 
 export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function markAll() {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/notifications/read-all", { method: "POST" });
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Couldn't mark everything as read. Try again."));
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't mark everything as read. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <button
-      type="button"
-      disabled={disabled || loading}
-      onClick={async () => {
-        setLoading(true);
-        try {
-          await fetch("/api/notifications/read-all", { method: "POST" });
-          router.refresh();
-        } finally {
-          setLoading(false);
-        }
-      }}
-      className="inline-flex items-center gap-2 rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <MailOpen className="h-4 w-4" />
-      {loading ? "Marking…" : "Mark all read"}
-    </button>
+    <div className="flex flex-col items-end gap-1">
+      <Button tone="secondary" disabled={disabled || loading} onClick={markAll}>
+        <CheckCheck className="h-4 w-4" aria-hidden="true" />
+        {loading ? "Marking…" : "Mark all read"}
+      </Button>
+      {error ? <StatusMessage tone="danger">{error}</StatusMessage> : null}
+    </div>
   );
 }
 
 export function ToggleNotificationReadButton({ id, unread }: { id: string; unread: boolean }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const label = unread ? "Mark read" : "Mark unread";
+
+  async function toggle() {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/notifications/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: unread ? "read" : "unread" }),
+      });
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "That change didn't save. Try again."));
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That change didn't save. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <button
-      type="button"
-      disabled={loading}
-      onClick={async () => {
-        setLoading(true);
-        try {
-          await fetch(`/api/notifications/${id}`, {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ action: unread ? "read" : "unread" }),
-          });
-          router.refresh();
-        } finally {
-          setLoading(false);
-        }
-      }}
-      className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-sunken px-3 py-2 text-[10px] font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
-      aria-label={unread ? "Mark read" : "Mark unread"}
-      title={unread ? "Mark read" : "Mark unread"}
-    >
-      {unread ? <CheckCircle2 className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
-      {loading ? "…" : unread ? "Read" : "Unread"}
-    </button>
+    <div className="flex flex-col items-end gap-1">
+      <Button tone="ghost" disabled={loading} onClick={toggle} aria-label={label}>
+        {unread ? (
+          <MailOpen className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+        )}
+        {loading ? "Saving…" : label}
+      </Button>
+      {error ? <StatusMessage tone="danger">{error}</StatusMessage> : null}
+    </div>
   );
 }
-

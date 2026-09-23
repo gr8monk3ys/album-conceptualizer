@@ -1,9 +1,14 @@
+import { BillingPlans } from "@/components/billing-plans";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { effectivePlan, FREE_PROJECT_LIMIT, planMonthlyCredits } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
-import { BillingPlans } from "@/components/billing-plans";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Plan and billing",
+  description: "Compare plans, see what credits pay for, and manage payment.",
+};
 
 export default async function BillingPage() {
   const { userId } = await requireUser();
@@ -22,11 +27,17 @@ export default async function BillingPage() {
   return (
     <BillingPlans
       workspaceName={workspace.name}
-      currentPlan={subscription?.plan ?? "free"}
+      currentPlan={effectivePlan(subscription)}
+      subscribedPlan={subscription?.plan ?? "free"}
       status={subscription?.status ?? "inactive"}
       currentPeriodEnd={subscription?.currentPeriodEnd?.toISOString() ?? null}
       hasCustomer={Boolean(subscription?.stripeCustomerId)}
+      monthlyCredits={{
+        free: planMonthlyCredits("free"),
+        pro: planMonthlyCredits("pro"),
+        team: planMonthlyCredits("team"),
+      }}
+      freeProjectLimit={FREE_PROJECT_LIMIT}
     />
   );
 }
-

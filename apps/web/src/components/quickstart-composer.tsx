@@ -1,9 +1,22 @@
 "use client";
 
-import { useDeferredValue, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, ChevronDown } from "lucide-react";
 
-import { IdeationAi } from "@/components/ideation-ai";
+import { IdeationAi, type BrainstormPatch } from "@/components/ideation-ai";
+import {
+  Button,
+  Chip,
+  Field,
+  Panel,
+  StatusMessage,
+  buttonClass,
+  inputClass,
+  textareaClass,
+} from "@/components/ui";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { cn } from "@/lib/utils";
 
 type NarrativeStructure = "three-act" | "hero's-journey" | "circular" | "non-linear";
 
@@ -36,21 +49,24 @@ type DraftAlbumIds = {
   sectionIds: Record<number, [string, string]>;
 };
 
+const MIN_TRACKS = 4;
+const MAX_TRACKS = 20;
+
 const WIZARD_STEPS: WizardStep[] = [
   {
     key: "foundation",
     title: "Foundation",
-    detail: "Capture the core idea and why this album exists.",
+    detail: "The core idea, and why this album exists.",
   },
   {
     key: "direction",
     title: "Direction",
-    detail: "Lock the narrative shape, themes, and references.",
+    detail: "The shape of the story, its themes and the records it sits next to.",
   },
   {
     key: "tracklist",
     title: "Tracklist",
-    detail: "Set track count, seed titles, and generate the first blueprint.",
+    detail: "How many tracks, and what they are called for now.",
   },
 ];
 
@@ -62,25 +78,27 @@ const NARRATIVE_OPTIONS: Array<{
   {
     key: "three-act",
     label: "Three-act",
-    description: "Setup, collision, and resolution across the release.",
+    description: "Setup, collision and resolution across the record.",
   },
   {
     key: "hero's-journey",
     label: "Hero's journey",
-    description: "Transformation arc with a clear emotional climb.",
+    description: "A transformation with a clear emotional climb.",
   },
   {
     key: "circular",
     label: "Circular",
-    description: "Ends where it began, but with new meaning.",
+    description: "Ends where it began, with new meaning.",
   },
   {
     key: "non-linear",
     label: "Non-linear",
-    description: "Fragments, flashbacks, and theme-first sequencing.",
+    description: "Fragments and flashbacks, sequenced by theme.",
   },
 ];
 
+// Starting chord loops so each track can be previewed right away. They are placeholders for
+// the artist to replace, not written material, and the preview says so.
 const COMMON_PROGRESSIONS: Array<{ key: string; chords: string[] }> = [
   { key: "C", chords: ["C", "G", "Am", "F"] },
   { key: "A minor", chords: ["Am", "F", "C", "G"] },
@@ -107,8 +125,20 @@ function splitListInput(raw: string): string[] {
     .filter(Boolean);
 }
 
+/** Track titles are one per line: a title may contain a comma. */
 function splitTrackNames(raw: string): string[] {
-  return splitListInput(raw);
+  return raw
+    .split(/\r?\n/g)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function pad(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function progressionFor(index: number) {
+  return COMMON_PROGRESSIONS[index % COMMON_PROGRESSIONS.length] ?? COMMON_PROGRESSIONS[0];
 }
 
 function ensureDraftAlbumIds(ids: DraftAlbumIds, trackCount: number) {
@@ -131,7 +161,7 @@ function buildAlbumJson(input: QuickStartFormState, ids: DraftAlbumIds) {
   const songs = Array.from({ length: input.trackCount }, (_, index) => {
     const trackNumber = index + 1;
     const title = trackNames[index] || `Track ${trackNumber}`;
-    const progression = COMMON_PROGRESSIONS[index % COMMON_PROGRESSIONS.length] ?? COMMON_PROGRESSIONS[0];
+    const progression = progressionFor(index);
     const [verseId, chorusId] = ids.sectionIds[index] ?? [newId(), newId()];
 
     return {
@@ -149,19 +179,20 @@ function buildAlbumJson(input: QuickStartFormState, ids: DraftAlbumIds) {
       mood_tags: [],
       reference_tracks: [],
       instrumentation: [],
+      // Sections start empty: the artist writes the lyrics. Only a starting chord loop is set.
       sections: [
         {
           id: verseId,
           section_type: "verse",
           order: 1,
-          lyrics: "[Verse line 1]\n[Verse line 2]\n[Verse line 3]\n[Verse line 4]",
+          lyrics: "",
           chord_progression: progression.chords,
         },
         {
           id: chorusId,
           section_type: "chorus",
           order: 2,
-          lyrics: "[Chorus line 1]\n[Chorus line 2]\n[Chorus line 3]\n[Chorus line 4]",
+          lyrics: "",
           chord_progression: progression.chords,
         },
       ],
@@ -202,47 +233,79 @@ function getStepValidity(step: number, form: QuickStartFormState) {
     );
   }
 
-  return form.trackCount >= 4;
+  return form.trackCount >= MIN_TRACKS;
 }
 
-function getStatusClassName(tone: StatusTone) {
-  if (tone === "error") return "text-danger";
-  if (tone === "success") return "text-ok";
-  return "text-ink-3";
+/** A step can be opened only when every step before it is valid. */
+function canOpenStep(step: number, form: QuickStartFormState) {
+  for (let index = 0; index < step; index += 1) {
+    if (!getStepValidity(index, form)) return false;
+  }
+  return true;
+}
+
+function slugify(value: string) {
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "album"
+  );
 }
 
 function WizardProgress({
   step,
+  form,
+  visited,
   onStepSelect,
 }: {
   step: number;
+  form: QuickStartFormState;
+  visited: number;
   onStepSelect: (step: number) => void;
 }) {
   return (
-    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-      {WIZARD_STEPS.map((item, index) => {
-        const active = index === step;
-        const complete = index < step;
-        return (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => onStepSelect(index)}
-            className={`rounded-2xl border px-3 py-3 text-left ${
-              active
-                ? "border-line-strong bg-hover"
-                : "border-line bg-raised"
-            }`}
-          >
-            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ink-3">
-              {complete ? "Done" : `0${index + 1}`}
-            </div>
-            <div className="mt-2 text-sm font-semibold text-ink">{item.title}</div>
-            <div className="mt-1 text-xs leading-relaxed text-ink-2">{item.detail}</div>
-          </button>
-        );
-      })}
-    </div>
+    <nav aria-label="Setup steps">
+      <ol className="grid grid-cols-3 border-b border-line">
+        {WIZARD_STEPS.map((item, index) => {
+          const active = index === step;
+          const reachable = canOpenStep(index, form);
+          const done = !active && index <= visited && getStepValidity(index, form);
+          return (
+            <li key={item.key} className="min-w-0">
+              <button
+                type="button"
+                onClick={() => onStepSelect(index)}
+                disabled={!reachable}
+                aria-current={active ? "step" : undefined}
+                title={reachable ? undefined : "Finish the earlier steps first"}
+                className={cn(
+                  "-mb-px flex min-h-11 w-full min-w-0 flex-col items-start justify-center border-b-2 px-1 pb-2 pt-1 text-left transition-colors disabled:cursor-not-allowed",
+                  active
+                    ? "border-accent text-ink"
+                    : "border-transparent text-ink-2 hover:text-ink disabled:text-ink-3 disabled:hover:text-ink-3",
+                )}
+              >
+                <span className="truncate text-sm font-semibold">{item.title}</span>
+                <span className="flex items-center gap-1 text-xs text-ink-3">
+                  {done ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 text-ok" aria-hidden="true" />
+                      Done
+                    </>
+                  ) : active ? (
+                    "Now"
+                  ) : (
+                    "To do"
+                  )}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
 
@@ -250,45 +313,63 @@ function QuickStartStepFields({
   step,
   form,
   setField,
+  showErrors,
 }: {
   step: number;
   form: QuickStartFormState;
   setField: SetQuickStartField;
+  showErrors: boolean;
 }) {
   if (step === 0) {
+    const titleError = showErrors && !form.title.trim() ? "Give the album a working title." : null;
+    const conceptError =
+      showErrors && !form.conceptSummary.trim()
+        ? "Describe the idea in a sentence or two. You can refine it later."
+        : null;
     return (
       <>
-        <label className="block">
-          <div className="text-xs font-semibold text-ink">Album title</div>
+        <Field label="Album title" htmlFor="quickstart-title" error={titleError}>
           <input
+            id="quickstart-title"
             value={form.title}
             onChange={(event) => setField("title", event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-            placeholder="e.g., The Last Summer"
+            className={inputClass}
+            placeholder="e.g. The Last Summer"
             autoComplete="off"
+            aria-invalid={titleError ? true : undefined}
+            aria-describedby={titleError ? "quickstart-title-error" : undefined}
           />
-        </label>
+        </Field>
 
-        <label className="block">
-          <div className="text-xs font-semibold text-ink">Artist</div>
+        <Field label="Artist" htmlFor="quickstart-artist" hint="Optional. You, your band or a project name.">
           <input
+            id="quickstart-artist"
             value={form.artist}
             onChange={(event) => setField("artist", event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-            placeholder="e.g., The Storytellers"
+            className={inputClass}
+            placeholder="e.g. The Storytellers"
             autoComplete="off"
+            aria-describedby="quickstart-artist-hint"
           />
-        </label>
+        </Field>
 
-        <label className="block">
-          <div className="text-xs font-semibold text-ink">Concept summary</div>
+        <Field
+          label="Concept summary"
+          htmlFor="quickstart-concept"
+          error={conceptError}
+          hint="Who is telling the story, what happens, and where it ends up."
+        >
           <textarea
+            id="quickstart-concept"
             value={form.conceptSummary}
             onChange={(event) => setField("conceptSummary", event.target.value)}
-            className="mt-2 min-h-[130px] w-full resize-none rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
+            className={cn(textareaClass, "min-h-32 resize-y")}
             placeholder="What is the emotional or narrative spine of this album?"
+            aria-invalid={conceptError ? true : undefined}
+            aria-describedby={conceptError ? "quickstart-concept-error" : "quickstart-concept-hint"}
           />
-        </label>
+        </Field>
+
       </>
     );
   }
@@ -296,109 +377,111 @@ function QuickStartStepFields({
   if (step === 1) {
     return (
       <>
-        <div>
-          <div className="text-xs font-semibold text-ink">Narrative structure</div>
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <fieldset>
+          <legend className="text-sm font-medium text-ink">Narrative arc</legend>
+          <div className="mt-2 divide-y divide-line border-y border-line">
             {NARRATIVE_OPTIONS.map((option) => {
               const selected = option.key === form.narrativeStructure;
               return (
-                <button
+                <label
                   key={option.key}
-                  type="button"
-                  onClick={() => setField("narrativeStructure", option.key)}
-                  className={`rounded-2xl border px-4 py-3 text-left ${
-                    selected
-                      ? "border-line-strong bg-hover"
-                      : "border-line bg-raised"
-                  }`}
+                  className={cn(
+                    "flex min-h-11 cursor-pointer items-start gap-3 px-2 py-2.5 transition-colors hover:bg-hover",
+                    selected && "bg-selected hover:bg-selected",
+                  )}
                 >
-                  <div className="text-sm font-semibold text-ink">{option.label}</div>
-                  <div className="mt-1 text-xs leading-relaxed text-ink-2">
-                    {option.description}
-                  </div>
-                </button>
+                  <input
+                    type="radio"
+                    name="quickstart-narrative"
+                    value={option.key}
+                    checked={selected}
+                    onChange={() => setField("narrativeStructure", option.key)}
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-ink">{option.label}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-ink-2">
+                      {option.description}
+                    </span>
+                  </span>
+                </label>
               );
             })}
           </div>
-        </div>
+        </fieldset>
 
-        <label className="block">
-          <div className="text-xs font-semibold text-ink">Central themes</div>
+        <Field
+          label="Central themes"
+          htmlFor="quickstart-themes"
+          hint="Separate with commas or new lines. Tracks pick these up as you write."
+        >
           <textarea
+            id="quickstart-themes"
             value={form.centralThemesRaw}
             onChange={(event) => setField("centralThemesRaw", event.target.value)}
-            className="mt-2 min-h-[100px] w-full resize-none rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-            placeholder="memory, loss, rebirth"
+            className={cn(textareaClass, "resize-y")}
+            placeholder="e.g. identity, memory"
+            aria-describedby="quickstart-themes-hint"
           />
-        </label>
+        </Field>
 
-        <label className="block">
-          <div className="text-xs font-semibold text-ink">Reference albums</div>
+        <Field
+          label="Reference albums"
+          htmlFor="quickstart-references"
+          hint="Optional. Records this one should sit next to, one per line or separated by commas."
+        >
           <textarea
+            id="quickstart-references"
             value={form.referenceAlbumsRaw}
             onChange={(event) => setField("referenceAlbumsRaw", event.target.value)}
-            className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-            placeholder="One per line or comma-separated"
+            className={cn(textareaClass, "resize-y")}
+            aria-describedby="quickstart-references-hint"
           />
-        </label>
+        </Field>
       </>
     );
   }
 
   return (
     <>
-      <label htmlFor="quickstart-track-count" className="block">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold text-ink">Track count</div>
-          <div className="text-xs text-ink-2">{form.trackCount}</div>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <label htmlFor="quickstart-track-count" className="text-sm font-medium text-ink">
+            Track count
+          </label>
+          <output htmlFor="quickstart-track-count" className="type-figure text-xl font-semibold text-ink">
+            {form.trackCount}
+          </output>
         </div>
         <input
           id="quickstart-track-count"
           type="range"
-          min={4}
-          max={20}
+          min={MIN_TRACKS}
+          max={MAX_TRACKS}
           value={form.trackCount}
           onChange={(event) => setField("trackCount", Number(event.target.value))}
-          aria-label="Track count"
-          className="mt-2 w-full accent-[var(--accent)]"
+          aria-describedby="quickstart-track-count-hint"
+          className="h-11 w-full cursor-pointer accent-accent"
         />
-      </label>
+        <p id="quickstart-track-count-hint" className="text-xs leading-relaxed text-ink-3">
+          Between {MIN_TRACKS} and {MAX_TRACKS}. You can add or remove tracks later in the Studio.
+        </p>
+      </div>
 
-      <label className="block">
-        <div className="text-xs font-semibold text-ink">Track names (optional)</div>
+      <Field
+        label="Track titles (optional)"
+        htmlFor="quickstart-track-names"
+        hint="One per line, in running order. Tracks without a title are called Track 1, Track 2 and so on."
+      >
         <textarea
+          id="quickstart-track-names"
           value={form.trackNamesRaw}
           onChange={(event) => setField("trackNamesRaw", event.target.value)}
-          className="mt-2 min-h-[120px] w-full resize-none rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-          placeholder="One per line or comma-separated"
+          className={cn(textareaClass, "min-h-32 resize-y")}
+          aria-describedby="quickstart-track-names-hint"
         />
-      </label>
-
-      <IdeationAi
-        concept={form.conceptSummary}
-        references={form.referenceAlbumsRaw}
-        themes={form.centralThemesRaw}
-        trackCount={form.trackCount}
-      />
-
-      <div className="rounded-2xl border border-line bg-sunken p-4">
-        <div className="text-xs text-ink-3">After you save</div>
-        <div className="mt-2 space-y-2 text-sm text-ink-2">
-          <div>1. Review the Bible to see themes and story structure across tracks.</div>
-          <div>2. Make one Studio pass and save your first real edits.</div>
-          <div>3. Export a handoff pack or publish the blueprint for remix.</div>
-        </div>
-      </div>
+      </Field>
     </>
-  );
-}
-
-function PreviewStatCard({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-line bg-sunken p-4">
-      <div className="text-xs text-ink-3">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight text-ink">{value}</div>
-    </div>
   );
 }
 
@@ -417,82 +500,104 @@ function BlueprintPreview({
   onCopy: () => void;
   onDownload: () => void;
 }) {
+  const themes = splitListInput(form.centralThemesRaw);
+  const arc = NARRATIVE_OPTIONS.find((option) => option.key === form.narrativeStructure)?.label;
+  const title = form.title.trim();
+
   return (
-    <section className="rounded-2xl border border-line bg-raised p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="text-xs text-ink-3">Blueprint preview</div>
-          <div className="text-sm font-semibold text-ink">album.json</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCopy}
-            disabled={!draftAlbum}
-            className="rounded-full border border-line bg-raised px-3 py-2 text-xs text-ink-2 hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Copy
-          </button>
-          <button
-            type="button"
-            onClick={onDownload}
-            disabled={!draftAlbum}
-            className="rounded-full bg-hover px-3 py-2 text-xs font-semibold text-ink hover:bg-selected disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Download
-          </button>
-        </div>
-      </div>
+    <section aria-labelledby="blueprint-preview-title" className="min-w-0">
+      <h2 id="blueprint-preview-title" className="text-lg font-semibold text-ink">
+        Blueprint preview
+      </h2>
+      <p className="mt-1 text-sm text-ink-2">How the album will open once you save it.</p>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <PreviewStatCard label="Tracks" value={form.trackCount} />
-        <PreviewStatCard label="Themes" value={splitListInput(form.centralThemesRaw).length} />
-        <PreviewStatCard
-          label="References"
-          value={splitListInput(form.referenceAlbumsRaw).length}
-        />
-        <PreviewStatCard
-          label="Arc"
-          value={
-            <span className="text-sm">
-              {NARRATIVE_OPTIONS.find((option) => option.key === form.narrativeStructure)?.label}
-            </span>
-          }
-        />
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-line bg-sunken p-4">
-          <div className="text-xs text-ink-3">Track preview</div>
-          <div className="mt-3 space-y-2">
-            {Array.from({ length: form.trackCount }, (_, index) => {
-              const title = trackNames[index] || `Track ${index + 1}`;
-              return (
-                <div
-                  key={`${index + 1}-${title}`}
-                  className="rounded-2xl border border-line bg-raised px-3 py-2"
-                >
-                  <div className="text-[10px] text-ink-3">
-                    {String(index + 1).padStart(2, "0")}
-                  </div>
-                  <div className="text-sm font-semibold text-ink">{title}</div>
-                </div>
-              );
-            }).slice(0, 6)}
-            {form.trackCount > 6 ? (
-              <div className="text-xs text-ink-3">
-                + {form.trackCount - 6} more tracks in the generated scaffold
-              </div>
-            ) : null}
+      <div className="mt-6 border-t border-line-strong pt-5">
+        <p className={cn("type-display break-words text-3xl md:text-4xl", title ? "text-ink" : "text-ink-3")}>
+          {title || "Untitled album"}
+        </p>
+        <p className="type-catalog mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">
+          <span>{form.artist.trim() || "No artist yet"}</span>
+          <span aria-hidden="true">·</span>
+          <span className="type-figure">{form.trackCount} tracks</span>
+          {arc ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{arc}</span>
+            </>
+          ) : null}
+        </p>
+        {form.conceptSummary.trim() ? (
+          <p className="mt-4 line-clamp-4 max-w-[68ch] whitespace-pre-line text-sm leading-relaxed text-ink-2">
+            {form.conceptSummary.trim()}
+          </p>
+        ) : null}
+        {themes.length ? (
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            <span className="sr-only">Themes:</span>
+            {themes.map((theme) => (
+              <Chip key={theme}>{theme}</Chip>
+            ))}
           </div>
-        </div>
+        ) : null}
+      </div>
 
-        <div className="rounded-2xl border border-line bg-sunken p-3">
-          <pre className="max-h-[620px] overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-ink-2">
-            {jsonText || "Add an album title to see the live blueprint preview."}
+      <ol className="mt-6 border-t border-line" aria-label="Tracklist">
+        {Array.from({ length: form.trackCount }, (_, index) => {
+          const trackTitle = trackNames[index];
+          const progression = progressionFor(index);
+          return (
+            <li key={index} className="flex items-baseline gap-4 border-b border-line py-2.5">
+              <span className="type-figure w-9 shrink-0 text-2xl font-semibold text-ink-3">{pad(index + 1)}</span>
+              <div className="min-w-0 flex-1">
+                <p className={cn("truncate text-sm font-semibold", trackTitle ? "text-ink" : "text-ink-3")}>
+                  {trackTitle || `Track ${index + 1}`}
+                </p>
+                <p className="mt-0.5 text-xs text-ink-3">
+                  Verse and chorus, not written yet · starting chords{" "}
+                  <span className="type-figure">{progression.chords.join(" ")}</span>
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-3 max-w-[68ch] text-xs leading-relaxed text-ink-3">
+        Each track starts with an empty verse and chorus. The chord loops are only there so you can
+        hear a track right away; replace them when you write.
+      </p>
+
+      <details className="group mt-6">
+        <summary
+          className={buttonClass(
+            "secondary",
+            "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+          )}
+        >
+          See the data
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="mt-3">
+          <p className="max-w-[68ch] text-xs leading-relaxed text-ink-3">
+            The blueprint as structured data, exactly as it will be saved. Keep a copy or use it
+            with your own tools.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button onClick={onCopy} disabled={!draftAlbum}>
+              Copy
+            </Button>
+            <Button onClick={onDownload} disabled={!draftAlbum}>
+              Download
+            </Button>
+          </div>
+          <pre
+            tabIndex={0}
+            aria-label="Blueprint data"
+            className="mt-3 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded border border-line bg-sunken p-3 text-xs leading-relaxed text-ink-2"
+          >
+            {jsonText || "Add an album title to see the data."}
           </pre>
         </div>
-      </div>
+      </details>
     </section>
   );
 }
@@ -505,18 +610,22 @@ export function QuickStartComposer() {
     sectionIds: {},
   });
   const [step, setStep] = useState(0);
+  const [visited, setVisited] = useState(0);
+  const [showErrors, setShowErrors] = useState(false);
   const [form, setForm] = useState<QuickStartFormState>({
     title: "",
     artist: "",
     conceptSummary: "",
     narrativeStructure: "three-act",
-    centralThemesRaw: "identity, memory",
+    centralThemesRaw: "",
     referenceAlbumsRaw: "",
     trackCount: 10,
     trackNamesRaw: "",
   });
   const [status, setStatus] = useState<{ tone: StatusTone; text: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const hasMovedRef = useRef(false);
 
   const draftAlbum = useMemo(() => {
     if (!form.title.trim()) return null;
@@ -532,29 +641,69 @@ export function QuickStartComposer() {
 
   const trackNames = useMemo(() => splitTrackNames(form.trackNamesRaw), [form.trackNamesRaw]);
   const currentStep = WIZARD_STEPS[step] ?? WIZARD_STEPS[0];
+  const lastStep = WIZARD_STEPS.length - 1;
+
+  // Moving between steps puts focus on the new step's heading, so keyboard and screen reader
+  // users land at the top of the fields they now have to fill.
+  useEffect(() => {
+    if (!hasMovedRef.current) return;
+    headingRef.current?.focus();
+  }, [step]);
 
   function setField<K extends keyof QuickStartFormState>(key: K, value: QuickStartFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
     if (status) setStatus(null);
   }
 
+  function goTo(next: number) {
+    if (next === step || !canOpenStep(next, form)) return;
+    hasMovedRef.current = true;
+    setStep(next);
+    setVisited((current) => Math.max(current, next));
+    setShowErrors(false);
+    setStatus(null);
+  }
+
   function goNext() {
     if (!getStepValidity(step, form)) {
+      setShowErrors(true);
       setStatus({
         tone: "error",
         text:
           step === 0
-            ? "Add an album title and concept summary to continue."
-            : "Add a narrative shape, theme, or reference before continuing.",
+            ? "Add an album title and a concept summary to continue."
+            : "Pick a narrative arc, or add a theme or reference, to continue.",
       });
       return;
     }
-    setStep((current) => Math.min(current + 1, WIZARD_STEPS.length - 1));
+    goTo(Math.min(step + 1, lastStep));
   }
 
   function goBack() {
-    setStep((current) => Math.max(current - 1, 0));
-    if (status) setStatus(null);
+    goTo(Math.max(step - 1, 0));
+  }
+
+  function applyBrainstorm(patch: BrainstormPatch) {
+    const restore: Partial<QuickStartFormState> = {};
+    const next: Partial<QuickStartFormState> = {};
+    if (patch.conceptSummary) {
+      restore.conceptSummary = form.conceptSummary;
+      next.conceptSummary = patch.conceptSummary;
+    }
+    if (patch.themes?.length) {
+      restore.centralThemesRaw = form.centralThemesRaw;
+      next.centralThemesRaw = patch.themes.join(", ");
+    }
+    if (patch.trackTitles?.length) {
+      const titles = patch.trackTitles.slice(0, MAX_TRACKS);
+      restore.trackNamesRaw = form.trackNamesRaw;
+      restore.trackCount = form.trackCount;
+      next.trackNamesRaw = titles.join("\n");
+      next.trackCount = Math.min(MAX_TRACKS, Math.max(MIN_TRACKS, titles.length));
+    }
+    setForm((prev) => ({ ...prev, ...next }));
+    setStatus(null);
+    return () => setForm((prev) => ({ ...prev, ...restore }));
   }
 
   function downloadAlbumJson() {
@@ -563,38 +712,45 @@ export function QuickStartComposer() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "album.json";
+    anchor.download = `${slugify(form.title)}.json`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
-    setStatus({ tone: "info", text: "Downloaded album.json." });
+    setStatus({ tone: "info", text: "Downloaded the blueprint data." });
   }
 
   async function copyToClipboard() {
     if (!jsonText) return;
-    await navigator.clipboard.writeText(jsonText);
-    setStatus({ tone: "success", text: "Copied album.json to clipboard." });
+    try {
+      await navigator.clipboard.writeText(jsonText);
+      setStatus({ tone: "success", text: "Copied the blueprint data." });
+    } catch {
+      setStatus({
+        tone: "error",
+        text: "Couldn't copy to the clipboard. Select the text in the data view and copy it instead.",
+      });
+    }
   }
 
   async function saveAlbum() {
-    if (!draftAlbum) {
-      setStatus({ tone: "error", text: "Add an album title first." });
-      return;
-    }
     if (!getStepValidity(0, form)) {
+      hasMovedRef.current = true;
       setStep(0);
-      setStatus({ tone: "error", text: "Add an album title and concept summary first." });
+      setShowErrors(true);
+      setStatus({ tone: "error", text: "Add an album title and a concept summary first." });
       return;
     }
     if (!getStepValidity(1, form)) {
+      hasMovedRef.current = true;
       setStep(1);
       setStatus({
         tone: "error",
-        text: "Add a narrative shape, theme, or reference before saving.",
+        text: "Pick a narrative arc, or add a theme or reference, before saving.",
       });
       return;
     }
+    if (!draftAlbum) return;
 
     setIsSaving(true);
     setStatus(null);
@@ -606,77 +762,95 @@ export function QuickStartComposer() {
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error || "Failed to save project.");
+        throw new Error(
+          body?.error?.trim() ||
+            "The album couldn't be saved. Check your connection and try again.",
+        );
       }
       const saved = (await response.json()) as { id: string };
-      setStatus({ tone: "success", text: "Saved to workspace." });
+      setStatus({ tone: "success", text: "Saved. Opening your album…" });
       router.push(`/app/albums/${saved.id}?welcome=1`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to save project.";
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "The album couldn't be saved. Check your connection and try again.";
       setStatus({ tone: "error", text: message });
     } finally {
       setIsSaving(false);
     }
   }
 
+  const statusTone = status?.tone === "error" ? "danger" : status?.tone === "success" ? "ok" : "neutral";
+
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
-      <section className="rounded-2xl border border-line bg-raised p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-xs text-ink-3">First project</div>
-            <div className="text-lg font-semibold tracking-tight text-ink">
-              Build your album blueprint
-            </div>
-            <div className="mt-1 text-sm text-ink-2">{currentStep.detail}</div>
-          </div>
-          <div className="rounded-full border border-line bg-raised px-3 py-1 text-xs text-ink-2">
-            Step {step + 1} / {WIZARD_STEPS.length}
+    <div className="grid grid-cols-1 gap-x-10 gap-y-10 xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] xl:items-start">
+      <Panel className="min-w-0">
+        <WizardProgress step={step} form={form} visited={visited} onStepSelect={goTo} />
+
+        <div className="mt-5">
+          <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold text-ink">
+            {currentStep.title}
+          </h2>
+          <p className="mt-1 text-sm text-ink-2">
+            <span className="type-figure">
+              Step {step + 1} of {WIZARD_STEPS.length}
+            </span>
+            {" · "}
+            {currentStep.detail}
+          </p>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-5">
+          <QuickStartStepFields
+            step={step}
+            form={form}
+            setField={setField}
+            showErrors={showErrors}
+          />
+          {/* Stays mounted across steps so a finished brainstorm (and its undo) isn't lost. */}
+          <div hidden={step !== 0}>
+            <IdeationAi
+              concept={form.conceptSummary}
+              references={form.referenceAlbumsRaw}
+              themes={form.centralThemesRaw}
+              trackCount={form.trackCount}
+              onApply={applyBrainstorm}
+            />
           </div>
         </div>
 
-        <WizardProgress step={step} onStepSelect={setStep} />
+        <div className="mt-6 flex flex-col gap-3 border-t border-line pt-4">
+          {status ? <StatusMessage tone={statusTone}>{status.text}</StatusMessage> : null}
 
-        <div className="mt-5 space-y-4">
-          <QuickStartStepFields step={step} form={form} setField={setField} />
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <div className={`text-xs ${status ? getStatusClassName(status.tone) : "text-ink-3"}`}>
-            {status?.text ?? "This blueprint stays compatible with the Python Album model."}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={goBack}
-              disabled={step === 0}
-              className="rounded-2xl border border-line bg-raised px-4 py-3 text-sm font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Back
-            </button>
-
-            {step < WIZARD_STEPS.length - 1 ? (
-              <button
-                type="button"
-                onClick={goNext}
-                className="rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-accent-ink shadow-[0_20px_60px_rgba(255,62,165,0.15)] hover:brightness-110"
-              >
-                Continue
-              </button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {step > 0 ? (
+              <Button tone="ghost" onClick={goBack}>
+                Back
+              </Button>
             ) : (
-              <button
-                type="button"
-                onClick={saveAlbum}
-                disabled={!draftAlbum || isSaving}
-                className="rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-accent-ink shadow-[0_20px_60px_rgba(255,62,165,0.15)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {isSaving ? "Saving..." : "Save and continue"}
-              </button>
+              <span aria-hidden="true" />
+            )}
+
+            {step < lastStep ? (
+              <Button tone="primary" onClick={goNext}>
+                Continue
+              </Button>
+            ) : (
+              <Button tone="primary" onClick={() => void saveAlbum()} disabled={isSaving}>
+                {isSaving ? "Saving…" : `Save and continue · ${CREDIT_COSTS.albumCreate} credits`}
+              </Button>
             )}
           </div>
+
+          {step === lastStep ? (
+            <p className="text-xs leading-relaxed text-ink-3">
+              Saving creates the album in your workspace and opens it, ready for a first writing
+              pass in the Studio.
+            </p>
+          ) : null}
         </div>
-      </section>
+      </Panel>
 
       <BlueprintPreview
         draftAlbum={draftAlbum}

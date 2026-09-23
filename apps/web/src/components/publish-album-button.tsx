@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { Globe2, Lock } from "lucide-react";
 
+import { Button, StatusMessage } from "@/components/ui";
+
+async function errorFrom(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof body?.error === "string" && body.error ? body.error : fallback;
+}
+
+/** Puts the album on Discover, where others can find and remix it, or takes it off. */
 export function PublishAlbumButton({
   albumId,
   initialPublic,
@@ -12,7 +20,7 @@ export function PublishAlbumButton({
 }) {
   const [publicOverride, setPublicOverride] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
   const isPublic = publicOverride ?? initialPublic;
 
   async function toggle() {
@@ -25,37 +33,44 @@ export function PublishAlbumButton({
         body: JSON.stringify({ isPublic: !isPublic }),
       });
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `Request failed (${response.status}).`);
+        throw new Error(
+          await errorFrom(response, "The album's Discover status didn't change. Try again in a moment."),
+        );
       }
       const payload = (await response.json().catch(() => null)) as { isPublic?: boolean } | null;
       setPublicOverride(Boolean(payload?.isPublic));
-      setStatus(payload?.isPublic ? "Published to Discover." : "Unpublished.");
+      setStatus({
+        tone: "ok",
+        text: payload?.isPublic ? "Published to Discover." : "Taken off Discover. The album is private again.",
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to update publish state.";
-      setStatus(message);
+      setStatus({
+        tone: "danger",
+        text: err instanceof Error ? err.message : "The album's Discover status didn't change.",
+      });
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={toggle}
-        disabled={busy}
-        className="inline-flex items-center gap-2 rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
-        title={
-          isPublic
-            ? "Visible in Discover"
-            : "Private (only accessible to you unless you share a link)"
-        }
-      >
-        {isPublic ? <Globe2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-        {isPublic ? "Published" : "Publish"}
-      </button>
-      {status ? <div className="text-[10px] text-ink-3">{status}</div> : null}
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={() => void toggle()} disabled={busy} aria-busy={busy || undefined}>
+          {isPublic ? (
+            <Lock className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Globe2 className="h-4 w-4" aria-hidden="true" />
+          )}
+          {busy ? (isPublic ? "Unpublishing…" : "Publishing…") : isPublic ? "Unpublish" : "Publish"}
+        </Button>
+        <p className="min-w-0 text-sm text-ink-2">
+          {isPublic
+            ? "On Discover: anyone signed in can find it and remix it."
+            : "Private: only you, and anyone you send a share link, can open it."}
+        </p>
+      </div>
+      {status ? <StatusMessage tone={status.tone}>{status.text}</StatusMessage> : null}
     </div>
   );
 }

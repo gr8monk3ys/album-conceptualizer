@@ -1,18 +1,24 @@
 import Link from "next/link";
 
+import { RelativeTime } from "@/components/relative-time";
 import { WorkspaceFunnelCard } from "@/components/workspace-funnel-card";
+import { PageHeader, Section } from "@/components/ui";
 import { getWorkspaceFunnelSummary } from "@/server/analytics";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Workspace funnel",
+  description: "How albums in this workspace move from created to exported and published.",
+};
 
 const EVENT_LABELS: Record<string, string> = {
-  user_signed_up: "User signed up",
+  user_signed_up: "Signed up",
   album_created: "Album created",
-  album_bible_viewed: "Bible reviewed",
+  album_bible_viewed: "Album Bible reviewed",
   album_studio_viewed: "Studio opened",
-  album_coherence_viewed: "Coherence reviewed",
+  album_coherence_viewed: "Coherence report read",
   album_style_bible_viewed: "Style bible opened",
   album_style_bible_saved: "Style bible saved",
   album_rough_demos_viewed: "Rough demos opened",
@@ -26,8 +32,14 @@ const EVENT_LABELS: Record<string, string> = {
   album_saved: "Studio saved",
   album_export_requested: "Export completed",
   album_published: "Published to Discover",
-  billing_checkout_started: "Billing checkout started",
+  billing_checkout_started: "Plan checkout started",
 };
+
+function eventLabel(event: string) {
+  if (EVENT_LABELS[event]) return EVENT_LABELS[event];
+  const words = event.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 export default async function AnalyticsPage() {
   const { userId } = await requireUser();
@@ -35,77 +47,51 @@ export default async function AnalyticsPage() {
   const summary = await getWorkspaceFunnelSummary(workspace.id);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <div className="text-xs text-ink-3">Analytics</div>
-        <div className="text-2xl font-semibold tracking-tight text-ink">
-          Workspace funnel
-        </div>
-        <div className="mt-2 max-w-[72ch] text-sm text-ink-2">
-          Track whether projects move from creation into activation, export, and publishing.
-          Current window starts {summary.since.toLocaleDateString()}.
-        </div>
-      </div>
+    <div className="flex flex-col gap-10">
+      <PageHeader
+        title="Workspace funnel"
+        description="How albums in this workspace move from first draft to export and publishing. Each album counts once per stage."
+      />
 
-      <WorkspaceFunnelCard summary={summary} href="/app/settings/analytics" />
+      <WorkspaceFunnelCard summary={summary} />
 
-      <div className="rounded-2xl border border-line bg-raised p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-xs text-ink-3">Recent events</div>
-            <div className="mt-1 text-sm font-semibold text-ink">
-              What users did most recently
-            </div>
-          </div>
-          <Link
-            href="/app/create"
-            className="rounded-full border border-line bg-raised px-3 py-2 text-xs font-semibold text-ink hover:bg-hover"
-          >
-            New project
-          </Link>
-        </div>
-
-        <div className="mt-4 overflow-hidden rounded-2xl border border-line">
-          {summary.recentEvents.length ? (
-            <div className="divide-y divide-line">
-              {summary.recentEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className="flex flex-col gap-2 px-4 py-3 text-sm md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="font-semibold text-ink">
-                      {EVENT_LABELS[event.event] ?? event.event}
-                    </div>
-                    <div className="mt-1 text-xs text-ink-3">
-                      {event.album ? (
-                        <Link
-                          href={`/app/albums/${event.album.id}`}
-                          className="hover:text-ink"
-                        >
-                          {event.album.title}
-                        </Link>
-                      ) : (
-                        "Workspace event"
-                      )}
-                      {" · "}
-                      {event.user?.name || event.user?.email || "Unknown user"}
-                      {event.path ? ` · ${event.path}` : ""}
-                    </div>
-                  </div>
-                  <div className="text-xs text-ink-3">
-                    {event.createdAt.toLocaleString()}
-                  </div>
+      <Section id="events" title="Recent activity" description="The latest 20 things that happened in this workspace.">
+        {summary.recentEvents.length ? (
+          <ol className="border-t border-line">
+            {summary.recentEvents.map((event) => (
+              <li
+                key={event.id}
+                className="flex flex-col gap-1 border-b border-line py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-ink">{eventLabel(event.event)}</p>
+                  <p className="mt-0.5 text-ink-2">
+                    {event.album ? (
+                      <Link
+                        href={`/app/albums/${event.album.id}`}
+                        className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-ink"
+                      >
+                        {event.album.title}
+                      </Link>
+                    ) : (
+                      "Workspace"
+                    )}
+                    <span aria-hidden="true"> · </span>
+                    {event.user?.name || event.user?.email || "Someone"}
+                  </p>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="px-4 py-8 text-sm text-ink-2">
-              No events yet. Create an album to start filling the funnel.
-            </div>
-          )}
-        </div>
-      </div>
+                <p className="shrink-0 text-xs text-ink-3">
+                  <RelativeTime date={event.createdAt.toISOString()} />
+                </p>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-sm text-ink-2">
+            Nothing yet. Activity appears here once someone creates, writes or exports an album.
+          </p>
+        )}
+      </Section>
     </div>
   );
 }

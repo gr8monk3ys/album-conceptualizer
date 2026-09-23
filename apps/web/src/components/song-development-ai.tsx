@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2, AlertCircle } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 
+import { readApiError } from "@/components/studio/studio-model";
+import { Button } from "@/components/ui";
 import { useAgentJob } from "@/hooks/use-agent-job";
-import { parseApiError } from "@/lib/api-error";
-
+import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 type SongDevelopmentAiProps = {
   albumId: string;
@@ -18,44 +19,46 @@ type StartJobResponse = {
 };
 
 function formatElapsed(ms: number): string {
-  if (ms < 1000) return "< 1s";
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return `${minutes}m ${remainder}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
+const COST: number = CREDIT_COSTS.agentRun;
+const COST_LABEL = `${COST} ${COST === 1 ? "credit" : "credits"}`;
+
+/**
+ * Drafts lyrics, harmony ideas and production notes for one track. The draft is shown for the
+ * artist to read and copy from; nothing in the Studio is changed by it.
+ */
 export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevelopmentAiProps) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const { job, error: pollError, elapsedMs, isPolling } = useAgentJob({ jobId });
 
   async function start() {
     setIsStarting(true);
     setStartError(null);
-    setCollapsed(false);
+    setExpanded(true);
     try {
       const res = await fetch("/api/agents/song-development", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          album_id: albumId,
-          song_title: songTitle,
-          track_number: trackNumber,
-        }),
+        body: JSON.stringify({ album_id: albumId, song_title: songTitle, track_number: trackNumber }),
       });
       if (!res.ok) {
-        throw new Error(await parseApiError(res, "Could not start song development."));
+        const fallback = "Couldn't start the draft. No credits were spent; try again in a moment.";
+        // Credit, rate-limit and sign-in problems carry a message written for the artist.
+        const human = res.status === 401 || res.status === 402 || res.status === 429;
+        throw new Error(human ? await readApiError(res, fallback) : fallback);
       }
       const data = (await res.json()) as StartJobResponse;
       setJobId(data.job_id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not start song development.";
-      setStartError(message);
+      setStartError(err instanceof Error ? err.message : "Couldn't start the draft. Try again.");
     } finally {
       setIsStarting(false);
     }
@@ -64,97 +67,65 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
   const error = startError ?? pollError;
   const isBusy = isStarting || isPolling;
   const output = job?.status === "completed" ? (job.result?.output ?? "") : "";
-  const failureMessage = job?.status === "failed" ? (job.error ?? "Song development failed.") : null;
+  const failed = job?.status === "failed";
+  const outputId = `song-ai-output-${trackNumber}`;
 
-  // Compact mode: only show the button when no output yet.
-  if (!jobId && !startError) {
-    return (
-      <button
-        type="button"
-        disabled={isBusy}
-        onClick={() => void start()}
-        className="inline-flex items-center gap-2 rounded-2xl border border-accent bg-selected px-3 py-2 text-xs font-semibold text-ink hover:bg-selected disabled:cursor-not-allowed disabled:opacity-60"
-        title="Generate lyrics, chords, and production notes with AI"
-      >
-        <Sparkles className="h-4 w-4" />
-        Develop with AI
-      </button>
-    );
-  }
+  const buttonLabel = isStarting
+    ? "Starting…"
+    : isPolling
+      ? `Drafting… ${formatElapsed(elapsedMs)}`
+      : output
+        ? `Draft again · ${COST_LABEL}`
+        : `Develop with AI · ${COST_LABEL}`;
 
   return (
-    <div className="rounded-2xl border border-accent bg-selected p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-ink" />
-          <div>
-            <div className="text-xs text-ink-3">AI song development</div>
-            <div className="text-sm font-semibold text-ink">
-              Track {trackNumber}: {songTitle}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {output ? (
-            <button
-              type="button"
-              onClick={() => setCollapsed(!collapsed)}
-              className="rounded-full border border-line bg-raised px-3 py-1 text-[10px] font-semibold text-ink-2 hover:bg-hover"
-            >
-              {collapsed ? "Expand" : "Collapse"}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => void start()}
-            className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {isStarting
-              ? "Starting…"
-              : isPolling
-                ? `Developing… ${formatElapsed(elapsedMs)}`
-                : "Run again"}
-          </button>
-        </div>
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Button tone="secondary" disabled={isBusy} onClick={() => void start()}>
+          {isBusy ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
+          )}
+          {buttonLabel}
+        </Button>
+        <p className="min-w-0 flex-1 basis-60 text-sm leading-relaxed text-ink-2">
+          Drafts lyrics, harmony ideas and production notes for this track from the album’s concept.
+          It takes about a minute, and nothing here changes until you copy lines in.
+        </p>
       </div>
 
-      {error ? (
-        <div
-          role="alert"
-          className="mt-3 flex items-start gap-2 rounded-2xl border border-danger bg-danger-soft px-3 py-2 text-xs text-danger"
-        >
-          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
+      <div>
+      <div role="status" className="text-sm text-ink-2">
+        {isPolling && !output
+          ? "Writing lyrics, suggesting harmony and drafting production notes. This usually takes 30 to 90 seconds."
+          : output
+            ? "Draft ready."
+            : ""}
+      </div>
+      <div role="alert" className="text-sm text-danger">
+        {error ?? (failed ? "The draft couldn't be finished. Try again in a moment." : "")}
+      </div>
+      </div>
 
-      {failureMessage ? (
-        <div
-          role="alert"
-          className="mt-3 flex items-start gap-2 rounded-2xl border border-danger bg-danger-soft px-3 py-2 text-xs text-danger"
-        >
-          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-          <span>{failureMessage}</span>
-        </div>
-      ) : null}
-
-      {isPolling && !output ? (
-        <div
-          aria-live="polite"
-          className="mt-3 rounded-2xl border border-line bg-sunken px-4 py-6 text-center text-xs text-ink-2"
-        >
-          The crew is writing lyrics, suggesting harmony, and generating production notes. This
-          typically takes 30-90 seconds.
-        </div>
-      ) : null}
-
-      {output && !collapsed ? (
-        <div className="mt-3 rounded-2xl border border-line bg-sunken px-4 py-3">
-          <div className="whitespace-pre-wrap text-xs leading-relaxed text-ink-2">
-            {output}
+      {output ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-ink">
+              Draft for track {trackNumber}: {songTitle}
+            </p>
+            <Button tone="ghost" aria-expanded={expanded} aria-controls={outputId} onClick={() => setExpanded(!expanded)}>
+              {expanded ? "Hide draft" : "Show draft"}
+            </Button>
           </div>
+          {expanded ? (
+            <div
+              id={outputId}
+              className="max-h-96 overflow-auto rounded border border-line bg-sunken px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-ink-2"
+            >
+              {output}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

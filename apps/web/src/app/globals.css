@@ -73,6 +73,9 @@
   --color-background: var(--ground);
   --color-foreground: var(--ink);
 
+  /* Height of the sticky app header, so anything sticky below it lines up. */
+  --spacing-header: 4.3125rem;
+
   --font-sans: "Archivo Variable", "Archivo", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }

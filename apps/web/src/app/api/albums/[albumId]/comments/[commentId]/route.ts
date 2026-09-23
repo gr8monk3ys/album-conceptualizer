@@ -44,7 +44,7 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
     data = { resolvedAt: null, resolvedByUserId: null };
   } else {
     if (comment.authorUserId !== userId) throw new ApiError(403, "Forbidden.");
-    if (!payload.body) throw new ApiError(400, "Body is required.");
+    if (!payload.body) throw new ApiError(400, "Write a comment first.");
     data = { body: payload.body };
   }
 

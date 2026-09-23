@@ -1,85 +1,138 @@
-"use client";
-
-import Image from "next/image";
 import Link from "next/link";
-import { Play } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import type { ReactNode } from "react";
 
+import { RelativeTime } from "@/components/relative-time";
+import { Chip } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 export type AlbumListItem = {
   id: string;
   title: string;
-  subtitle: string;
-  tag?: string;
-  duration?: string;
-  cover?: string;
+  artist: string | null;
+  trackCount: number;
+  status: string;
+  isPublic?: boolean;
+  /** ISO timestamp of the last edit. */
+  updatedAt: string;
 };
 
-export function AlbumCard({
-  album,
-  className,
-  href,
-}: {
-  album: AlbumListItem;
-  className?: string;
-  href?: string;
-}) {
-  const content = (
-    <>
-      <div className="relative h-16 w-16 flex-none overflow-hidden rounded-xl bg-hover">
-        {album.cover ? (
-          <Image
-            src={album.cover}
-            alt=""
-            fill
-            className="object-cover"
-            sizes="64px"
-            priority={false}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(255,62,165,0.35),rgba(109,94,252,0.25),rgba(255,255,255,0.04))]" />
-        )}
-        <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100">
-          <div className="absolute inset-0 bg-black/35" />
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-white text-black">
-              <Play className="h-4 w-4" aria-hidden="true" />
-            </div>
-          </div>
-        </div>
-        {album.duration ? (
-          <div className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white/90">
-            {album.duration}
-          </div>
-        ) : null}
-      </div>
+const STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  published: "Published",
+  archived: "Archived",
+};
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <div className="truncate text-sm font-semibold text-ink">
-            {album.title}
-          </div>
-          {album.tag ? (
-            <div className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold text-accent">
-              {album.tag}
-            </div>
-          ) : null}
-        </div>
-        <div className="truncate text-xs text-ink-3">{album.subtitle}</div>
-      </div>
+/** The album's status in words ("Draft"), never the raw enum. */
+export function albumStatusLabel(status: string) {
+  return STATUS_LABEL[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+export function toAlbumListItem(album: {
+  id: string;
+  title: string;
+  artist: string | null;
+  trackCount: number;
+  status: string;
+  isPublic?: boolean;
+  updatedAt: Date;
+}): AlbumListItem {
+  return {
+    id: album.id,
+    title: album.title,
+    artist: album.artist,
+    trackCount: album.trackCount,
+    status: album.status,
+    isPublic: album.isPublic,
+    updatedAt: album.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * A catalog line (artist · tracks · edited) whose separators stay with the item that follows,
+ * so a wrapped line never starts or ends on a dangling dot.
+ */
+export function CatalogItems({ items }: { items: ReactNode[] }) {
+  return (
+    <>
+      {items.filter(Boolean).map((item, index) => (
+        <span key={index} className="whitespace-nowrap">
+          {index > 0 ? <span aria-hidden="true" className="mr-2">·</span> : null}
+          {item}
+        </span>
+      ))}
     </>
   );
+}
 
-  const wrapperClassName = cn(
-    "group flex items-center gap-4 rounded-2xl border border-line bg-raised p-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)] transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-    className,
-  );
-
-  return href ? (
-    <Link href={href} className={wrapperClassName}>
-      {content}
+/**
+ * One album as a catalog row: the title in the display cut, a catalog line beneath it
+ * (artist · tracks · edited), and its status. The whole row is a single link.
+ */
+export function AlbumCard({
+  album,
+  href,
+  hint,
+  className,
+}: {
+  album: AlbumListItem;
+  href: string;
+  /** Where the row leads, e.g. "Open Bible". Shown at the row's end on wider screens. */
+  hint?: ReactNode;
+  className?: string;
+}) {
+  const tracks = `${album.trackCount} ${album.trackCount === 1 ? "track" : "tracks"}`;
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "group flex min-h-11 items-center gap-4 px-1 py-3 transition-colors hover:bg-hover",
+        className,
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="type-display truncate text-lg text-ink md:text-xl">{album.title}</p>
+        <p className="type-catalog mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
+          <CatalogItems
+            items={[
+              album.artist || "No artist yet",
+              <span key="tracks" className="type-figure">{tracks}</span>,
+              <span key="edited">
+                Edited <RelativeTime date={album.updatedAt} />
+              </span>,
+            ]}
+          />
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <Chip>{albumStatusLabel(album.status)}</Chip>
+        {album.isPublic ? <Chip className="hidden sm:inline-flex">On Discover</Chip> : null}
+        {hint ? <span className="hidden text-sm text-ink-2 group-hover:text-ink md:inline">{hint}</span> : null}
+        <ChevronRight className="h-4 w-4 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+      </div>
     </Link>
-  ) : (
-    <div className={wrapperClassName}>{content}</div>
+  );
+}
+
+/** A list of album rows separated by hairlines. */
+export function AlbumList({
+  albums,
+  hrefFor,
+  hint,
+  label,
+}: {
+  albums: AlbumListItem[];
+  hrefFor: (album: AlbumListItem) => string;
+  hint?: ReactNode;
+  label?: string;
+}) {
+  return (
+    <ul aria-label={label} className="border-t border-line">
+      {albums.map((album) => (
+        <li key={album.id} className="border-b border-line">
+          <AlbumCard album={album} href={hrefFor(album)} hint={hint} />
+        </li>
+      ))}
+    </ul>
   );
 }

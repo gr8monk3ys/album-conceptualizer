@@ -1,5 +1,6 @@
 import { AlbumJsonSchema } from "@/server/album-json";
 import { getAlbumTrackedEvents } from "@/server/analytics";
+import { analyzeAlbumCoherence, coherenceFixHref, MIN_WRITTEN_TRACKS_FOR_SCORE } from "@/server/coherence";
 import { listAlbumRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 
@@ -30,6 +31,19 @@ function hasDirectionLocked(data: unknown) {
   );
 }
 
+type SongProgress = { trackNumber: number; hasThemes: boolean };
+
+function songProgress(data: unknown): SongProgress[] {
+  const parsed = AlbumJsonSchema.safeParse(data);
+  if (!parsed.success) return [];
+  return parsed.data.songs
+    .map((song) => ({
+      trackNumber: song.track_number,
+      hasThemes: song.themes.some((theme) => theme.trim().length > 0),
+    }))
+    .sort((left, right) => left.trackNumber - right.trackNumber);
+}
+
 function hasStyleBibleLocked(data: unknown) {
   const summary = summarizeStyleBible(getAlbumStyleBible(data));
   return summary.filledCount >= 3;
@@ -46,55 +60,70 @@ export async function getAlbumOnboardingSummary(input: {
   isPublic: boolean;
 }) {
   const trackedEvents = await getAlbumTrackedEvents(input.workspaceId, input.albumId);
+  const base = `/app/albums/${input.albumId}`;
+  const songs = songProgress(input.data);
+  const coherence = analyzeAlbumCoherence(input.data);
+  const lyricTarget = Math.max(1, Math.min(MIN_WRITTEN_TRACKS_FOR_SCORE, songs.length));
+  const lyricFix = coherence.issues.find((issue) => issue.id === "missing_lyrics")?.fix;
+  const chordFix = coherence.issues.find((issue) => issue.id === "missing_chords")?.fix;
+  const untagged = songs.find((song) => !song.hasThemes) ?? songs[0];
 
   const steps: AlbumOnboardingStep[] = [
     {
       key: "blueprint_saved",
       label: "Blueprint saved",
-      description: "Your first album scaffold is in the workspace.",
-      href: `/app/albums/${input.albumId}`,
+      description: "The album's concept and tracklist are in your workspace.",
+      href: `${base}/studio?focus=album`,
       complete: true,
     },
     {
       key: "direction_locked",
       label: "Lock the direction",
-      description: "Add a concept, narrative shape, and at least one theme or reference.",
-      href: `/app/albums/${input.albumId}/studio`,
+      description: "Add a concept, narrative shape, and at least one theme or reference album.",
+      href: `${base}/studio?focus=album`,
       complete: hasDirectionLocked(input.data),
     },
     {
+      key: "lyrics_written",
+      label: lyricTarget === 1 ? "Write the lyrics" : "Write lyrics for two tracks",
+      description: "Replace the placeholder lines. The Coherence report scores the album from here.",
+      href: coherenceFixHref(input.albumId, lyricFix ?? { focus: "song" }),
+      complete: coherence.stats.songsWithLyrics >= lyricTarget,
+    },
+    {
+      // Kept as "bible_reviewed": tagging themes is what makes the Bible worth reviewing.
       key: "bible_reviewed",
-      label: "Review the bible",
-      description: "Check the album-level themes, motifs, and story map.",
-      href: `/app/albums/${input.albumId}/bible`,
-      complete: trackedEvents.has("album_bible_viewed"),
+      label: "Tag themes on a track",
+      description: "Mark which of the album's themes a track carries so the Bible can map them.",
+      href: coherenceFixHref(input.albumId, { focus: "story", trackNumber: untagged?.trackNumber }),
+      complete: songs.some((song) => song.hasThemes),
+    },
+    {
+      key: "chords_set",
+      label: "Write chords and tempo",
+      description: "Replace the starting loop with a progression and tempo that fit the track.",
+      href: coherenceFixHref(input.albumId, chordFix ?? { focus: "song" }),
+      complete: coherence.stats.songsWithChords > 0,
     },
     {
       key: "style_bible_locked",
-      label: "Lock the voice + style",
+      label: "Lock the voice and style",
       description: "Set the singer brief, palette, and mix priorities before handoff.",
-      href: `/app/albums/${input.albumId}/style`,
+      href: `${base}/style`,
       complete: trackedEvents.has("album_style_bible_saved") || hasStyleBibleLocked(input.data),
     },
     {
       key: "rough_demo_captured",
       label: "Capture a rough demo",
       description: "Save one memo, rehearsal take, or riff sketch while the idea is fresh.",
-      href: `/app/albums/${input.albumId}/demos`,
+      href: `${base}/demos`,
       complete: trackedEvents.has("album_demo_added") || hasRoughDemoCaptured(input.data),
-    },
-    {
-      key: "studio_saved",
-      label: "Make a first studio pass",
-      description: "Edit at least one track and save the album once.",
-      href: `/app/albums/${input.albumId}/studio`,
-      complete: trackedEvents.has("album_saved"),
     },
     {
       key: "export_or_publish",
       label: "Export or publish",
-      description: "Create a handoff pack or publish the blueprint for remix.",
-      href: `/app/albums/${input.albumId}/export`,
+      description: "Download a handoff pack for your DAW or collaborators, or publish the album to Discover.",
+      href: `${base}/export`,
       complete: trackedEvents.has("album_export_requested") || input.isPublic,
     },
   ];

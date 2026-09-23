@@ -1,66 +1,74 @@
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 
-export default function SettingsPage() {
+import { PageHeader } from "@/components/ui";
+import { requireUser } from "@/server/identity";
+import { effectivePlan } from "@/server/plan";
+import { getActiveWorkspaceForUser } from "@/server/workspaces";
+
+export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Settings",
+  description: "Your plan and credits, workspace activity and service status.",
+};
+
+const PLAN_NAME = { free: "Free", pro: "Pro", team: "Team" } as const;
+
+export default async function SettingsPage() {
+  const { userId } = await requireUser();
+  const workspace = await getActiveWorkspaceForUser(userId);
+  const plan = effectivePlan(workspace.subscription);
+
+  const rows: Array<{ href: string; title: string; detail: string; external?: boolean }> = [
+    {
+      href: "/app/settings/billing",
+      title: "Plan and billing",
+      detail: `You're on the ${PLAN_NAME[plan]} plan. Compare plans, see what credits pay for, and manage payment.`,
+    },
+    {
+      href: "/app/settings/analytics",
+      title: "Workspace funnel",
+      detail: "How your albums move from first draft to export and publishing, and recent activity.",
+    },
+    {
+      href: "/api/health",
+      title: "Service status",
+      detail: "A technical readout of whether saving and exports are working. Useful if something keeps failing.",
+      external: true,
+    },
+  ];
+
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <div className="text-xs text-ink-3">Settings</div>
-        <div className="text-2xl font-semibold tracking-tight text-ink">
-          Workspace settings
-        </div>
-        <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
-          Configure your workspace, runtime health, and billing plan. This Next.js app stores users
-          and subscriptions in Neon (Postgres).
-        </div>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader title="Settings" catalog={workspace.name} />
 
-      <div className="grid grid-cols-1 gap-3 [content-visibility:auto] [contain-intrinsic-size:960px] md:grid-cols-3">
-        <div className="rounded-2xl border border-line bg-raised p-4 [content-visibility:auto] [contain-intrinsic-size:220px]">
-          <div className="text-sm font-semibold text-ink">Billing</div>
-          <div className="mt-1 text-sm text-ink-2">
-            Manage plan, credits, and invoices.
-          </div>
-          <div className="mt-3">
-            <Link
-              href="/app/settings/billing"
-              className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
-            >
-              Open Billing
-            </Link>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-line bg-raised p-4 [content-visibility:auto] [contain-intrinsic-size:220px]">
-          <div className="text-sm font-semibold text-ink">Runtime Health</div>
-          <div className="mt-1 text-sm text-ink-2">
-            Check whether config, database, and export engine readiness are green in the deployed
-            app.
-          </div>
-          <div className="mt-3">
-            <a
-              href="/api/health"
-              className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
-            >
-              Open Health
-            </a>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-line bg-raised p-4 [content-visibility:auto] [contain-intrinsic-size:220px]">
-          <div className="text-sm font-semibold text-ink">Analytics</div>
-          <div className="mt-1 text-sm text-ink-2">
-            Review project creation, activation, export, publish, and billing funnel events.
-          </div>
-          <div className="mt-3">
-            <Link
-              href="/app/settings/analytics"
-              className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
-            >
-              Open Analytics
-            </Link>
-          </div>
-        </div>
-      </div>
+      <ul aria-label="Settings" className="border-t border-line">
+        {rows.map((row) => {
+          const content = (
+            <>
+              <span className="min-w-0 flex-1">
+                <span className="block text-base font-semibold text-ink">{row.title}</span>
+                <span className="mt-0.5 block text-sm text-ink-2">{row.detail}</span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+            </>
+          );
+          const className = "group flex min-h-11 items-center gap-4 px-1 py-4 transition-colors hover:bg-hover";
+          return (
+            <li key={row.href} className="border-b border-line">
+              {row.external ? (
+                <a href={row.href} className={className}>
+                  {content}
+                </a>
+              ) : (
+                <Link href={row.href} className={className}>
+                  {content}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -1,7 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ForkShareButton } from "@/components/fork-share-button";
+import { RelativeTime } from "@/components/relative-time";
+import { SiteHeader } from "@/components/site-header";
+import { ButtonLink, EmptyState } from "@/components/ui";
 import { getAuthSession } from "@/server/auth";
 import { getAlbumSongOptions } from "@/server/album-songs";
 import { findSharedAlbum } from "@/server/share-links";
@@ -9,8 +11,45 @@ import { findSharedAlbum } from "@/server/share-links";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Shared Album",
-  description: "Review a shared album and fork it into your workspace.",
+  description: "Review a shared album and remix it into your workspace.",
 };
+
+type ShareTrack = {
+  trackNumber: number;
+  title: string;
+  role: string | null;
+  themes: string[];
+};
+
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/** Each track's narrative role and themes, read from the shared album snapshot. */
+function getShareTracks(data: unknown): ShareTrack[] {
+  const songs = (data as { songs?: unknown } | null)?.songs;
+  const byNumber = new Map<number, Record<string, unknown>>();
+  if (Array.isArray(songs)) {
+    for (const raw of songs) {
+      if (raw && typeof raw === "object") {
+        const song = raw as Record<string, unknown>;
+        if (typeof song.track_number === "number") byNumber.set(song.track_number, song);
+      }
+    }
+  }
+  return getAlbumSongOptions(data).map((option) => {
+    const song = byNumber.get(option.trackNumber) ?? {};
+    const themes = Array.isArray(song.themes)
+      ? song.themes.filter((theme): theme is string => typeof theme === "string" && theme.trim().length > 0)
+      : [];
+    return {
+      trackNumber: option.trackNumber,
+      title: option.title,
+      role: text(song.narrative_summary) ?? text(song.narrative_position),
+      themes,
+    };
+  });
+}
 
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -25,85 +64,99 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   });
   if (!album) notFound();
 
-  const songs = getAlbumSongOptions(album.data);
+  const tracks = getShareTracks(album.data);
   const callbackUrl = `/share/${token}`;
+  const signedIn = Boolean(session?.user?.id);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(109,94,252,0.22),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(255,62,165,0.20),transparent_45%),radial-gradient(circle_at_40%_90%,rgba(50,213,131,0.10),transparent_55%),var(--bg)] px-6 py-14 text-ink">
-      <div className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:48px_48px]" />
+    <div className="min-h-screen bg-ground text-ink">
+      <div className="mx-auto flex max-w-[1000px] flex-col px-4 pb-16 pt-4 sm:px-6 md:pt-6">
+        <SiteHeader showSignIn={!signedIn} />
 
-      <div className="relative mx-auto flex max-w-[980px] flex-col gap-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-xs text-ink-3">Shared project</div>
-            <div className="truncate text-3xl font-semibold tracking-tight">{album.title}</div>
-            <div className="mt-1 text-sm text-ink-2">
-              {album.artist ? `by ${album.artist}` : "Artist not set"} · Updated{" "}
-              {album.updatedAt.toLocaleString()}
+        <main className="mt-10 flex flex-col gap-10 md:mt-14">
+          <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-5">
+            <div className="min-w-0 max-w-[40rem]">
+              <h1 className="type-display break-words text-4xl text-ink md:text-6xl">{album.title}</h1>
+              <p className="type-catalog mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">
+                <span>{album.artist || "No artist yet"}</span>
+                <span aria-hidden="true">·</span>
+                <span className="type-figure">
+                  {tracks.length} {tracks.length === 1 ? "track" : "tracks"}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>Shared album</span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  Edited <RelativeTime date={album.updatedAt.toISOString()} />
+                </span>
+              </p>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {session?.user?.id ? (
-              <ForkShareButton token={token} />
-            ) : (
-              <Link
-                href={`/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`}
-                className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_70px_rgba(0,0,0,0.4)] hover:bg-white/90"
-              >
-                Sign in to remix
-              </Link>
-            )}
-          </div>
-        </div>
-
-        {album.conceptSummary ? (
-          <div className="rounded-2xl border border-line bg-raised p-4">
-            <div className="text-xs text-ink-3">Concept</div>
-            <div className="mt-2 text-sm leading-relaxed text-ink-2">
-              {album.conceptSummary}
+            <div className="flex flex-col items-start gap-2">
+              {signedIn ? (
+                <ForkShareButton token={token} />
+              ) : (
+                <ButtonLink
+                  tone="primary"
+                  href={`/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`}
+                >
+                  Sign in to remix
+                </ButtonLink>
+              )}
             </div>
-          </div>
-        ) : null}
+          </header>
 
-        <div className="rounded-2xl border border-line bg-raised p-4 shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs text-ink-3">Tracklist</div>
-              <div className="text-sm font-semibold">Songs</div>
-            </div>
-            <div className="text-xs text-ink-2">{songs.length} tracks</div>
-          </div>
+          {album.conceptSummary ? (
+            <section aria-labelledby="share-concept-title" className="border-t border-line pt-6">
+              <h2 id="share-concept-title" className="text-lg font-semibold text-ink">
+                Concept
+              </h2>
+              <p className="mt-2 max-w-[68ch] whitespace-pre-line text-base leading-relaxed text-ink-2">
+                {album.conceptSummary}
+              </p>
+            </section>
+          ) : null}
 
-          <div className="mt-3 overflow-hidden rounded-2xl border border-line">
-            {songs.length ? (
-              <ul className="divide-y divide-line">
-                {songs.map((song) => (
-                  <li key={`${song.trackNumber}-${song.title}`} className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 text-xs tabular-nums text-ink-3">
-                        {String(song.trackNumber).padStart(2, "0")}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold">{song.title}</div>
-                        <div className="truncate text-xs text-ink-3">
-                          Shared read-only preview.
-                        </div>
-                      </div>
+          <section aria-labelledby="share-sequence-title" className="border-t border-line pt-6">
+            <h2 id="share-sequence-title" className="text-lg font-semibold text-ink">
+              Sequence
+            </h2>
+            {tracks.length ? (
+              <ol className="mt-3 border-t border-line">
+                {tracks.map((track) => (
+                  <li
+                    key={`${track.trackNumber}-${track.title}`}
+                    className="flex min-h-11 items-baseline gap-4 border-b border-line py-3"
+                  >
+                    <span className="type-figure w-9 shrink-0 text-2xl font-semibold text-ink-3">
+                      {String(track.trackNumber).padStart(2, "0")}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-base font-semibold text-ink">{track.title}</p>
+                      {track.role ? (
+                        <p className="mt-0.5 line-clamp-2 text-sm leading-relaxed text-ink-2">{track.role}</p>
+                      ) : null}
+                      {track.themes.length ? (
+                        <p className="type-catalog mt-1 text-xs text-ink-3">
+                          <span className="sr-only">Themes: </span>
+                          {track.themes.join(" · ")}
+                        </p>
+                      ) : null}
                     </div>
                   </li>
                 ))}
-              </ul>
+              </ol>
             ) : (
-              <div className="px-4 py-10 text-center text-sm text-ink-2">
-                No songs found in this project.
-              </div>
+              <EmptyState title="No tracks in this album yet" className="mt-3">
+                The owner hasn&apos;t added any tracks. You can still remix it and build the sequence
+                yourself.
+              </EmptyState>
             )}
-          </div>
-
-          <div className="mt-4 text-xs text-ink-3">
-            Want to edit, export, and run agents? Sign in to create your own fork of this project.
-          </div>
-        </div>
+            <p className="mt-4 max-w-[68ch] text-sm leading-relaxed text-ink-3">
+              This is a read-only preview. Remix it to get your own copy in your workspace, where you
+              can write, check coherence and export.
+            </p>
+          </section>
+        </main>
       </div>
     </div>
   );

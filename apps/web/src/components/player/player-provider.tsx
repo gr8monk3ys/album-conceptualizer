@@ -42,9 +42,18 @@ type PlayerApi = {
   toggleLoop: () => void;
   setInstrument: (instrument: PreviewInstrument) => Promise<void>;
   getWaveform: () => Uint8Array | null;
+  /** Load the last preview again (after a failure) and start it. */
+  retry: () => Promise<void>;
 };
 
+/** The stable part of the player: what a screen needs to start a preview. */
+export type PlayerControls = Pick<PlayerApi, "arm" | "loadMidi" | "play">;
+
+/** Shown when a preview cannot be loaded or rendered. Plain words, never a raw error. */
+export const PREVIEW_FAILED_MESSAGE = "Couldn't render this preview.";
+
 const PlayerContext = createContext<PlayerApi | null>(null);
+const PlayerControlsContext = createContext<PlayerControls | null>(null);
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -96,6 +105,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   }, [loop]);
 
   const currentMidiNotesRef = useRef<string[]>([]);
+  const lastInputRef = useRef<LoadMidiInput | null>(null);
 
   function getAudioContext(): AudioContext {
     return Tone.getContext().rawContext as AudioContext;
@@ -238,6 +248,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
   const loadMidi = useCallback(
     async (input: LoadMidiInput) => {
+      lastInputRef.current = input;
       setStatus("loading");
       setError(null);
       setNowPlaying({ kind: "midi", title: input.title, subtitle: input.subtitle });
@@ -309,8 +320,9 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
         setStatus("ready");
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unable to load preview.";
-        setError(message);
+        // Keep the technical reason for debugging; the artist sees a plain message and Retry.
+        console.warn("preview_load_failed", err);
+        setError(PREVIEW_FAILED_MESSAGE);
         setStatus("error");
       }
     },
@@ -332,6 +344,14 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
     Tone.Transport.start();
     setStatus("playing");
   }, [arm, instrumentLoading]);
+
+  const retry = useCallback(async () => {
+    const input = lastInputRef.current;
+    if (!input) return;
+    await arm().catch(() => null);
+    await loadMidi(input);
+    if (partRef.current) await play().catch(() => null);
+  }, [arm, loadMidi, play]);
 
   const toggleLoop = useCallback(() => {
     setLoop((prev) => !prev);
@@ -407,6 +427,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       toggleLoop,
       setInstrument,
       getWaveform,
+      retry,
     }),
     [
       arm,
@@ -421,6 +442,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       pause,
       play,
       position,
+      retry,
       seek,
       setInstrument,
       setVolume,
@@ -431,7 +453,15 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
     ],
   );
 
-  return <PlayerContext.Provider value={api}>{children}</PlayerContext.Provider>;
+  // Screens that only start previews read this context, so they do not re-render on every
+  // playback frame while the position ticks.
+  const controls = useMemo<PlayerControls>(() => ({ arm, loadMidi, play }), [arm, loadMidi, play]);
+
+  return (
+    <PlayerControlsContext.Provider value={controls}>
+      <PlayerContext.Provider value={api}>{children}</PlayerContext.Provider>
+    </PlayerControlsContext.Provider>
+  );
 }
 
 export function PlayerProvider(props: PlayerProviderProps) {
@@ -441,5 +471,11 @@ export function PlayerProvider(props: PlayerProviderProps) {
 export function usePlayer() {
   const ctx = useContext(PlayerContext);
   if (!ctx) throw new Error("usePlayer must be used within a PlayerProvider.");
+  return ctx;
+}
+
+export function usePlayerControls() {
+  const ctx = useContext(PlayerControlsContext);
+  if (!ctx) throw new Error("usePlayerControls must be used within a PlayerProvider.");
   return ctx;
 }

@@ -1,11 +1,14 @@
 import { AlbumJsonSchema } from "@/server/album-json";
 import { normalizeStyleBible } from "@/server/style-bible";
 import type { AlbumStyleBible } from "@/server/album-json";
+import type { CoherenceFix } from "@/server/coherence";
 
 export type BibleIssue = {
   level: "info" | "warn";
   title: string;
   detail: string;
+  /** Where the artist fixes it; build the link with `coherenceFixHref`. */
+  fix?: CoherenceFix;
 };
 
 export type BibleCoverageRow = {
@@ -125,7 +128,8 @@ export function buildAlbumBible(data: unknown): AlbumBible {
         {
           level: "warn",
           title: "Album data is invalid",
-          detail: "This project data could not be parsed. Re-save the project from Studio and try again.",
+          detail: "This album's data could not be read. Save the album again in the Studio and try again.",
+          fix: { focus: "song" },
         },
       ],
     };
@@ -181,6 +185,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       detail: topThemes.length
         ? `Consider promoting key themes: ${topThemes.join(", ")}.`
         : "Add 3-6 central themes to guide consistency across tracks.",
+      fix: { focus: "album" },
     });
   }
 
@@ -192,6 +197,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       detail: topMotifs.length
         ? `Motifs detected in tracks: ${topMotifs.join(", ")}. Consider elevating 1-3 to album-level motifs.`
         : "Add 1-3 recurring motifs to tighten cohesion (sonic texture, symbols, chord devices).",
+      fix: { focus: "album" },
     });
   }
 
@@ -200,6 +206,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       level: "info",
       title: "No lead voice brief set",
       detail: "Define the vocal identity so collaborators and reference packs aim at the same singer perspective.",
+      fix: { focus: "style" },
     });
   }
 
@@ -208,6 +215,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       level: "info",
       title: "No sonic palette locked yet",
       detail: "Add 3-6 palette anchors so arrangement and production choices stay consistent across tracks.",
+      fix: { focus: "style" },
     });
   }
 
@@ -216,6 +224,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       level: "info",
       title: "Mix priorities are still blank",
       detail: "Call out what should stay forward, wide, or restrained before export or handoff.",
+      fix: { focus: "style" },
     });
   }
 
@@ -225,6 +234,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
         level: "info",
         title: `Track ${track.trackNumber} is missing a narrative summary`,
         detail: "Add a 1-2 sentence summary so the arc can be validated across the album.",
+        fix: { focus: "story", trackNumber: track.trackNumber },
       });
     }
     if (!track.themes.length) {
@@ -232,6 +242,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
         level: "info",
         title: `Track ${track.trackNumber} has no themes`,
         detail: "Add at least 1 theme tag so coverage checks can detect gaps.",
+        fix: { focus: "story", trackNumber: track.trackNumber },
       });
     }
   }
@@ -249,12 +260,14 @@ export function buildAlbumBible(data: unknown): AlbumBible {
         level: "warn",
         title: `Theme "${theme}" never appears in track tags`,
         detail: "Either remove it from album-level themes or tag the tracks where it should show up.",
+        fix: { focus: "album" },
       });
     } else if (appears.length === 1) {
       issues.push({
         level: "warn",
         title: `Theme "${theme}" only appears in Track ${appears[0]}`,
         detail: "Consider weaving it into at least one more track to make it feel intentional.",
+        fix: { focus: "album" },
       });
     }
   }
@@ -265,6 +278,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
         level: "info",
         title: `Theme "${row.name}" recurs across ${row.trackNumbers.length} tracks`,
         detail: "Consider adding it to album-level themes if it is intentional.",
+        fix: { focus: "album" },
       });
     }
   }
@@ -275,6 +289,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
         level: "warn",
         title: `Character "${character.name}" only appears once`,
         detail: `Currently only tagged in Track ${character.trackNumbers[0]}. Either bring them back or remove to avoid a dangling thread.`,
+        fix: { focus: "story", trackNumber: character.trackNumbers[0] },
       });
     }
   }
@@ -285,7 +300,11 @@ export function buildAlbumBible(data: unknown): AlbumBible {
     issues.push({
       level: "warn",
       title: "Chronological order is only partially set",
-      detail: "Either set chronological_order for every track (for story albums) or rely on track order only.",
+      detail: "Either set a story order for every track (for story albums) or rely on track order only.",
+      fix: {
+        focus: "story",
+        trackNumber: tracks.find((t) => typeof t.chronologicalOrder !== "number")?.trackNumber,
+      },
     });
   }
 

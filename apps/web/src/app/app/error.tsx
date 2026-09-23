@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
+
+import { Button, ButtonLink, PageHeader } from "@/components/ui";
 
 export default function AppError({
   error,
@@ -15,37 +16,24 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-16">
-      <div className="w-full max-w-md text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-line bg-raised px-3 py-1 text-xs text-ink-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--bad)]" />
-          Something went wrong
-        </div>
-
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-ink">
-          Unexpected error
-        </h1>
-        <p className="mt-3 text-sm leading-relaxed text-ink-2">
-          An error occurred while loading this page. Please try again, and if the problem persists
-          contact support.
-        </p>
-
-        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <button
-            type="button"
-            onClick={reset}
-            className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90"
-          >
-            Try again
-          </button>
-          <Link
-            href="/app"
-            className="rounded-2xl bg-selected px-5 py-3 text-sm font-semibold text-ink hover:bg-selected"
-          >
-            Go to dashboard
-          </Link>
-        </div>
+    <div className="flex flex-col gap-6 py-8">
+      <PageHeader
+        title="This page didn’t load"
+        description="Something went wrong on our side while opening it. Your albums and everything you saved are safe. Try again; if it keeps happening, go back to your albums and open it from there."
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <Button tone="primary" onClick={reset}>
+          Try again
+        </Button>
+        <ButtonLink tone="secondary" href="/app">
+          Back to your albums
+        </ButtonLink>
       </div>
+      {error.digest ? (
+        <p className="text-xs text-ink-3">
+          If you contact support, mention this reference: <span className="type-figure">{error.digest}</span>
+        </p>
+      ) : null}
     </div>
   );
 }

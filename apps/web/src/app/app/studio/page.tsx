@@ -1,6 +1,5 @@
-import Link from "next/link";
-
-import { AlbumCard, type AlbumListItem } from "@/components/album-card";
+import { AlbumList, toAlbumListItem } from "@/components/album-card";
+import { ButtonLink, EmptyState, PageHeader } from "@/components/ui";
 import { listAlbums } from "@/server/albums";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
@@ -8,54 +7,40 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Studio",
-  description: "Jump into active projects and continue drafting album sections.",
+  description: "Choose an album to write lyrics, chords and structure section by section.",
 };
 
 export default async function StudioPage() {
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
-  const albums = await listAlbums(workspace.id);
-
-  const items: AlbumListItem[] = albums.map((album) => ({
-    id: album.id,
-    title: album.title,
-    subtitle: `${album.primaryGenre || "Concept"} | ${album.trackCount} tracks`,
-    tag: album.status === "draft" ? "draft" : undefined,
-    cover: album.coverUrl ?? undefined,
-  }));
+  const albums = (await listAlbums(workspace.id)).map(toAlbumListItem);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xs text-ink-3">Studio</div>
-          <div className="text-2xl font-semibold tracking-tight text-ink">
-            Edit songs and sections
-          </div>
-          <div className="mt-2 max-w-[70ch] text-sm text-ink-2">
-            Pick a project to edit lyrics drafts, chord loops, and section structure. Every save
-            syncs to the database so exports stay up to date.
-          </div>
-        </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Studio"
+        description="Choose an album to write lyrics, chords and song structure, section by section."
+      />
 
-        <Link
-          href="/app/create"
-          className="rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-accent-ink hover:brightness-110"
+      {albums.length ? (
+        <AlbumList
+          label="Albums"
+          albums={albums}
+          hint="Open Studio"
+          hrefFor={(album) => `/app/albums/${album.id}/studio`}
+        />
+      ) : (
+        <EmptyState
+          title="Nothing to write yet"
+          action={
+            <ButtonLink tone="primary" href="/app/create">
+              Start your first album
+            </ButtonLink>
+          }
         >
-          New project
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3">
-        {items.map((album) => (
-          <AlbumCard key={album.id} album={album} href={`/app/albums/${album.id}/studio`} />
-        ))}
-      </div>
-
-      {items.length ? null : (
-        <div className="rounded-2xl border border-line bg-raised p-6 text-sm text-ink-2">
-          No projects yet. Create one, then come back here to write section-by-section.
-        </div>
+          The Studio is where each song gets its sections, lyrics and chord loops. Start an album
+          first; its tracklist shows up here, ready to write.
+        </EmptyState>
       )}
     </div>
   );

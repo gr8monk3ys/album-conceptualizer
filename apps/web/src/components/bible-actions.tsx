@@ -2,12 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Download, Sparkles } from "lucide-react";
+import { Download, Tags } from "lucide-react";
 
+import { Button, StatusMessage, buttonClass } from "@/components/ui";
+
+/** Suggest tags from the lyrics, or take the Bible away as Markdown or PDF. */
 export function BibleActions({ albumId }: { albumId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
 
   async function autotag() {
     setLoading(true);
@@ -15,56 +18,46 @@ export function BibleActions({ albumId }: { albumId: string }) {
     try {
       const res = await fetch(`/api/albums/${albumId}/autotag`, { method: "POST" });
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Autotag failed (${res.status}).`);
+        const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+        throw new Error(
+          typeof body?.error === "string" && body.error
+            ? body.error
+            : "No tags were added. Try again in a moment.",
+        );
       }
-      setStatus("Tags applied.");
+      setStatus({ tone: "ok", text: "Tags added from the lyrics. Review them in each track's story notes." });
       router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Autotag failed.";
-      setStatus(message);
+      setStatus({
+        tone: "danger",
+        text: err instanceof Error ? err.message : "No tags were added. Try again in a moment.",
+      });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        disabled={loading}
-        onClick={() => void autotag()}
-        className="inline-flex items-center gap-2 rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
-        title="Auto-tag themes, motifs, and characters from lyrics"
-      >
-        <Sparkles className="h-4 w-4" />
-        {loading ? "Tagging…" : "Auto-tag"}
-      </button>
-
-      <a
-        href={`/api/albums/${albumId}/bible/markdown`}
-        className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-sunken px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
-        title="Download bible as Markdown"
-      >
-        <Download className="h-4 w-4" />
-        Markdown
-      </a>
-
-      <a
-        href={`/api/albums/${albumId}/bible/pdf`}
-        className="inline-flex items-center gap-2 rounded-2xl border border-line-strong bg-sunken px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
-        title="Download bible as PDF"
-      >
-        <Download className="h-4 w-4" />
-        PDF
-      </a>
-
-      {status ? (
-        <div className="text-xs text-ink-3" aria-live="polite">
-          {status}
-        </div>
-      ) : null}
+    <div className="flex flex-col items-start gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => void autotag()} disabled={loading} aria-busy={loading || undefined}>
+          <Tags className="h-4 w-4" aria-hidden="true" />
+          {loading ? "Tagging…" : "Tag from lyrics"}
+        </Button>
+        <a href={`/api/albums/${albumId}/bible/markdown`} className={buttonClass("ghost")} download>
+          <Download className="h-4 w-4" aria-hidden="true" />
+          <span>
+            <span className="sr-only">Download the Bible as </span>Markdown
+          </span>
+        </a>
+        <a href={`/api/albums/${albumId}/bible/pdf`} className={buttonClass("ghost")} download>
+          <Download className="h-4 w-4" aria-hidden="true" />
+          <span>
+            <span className="sr-only">Download the Bible as </span>PDF
+          </span>
+        </a>
+      </div>
+      {status ? <StatusMessage tone={status.tone}>{status.text}</StatusMessage> : null}
     </div>
   );
 }
-

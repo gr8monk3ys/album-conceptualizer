@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
@@ -15,6 +14,7 @@ export const metadata = {
   description: "Define the vocal identity, sonic palette, and production rules for your album.",
 };
 
+// The album layout renders the title, catalog line, album tabs and spine above this page.
 export default async function AlbumStyleBiblePage({
   params,
 }: {
@@ -31,52 +31,12 @@ export default async function AlbumStyleBiblePage({
   const summary = summarizeStyleBible(styleBible, references);
 
   return (
-    <div className="flex flex-col gap-5">
+    <>
       <AlbumPageViewTracker
         albumId={album.id}
         event="album_style_bible_viewed"
         path={`/app/albums/${album.id}/style`}
       />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-ink-3">Voice / Style Bible</div>
-          <div className="text-2xl font-semibold tracking-tight text-ink">
-            {album.title}
-          </div>
-          <div className="mt-1 text-sm text-ink-2">
-            {album.artist ? `by ${album.artist}` : "Artist not set"}
-            {album.primaryGenre ? ` · ${album.primaryGenre}` : ""}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/app/albums/${album.id}`}
-            className="rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
-          >
-            Back
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/bible`}
-            className="rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
-          >
-            Bible
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/references`}
-            className="rounded-2xl border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover"
-          >
-            References
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/studio`}
-            className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90"
-          >
-            Studio
-          </Link>
-        </div>
-      </div>
-
       <AlbumStyleBibleWorkspace
         albumId={album.id}
         initialStyleBible={styleBible}
@@ -90,6 +50,6 @@ export default async function AlbumStyleBiblePage({
           songTrackNumber: reference.songTrackNumber,
         }))}
       />
-    </div>
+    </>
   );
 }

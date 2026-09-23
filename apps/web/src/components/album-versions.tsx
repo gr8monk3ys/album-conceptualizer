@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { RelativeTime } from "@/components/relative-time";
+import { Button, EmptyState, Field, Panel, Section, StatusMessage, inputClass } from "@/components/ui";
+
 type VersionListItem = {
   id: string;
   message: string | null;
@@ -10,156 +13,189 @@ type VersionListItem = {
   createdBy?: { name: string | null; email: string | null } | null;
 };
 
-export function AlbumVersions({
-  albumId,
-  versions,
-}: {
-  albumId: string;
-  versions: VersionListItem[];
-}) {
+type Status = { tone: "ok" | "danger"; text: string } | null;
+
+async function errorFrom(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof body?.error === "string" && body.error ? body.error : fallback;
+}
+
+/** Restores write "Before restoring <ISO date>"; show that date in the viewer's own terms. */
+function VersionTitle({ message }: { message: string | null }) {
+  const match = message?.match(/^Before restoring (\d{4}-\d{2}-\d{2}T[\d:.]+Z)$/);
+  if (match) {
+    return (
+      <>
+        Before restoring the version from <RelativeTime date={match[1]} />
+      </>
+    );
+  }
+  return <>{message || "Untitled snapshot"}</>;
+}
+
+export function AlbumVersions({ albumId, versions }: { albumId: string; versions: VersionListItem[] }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
-  const [status, setStatus] = useState<string>("");
+  const [saveStatus, setSaveStatus] = useState<Status>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isRestoring, setIsRestoring] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreStatus, setRestoreStatus] = useState<Status>(null);
 
-  const canSave = message.trim().length > 0;
+  async function save() {
+    const trimmed = message.trim();
+    if (!trimmed) return;
+    setIsSaving(true);
+    setSaveStatus(null);
+    try {
+      const res = await fetch(`/api/albums/${albumId}/versions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: trimmed }),
+      });
+      if (!res.ok) throw new Error(await errorFrom(res, "The snapshot wasn't saved. Try again in a moment."));
+      setMessage("");
+      setSaveStatus({ tone: "ok", text: "Snapshot saved." });
+      router.refresh();
+    } catch (err) {
+      setSaveStatus({
+        tone: "danger",
+        text: err instanceof Error ? err.message : "The snapshot wasn't saved. Try again in a moment.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function restore(versionId: string) {
+    setRestoringId(versionId);
+    setRestoreStatus(null);
+    try {
+      const res = await fetch(`/api/albums/${albumId}/versions/${versionId}/restore`, { method: "POST" });
+      if (!res.ok) throw new Error(await errorFrom(res, "That version wasn't restored. Try again in a moment."));
+      setRestoreStatus({ tone: "ok", text: "Version restored. Opening the album…" });
+      router.push(`/app/albums/${albumId}`);
+      router.refresh();
+    } catch (err) {
+      setRestoreStatus({
+        tone: "danger",
+        text: err instanceof Error ? err.message : "That version wasn't restored. Try again in a moment.",
+      });
+      setRestoringId(null);
+    }
+  }
 
   return (
-    <div className="flex flex-col gap-4">
-      <section className="rounded-2xl border border-line bg-raised p-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="text-xs text-ink-3">Versions</div>
-            <div className="text-lg font-semibold tracking-tight text-ink">
-              Save a snapshot
-            </div>
-          </div>
-
-          <button
-            type="button"
-            disabled={!canSave || isSaving}
-            onClick={async () => {
-              const trimmed = message.trim();
-              if (!trimmed) return;
-              setIsSaving(true);
-              try {
-                const res = await fetch(`/api/albums/${albumId}/versions`, {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ message: trimmed }),
-                });
-                if (!res.ok) {
-                  const body = (await res.json().catch(() => null)) as { error?: string } | null;
-                  throw new Error(body?.error || "Failed to save version.");
-                }
-                setMessage("");
-                setStatus("Saved version.");
-                router.refresh();
-              } catch (err) {
-                const msg = err instanceof Error ? err.message : "Failed to save version.";
-                setStatus(msg);
-              } finally {
-                setIsSaving(false);
-                window.setTimeout(() => setStatus(""), 1800);
-              }
+    <div className="flex flex-col gap-10">
+      <Section
+        id="versions-save"
+        title="Save a snapshot"
+        description="Keep the album as it is right now before a big lyric or chord rewrite, so you can come back to it."
+      >
+        <Panel className="max-w-2xl">
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void save();
             }}
-            className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSaving ? "Saving..." : "Save version"}
-          </button>
-        </div>
-
-        <div className="mt-3">
-          <label className="block">
-            <div className="text-xs font-semibold text-ink">Message</div>
-            <input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder='e.g., "Chorus rewrite + key changes"'
-              className="mt-2 w-full rounded-2xl border border-line bg-raised px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent"
-              maxLength={200}
-            />
-          </label>
-          {status ? <div className="mt-2 text-xs text-ink-3">{status}</div> : null}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-line bg-raised p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-xs text-ink-3">History</div>
-            <div className="text-sm font-semibold text-ink">
-              {versions.length ? "Saved versions" : "No versions yet"}
+            <Field htmlFor="version-message" label="What's in this snapshot" hint="A few words you'll recognise later.">
+              <input
+                id="version-message"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Chorus rewrite and key changes"
+                aria-describedby="version-message-hint"
+                className={inputClass}
+                maxLength={200}
+              />
+            </Field>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" tone="primary" disabled={!message.trim() || isSaving}>
+                {isSaving ? "Saving…" : "Save snapshot"}
+              </Button>
+              {saveStatus ? <StatusMessage tone={saveStatus.tone}>{saveStatus.text}</StatusMessage> : null}
             </div>
-          </div>
-          <div className="text-xs text-ink-2">{versions.length} items</div>
-        </div>
+          </form>
+        </Panel>
+      </Section>
 
-        <div className="mt-3 space-y-2">
-          {versions.length ? (
-            versions.map((version) => (
-              <div
-                key={version.id}
-                className="rounded-2xl border border-line bg-sunken px-4 py-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-ink">
-                      {version.message || "Version snapshot"}
+      <Section
+        id="versions-history"
+        title="Version history"
+        description={
+          versions.length
+            ? "Newest first. Restoring saves the current draft as a version first, so a restore can be undone."
+            : undefined
+        }
+      >
+        {versions.length ? (
+          <ol className="divide-y divide-line border-y border-line">
+            {versions.map((version) => {
+              const confirming = confirmingId === version.id;
+              const author = version.createdBy?.name || version.createdBy?.email;
+              return (
+                <li key={version.id} className="py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        <VersionTitle message={version.message} />
+                      </p>
+                      <p className="mt-0.5 text-xs text-ink-3">
+                        <RelativeTime date={version.createdAt} />
+                        {author ? ` · ${author}` : ""}
+                      </p>
                     </div>
-                    <div className="mt-1 text-xs text-ink-3">
-                      {new Date(version.createdAt).toLocaleString()}
-                      {version.createdBy?.email ? ` · ${version.createdBy.email}` : ""}
-                    </div>
+                    {confirming ? null : (
+                      <Button
+                        disabled={Boolean(restoringId)}
+                        onClick={() => {
+                          setConfirmingId(version.id);
+                          setRestoreStatus(null);
+                        }}
+                      >
+                        Restore
+                        <span className="sr-only">
+                          {` the version "${version.message || "Untitled snapshot"}"`}
+                        </span>
+                      </Button>
+                    )}
                   </div>
-
-                  <button
-                    type="button"
-                    disabled={Boolean(isRestoring)}
-                    onClick={async () => {
-                      const ok = window.confirm(
-                        "Restore this version? This will overwrite the current project snapshot.",
-                      );
-                      if (!ok) return;
-                      setIsRestoring(version.id);
-                      setStatus("Restoring...");
-                      try {
-                        const res = await fetch(
-                          `/api/albums/${albumId}/versions/${version.id}/restore`,
-                          { method: "POST" },
-                        );
-                        if (!res.ok) {
-                          const body = (await res.json().catch(() => null)) as
-                            | { error?: string }
-                            | null;
-                          throw new Error(body?.error || "Restore failed.");
-                        }
-                        setStatus("Restored version.");
-                        router.push(`/app/albums/${albumId}`);
-                        router.refresh();
-                      } catch (err) {
-                        const msg = err instanceof Error ? err.message : "Restore failed.";
-                        setStatus(msg);
-                      } finally {
-                        setIsRestoring(null);
-                        window.setTimeout(() => setStatus(""), 2000);
-                      }
-                    }}
-                    className="rounded-full border border-line bg-raised px-4 py-2 text-xs font-semibold text-ink hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isRestoring === version.id ? "Restoring..." : "Restore"}
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="rounded-2xl border border-line bg-sunken px-4 py-10 text-center text-sm text-ink-2">
-              Save a version before making big lyric or chord changes so you can revert quickly.
-            </div>
-          )}
-        </div>
-      </section>
+                  {confirming ? (
+                    <div className="mt-3 flex flex-col gap-3 rounded border border-line-strong p-3">
+                      <p className="text-sm text-ink">
+                        Replace the current draft with this version? The draft is saved as a version
+                        first.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          tone="danger"
+                          disabled={Boolean(restoringId)}
+                          onClick={() => void restore(version.id)}
+                        >
+                          {restoringId === version.id ? "Restoring…" : "Restore this version"}
+                        </Button>
+                        <Button tone="ghost" disabled={Boolean(restoringId)} onClick={() => setConfirmingId(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                      {restoreStatus ? (
+                        <StatusMessage tone={restoreStatus.tone}>{restoreStatus.text}</StatusMessage>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <EmptyState title="No snapshots yet">
+            Save one above before a big rewrite. You can restore any snapshot later, and restoring
+            keeps the draft it replaces.
+          </EmptyState>
+        )}
+      </Section>
     </div>
   );
 }
