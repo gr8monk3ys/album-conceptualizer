@@ -424,3 +424,17 @@ class TestJobOwnership:
         assert agent_client.delete(f"/api/v1/agents/jobs/{job_id}", headers=bob).status_code == 404
         alice = {"x-owner-id": "alice"}
         assert agent_client.get(f"/api/v1/agents/jobs/{job_id}", headers=alice).status_code == 200
+
+
+class TestAgentStatus:
+    def test_available_needs_key_and_crews(self, agent_client):
+        with (
+            patch("album_conceptualizer.api.v1.agents.create_album_ideation_crew", MagicMock()),
+            patch("album_conceptualizer.api.v1.agents.create_song_development_crew", MagicMock()),
+            patch("album_conceptualizer.api.v1.agents.create_coherence_review_crew", MagicMock()),
+        ):
+            assert agent_client.get("/api/v1/agents/status").json() == {"available": True}
+
+    def test_unavailable_without_crews(self, agent_client):
+        with patch("album_conceptualizer.api.v1.agents.create_album_ideation_crew", None):
+            assert agent_client.get("/api/v1/agents/status").json() == {"available": False}

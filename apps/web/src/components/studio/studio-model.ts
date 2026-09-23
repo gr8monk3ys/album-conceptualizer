@@ -43,9 +43,7 @@ export function chordsOf(section: StudioSection | undefined): string[] {
 }
 
 /** Scaffold placeholders like "[Verse line 1]" are not writing. */
-export function isWritten(lyrics: unknown) {
-  return typeof lyrics === "string" && lyrics.replace(/\[[^\]]*\]/g, "").trim().length > 0;
-}
+export { isWrittenLyrics as isWritten } from "@/lib/lyrics";
 
 // ---------------------------------------------------------------- section types and labels
 

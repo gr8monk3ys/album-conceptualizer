@@ -184,3 +184,23 @@ export async function checkEngineHealth(): Promise<{ ok: true } | { ok: false; d
     return { ok: false, detail: err instanceof Error ? err.message : String(err) };
   }
 }
+
+let agentAvailability: { value: boolean; expires: number } | null = null;
+
+/**
+ * Whether AI agent workflows can run right now (the engine has a model key and the agent
+ * extra installed). Cached for a minute; an unreachable engine counts as unavailable, so AI
+ * controls are disabled with an explanation instead of failing after a click.
+ */
+export async function getAgentAvailability(): Promise<boolean> {
+  if (agentAvailability && agentAvailability.expires > Date.now()) return agentAvailability.value;
+  let value = false;
+  try {
+    const response = await call("/agents/status", { timeoutMs: 3_000, failure: "Agent status check failed." });
+    value = Boolean(((await response.json()) as { available?: unknown }).available);
+  } catch {
+    value = false;
+  }
+  agentAvailability = { value, expires: Date.now() + 60_000 };
+  return value;
+}

@@ -1,3 +1,4 @@
+import { isWrittenLyrics } from "@/lib/lyrics";
 import { AlbumJsonSchema } from "@/server/album-json";
 
 export type CoherenceIssueSeverity = "info" | "warning" | "error";
@@ -130,9 +131,7 @@ function clampScore(value: number) {
 }
 
 /** Lyrics count as written once bracketed placeholders like "[Verse line 1]" are removed. */
-export function isWrittenLyrics(lyrics: string | null | undefined) {
-  return typeof lyrics === "string" && lyrics.replace(/\[[^\]]*\]/g, "").trim().length > 0;
-}
+export { isWrittenLyrics };
 
 function progressionKey(chords: string[] | undefined) {
   return (chords ?? [])

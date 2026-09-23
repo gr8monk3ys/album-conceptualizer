@@ -1,3 +1,5 @@
+import { isWrittenLyrics } from "@/lib/lyrics";
+
 export type AlbumSongOption = {
   id: string | null;
   trackNumber: number;
@@ -40,10 +42,6 @@ function asList(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function isWritten(lyrics: unknown) {
-  // Scaffold placeholders like "[Verse line 1]" are not writing.
-  return typeof lyrics === "string" && lyrics.replace(/\[[^\]]*\]/g, "").trim().length > 0;
-}
 
 /** One row per track for the album spine: how far each track has come. */
 export function getSpineRows(data: unknown): SpineRow[] {
@@ -58,7 +56,7 @@ export function getSpineRows(data: unknown): SpineRow[] {
       trackNumber: song.track_number,
       title: song.title,
       sections: sections.length,
-      lyricSections: sections.filter((s) => isWritten((s as { lyrics?: unknown } | null)?.lyrics)).length,
+      lyricSections: sections.filter((s) => isWrittenLyrics((s as { lyrics?: unknown } | null)?.lyrics)).length,
       themes: asList(song.themes).filter((t) => typeof t === "string" && t.trim()).length,
       hasNarrative: typeof song.narrative_summary === "string" && song.narrative_summary.trim().length > 0,
     });

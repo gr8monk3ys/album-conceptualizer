@@ -68,3 +68,22 @@ describe("engine client", () => {
     expect(await checkEngineHealth()).toMatchObject({ ok: false });
   });
 });
+
+describe("getAgentAvailability", () => {
+  it("is false when the engine can't be reached, and caches the answer", async () => {
+    vi.resetModules();
+    const { getAgentAvailability } = await import("@/server/engine");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = stubFetch(new TypeError("fetch failed"));
+    expect(await getAgentAvailability()).toBe(false);
+    expect(await getAgentAvailability()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the engine's status", async () => {
+    vi.resetModules();
+    const { getAgentAvailability } = await import("@/server/engine");
+    stubFetch(Response.json({ available: true }));
+    expect(await getAgentAvailability()).toBe(true);
+  });
+});

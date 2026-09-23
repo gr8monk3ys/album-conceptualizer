@@ -210,6 +210,24 @@ def _job_to_response(job: Job) -> JobResponse:
 # ---------------------------------------------------------------------------
 
 
+class AgentStatusResponse(BaseModel):
+    available: bool
+
+
+@router.get("/status")
+def agent_status() -> AgentStatusResponse:
+    """Whether agent workflows can run here, so callers can say so before anyone clicks."""
+    installed = all(
+        fn is not None
+        for fn in (
+            create_album_ideation_crew,
+            create_song_development_crew,
+            create_coherence_review_crew,
+        )
+    )
+    return AgentStatusResponse(available=installed and bool(get_settings().anthropic_api_key))
+
+
 @router.post("/ideation", status_code=202)
 def start_ideation(req: IdeationRequest, request: Request) -> JobResponse:
     _require_anthropic_key()
