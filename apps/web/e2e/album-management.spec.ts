@@ -74,7 +74,7 @@ test.describe("Album Management", () => {
       concept: "A winter-to-spring arc told through one apartment building.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Studio", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
     await page.waitForURL("**/studio");
     await expect(page).toHaveURL(/studio/);
   });
@@ -89,7 +89,7 @@ test.describe("Album Management", () => {
       concept: "A concept record about leaving a coastal town for the city.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Export", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Export", exact: true }).click();
     await page.waitForURL("**/export");
     await expect(page).toHaveURL(/export/);
   });
@@ -104,7 +104,7 @@ test.describe("Album Management", () => {
       concept: "A concept album about airport hotels, rerouted flights, and the last message before sunrise.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Export", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Export", exact: true }).click();
     await page.waitForURL("**/export");
 
     const [download] = await Promise.all([
@@ -127,11 +127,11 @@ test.describe("Album Management", () => {
 
     await page.getByRole("main").getByRole("link", { name: "View report" }).click();
     await page.waitForURL("**/coherence");
-    await expect(page.getByText("Coherence report v2")).toBeVisible();
+    await expect(page.getByText("Coherence report").first()).toBeVisible();
     await expect(page.getByText("Next actions")).toBeVisible();
-    await expect(page.getByText("Narrative").first()).toBeVisible();
-    await expect(page.getByText("Lyrics").first()).toBeVisible();
-    await expect(page.getByText("Harmony").first()).toBeVisible();
+    await expect(page.getByText("Narrative", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Lyrics", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Harmony", { exact: true }).first()).toBeVisible();
   });
 
   test("reference workspace saves a track reference and reflects it on the album page", async ({
@@ -146,7 +146,7 @@ test.describe("Album Management", () => {
       concept: "A concept album about train stations, detours, and messages that arrive too late.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "References", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "References", exact: true }).click();
     await page.waitForURL("**/references");
     await page.getByLabel("Reference title").fill("Dreams Tonite");
     await page.getByLabel("Artist").fill("Alvvays");
@@ -162,7 +162,7 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Reference added.")).toBeVisible();
     await expect(page.getByText("Dreams Tonite").first()).toBeVisible();
 
-    await page.getByRole("link", { name: "Back" }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Overview", exact: true }).click();
     await expect(page.getByRole("main").getByText("Reference tracks")).toBeVisible();
     await expect(page.getByText("Dreams Tonite · Alvvays")).toBeVisible();
   });
@@ -179,7 +179,7 @@ test.describe("Album Management", () => {
       concept: "A concept album about hotel hallways, missed calls, and one long overnight drive.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Style", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Style", exact: true }).click();
     await page.waitForURL("**/style");
     await page
       .getByLabel("Lead voice brief")
@@ -197,7 +197,7 @@ test.describe("Album Management", () => {
 
     await expect(page.getByText("Style bible saved.")).toBeVisible();
 
-    await page.getByRole("link", { name: "Back" }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Overview", exact: true }).click();
     await expect(page.getByRole("main").getByText("Voice / Style Bible").first()).toBeVisible();
     await expect(page.getByText("Close-mic alto with hushed verses").first()).toBeVisible();
   });
@@ -214,7 +214,7 @@ test.describe("Album Management", () => {
       concept: "A concept album about airport lounges, neon vending machines, and the chorus you only hear once.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Demos", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Demos", exact: true }).click();
     await page.waitForURL("**/demos");
     await page.getByLabel("Local rough demo file").setInputFiles({
       name: "hallway-memo.wav",
@@ -236,7 +236,7 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Structured review").first()).toBeVisible();
     await expect(page.getByText("Chorus or post-chorus candidate").first()).toBeVisible();
 
-    await page.getByRole("link", { name: "Back" }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Overview", exact: true }).click();
     // Wait for the navigation to actually land. The demos page also has a
     // "Rough demos" heading, and the demo title is in its list, so asserting
     // either right after the click passes against the OLD page whenever

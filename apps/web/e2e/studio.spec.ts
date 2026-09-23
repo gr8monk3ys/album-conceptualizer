@@ -28,7 +28,7 @@ async function createAlbumAndOpenStudio(page: import("@playwright/test").Page, t
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Save and continue" }).click();
   await page.waitForURL("**/app/albums/**");
-  await page.getByRole("main").getByRole("link", { name: "Studio", exact: true }).click();
+  await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
   await page.waitForURL("**/studio");
 }
 
@@ -60,7 +60,7 @@ test.describe("Studio", () => {
     await createAlbumAndOpenStudio(page, title);
 
     // Navigate to export tab
-    await page.getByRole("main").getByRole("link", { name: "Export", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Export", exact: true }).click();
     await page.waitForURL("**/export");
 
     const [download] = await Promise.all([

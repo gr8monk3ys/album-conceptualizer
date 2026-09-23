@@ -27,14 +27,14 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await page.getByRole("button", { name: "Save and continue" }).click();
   await page.waitForURL("**/app/albums/**");
 
-  await page.getByRole("main").getByRole("link", { name: "Studio", exact: true }).click();
+  await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
   await page.waitForURL("**/studio");
 
   await page.getByLabel("Lyrics draft").fill("This is an E2E lyrics draft.\nSecond line.");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
 
-  await page.getByRole("main").getByRole("link", { name: "Export", exact: true }).click();
+  await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Export", exact: true }).click();
   await page.waitForURL("**/export");
 
   const [download] = await Promise.all([
