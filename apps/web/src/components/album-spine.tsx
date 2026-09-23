@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 
 import type { SpineRow } from "@/server/album-songs";
+import { ThemeMark } from "@/components/theme-mark";
 import { cn } from "@/lib/utils";
 
 const FRACTION_GLYPHS: Record<string, string> = {
@@ -134,14 +135,10 @@ export function AlbumSpine({
                 const carries = row.themeKeys.includes(themeKeys[index]);
                 return (
                   <td key={theme} className="p-0 text-center align-middle">
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "mx-auto block rounded-sm",
-                        carries ? "h-2.5 w-2.5 bg-ink" : "h-1 w-1 rounded-full bg-line-strong",
-                      )}
+                    <ThemeMark
+                      carries={carries}
+                      label={carries ? `carries ${theme}` : `doesn't carry ${theme}`}
                     />
-                    <span className="sr-only">{carries ? `carries ${theme}` : `doesn't carry ${theme}`}</span>
                   </td>
                 );
               })}

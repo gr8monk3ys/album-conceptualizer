@@ -36,7 +36,7 @@ function NavLink({
       <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-ink-3")} aria-hidden="true" />
       <span className="min-w-0 break-words py-2">{item.label}</span>
       {badge ? (
-        <span className="type-figure ml-auto rounded-sm bg-accent px-1.5 text-xs font-semibold text-accent-ink">
+        <span className="type-figure ml-auto rounded-sm bg-ink px-1.5 text-xs font-semibold text-ground">
           <span className="sr-only">, </span>
           {Math.min(99, badge)}
           <span className="sr-only"> unread</span>

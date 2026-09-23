@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { ThemeMark } from "@/components/theme-mark";
 
 /**
  * An invented album, shown on the landing page as a worked example of the product's
@@ -83,14 +84,10 @@ export const EXAMPLE_ALBUM: { title: string; arc: string; concept: string; track
   ],
 };
 
-function ThemeMark({ on }: { on: boolean }) {
+function ExampleThemeCell({ on }: { on: boolean }) {
   return (
     <span className="inline-grid h-8 w-full place-items-center">
-      <span
-        aria-hidden="true"
-        className={cn("block h-3.5 w-3.5 rounded-sm border", on ? "border-ink bg-ink" : "border-line-strong")}
-      />
-      <span className="sr-only">{on ? "Yes" : "No"}</span>
+      <ThemeMark carries={on} label={on ? "Yes" : "No"} />
     </span>
   );
 }
@@ -142,7 +139,7 @@ export function ExampleAlbum({ className }: { className?: string }) {
             <tr className="border-b border-line-strong">
               <th scope="col" className="type-catalog w-9 py-2 pr-2 align-bottom text-xs text-ink-3 sm:w-12">
                 <span className="sr-only">Track number</span>
-                <span aria-hidden="true">No.</span>
+                <span aria-hidden="true">#</span>
               </th>
               <th scope="col" className="type-catalog py-2 pr-2 align-bottom text-xs text-ink-3 sm:pr-4">
                 Track and role
@@ -177,7 +174,7 @@ export function ExampleAlbum({ className }: { className?: string }) {
                 </th>
                 {THEMES.map((theme) => (
                   <td key={theme} className="px-0.5 align-middle sm:px-1">
-                    <ThemeMark on={track.themes.includes(theme)} />
+                    <ExampleThemeCell on={track.themes.includes(theme)} />
                   </td>
                 ))}
               </tr>

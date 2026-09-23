@@ -4,6 +4,7 @@ import { useEffect, useRef, type CSSProperties } from "react";
 import { Plus } from "lucide-react";
 
 import type { StudioSong } from "@/components/studio/studio-model";
+import { ThemeMark } from "@/components/theme-mark";
 import { Button } from "@/components/ui";
 import { lyricProgress } from "@/lib/lyrics";
 import { cn } from "@/lib/utils";
@@ -114,7 +115,7 @@ export function TrackList({
             <thead>
               <tr className="border-b border-line">
                 <th scope="col" className={cn(HEAD, "w-10 pl-1")}>
-                  <span aria-hidden="true">No.</span>
+                  <span aria-hidden="true">#</span>
                   <span className="sr-only">Track number</span>
                 </th>
                 <th scope="col" className={HEAD}>
@@ -203,14 +204,10 @@ export function TrackList({
                       const carries = carried.has(theme.trim().toLowerCase());
                       return (
                         <td key={theme} className="hidden text-center align-middle xl:table-cell">
-                          <span
-                            aria-hidden="true"
-                            className={cn(
-                              "inline-block h-2.5 w-2.5 rounded-sm border",
-                              carries ? "border-ink-2 bg-ink-2" : "border-line-strong",
-                            )}
+                          <ThemeMark
+                            carries={carries}
+                            label={carries ? `carries ${theme}` : `doesn't carry ${theme}`}
                           />
-                          <span className="sr-only">{carries ? `carries ${theme}` : `doesn't carry ${theme}`}</span>
                         </td>
                       );
                     })}

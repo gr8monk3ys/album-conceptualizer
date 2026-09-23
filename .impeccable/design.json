@@ -1,0 +1,593 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-23T20:00:00Z",
+  "title": "Design System: Album Conceptualizer",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Warm Graphite Ground",
+        "canonical": "oklch(19.2% 0.004 85)",
+        "cssVar": "--ground",
+        "tonalRamp": [
+          "oklch(15% 0.004 85)",
+          "oklch(25% 0.004 85)",
+          "oklch(35% 0.004 85)",
+          "oklch(45% 0.004 85)",
+          "oklch(60% 0.004 85)",
+          "oklch(72% 0.004 85)",
+          "oklch(84% 0.004 85)",
+          "oklch(95% 0.004 85)"
+        ]
+      },
+      "raised": {
+        "role": "neutral",
+        "displayName": "Raised Graphite",
+        "canonical": "oklch(22.6% 0.006 92)",
+        "cssVar": "--raised",
+        "tonalRamp": [
+          "oklch(15% 0.006 92)",
+          "oklch(25% 0.006 92)",
+          "oklch(35% 0.006 92)",
+          "oklch(45% 0.006 92)",
+          "oklch(60% 0.006 92)",
+          "oklch(72% 0.006 92)",
+          "oklch(84% 0.006 92)",
+          "oklch(95% 0.006 92)"
+        ]
+      },
+      "sunken": {
+        "role": "neutral",
+        "displayName": "Sunken Graphite",
+        "canonical": "oklch(16.9% 0.004 85)",
+        "cssVar": "--sunken",
+        "tonalRamp": [
+          "oklch(15% 0.004 85)",
+          "oklch(25% 0.004 85)",
+          "oklch(35% 0.004 85)",
+          "oklch(45% 0.004 85)",
+          "oklch(60% 0.004 85)",
+          "oklch(72% 0.004 85)",
+          "oklch(84% 0.004 85)",
+          "oklch(95% 0.004 85)"
+        ]
+      },
+      "hover": {
+        "role": "neutral",
+        "displayName": "Hover Graphite",
+        "canonical": "oklch(26.1% 0.010 89)",
+        "cssVar": "--hover",
+        "tonalRamp": [
+          "oklch(15% 0.010 89)",
+          "oklch(25% 0.010 89)",
+          "oklch(35% 0.010 89)",
+          "oklch(45% 0.010 89)",
+          "oklch(60% 0.010 89)",
+          "oklch(72% 0.010 89)",
+          "oklch(84% 0.010 89)",
+          "oklch(95% 0.010 89)"
+        ]
+      },
+      "selected": {
+        "role": "neutral",
+        "displayName": "Selected Graphite",
+        "canonical": "oklch(29.0% 0.013 88)",
+        "cssVar": "--selected",
+        "tonalRamp": [
+          "oklch(15% 0.013 88)",
+          "oklch(25% 0.013 88)",
+          "oklch(35% 0.013 88)",
+          "oklch(45% 0.013 88)",
+          "oklch(60% 0.013 88)",
+          "oklch(72% 0.013 88)",
+          "oklch(84% 0.013 88)",
+          "oklch(95% 0.013 88)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Bone Ink",
+        "canonical": "oklch(94.6% 0.008 91)",
+        "cssVar": "--ink",
+        "tonalRamp": [
+          "oklch(15% 0.008 91)",
+          "oklch(25% 0.008 91)",
+          "oklch(35% 0.008 91)",
+          "oklch(45% 0.008 91)",
+          "oklch(60% 0.008 91)",
+          "oklch(72% 0.008 91)",
+          "oklch(84% 0.008 91)",
+          "oklch(95% 0.008 91)"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Stone Ink",
+        "canonical": "oklch(78.4% 0.016 86)",
+        "cssVar": "--ink-2",
+        "tonalRamp": [
+          "oklch(15% 0.016 86)",
+          "oklch(25% 0.016 86)",
+          "oklch(35% 0.016 86)",
+          "oklch(45% 0.016 86)",
+          "oklch(60% 0.016 86)",
+          "oklch(72% 0.016 86)",
+          "oklch(84% 0.016 86)",
+          "oklch(95% 0.016 86)"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ash Ink",
+        "canonical": "oklch(67.4% 0.017 86)",
+        "cssVar": "--ink-3",
+        "tonalRamp": [
+          "oklch(15% 0.017 86)",
+          "oklch(25% 0.017 86)",
+          "oklch(35% 0.017 86)",
+          "oklch(45% 0.017 86)",
+          "oklch(60% 0.017 86)",
+          "oklch(72% 0.017 86)",
+          "oklch(84% 0.017 86)",
+          "oklch(95% 0.017 86)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(31.7% 0.009 89)",
+        "cssVar": "--line",
+        "tonalRamp": [
+          "oklch(15% 0.009 89)",
+          "oklch(25% 0.009 89)",
+          "oklch(35% 0.009 89)",
+          "oklch(45% 0.009 89)",
+          "oklch(60% 0.009 89)",
+          "oklch(72% 0.009 89)",
+          "oklch(84% 0.009 89)",
+          "oklch(95% 0.009 89)"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Rule",
+        "canonical": "oklch(44.3% 0.014 85)",
+        "cssVar": "--line-strong",
+        "tonalRamp": [
+          "oklch(15% 0.014 85)",
+          "oklch(25% 0.014 85)",
+          "oklch(35% 0.014 85)",
+          "oklch(45% 0.014 85)",
+          "oklch(60% 0.014 85)",
+          "oklch(72% 0.014 85)",
+          "oklch(84% 0.014 85)",
+          "oklch(95% 0.014 85)"
+        ]
+      },
+      "line-control": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "oklch(55.4% 0.014 80)",
+        "cssVar": "--line-control",
+        "tonalRamp": [
+          "oklch(15% 0.014 80)",
+          "oklch(25% 0.014 80)",
+          "oklch(35% 0.014 80)",
+          "oklch(45% 0.014 80)",
+          "oklch(60% 0.014 80)",
+          "oklch(72% 0.014 80)",
+          "oklch(84% 0.014 80)",
+          "oklch(95% 0.014 80)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Saffron",
+        "canonical": "oklch(84.4% 0.151 88)",
+        "cssVar": "--accent",
+        "tonalRamp": [
+          "oklch(15% 0.151 88)",
+          "oklch(25% 0.151 88)",
+          "oklch(35% 0.151 88)",
+          "oklch(45% 0.151 88)",
+          "oklch(60% 0.151 88)",
+          "oklch(72% 0.151 88)",
+          "oklch(84% 0.151 88)",
+          "oklch(95% 0.151 88)"
+        ]
+      },
+      "accent-hover": {
+        "role": "primary",
+        "displayName": "Bright Saffron",
+        "canonical": "oklch(89.0% 0.137 89)",
+        "cssVar": "--accent-hover",
+        "tonalRamp": [
+          "oklch(15% 0.137 89)",
+          "oklch(25% 0.137 89)",
+          "oklch(35% 0.137 89)",
+          "oklch(45% 0.137 89)",
+          "oklch(60% 0.137 89)",
+          "oklch(72% 0.137 89)",
+          "oklch(84% 0.137 89)",
+          "oklch(95% 0.137 89)"
+        ]
+      },
+      "accent-ink": {
+        "role": "primary",
+        "displayName": "Saffron Ink",
+        "canonical": "oklch(19.3% 0.040 95)",
+        "cssVar": "--accent-ink",
+        "tonalRamp": [
+          "oklch(15% 0.040 95)",
+          "oklch(25% 0.040 95)",
+          "oklch(35% 0.040 95)",
+          "oklch(45% 0.040 95)",
+          "oklch(60% 0.040 95)",
+          "oklch(72% 0.040 95)",
+          "oklch(84% 0.040 95)",
+          "oklch(95% 0.040 95)"
+        ]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Coral",
+        "canonical": "oklch(75.8% 0.145 29)",
+        "cssVar": "--danger",
+        "tonalRamp": [
+          "oklch(15% 0.145 29)",
+          "oklch(25% 0.145 29)",
+          "oklch(35% 0.145 29)",
+          "oklch(45% 0.145 29)",
+          "oklch(60% 0.145 29)",
+          "oklch(72% 0.145 29)",
+          "oklch(84% 0.145 29)",
+          "oklch(95% 0.145 29)"
+        ]
+      },
+      "danger-soft": {
+        "role": "semantic",
+        "displayName": "Coral Wash",
+        "canonical": "oklch(24.3% 0.028 30)",
+        "cssVar": "--danger-soft",
+        "tonalRamp": [
+          "oklch(15% 0.028 30)",
+          "oklch(25% 0.028 30)",
+          "oklch(35% 0.028 30)",
+          "oklch(45% 0.028 30)",
+          "oklch(60% 0.028 30)",
+          "oklch(72% 0.028 30)",
+          "oklch(84% 0.028 30)",
+          "oklch(95% 0.028 30)"
+        ]
+      },
+      "ok": {
+        "role": "semantic",
+        "displayName": "Sage",
+        "canonical": "oklch(81.0% 0.110 154)",
+        "cssVar": "--ok",
+        "tonalRamp": [
+          "oklch(15% 0.110 154)",
+          "oklch(25% 0.110 154)",
+          "oklch(35% 0.110 154)",
+          "oklch(45% 0.110 154)",
+          "oklch(60% 0.110 154)",
+          "oklch(72% 0.110 154)",
+          "oklch(84% 0.110 154)",
+          "oklch(95% 0.110 154)"
+        ]
+      },
+      "warn": {
+        "role": "semantic",
+        "displayName": "Ember",
+        "canonical": "oklch(76.5% 0.132 54)",
+        "cssVar": "--warn",
+        "tonalRamp": [
+          "oklch(15% 0.132 54)",
+          "oklch(25% 0.132 54)",
+          "oklch(35% 0.132 54)",
+          "oklch(45% 0.132 54)",
+          "oklch(60% 0.132 54)",
+          "oklch(72% 0.132 54)",
+          "oklch(84% 0.132 54)",
+          "oklch(95% 0.132 54)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display-xl": {
+        "displayName": "Display XL",
+        "purpose": "Landing headline and shared album title; fluid, expanded cut."
+      },
+      "display-release": {
+        "displayName": "Release title",
+        "purpose": "Album title in the release header; 2.25rem below 768px, 3.75rem above, max 24ch."
+      },
+      "display-lg": {
+        "displayName": "Display L",
+        "purpose": "Sign-in, error and not-found h1."
+      },
+      "display-md": {
+        "displayName": "Display M",
+        "purpose": "Every page h1 rendered by the page header."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The current track's title in the Studio."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section h2 and list-level h3."
+      },
+      "body-lead": {
+        "displayName": "Body lead",
+        "purpose": "Landing lede; empty-state titles in semibold."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Descriptions and row text; 65ch max."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Button text and current navigation item."
+      },
+      "field-label": {
+        "displayName": "Field label",
+        "purpose": "Visible label above every form control."
+      },
+      "hint": {
+        "displayName": "Hint",
+        "purpose": "Field hints and small explanations in Ash Ink; the 12px floor."
+      },
+      "catalog": {
+        "displayName": "Catalog",
+        "purpose": "Condensed caps under a title, table column heads, figure labels, the wordmark. Uppercase. Never above a heading."
+      },
+      "figure-track": {
+        "displayName": "Track figure",
+        "purpose": "Two-digit tabular track numbers in the Studio track list."
+      }
+    },
+    "shadows": [],
+    "elevation": {
+      "model": "flat",
+      "steps": [
+        "sunken",
+        "ground",
+        "raised",
+        "hover",
+        "selected"
+      ],
+      "note": "No shadows. Depth is tonal steps of warm graphite plus hairline rules; overlays use a border and a Sunken backdrop at 80%."
+    },
+    "focus": {
+      "value": "outline: 2px solid var(--accent); outline-offset: 2px",
+      "purpose": "The one global focus ring (:focus-visible). Tabs inside the scrolling strip inset it (outline-offset: -2px)."
+    },
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default easing for every color, border and background transition."
+      },
+      {
+        "name": "duration-standard",
+        "value": "150ms",
+        "purpose": "Hover and state color transitions."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "scrollIntoView behavior 'auto' when prefers-reduced-motion: reduce; transform nudges only under motion-safe",
+        "purpose": "Color transitions and spinners stay; movement does not."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px",
+        "purpose": "Sidebar appears; release title steps up."
+      },
+      {
+        "name": "lg",
+        "value": "1024px",
+        "purpose": "Landing hero splits 5:7; Studio track list goes sticky."
+      },
+      {
+        "name": "xl",
+        "value": "1280px",
+        "purpose": "Studio theme columns appear."
+      },
+      {
+        "name": "2xl",
+        "value": "1536px",
+        "purpose": "Studio position column appears."
+      },
+      {
+        "name": "album-body-container",
+        "value": "56rem (container query)",
+        "purpose": "Spine becomes a sticky side column; below it folds into the Sequence disclosure."
+      }
+    ],
+    "masks": [
+      {
+        "name": "tab-strip-edge-fade",
+        "value": "mask-image: linear-gradient(to right, transparent, black 1.5rem)",
+        "purpose": "Transparency fade on the overflowing edge of the album tab strip. A mask, not a color fill."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one saffron action on a screen; the label names the verb and any credit cost.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Download zip · 2 credits</button>",
+      "css": ".ds-btn { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 4px; font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; transition: color 150ms cubic-bezier(0.4,0,0.2,1), background-color 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.5; cursor: not-allowed; } .ds-btn-primary { background: var(--accent); color: var(--accent-ink); } .ds-btn-primary:hover { background: var(--accent-hover); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Every other action: transparent with a Strong Rule border.",
+      "html": "<button class=\"ds-btn ds-btn-secondary\">Save and continue</button>",
+      "css": ".ds-btn { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 4px; font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; transition: color 150ms cubic-bezier(0.4,0,0.2,1), background-color 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.5; cursor: not-allowed; } .ds-btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); } .ds-btn-secondary:hover { background: var(--hover); border-color: var(--ink-3); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-stakes actions such as Add track; no border until hover.",
+      "html": "<button class=\"ds-btn ds-btn-ghost\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add track</button>",
+      "css": ".ds-btn { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 4px; font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; transition: color 150ms cubic-bezier(0.4,0,0.2,1), background-color 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.5; cursor: not-allowed; } .ds-btn-ghost { background: transparent; color: var(--ink-2); } .ds-btn-ghost:hover { background: var(--hover); color: var(--ink); }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive actions, kept apart from the primary action.",
+      "html": "<button class=\"ds-btn ds-btn-danger\">Delete album</button>",
+      "css": ".ds-btn { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 4px; font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; transition: color 150ms cubic-bezier(0.4,0,0.2,1), background-color 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.5; cursor: not-allowed; } .ds-btn-danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); } .ds-btn-danger:hover { background: var(--danger-soft); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A visible label, a Sunken well with a Control Edge border, and a hint below.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field-label\" for=\"ds-album-title\">Album title</label><input class=\"ds-input\" id=\"ds-album-title\" placeholder=\"Salt Signal\" aria-describedby=\"ds-album-title-hint\"><p class=\"ds-field-hint\" id=\"ds-album-title-hint\">The name on the sleeve. You can change it later.</p></div>",
+      "css": ".ds-field { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-direction: column; gap: 6px; max-width: 28rem; } .ds-field-label { font-size: 0.875rem; font-weight: 500; color: var(--ink); } .ds-input { font: inherit; font-size: 0.875rem; min-height: 44px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--line-control); background: var(--sunken); color: var(--ink); caret-color: var(--accent); transition: border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-input::placeholder { color: var(--ink-3); } .ds-input:hover { border-color: var(--ink-3); } .ds-input:focus-visible { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 2px; } .ds-field-hint { margin: 0; max-width: 65ch; font-size: 0.75rem; line-height: 1.625; color: var(--ink-3); }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A 4px outline label for a tag, theme or state; not a button.",
+      "html": "<span class=\"ds-chip\">Draft</span> <span class=\"ds-chip ds-chip-ok\">Published</span> <span class=\"ds-chip ds-chip-warn\">Warning</span>",
+      "css": ".ds-chip { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--line-strong); color: var(--ink-2); font-size: 0.75rem; line-height: 1rem; font-weight: 500; } .ds-chip-ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); } .ds-chip-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "44px rows; the current row is Selected Graphite with a saffron bar and icon.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Main\"><a class=\"ds-nav-item\" href=\"#\" aria-current=\"page\"><span class=\"ds-nav-bar\" aria-hidden=\"true\"></span><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg><span>Albums</span></a><a class=\"ds-nav-item\" href=\"#\"><span class=\"ds-nav-bar\" aria-hidden=\"true\"></span><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><span>Discover</span></a></nav>",
+      "css": ".ds-nav { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-direction: column; gap: 2px; width: 16rem; } .ds-nav-item { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 4px; font-size: 0.875rem; color: var(--ink-2); text-decoration: none; transition: background-color 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-nav-item svg { color: var(--ink-3); flex: none; } .ds-nav-item:hover { background: var(--hover); color: var(--ink); } .ds-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-nav-bar { position: absolute; top: 8px; bottom: 8px; left: 0; width: 2px; border-radius: 9999px; background: transparent; } .ds-nav-item[aria-current=page] { background: var(--selected); color: var(--ink); font-weight: 600; } .ds-nav-item[aria-current=page] svg { color: var(--accent); } .ds-nav-item[aria-current=page] .ds-nav-bar { background: var(--accent); }"
+    },
+    {
+      "name": "Album Tab Bar",
+      "kind": "nav",
+      "refersTo": "album-tab-active",
+      "description": "Six text tabs on a hairline; the current tab carries a 2px saffron underline.",
+      "html": "<nav class=\"ds-tabs\" aria-label=\"Album\"><ul><li><a href=\"#\" aria-current=\"page\">Overview</a></li><li><a href=\"#\">Studio</a></li><li><a href=\"#\">Bible</a></li><li><a href=\"#\">Coherence</a></li><li><a href=\"#\">Sound</a></li><li><a href=\"#\">Export</a></li></ul></nav>",
+      "css": ".ds-tabs { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; overflow-x: auto; } .ds-tabs ul { display: flex; gap: 4px; margin: 0; padding: 0 4px; list-style: none; border-bottom: 1px solid var(--line); min-width: max-content; } .ds-tabs a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; margin-bottom: -1px; border-bottom: 2px solid transparent; font-size: 0.875rem; color: var(--ink-2); text-decoration: none; transition: color 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-tabs a:hover { color: var(--ink); border-bottom-color: var(--line-strong); } .ds-tabs a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; } .ds-tabs a[aria-current=page] { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }"
+    },
+    {
+      "name": "Release Header",
+      "kind": "custom",
+      "refersTo": "release-title",
+      "description": "The album title in the expanded cut, the catalog line in condensed caps, and one next-step action.",
+      "html": "<header class=\"ds-release\"><div class=\"ds-release-text\"><h1 class=\"ds-release-title\">Salt Signal</h1><p class=\"ds-catalog\"><span>Mara Lind</span><span aria-hidden=\"true\">·</span><span class=\"ds-figure\">8 tracks</span><span aria-hidden=\"true\">·</span><span>Draft</span><span aria-hidden=\"true\">·</span><span>Edited 2 hours ago</span></p></div><a class=\"ds-release-action\" href=\"#\">Write the next lyric</a></header>",
+      "css": ".ds-release { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; } .ds-release-text { display: flex; flex-direction: column; gap: 12px; min-width: 0; } .ds-release-title { margin: 0; max-width: 24ch; font-size: 2.25rem; font-weight: 760; font-stretch: 125%; letter-spacing: -0.02em; line-height: 1.02; text-wrap: balance; overflow-wrap: break-word; hyphens: auto; color: var(--ink); } @media (min-width: 768px) { .ds-release-title { font-size: 3.75rem; } } .ds-catalog { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); } .ds-figure { font-variant-numeric: tabular-nums; } .ds-release-action { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 16px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); font-size: 0.875rem; font-weight: 600; text-decoration: none; transition: background-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-release-action:hover { background: var(--accent-hover); } .ds-release-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "The Spine",
+      "kind": "custom",
+      "refersTo": "spine-row",
+      "description": "The album sequence as a track sheet: number, title, lyrics written, one column per theme, role in the arc.",
+      "html": "<table class=\"ds-spine\"><caption class=\"ds-sr\">Tracks in sequence</caption><thead><tr><th scope=\"col\"><span aria-hidden=\"true\">#</span><span class=\"ds-sr\">Track number</span></th><th scope=\"col\">Title</th><th scope=\"col\" class=\"ds-c\">Lyrics</th><th scope=\"col\" class=\"ds-theme\"><span>Isolation</span></th><th scope=\"col\" class=\"ds-theme\"><span>Memory</span></th><th scope=\"col\" class=\"ds-c\">Role</th></tr></thead><tbody><tr><td class=\"ds-num\">01</td><td><a href=\"#\">Call Sign</a></td><td class=\"ds-c ds-fig\">2/2</td><td class=\"ds-c\"><span class=\"ds-on\" aria-hidden=\"true\"></span><span class=\"ds-sr\">carries Isolation</span></td><td class=\"ds-c\"><span class=\"ds-off\" aria-hidden=\"true\"></span><span class=\"ds-sr\">doesn't carry Memory</span></td><td class=\"ds-c\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg><span class=\"ds-sr\">Role: Opening</span></td></tr><tr><td class=\"ds-num\">02</td><td><a href=\"#\">Empty Frequencies</a></td><td class=\"ds-c ds-fig\">½</td><td class=\"ds-c\"><span class=\"ds-on\" aria-hidden=\"true\"></span><span class=\"ds-sr\">carries Isolation</span></td><td class=\"ds-c\"><span class=\"ds-on\" aria-hidden=\"true\"></span><span class=\"ds-sr\">carries Memory</span></td><td class=\"ds-c\"><span class=\"ds-off\" aria-hidden=\"true\"></span><span class=\"ds-sr\">No role yet</span></td></tr></tbody></table>",
+      "css": ".ds-spine { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; width: 18rem; table-layout: fixed; border-collapse: collapse; font-size: 0.875rem; color: var(--ink); } .ds-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .ds-spine th { padding: 0 0 8px; text-align: left; vertical-align: bottom; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--line); } .ds-spine th:first-child { width: 1.75rem; } .ds-spine th.ds-c { text-align: center; width: 2.5rem; } .ds-spine th.ds-theme { width: 1rem; height: 6rem; } .ds-spine th.ds-theme span { display: block; margin: 0 auto; max-height: 6rem; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; } .ds-spine tbody tr { position: relative; border-bottom: 1px solid var(--line); transition: background-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-spine tbody tr:hover, .ds-spine tbody tr:focus-within { background: var(--hover); } .ds-spine td { height: 44px; padding: 6px 4px 6px 0; vertical-align: middle; } .ds-spine .ds-c { text-align: center; color: var(--ink-2); } .ds-num, .ds-fig { font-variant-numeric: tabular-nums; } .ds-num { font-weight: 600; color: var(--ink-3); } .ds-spine a { color: var(--ink); text-decoration: none; } .ds-spine a::after { content: ''; position: absolute; inset: 0; } .ds-spine a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-on { display: block; margin: 0 auto; width: 10px; height: 10px; border-radius: 4px; background: var(--ink); } .ds-off { display: block; margin: 0 auto; width: 4px; height: 4px; border-radius: 9999px; background: var(--line-strong); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Label Identity Program",
+    "overview": "Every album is presented the way a record label presents a release: the title set large in an expanded cut, a condensed catalog line beneath it (artist · tracks · status), and the sequence laid out as a numbered track sheet. The tool around it behaves like a label's house style applied to working screens: a quiet warm-graphite field, bone-white type, hairline rules, and one committed signal color, saffron, that appears only where the artist needs to act, where they are, or where the keyboard is.\n\nThe system is dense but calm, built for long night sessions next to a DAW. Structure comes from typography and rules, not from boxes: sections are separated by a hairline and whitespace, lists are rows divided by hairlines, and a contained surface exists only for a form or a self-contained tool. There is no imagery to lean on (albums are text blueprints), so the type has to carry authority on its own. The product rejects the category default of gradient-glow SaaS cards: no gradients, no glows, no pills, no nested cards.\n\nComponents are plain, typographic, and exact. A button is a 4px-shouldered rectangle with a verb in it; a figure is tabular; a status is a sentence.",
+    "keyCharacteristics": [
+      "Warm graphite ground with bone ink; every neutral carries a faint warm hue, never blue-black.",
+      "One signal color (saffron) for the primary action, the current location, and focus. Nothing else.",
+      "One family, Archivo, used across its width axis: expanded for titles, condensed caps for catalog lines, normal for UI.",
+      "Tabular figures for track numbers, counts, credits and scores.",
+      "Square-shouldered 4px corners, hairline rules, flat surfaces.",
+      "The album's sequence (the spine) stays in view on album screens."
+    ],
+    "rules": [
+      {
+        "name": "The One Signal Rule",
+        "body": "Saffron marks the primary action, the current location and focus, and nothing else: not headings, not the wordmark, not hovers, not links, not checkboxes, not decoration, never in a gradient. A screen has at most one saffron button.",
+        "section": "colors"
+      },
+      {
+        "name": "The Links Are Ink Rule",
+        "body": "Inline links are Bone or Stone Ink with a Strong Rule underline offset 4px; on hover the underline turns to ink. Form checks and radios use ink as their accent color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Warm Neutral Rule",
+        "body": "Every neutral sits at a warm hue (about 85–92 in OKLCH) with near-zero chroma. Never substitute a cool or blue-black gray.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Family Rule",
+        "body": "Archivo is the only typeface. Hierarchy comes from the width axis, weight and size, never from a second family.",
+        "section": "typography"
+      },
+      {
+        "name": "The Catalog-Below Rule",
+        "body": "Condensed caps sit under a title, head a table column, or label a figure. They never float above a heading as a kicker or eyebrow.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Figures Rule",
+        "body": "Any number that could line up with another number is set in tabular figures; track numbers are real data and are always two digits.",
+        "section": "typography"
+      },
+      {
+        "name": "The Spine Stays Rule",
+        "body": "On every album screen the sequence is in view or one disclosure away; it is never dropped for lack of room.",
+        "section": "layout"
+      },
+      {
+        "name": "The 44px Rule",
+        "body": "Every interactive element, including rows that are links and chip remove buttons, is at least 44 by 44px. Row links stretch over the whole row.",
+        "section": "layout"
+      },
+      {
+        "name": "The 65ch Rule",
+        "body": "Body copy, hints and descriptions carry their own max width of 65ch at their own size.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Field Rule",
+        "body": "No box-shadow, glow, blur or gradient fill. If something needs to stand apart, give it a tonal step or a rule.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Square Shoulder Rule",
+        "body": "Corners are 4px. Nothing a person clicks or reads inside is a pill.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do use the shared primitives (Button, ButtonLink, IconButton, PageHeader, Section, Panel, Field, Chip, StatusMessage, EmptyState) instead of restyling raw elements.",
+      "Do keep exactly one h1 per page: the release title on album screens, the page header title elsewhere.",
+      "Do put the catalog line under the title in condensed caps, joined by middots, with counts in tabular figures and correct plurals (\"1 track\", \"3 tracks\").",
+      "Do separate content with hairlines (`line`) and whitespace; list rows are divided by hairlines.",
+      "Do mark the current location with saffron plus a second cue (weight, underline, bar, `aria-current`).",
+      "Do keep every interactive element at least 44 by 44px and let the global saffron focus ring show (2px, offset 2px).",
+      "Do use a transparency mask, not a color, when an overflowing strip needs an edge fade.",
+      "Do say what spends credits on the button itself, and disable priced AI actions with a plain reason when AI can't run."
+    ],
+    "donts": [
+      "Don't use saffron for headings, the wordmark, links, hovers, badges, checkboxes, meters or decoration, and never more than one saffron button on a screen.",
+      "Don't use gradient fills, glows, box-shadows, radial backgrounds or backdrop blur.",
+      "Don't use pill shapes or large radii for buttons or containers; corners are 4px, full rounding only for marks of 10px or less.",
+      "Don't nest a Panel in a Panel or put cards inside a Panel; don't turn dashboard figures into stat-tile cards.",
+      "Don't set a kicker or eyebrow above a heading, or number sections 01/02/03 for decoration (track numbers are data and are fine).",
+      "Don't introduce hex or rgba literals or a second typeface; use the tokens and the Archivo width axis.",
+      "Don't set any text below 12px or run body copy wider than 65ch.",
+      "Don't add per-element focus rings or remove outlines."
+    ]
+  }
+}
