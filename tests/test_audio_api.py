@@ -7,6 +7,8 @@ are all exercised deterministically.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 import album_conceptualizer.api.v1.audio as audio_api
@@ -86,15 +88,25 @@ def test_prompt_preview_works_with_no_provider_configured(client, monkeypatch):
 # --- generate ----------------------------------------------------------------
 
 
+def _poll(client, job_id, owner_headers=None, timeout=5.0):
+    """Poll a render job until it is terminal, as a real caller does, and return the response."""
+    deadline = time.monotonic() + timeout
+    while True:
+        response = client.get(f"/api/v1/audio/generate/{job_id}", headers=owner_headers or {})
+        if response.status_code != 200 or response.json()["status"] in ("completed", "failed"):
+            return response
+        if time.monotonic() > deadline:
+            raise AssertionError(f"render job {job_id} did not finish within {timeout}s")
+        time.sleep(0.01)
+
+
 def test_generate_runs_the_job_and_returns_the_audio_url(client, monkeypatch):
     provider = _use(monkeypatch, FakeProvider())
     response = client.post("/api/v1/audio/generate", json=BRIEF)
     assert response.status_code == 202
     job_id = response.json()["job_id"]
 
-    # TestClient runs BackgroundTasks before the response is released, so the
-    # job is already terminal here.
-    polled = client.get(f"/api/v1/audio/generate/{job_id}")
+    polled = _poll(client, job_id)
     assert polled.status_code == 200
     body = polled.json()
     assert body["status"] == "completed"
@@ -121,7 +133,7 @@ def test_unconfigured_provider_is_503_before_a_job_is_created(client, monkeypatc
 def test_provider_failure_is_reported_verbatim_on_the_job(client, monkeypatch):
     _use(monkeypatch, FakeProvider(error=ProviderRequestError("prompt rejected")))
     job_id = client.post("/api/v1/audio/generate", json=BRIEF).json()["job_id"]
-    body = client.get(f"/api/v1/audio/generate/{job_id}").json()
+    body = _poll(client, job_id).json()
     assert body["status"] == "failed"
     assert body["error"] == "prompt rejected"
 
@@ -130,7 +142,7 @@ def test_unexpected_provider_exception_still_fails_the_job(client, monkeypatch):
     # A job must never be left RUNNING forever by an error nobody anticipated.
     _use(monkeypatch, FakeProvider(error=ValueError("boom")))
     job_id = client.post("/api/v1/audio/generate", json=BRIEF).json()["job_id"]
-    body = client.get(f"/api/v1/audio/generate/{job_id}").json()
+    body = _poll(client, job_id).json()
     assert body["status"] == "failed"
     assert "boom" in body["error"]
 
@@ -221,7 +233,7 @@ def render_dir(tmp_path, monkeypatch):
 def test_inline_audio_is_persisted_and_served_back(client, monkeypatch, render_dir):
     _use(monkeypatch, BytesProvider())
     job_id = client.post("/api/v1/audio/generate", json=BRIEF).json()["job_id"]
-    result = client.get(f"/api/v1/audio/generate/{job_id}").json()["result"]
+    result = _poll(client, job_id).json()["result"]
 
     url = result["audio_url"]
     assert url.startswith("/api/v1/audio/renders/")
@@ -239,14 +251,14 @@ def test_extension_follows_the_content_type_not_the_model(client, monkeypatch, r
     # A .wav holding FLAC is a file players refuse to open.
     _use(monkeypatch, BytesProvider(content_type="audio/flac"))
     job_id = client.post("/api/v1/audio/generate", json=BRIEF).json()["job_id"]
-    url = client.get(f"/api/v1/audio/generate/{job_id}").json()["result"]["audio_url"]
+    url = _poll(client, job_id).json()["result"]["audio_url"]
     assert url.endswith(".flac")
 
 
 def test_url_providers_are_passed_through_untouched(client, monkeypatch, render_dir):
     _use(monkeypatch, FakeProvider())
     job_id = client.post("/api/v1/audio/generate", json=BRIEF).json()["job_id"]
-    result = client.get(f"/api/v1/audio/generate/{job_id}").json()["result"]
+    result = _poll(client, job_id).json()["result"]
     assert result["audio_url"] == "https://cdn/track.wav"
     assert not render_dir.exists()  # nothing to persist
 
