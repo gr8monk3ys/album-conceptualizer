@@ -228,6 +228,7 @@ function WizardProgress({
             key={item.key}
             type="button"
             onClick={() => onStepSelect(index)}
+            aria-current={active ? "step" : undefined}
             className={`rounded-2xl border px-3 py-3 text-left ${
               active
                 ? "border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)]"
@@ -310,6 +311,7 @@ function QuickStartStepFields({
                   key={option.key}
                   type="button"
                   onClick={() => setField("narrativeStructure", option.key)}
+                  aria-pressed={selected}
                   className={`rounded-2xl border px-4 py-3 text-left ${
                     selected
                       ? "border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)]"

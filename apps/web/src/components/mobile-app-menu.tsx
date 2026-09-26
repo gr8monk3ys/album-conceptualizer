@@ -87,6 +87,7 @@ export function MobileAppMenu({
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-current={active ? "page" : undefined}
                     onClick={() => setOpen(false)}
                     className={cn(
                       "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.35)]",

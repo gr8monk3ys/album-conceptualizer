@@ -220,7 +220,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
           onClick={copyLink}
           className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
         >
-          <Copy className="h-4 w-4" />
+          <Copy className="h-4 w-4" aria-hidden="true" />
           Copy link
         </button>
       </div>
@@ -247,7 +247,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                           </div>
                           {isResolved ? (
                             <div className="inline-flex items-center gap-1 rounded-full bg-[rgba(50,213,131,0.14)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ok)]">
-                              <CheckCircle2 className="h-3 w-3" />
+                              <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                               Resolved
                             </div>
                           ) : null}
@@ -271,7 +271,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                             aria-label="Create task"
                             title="Create task"
                           >
-                            <ClipboardCheck className="h-4 w-4" />
+                            <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
                           </button>
                           {isResolved ? (
                             <button
@@ -281,7 +281,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                               aria-label="Unresolve"
                               title="Unresolve"
                             >
-                              <RotateCcw className="h-4 w-4" />
+                              <RotateCcw className="h-4 w-4" aria-hidden="true" />
                             </button>
                           ) : (
                             <button
@@ -291,7 +291,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                               aria-label="Resolve"
                               title="Resolve"
                             >
-                              <CheckCircle2 className="h-4 w-4" />
+                              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                             </button>
                           )}
                           <button
@@ -301,7 +301,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                             aria-label="Delete"
                             title="Delete"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </button>
                         </div>
                       ) : null}
@@ -342,7 +342,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
             disabled={submitting || body.trim().length < 2}
             className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <MessageSquarePlus className="h-4 w-4" />
+            <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
             {submitting ? "Posting…" : "Post"}
           </button>
         </div>

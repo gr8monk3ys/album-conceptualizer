@@ -45,9 +45,9 @@ export function FirstProjectChecklist({
           >
             <div className="mt-0.5">
               {step.complete ? (
-                <CheckCircle2 className="h-4 w-4 text-[var(--ok)]" />
+                <CheckCircle2 className="h-4 w-4 text-[var(--ok)]" aria-hidden="true" />
               ) : (
-                <CircleDashed className="h-4 w-4 text-[var(--muted2)]" />
+                <CircleDashed className="h-4 w-4 text-[var(--muted2)]" aria-hidden="true" />
               )}
             </div>
             <div className="min-w-0 flex-1">
@@ -61,7 +61,7 @@ export function FirstProjectChecklist({
                 {step.description}
               </div>
             </div>
-            <ArrowRight className="mt-0.5 h-4 w-4 text-[var(--muted2)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--text)]" />
+            <ArrowRight className="mt-0.5 h-4 w-4 text-[var(--muted2)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--text)]" aria-hidden="true" />
           </Link>
         ))}
       </div>

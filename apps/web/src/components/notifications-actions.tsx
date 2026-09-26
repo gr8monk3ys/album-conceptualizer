@@ -23,7 +23,7 @@ export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
       }}
       className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <MailOpen className="h-4 w-4" />
+      <MailOpen className="h-4 w-4" aria-hidden="true" />
       {loading ? "Marking…" : "Mark all read"}
     </button>
   );
@@ -54,7 +54,7 @@ export function ToggleNotificationReadButton({ id, unread }: { id: string; unrea
       aria-label={unread ? "Mark read" : "Mark unread"}
       title={unread ? "Mark read" : "Mark unread"}
     >
-      {unread ? <CheckCircle2 className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
+      {unread ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <RotateCcw className="h-4 w-4" aria-hidden="true" />}
       {loading ? "…" : unread ? "Read" : "Unread"}
     </button>
   );

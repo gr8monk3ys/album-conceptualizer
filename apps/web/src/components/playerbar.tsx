@@ -113,7 +113,7 @@ export function Playerbar() {
               aria-label="Previous (coming soon)"
               title="Previous (coming soon)"
             >
-              <SkipBack className="h-4 w-4" />
+              <SkipBack className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -127,7 +127,7 @@ export function Playerbar() {
               aria-label={playing ? "Pause" : "Play"}
               title={playing ? "Pause" : "Play"}
             >
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              {playing ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
             </button>
             <button
               type="button"
@@ -140,7 +140,7 @@ export function Playerbar() {
               aria-label="Stop"
               title="Stop"
             >
-              <Square className="h-4 w-4" />
+              <Square className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -149,7 +149,7 @@ export function Playerbar() {
               aria-label="Next (coming soon)"
               title="Next (coming soon)"
             >
-              <SkipForward className="h-4 w-4" />
+              <SkipForward className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -162,7 +162,7 @@ export function Playerbar() {
               aria-label={player.loop ? "Disable repeat" : "Enable repeat"}
               title={player.loop ? "Disable repeat" : "Enable repeat"}
             >
-              <Repeat2 className="h-4 w-4" />
+              <Repeat2 className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
 
@@ -216,7 +216,7 @@ export function Playerbar() {
               <option value="pad">Pad</option>
             </select>
           </label>
-          <Volume2 className="h-4 w-4 text-[var(--muted2)]" />
+          <Volume2 className="h-4 w-4 text-[var(--muted2)]" aria-hidden="true" />
           <input
             name="volume"
             type="range"

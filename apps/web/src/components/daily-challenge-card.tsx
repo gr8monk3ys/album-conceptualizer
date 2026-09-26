@@ -60,7 +60,7 @@ export function DailyChallengeCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.03)] px-3 py-1 text-xs text-[var(--muted)]">
-            <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
+            <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
             Daily challenge · {day} (UTC)
           </div>
           <div className="mt-3 text-xl font-semibold tracking-tight text-[var(--text)]">

@@ -571,7 +571,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
             onClick={addTrack}
             className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)]"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" aria-hidden="true" />
             Add
           </button>
         </div>
@@ -587,6 +587,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                       <button
                         type="button"
                         onClick={() => selectSong(index)}
+                        aria-current={isActive ? "true" : undefined}
                         className={[
                           "w-full px-4 py-3 text-left",
                           isActive
@@ -650,7 +651,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   disabled={previewing}
                   className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Play className="h-4 w-4" />
+                  <Play className="h-4 w-4" aria-hidden="true" />
                   Preview song
                 </button>
                 <Link
@@ -664,7 +665,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   onClick={() => deleteTrack(selectedSong)}
                   className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,62,165,0.12)]"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
                   Delete track
                 </button>
               </div>
@@ -724,7 +725,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   onClick={addSection}
                   className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)]"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4" aria-hidden="true" />
                   Add section
                 </button>
               </div>
@@ -740,6 +741,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                             <button
                               type="button"
                               onClick={() => selectSection(index)}
+                              aria-current={isActive ? "true" : undefined}
                               className={[
                                 "w-full px-3 py-2 text-left text-sm",
                                 isActive
@@ -789,7 +791,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                           disabled={previewing}
                           className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)] disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          <Play className="h-4 w-4" />
+                          <Play className="h-4 w-4" aria-hidden="true" />
                           Preview
                         </button>
                         <button
@@ -799,7 +801,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                           className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
                           title="Render and download an MP3 (requires server configuration)"
                         >
-                          <Download className="h-4 w-4" />
+                          <Download className="h-4 w-4" aria-hidden="true" />
                           MP3
                         </button>
                         <button
@@ -808,7 +810,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                           className="inline-flex items-center gap-1 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-2 py-2 text-xs text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
                           aria-label="Move section up"
                         >
-                          <ArrowUp className="h-4 w-4" />
+                          <ArrowUp className="h-4 w-4" aria-hidden="true" />
                         </button>
                         <button
                           type="button"
@@ -816,14 +818,14 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                           className="inline-flex items-center gap-1 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-2 py-2 text-xs text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
                           aria-label="Move section down"
                         >
-                          <ArrowDown className="h-4 w-4" />
+                          <ArrowDown className="h-4 w-4" aria-hidden="true" />
                         </button>
                         <button
                           type="button"
                           onClick={() => deleteSection(selectedSection)}
                           className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,62,165,0.12)]"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
                           Delete
                         </button>
                       </div>
@@ -1005,7 +1007,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
               disabled={saving}
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Save className="h-4 w-4" />
+              <Save className="h-4 w-4" aria-hidden="true" />
               Save
             </button>
             <button
@@ -1045,7 +1047,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   disabled={saving}
                   className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Save className="h-4 w-4" />
+                  <Save className="h-4 w-4" aria-hidden="true" />
                   Save to enable
                 </button>
               </div>
