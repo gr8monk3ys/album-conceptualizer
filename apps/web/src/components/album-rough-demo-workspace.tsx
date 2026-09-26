@@ -316,7 +316,7 @@ export function AlbumRoughDemoWorkspace({
               <input
                 value={form.title}
                 onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="Hallway chorus memo"
                 aria-label="Demo title"
               />
@@ -329,7 +329,7 @@ export function AlbumRoughDemoWorkspace({
                 onChange={(event) =>
                   setForm((current) => ({ ...current, sourceKind: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 aria-label="Source kind"
               >
                 {SOURCE_OPTIONS.map((option) => (
@@ -347,7 +347,7 @@ export function AlbumRoughDemoWorkspace({
                 onChange={(event) =>
                   setForm((current) => ({ ...current, songTrackNumber: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 aria-label="Song target"
               >
                 <option value="">Album-wide</option>
@@ -366,7 +366,7 @@ export function AlbumRoughDemoWorkspace({
                 onChange={(event) =>
                   setForm((current) => ({ ...current, externalUrl: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="https://..."
                 aria-label="External URL"
               />
@@ -400,7 +400,7 @@ export function AlbumRoughDemoWorkspace({
                   setForm((current) => ({ ...current, captureNotes: event.target.value }))
                 }
                 rows={4}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="The verse melody is weak, but the chorus rhythm and last line feel worth keeping."
                 aria-label="What this demo captures"
               />
@@ -414,7 +414,7 @@ export function AlbumRoughDemoWorkspace({
                   setForm((current) => ({ ...current, sonicTraits: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="muted guitar, handclap pulse, breathy hook"
                 aria-label="Sonic traits"
               />
@@ -428,7 +428,7 @@ export function AlbumRoughDemoWorkspace({
                   setForm((current) => ({ ...current, lyricalFragments: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="missed the exit, static glow, room 309"
                 aria-label="Lyrical fragments"
               />
@@ -442,7 +442,7 @@ export function AlbumRoughDemoWorkspace({
                   setForm((current) => ({ ...current, nextActions: event.target.value }))
                 }
                 rows={3}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="rewrite verse 1, test a slower tempo, move this hook to Track 3"
                 aria-label="Next moves"
               />

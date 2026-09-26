@@ -676,7 +676,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                 <input
                   value={activeSong?.title ?? ""}
                   onChange={(e) => updateSongField("title", e.target.value)}
-                  className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                  className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 />
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -685,7 +685,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   <input
                     value={activeSong?.key ?? ""}
                     onChange={(e) => updateSongField("key", e.target.value || null)}
-                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                     placeholder="C minor"
                   />
                 </label>
@@ -698,7 +698,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                       updateSongField("tempo", next ? Number(next) : null);
                     }}
                     inputMode="numeric"
-                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                     placeholder="120"
                   />
                 </label>
@@ -838,7 +838,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                             onChange={(e) =>
                               updateSectionField("section_type", e.target.value.trim() || "verse")
                             }
-                            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                             placeholder="verse"
                           />
                         </label>
@@ -852,7 +852,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                                 parseChordProgression(e.target.value),
                               )
                             }
-                            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                             placeholder="C Am F G"
                           />
                         </label>
@@ -864,7 +864,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                           value={activeSection.lyrics ?? ""}
                           onChange={(e) => updateSectionField("lyrics", e.target.value)}
                           rows={10}
-                          className="min-h-[240px] w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                          className="min-h-[240px] w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                           placeholder="Write lyrics for this section…"
                         />
                       </label>
@@ -893,7 +893,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   setAlbum((prev) => ({ ...prev, title: e.target.value }));
                   markDirty();
                 }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -904,7 +904,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   setAlbum((prev) => ({ ...prev, artist: e.target.value || null }));
                   markDirty();
                 }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="Artist name"
               />
             </label>
@@ -916,7 +916,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   setAlbum((prev) => ({ ...prev, primary_genre: e.target.value || null }));
                   markDirty();
                 }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="Alt pop"
               />
             </label>
@@ -929,7 +929,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   markDirty();
                 }}
                 rows={5}
-                className="w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="One paragraph describing the album concept…"
               />
             </label>
@@ -941,7 +941,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                   setCentralThemesText(e.target.value);
                   markDirty();
                 }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="identity, memory, change"
               />
               <div className="text-xs text-[var(--muted2)]">
@@ -969,7 +969,7 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
             <input
               value={versionMessage}
               onChange={(e) => setVersionMessage(e.target.value)}
-              className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+              className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
               placeholder="e.g., tightened chorus + added chords"
             />
           </label>

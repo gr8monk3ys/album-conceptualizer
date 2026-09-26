@@ -199,7 +199,7 @@ export function Playerbar() {
             <select
               value={player.instrument}
               onChange={(e) => void player.setInstrument(e.target.value as PreviewInstrument)}
-              className="rounded-xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+              className="rounded-xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-3 py-2 text-xs text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
               aria-label="Instrument"
               disabled={player.status === "loading"}
             >

@@ -89,7 +89,7 @@ export function DailyChallengeCard({
           onChange={(e) => setNoteDraft(e.target.value)}
           rows={4}
           disabled={done}
-          className="mt-3 w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)] disabled:opacity-70"
+          className="mt-3 w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)] disabled:opacity-70"
           placeholder="e.g., Drafted chorus lyrics for Track 3 + locked a C–Am–F–G loop."
         />
 

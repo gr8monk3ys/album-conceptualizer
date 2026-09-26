@@ -331,7 +331,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
           value={body}
           onChange={(e) => setUi((prev) => ({ ...prev, body: e.target.value }))}
           rows={3}
-          className="mt-2 w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-xs leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+          className="mt-2 w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-xs leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
           placeholder="Leave feedback for this section…"
         />
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
