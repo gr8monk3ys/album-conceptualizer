@@ -349,6 +349,33 @@ export function StatusMessage({
   );
 }
 
+/**
+ * A status line whose live region is always mounted, so a message is announced when it
+ * arrives: many screen readers stay silent for a region that appears with its text already in
+ * it. Render it unconditionally and pass `message` (null when there is nothing to say). Errors
+ * are inserted as an alert inside it, which is announced at once.
+ */
+export function LiveStatus({
+  message,
+  tone = "neutral",
+  className,
+}: {
+  message: ReactNode | null;
+  tone?: "neutral" | "ok" | "danger";
+  className?: string;
+}) {
+  const color = tone === "ok" ? "text-ok" : tone === "danger" ? "text-danger" : "text-ink-2";
+  return (
+    <div aria-live="polite" className={cn(message ? className : undefined)}>
+      {message ? (
+        <p role={tone === "danger" ? "alert" : undefined} className={cn("text-sm", color)}>
+          {message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /** An empty state that teaches the next step instead of saying "nothing here". */
 export function EmptyState({
   title,
