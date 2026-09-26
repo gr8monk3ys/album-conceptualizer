@@ -28,6 +28,7 @@ import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { scoreStory } from "@/lib/score-story";
+import { sharedLever } from "@/lib/shared-lever";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -93,26 +94,28 @@ const TRACK_LINK =
   "type-figure inline-grid min-h-11 min-w-11 place-items-center rounded-sm text-sm font-semibold text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:bg-hover hover:text-ink";
 
 /**
- * Track numbers as links in a catalog line: "1 · 4 · 7". Like every catalog line, each separator
- * stays with the number after it, and the last two numbers never part, so a wrap never leaves a
- * lone number (or a dangling dot) on a line of its own.
+ * Track numbers as links in a catalog line: "1 · 4 · 7". Like every catalog line
+ * (`CatalogItems`), each separator ends the item before it, so a wrapped line never starts
+ * with a dot (it may end on one, which reads as "more follows"). The number and its dot are one
+ * unbreakable flex item, the flex equivalent of CatalogItems' word joiner; and the last two
+ * numbers never part, so a wrap never leaves a lone number on a line of its own.
  */
 function TrackLinks({ albumId, issue, tracks }: { albumId: string; issue: CoherenceIssue; tracks: number[] }) {
   const suffix = TRACK_LINK_SUFFIX[issue.trackFocus ?? "song"] ?? "";
   const item = (trackNumber: number, index: number) => (
     <span key={trackNumber} className="inline-flex items-center whitespace-nowrap">
-      {/* Each number is a 44px target, so a comma would float in the gap; a catalog dot sits
-          in it naturally. Screen readers hear "Track 1, Track 4" from the links. */}
-      {index > 0 ? (
-        <span aria-hidden="true" className="text-ink-3">
-          ·
-        </span>
-      ) : null}
       <Link href={coherenceTrackHref(albumId, issue, trackNumber)} className={TRACK_LINK}>
         <span className="sr-only">Track </span>
         {trackNumber}
         {suffix ? <span className="sr-only">{suffix}</span> : null}
       </Link>
+      {/* Each number is a 44px target, so a comma would float in the gap; a catalog dot sits
+          in it naturally. Screen readers hear "Track 1, Track 4" from the links. */}
+      {index < tracks.length - 1 ? (
+        <span aria-hidden="true" className="text-ink-3">
+          ·
+        </span>
+      ) : null}
     </span>
   );
   const head = tracks.length > 2 ? tracks.slice(0, -2) : [];
@@ -305,6 +308,8 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
   const dimensions = dimensionsWeakestFirst(report.breakdown);
   const anyHeld = scored && dimensions.some((item) => item.heldBecause);
   const partlyWritten = stats.songsWithLyrics < stats.songCount;
+  // The lyric lever most rows share is said once above the list, not on every row.
+  const shared = scored ? sharedLever(dimensions) : null;
   // The One Score Story: progress first while tracks are unwritten, then the written tracks'
   // score and the whole album's, always in that order (lib/score-story, shared by every page
   // that shows a score). Once every track is written there is one score.
@@ -461,9 +466,17 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
               : "Each dimension scored out of 100, weakest first."
         }
       >
+        {shared ? (
+          <p className="mb-3 max-w-[65ch] text-sm leading-relaxed text-ink">{shared.sentence}</p>
+        ) : null}
         <ul className="divide-y divide-line border-y border-line">
           {dimensions.map((item) => {
             const held = scored && item.heldBecause;
+            // What the written tracks score alone, while the cap holds this dimension.
+            const alone = partlyWritten
+              ? `The written tracks alone score ${item.uncapped}.`
+              : `On its own it scores ${item.uncapped}.`;
+            const lever = scored && item.lever && !shared?.keys.has(item.key) ? item.lever : null;
             return (
               <li key={item.key} className="flex flex-wrap items-baseline gap-x-6 gap-y-1 py-3">
                 <span className="min-w-0 basis-28 text-sm font-semibold text-ink">{item.label}</span>
@@ -477,17 +490,21 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
                     <span className="text-sm font-normal text-ink-3">Not yet</span>
                   )}
                 </span>
-                {scored && item.lever ? (
+                {lever ? (
                   // One plain sentence naming what lifts the score; the evidence (and, while the
                   // score is held, what the written tracks score alone) sits under it as detail.
                   // The rule itself is in "How this is scored".
                   <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
-                    <span className="block">{item.lever}</span>
+                    <span className="block">{lever}</span>
                     <span className="type-figure mt-0.5 block text-xs text-ink-3">
-                      {held
-                        ? `${item.signal}. ${partlyWritten ? `The written tracks alone score ${item.uncapped}.` : `On its own it scores ${item.uncapped}.`}`
-                        : item.summary}
+                      {held ? `${item.signal}. ${alone}` : item.summary}
                     </span>
+                  </span>
+                ) : held ? (
+                  // Held by the shared lever said above the list: the row keeps its own signal.
+                  <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
+                    <span className="type-figure block">{item.signal}.</span>
+                    <span className="type-figure mt-0.5 block text-xs text-ink-3">{alone}</span>
                   </span>
                 ) : (
                   <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">

@@ -82,7 +82,10 @@ export function DailyChallengeCard({
 }) {
   const router = useRouter();
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
-  const [albumId, setAlbumId] = useState(completion?.link?.albumId ?? "");
+  // With only one album in the workspace there is nothing to choose: it is preselected.
+  const [albumId, setAlbumId] = useState(
+    completion?.link?.albumId ?? (albums.length === 1 ? albums[0].id : ""),
+  );
   const [trackNumber, setTrackNumber] = useState(
     completion?.link?.trackNumber ? String(completion.link.trackNumber) : "",
   );

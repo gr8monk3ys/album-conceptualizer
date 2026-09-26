@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 
+import { beforeRestoringMessage } from "@/lib/version-labels";
 import { AlbumJsonSchema } from "@/server/album-json";
 import { writeAlbumSnapshot } from "@/server/album-sync";
 import { ApiError, apiHandler, requireAlbum, requireWorkspace } from "@/server/api";
@@ -28,7 +29,6 @@ export const POST = apiHandler(
     if (!parsed.success) throw new ApiError(422, "This version can't be restored because it was saved in a format this app no longer reads.");
 
     const restored = { ...parsed.data, updated_at: new Date().toISOString() };
-    const label = version.message ?? version.createdAt.toISOString();
 
     await prisma.$transaction(async (tx) => {
       // Keep the state being overwritten so a restore can itself be undone.
@@ -37,7 +37,9 @@ export const POST = apiHandler(
           data: {
             albumId: album.id,
             createdByUserId: userId,
-            message: `Before restoring ${label}`.slice(0, 200),
+            // Named after the version being restored, never nested ("Before restoring Before
+            // restoring …"): an auto-saved or unnamed version is named by when it was saved.
+            message: beforeRestoringMessage(version),
             data: album.data as Prisma.InputJsonValue,
           },
           select: { id: true },

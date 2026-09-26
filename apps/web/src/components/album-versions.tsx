@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { RelativeTime } from "@/components/relative-time";
 import { Button, EmptyState, Field, LiveStatus, Panel, Section, inputClass } from "@/components/ui";
 import { useReturnFocus } from "@/components/use-return-focus";
+import { beforeRestoringDate } from "@/lib/version-labels";
 
 type VersionListItem = {
   id: string;
@@ -21,13 +22,16 @@ async function errorFrom(response: Response, fallback: string) {
   return typeof body?.error === "string" && body.error ? body.error : fallback;
 }
 
-/** Restores write "Before restoring <ISO date>"; show that date in the viewer's own terms. */
+/**
+ * A restore names the draft it keeps after the version it restored, or by that version's save
+ * time ("Before restoring <ISO date>"); show that date in the viewer's own terms.
+ */
 function VersionTitle({ message }: { message: string | null }) {
-  const match = message?.match(/^Before restoring (\d{4}-\d{2}-\d{2}T[\d:.]+Z)$/);
-  if (match) {
+  const date = beforeRestoringDate(message);
+  if (date) {
     return (
       <>
-        Before restoring the version from <RelativeTime date={match[1]} />
+        Before restoring the version from <RelativeTime date={date} />
       </>
     );
   }
@@ -46,6 +50,19 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
   const returnFocus = useReturnFocus();
   // Each version's Restore button, so Cancel can hand focus back to the one it replaced.
   const restoreButtons = useRef(new Map<string, HTMLButtonElement>());
+  // The open confirm's first action. Restore swaps itself for the confirm, so focus moves into
+  // it (and its question is read) instead of dropping to the page.
+  const confirmButton = useRef<HTMLButtonElement | null>(null);
+  const confirmIds = useId();
+
+  useEffect(() => {
+    if (confirmingId) confirmButton.current?.focus();
+  }, [confirmingId]);
+
+  function cancelRestore(versionId: string) {
+    setConfirmingId(null);
+    returnFocus(() => restoreButtons.current.get(versionId));
+  }
 
   async function save() {
     const trimmed = message.trim();
@@ -131,16 +148,19 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
               />
             </Field>
             <div className="flex flex-wrap items-center gap-3">
+              {/* Unavailable until named, but never `disabled`: the field clears once the version
+                  is saved, and a disabled button would drop focus to the page right then. The
+                  form ignores an unnamed submit. */}
               <Button
                 type="submit"
                 tone="primary"
-                disabled={!named}
                 busy={isSaving}
+                aria-disabled={!named || isSaving || undefined}
                 aria-describedby={named ? undefined : "version-save-reason"}
               >
                 {isSaving ? "Saving…" : "Save version"}
               </Button>
-              {/* A disabled button says why, where the eye already is. */}
+              {/* An unavailable button says why, where the eye already is. */}
               {named ? null : (
                 <p id="version-save-reason" className="min-w-0 text-sm text-ink-3">
                   Name the version to save it.
@@ -167,6 +187,8 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
           <ol className="divide-y divide-line border-y border-line">
             {versions.map((version) => {
               const confirming = confirmingId === version.id;
+              const groupId = `${confirmIds}-${version.id}`;
+              const promptId = `${groupId}-prompt`;
               const author = version.createdBy?.name || version.createdBy?.email;
               return (
                 <li key={version.id} className="py-3">
@@ -189,6 +211,9 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                           else restoreButtons.current.delete(version.id);
                         }}
                         disabled={Boolean(restoringId)}
+                        // A disclosure of the question in its place, like Publish and Confirm Spend.
+                        aria-expanded={false}
+                        aria-controls={groupId}
                         onClick={() => {
                           setConfirmingId(version.id);
                           setRestoreStatus(null);
@@ -202,13 +227,26 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                     )}
                   </div>
                   {confirming ? (
-                    <div className="mt-3 flex flex-col gap-3 rounded border border-line-strong p-3">
-                      <p className="text-sm text-ink">
+                    <div
+                      id={groupId}
+                      role="group"
+                      aria-labelledby={promptId}
+                      className="mt-3 flex flex-col gap-3 rounded border border-line-strong p-3"
+                      onKeyDown={(event) => {
+                        // Escape cancels, like every other inline confirm, unless it is running.
+                        if (event.key === "Escape" && !restoringId) {
+                          event.stopPropagation();
+                          cancelRestore(version.id);
+                        }
+                      }}
+                    >
+                      <p id={promptId} className="max-w-[65ch] text-sm text-ink">
                         Replace the current draft with this version? The draft is saved as a version
                         first.
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
+                          ref={confirmButton}
                           tone="danger"
                           busy={Boolean(restoringId)}
                           onClick={() => void restore(version.id)}
@@ -218,10 +256,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                         <Button
                           tone="ghost"
                           disabled={Boolean(restoringId)}
-                          onClick={() => {
-                            setConfirmingId(null);
-                            returnFocus(() => restoreButtons.current.get(version.id));
-                          }}
+                          onClick={() => cancelRestore(version.id)}
                         >
                           Cancel
                         </Button>

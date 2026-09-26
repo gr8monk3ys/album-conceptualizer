@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * What a handoff carries as it stands, one fact per item, each linked to where it's fixed:
- * "3 of 7 tracks written · Sound bible 0 of 9 fields · Starter chords on 7 tracks". Done items
+ * "3 of 7 tracks written · Sound bible 0 of 9 fields set · Starter chords on 7 tracks". Done items
  * carry a check; the rest a small Ember mark. It informs; nothing here blocks.
  */
 export function ReadinessList({

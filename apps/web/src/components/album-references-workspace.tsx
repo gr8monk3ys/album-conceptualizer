@@ -16,6 +16,7 @@ import {
   selectClass,
   textareaClass,
 } from "@/components/ui";
+import { REFERENCE_BPM_MAX, REFERENCE_BPM_MIN, referenceBpmProblem } from "@/lib/reference-bpm";
 import { REFERENCE_ROLES, referenceRoleLabel } from "@/lib/reference-roles";
 import { mergeStringFields, useDraftState, useLeaveGuard } from "@/lib/use-autosave";
 import type { AlbumSongOption } from "@/server/album-songs";
@@ -123,10 +124,9 @@ function validate(form: ReferenceFormState): { field: string; message: string } 
   if (!form.title.trim()) {
     return { field: "reference-title", message: "Add a reference title before saving." };
   }
-  const bpm = form.bpm.trim();
-  if (bpm && !(Number(bpm) > 0)) {
-    return { field: "reference-bpm", message: "BPM should be a number, like 118." };
-  }
+  // The server's own range (lib/reference-bpm), so the form never sends what it refuses.
+  const bpm = referenceBpmProblem(form.bpm, { complete: true });
+  if (bpm) return { field: "reference-bpm", message: bpm };
   const url = form.sourceUrl.trim();
   if (url) {
     try {
@@ -213,7 +213,7 @@ function DeleteControl({
   return (
     <div role="group" aria-label={`Delete ${itemLabel}?`} className="flex flex-wrap items-center gap-2">
       <span className="text-sm text-ink-2">Delete this reference?</span>
-      <Button ref={confirmRef} tone="danger" className="px-3" disabled={busy} onClick={onConfirm}>
+      <Button ref={confirmRef} tone="danger" className="px-3" busy={busy} onClick={onConfirm}>
         {busy ? "Deleting…" : "Yes, delete"}
       </Button>
       <Button tone="ghost" className="px-3" disabled={busy} onClick={() => setConfirming(false)}>
@@ -248,6 +248,9 @@ export function AlbumReferencesWorkspace({
   const [addOpenChoice, setAddOpenChoice] = useState<boolean | null>(null);
   const [editing, setEditing] = useState<{ id: string; form: ReferenceFormState } | null>(null);
   const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null);
+  // BPM is checked as it is typed; a number still below the range ("1" of "118") is only
+  // flagged once the field is left or the form is sent.
+  const [bpmDone, setBpmDone] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [notice, showNotice] = useNotice();
@@ -304,6 +307,7 @@ export function AlbumReferencesWorkspace({
   function clearFormMessages() {
     setFieldError(null);
     setFormError(null);
+    setBpmDone(false);
   }
 
   function openAdd() {
@@ -350,6 +354,7 @@ export function AlbumReferencesWorkspace({
     const problem = validate(form);
     if (problem) {
       setFieldError(problem);
+      if (problem.field === "reference-bpm") setBpmDone(true);
       document.getElementById(problem.field)?.focus();
       return;
     }
@@ -437,6 +442,7 @@ export function AlbumReferencesWorkspace({
   }
 
   function renderForm(mode: "add" | "edit") {
+    const bpmError = referenceBpmProblem(form.bpm, { complete: bpmDone });
     return (
       <Panel className="@container max-w-3xl">
         <form
@@ -546,16 +552,21 @@ export function AlbumReferencesWorkspace({
             <Field
               label="BPM"
               htmlFor="reference-bpm"
-              error={fieldError?.field === "reference-bpm" ? fieldError.message : undefined}
+              hint={`A whole number from ${REFERENCE_BPM_MIN} to ${REFERENCE_BPM_MAX}.`}
+              error={bpmError ?? undefined}
             >
               <input
                 id="reference-bpm"
                 value={form.bpm}
-                onChange={(event) => update("bpm", event.target.value)}
+                onChange={(event) => {
+                  update("bpm", event.target.value);
+                  setBpmDone(false);
+                }}
+                onBlur={() => setBpmDone(true)}
                 className={`${inputClass} type-figure`}
                 inputMode="numeric"
                 placeholder="e.g. 118"
-                {...errorProps("reference-bpm")}
+                autoComplete="off"
               />
             </Field>
 

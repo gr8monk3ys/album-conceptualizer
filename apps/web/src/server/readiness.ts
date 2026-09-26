@@ -1,5 +1,6 @@
 import { trackHasWrittenHarmony } from "@/lib/chords";
 import { trackHasLyrics } from "@/lib/lyrics";
+import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 
 /** Sound bible fields set before the Sound bible counts as set. */
@@ -90,7 +91,7 @@ export function getAlbumReadiness(albumId: string, data: unknown): AlbumReadines
     },
     {
       key: "style",
-      label: `Sound bible ${style.filledCount} of ${style.totalCount} fields`,
+      label: `Sound bible ${soundBibleFieldsSet(style.filledCount, style.totalCount)}`,
       done: style.filledCount >= STYLE_BIBLE_LOCKED_FIELDS,
       href: `${base}/style`,
     },

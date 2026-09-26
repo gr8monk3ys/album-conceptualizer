@@ -64,9 +64,10 @@ export function MobileAppMenu({
       >
         {/* The sheet scrolls as one column, and fades at the edge with more past it; nothing
             in it shrinks, so the navigation stays whole on a short landscape screen or with
-            enlarged text. */}
-        <FadeScroll className="h-full overflow-y-auto">
-          <div className="flex min-h-full flex-col gap-6 px-3 py-4 *:shrink-0">
+            enlarged text. In a narrow sheet (320px with 200% text) its side padding tightens
+            so every nav label sits whole beside its icon. */}
+        <FadeScroll className="h-full overflow-y-auto @container/sheet">
+          <div className="flex min-h-full flex-col gap-6 px-3 py-4 *:shrink-0 @max-[12rem]/sheet:px-2">
             {/* The wordmark and workspace name share a row with the close button while the
                 sheet has room for them (15rem, so enlarged text needs more); narrower, the
                 close button keeps the top corner and they take the full row beneath it, so

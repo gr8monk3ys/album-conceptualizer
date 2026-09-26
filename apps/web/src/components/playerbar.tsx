@@ -276,6 +276,7 @@ export function Playerbar() {
       <div aria-hidden="true" style={{ height: barHeight }} />
       <section
         ref={barRef}
+        id="preview-player"
         aria-label="Preview player"
         className="fixed inset-x-0 bottom-0 z-40 max-h-[40dvh] overflow-y-auto border-t border-line-strong bg-raised md:left-[var(--sidebar-w,min(16rem,33vw))]"
       >

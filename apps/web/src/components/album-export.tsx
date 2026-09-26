@@ -252,6 +252,8 @@ export function AlbumExport({
       >
         <Panel className="@container">
           <div className="grid grid-cols-1 gap-6 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
+            {/* In a narrow panel (a phone at 200% text) each hint drops its indent and sits under
+                its checkbox, so a long word ("progressions") still fits inside the border. */}
             <fieldset className="min-w-0">
               <legend className="text-sm font-semibold text-ink">Formats</legend>
               <ul className="mt-2 divide-y divide-line">
@@ -273,7 +275,10 @@ export function AlbumExport({
                         />
                         {fmt.title}
                       </label>
-                      <p id={`${inputId}-desc`} className="-mt-1.5 max-w-[65ch] pb-1.5 pl-8 text-sm text-ink-2">
+                      <p
+                        id={`${inputId}-desc`}
+                        className="-mt-1.5 max-w-[65ch] break-words pb-1.5 text-sm text-ink-2 hyphens-auto @min-[14rem]:pl-8"
+                      >
                         {fmt.desc}
                       </p>
                     </li>
@@ -283,7 +288,7 @@ export function AlbumExport({
             </fieldset>
 
             <div className="flex min-w-0 flex-col gap-4 @2xl:border-l @2xl:border-line @2xl:pl-6">
-              <fieldset>
+              <fieldset className="min-w-0">
                 <legend className="text-sm font-semibold text-ink">Options</legend>
                 <label
                   htmlFor="include-production-notes"
@@ -299,7 +304,10 @@ export function AlbumExport({
                   />
                   Include production notes
                 </label>
-                <p id="include-production-notes-desc" className="-mt-1.5 max-w-[65ch] pl-8 text-sm text-ink-2">
+                <p
+                  id="include-production-notes-desc"
+                  className="-mt-1.5 max-w-[65ch] break-words text-sm text-ink-2 hyphens-auto @min-[14rem]:pl-8"
+                >
                   Adds your production notes to the formats that can carry them.
                 </p>
               </fieldset>

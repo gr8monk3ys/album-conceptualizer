@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { memo, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 
 import { carriedThemes, type StudioSong } from "@/components/studio/studio-model";
 import { TRACK_KEYSHORTCUTS } from "@/components/studio/studio-shortcuts";
 import { TRACKS_TOGGLE_ID, tracksSummary } from "@/components/studio/tracks-disclosure";
+import { sameKeys } from "@/components/studio/use-stable-event";
 import { ThemeHeadName } from "@/components/theme-mark";
 import { Button, TableScroller } from "@/components/ui";
 import { lyricProgress } from "@/lib/lyrics";
@@ -79,6 +80,54 @@ const HEAD = "type-catalog sticky top-0 z-20 bg-ground px-1 pb-1.5 pt-2 align-bo
 
 type Cut = { above: number; below: number };
 
+type TrackListProps = {
+  songs: StudioSong[];
+  centralThemes: string[];
+  activeIndex: number;
+  onSelect: (index: number) => void;
+  onToggleTheme: (index: number, theme: string) => void;
+  onAddTrack: () => void;
+  onAddThemes: () => void;
+  /** In one column: whether the folded list is open. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+/**
+ * Whether the list would draw a track the same: what a row shows (number, title, role, themes,
+ * lyric progress). Typing lyrics replaces the track's object on every keystroke, but its row
+ * changes only when a section turns written or back.
+ */
+export function sameTrackRow(prev: StudioSong | undefined, next: StudioSong | undefined): boolean {
+  if (prev === next) return true;
+  if (!prev || !next) return false;
+  if (!sameKeys(prev, next, ["id", "track_number", "title", "narrative_position", "themes"])) return false;
+  if (prev.sections === next.sections) return true;
+  const a = lyricProgress(prev.sections);
+  const b = lyricProgress(next.sections);
+  return a.written === b.written && a.total === b.total;
+}
+
+/** TrackList's memo test: its own props by identity, the tracks by what their rows show. */
+export function sameTrackListProps(prev: TrackListProps, next: TrackListProps): boolean {
+  if (
+    !sameKeys(prev, next, [
+      "centralThemes",
+      "activeIndex",
+      "onSelect",
+      "onToggleTheme",
+      "onAddTrack",
+      "onAddThemes",
+      "open",
+      "onOpenChange",
+    ])
+  ) {
+    return false;
+  }
+  if (prev.songs === next.songs) return true;
+  return prev.songs.length === next.songs.length && prev.songs.every((song, i) => sameTrackRow(song, next.songs[i]));
+}
+
 /**
  * The album spine, editable: every track in sequence with its lyric progress, which of the
  * album's central themes it carries, and its role. Selecting a row opens that track in the
@@ -90,8 +139,13 @@ type Cut = { above: number; below: number };
  * In one column the list folds into a disclosure ("Tracks · 04 of 10 · Track 4", `open` /
  * `onOpenChange`, remembered by the Studio for the session), so the current track's editor
  * follows straight after it instead of screens further down. Beside the editor it is always open.
+ *
+ * Memoized: every keystroke in the editor re-renders the Studio, and the list (a row and a
+ * toggle per theme for every track) is its largest part. Callers pass stable callbacks.
  */
-export function TrackList({
+export const TrackList = memo(TrackListView, sameTrackListProps);
+
+function TrackListView({
   songs,
   centralThemes,
   activeIndex,
@@ -101,18 +155,7 @@ export function TrackList({
   onAddThemes,
   open,
   onOpenChange,
-}: {
-  songs: StudioSong[];
-  centralThemes: string[];
-  activeIndex: number;
-  onSelect: (index: number) => void;
-  onToggleTheme: (index: number, theme: string) => void;
-  onAddTrack: () => void;
-  onAddThemes: () => void;
-  /** In one column: whether the folded list is open. */
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+}: TrackListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [cut, setCut] = useState<Cut>({ above: 0, below: 0 });
   // The theme matrix is one tab stop; arrow keys move within it (a roving tabindex).

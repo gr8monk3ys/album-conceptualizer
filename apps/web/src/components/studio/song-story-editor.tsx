@@ -1,9 +1,11 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { memo } from "react";
 
 import { ChipListEditor } from "@/components/studio/chip-list-editor";
 import type { StudioSong } from "@/components/studio/studio-model";
+import { sameKeys } from "@/components/studio/use-stable-event";
 import { Field, inputClass } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -78,7 +80,7 @@ export function SongStoryFields({
           value={song.narrative_summary ?? ""}
           onChange={(e) => onChange("narrative_summary", e.target.value || null)}
           className={inputClass}
-          placeholder="e.g. She leaves the city before the storm reaches it."
+          placeholder="e.g. She leaves before the storm."
         />
       </Field>
     </div>
@@ -90,21 +92,34 @@ export function SongStoryFields({
  * coherence report and the spine read. Collapsed to a one-line summary so the writing surface
  * comes first; it expands in place. (Role and Story note sit under the track title instead.)
  */
-export function SongStoryEditor({
-  song,
-  albumThemes,
-  albumMotifs,
-  onChange,
-  open,
-  onOpenChange,
-}: {
+type SongStoryEditorProps = {
   song: StudioSong;
   albumThemes: string[];
   albumMotifs: string[];
   onChange: <K extends StoryField>(key: K, value: StudioSong[K]) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+};
+
+/** SongStoryEditor's memo test: what it shows of the track (themes, motifs, characters). */
+export function sameSongStoryProps(prev: SongStoryEditorProps, next: SongStoryEditorProps): boolean {
+  return (
+    sameKeys(prev, next, ["albumThemes", "albumMotifs", "onChange", "open", "onOpenChange"]) &&
+    (prev.song === next.song || sameKeys(prev.song, next.song, ["themes", "motifs", "characters"]))
+  );
+}
+
+/** Memoized, so a keystroke in the lyrics doesn't re-render the track's chip editors. */
+export const SongStoryEditor = memo(SongStoryEditorView, sameSongStoryProps);
+
+function SongStoryEditorView({
+  song,
+  albumThemes,
+  albumMotifs,
+  onChange,
+  open,
+  onOpenChange,
+}: SongStoryEditorProps) {
   const bodyId = `${SONG_STORY_ID}-body`;
   return (
     <section id={SONG_STORY_ID} aria-labelledby={`${SONG_STORY_ID}-name`} className="border-t border-line pt-4">

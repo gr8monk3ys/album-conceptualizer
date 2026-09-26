@@ -3,8 +3,12 @@ import type { ReactNode } from "react";
 
 import { PageHeader, Section, TableScroller } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { getAgentAvailability } from "@/server/engine";
 import { FREE_PROJECT_LIMIT, planMonthlyCredits } from "@/server/plan";
 
+// Rendered per request: whether AI drafts can run here is read from the server (cached 60s),
+// so Help never lists as usable an action Billing and Challenges say isn't available.
+export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Help",
   description:
@@ -75,13 +79,14 @@ const STEPS: Array<{ title: string; body: ReactNode }> = [
   },
 ];
 
-const COSTS = [
+const COSTS: Array<{ action: string; cost: number; ai?: boolean }> = [
   { action: "Create an album", cost: CREDIT_COSTS.albumCreate },
   { action: "Remix an album from Discover or a share link", cost: CREDIT_COSTS.albumFork },
   { action: "Download an export zip", cost: CREDIT_COSTS.exportZip },
   {
     action: "Get an AI draft (brainstorming ideas, developing a song or reviewing coherence)",
     cost: CREDIT_COSTS.agentRun,
+    ai: true,
   },
 ];
 
@@ -144,7 +149,9 @@ const CONTENTS = [
 ];
 
 /** A short, task-based guide: the workflow, credits and plans, what counts, shortcuts. */
-export default function HelpPage() {
+export default async function HelpPage() {
+  // The same check Billing and Challenges use: false when AI drafts can't run on this server.
+  const aiAvailable = await getAgentAvailability();
   return (
     <div className="flex flex-col gap-10">
       <PageHeader
@@ -213,12 +220,23 @@ export default function HelpPage() {
                 {COSTS.map((row) => (
                   <tr key={row.action} className="border-b border-line">
                     <td className="py-3 pr-4 text-ink">{row.action}</td>
-                    <td className="type-figure py-3 text-right font-semibold text-ink">{row.cost}</td>
+                    {row.ai && !aiAvailable ? (
+                      <td className="py-3 text-right text-ink-3">Not available on this server right now</td>
+                    ) : (
+                      <td className="type-figure py-3 text-right font-semibold text-ink">{row.cost}</td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </TableScroller>
+          {/* Offers you can't take aren't sold: the same line Billing shows. */}
+          {aiAvailable ? null : (
+            <p className="-mt-4 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+              AI drafts aren&apos;t available on this server right now, so no plan includes them: its
+              credits go to creating, remixing and exporting. Everything else works without them.
+            </p>
+          )}
 
           <TableScroller label="Monthly credits on each plan" className="max-w-2xl">
             <table className="w-full border-collapse text-sm">

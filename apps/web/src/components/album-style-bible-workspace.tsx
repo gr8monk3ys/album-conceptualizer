@@ -11,12 +11,14 @@ import {
   ButtonLink,
   Chip,
   Field,
+  LiveStatus,
   Panel,
   Section,
   inputClass,
   textareaClass,
 } from "@/components/ui";
 import { referenceRoleLabel, referenceRoleList } from "@/lib/reference-roles";
+import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
 import { STYLE_BIBLE_LIST_LIMIT } from "@/lib/style-bible-limits";
 import { useAutosave } from "@/lib/use-autosave";
 import type { AlbumStyleBible } from "@/server/album-json";
@@ -40,8 +42,8 @@ type StyleBibleFormState = {
 
 type StyleBibleBody = ReturnType<typeof buildBody>;
 
-/** The nine sections of the Sound bible (`style_bible`), in the order the form asks for them. */
-const SECTIONS: Array<{ key: keyof StyleBibleFormState; label: string }> = [
+/** The nine fields of the Sound bible (`style_bible`), in the order the form asks for them. */
+const FIELDS: Array<{ key: keyof StyleBibleFormState; label: string }> = [
   { key: "leadVoice", label: "Lead voice brief" },
   { key: "narratorPerspective", label: "Narrator perspective" },
   { key: "vocalAttributes", label: "Vocal attributes" },
@@ -136,8 +138,8 @@ export function AlbumStyleBibleWorkspace({
   // When the viewer last pressed "Save now" (or Ctrl/⌘+S); the status names that save plainly.
   const [explicitSaveAt, setExplicitSaveAt] = useState<number | null>(null);
 
-  const filled = SECTIONS.filter((section) => form[section.key].trim().length > 0);
-  const open = SECTIONS.filter((section) => !form[section.key].trim());
+  const filled = FIELDS.filter((field) => form[field.key].trim().length > 0);
+  const open = FIELDS.filter((field) => !form[field.key].trim());
   // Compare what would be sent, so a trailing comma or space isn't an unsaved change.
   const body = useMemo(() => buildBody(form), [form]);
 
@@ -200,44 +202,49 @@ export function AlbumStyleBibleWorkspace({
   }
 
   // One save model: the form autosaves, so the save state is a status line with a quiet
-  // "Save now" beside it, never a primary button or a bar pinned over the fields.
+  // "Save now" beside it, never a primary button or a bar pinned over the fields. Like the
+  // Studio, only events are announced: the result of a Save now the artist asked for, and a
+  // save that failed, once each. Autosave's own cycle (Unsaved changes, Saving…, Saved · when)
+  // stays readable beside it but is never announced, so typing is never talked over.
+  const liveStatus =
+    autosave.status === "error"
+      ? { tone: "danger" as const, text: `Unsaved changes — ${autosave.error}` }
+      : showExplicit
+        ? { tone: "ok" as const, text: "Sound bible saved." }
+        : null;
+  const quietStatus = liveStatus
+    ? null
+    : autosave.status === "dirty"
+      ? "Unsaved changes"
+      : autosave.status === "saving"
+        ? "Saving…"
+        : autosave.status === "saved"
+          ? "Saved"
+          : "All changes saved";
   const saveState = (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-      <p className="min-w-0">
-        <span
-          role="status"
-          className={autosave.status === "error" ? "text-danger" : showExplicit ? "text-ok" : "text-ink-2"}
-        >
-          {autosave.status === "dirty"
-            ? "Unsaved changes"
-            : autosave.status === "saving"
-              ? "Saving…"
-              : autosave.status === "error"
-                ? `Unsaved changes — ${autosave.error}`
-                : showExplicit
-                  ? "Sound bible saved."
-                  : autosave.status === "saved"
-                    ? "Saved"
-                    : "All changes saved"}
-        </span>
-        {autosave.status === "saved" && !showExplicit && autosave.lastSavedAt ? (
-          <span className="text-ink-3">
-            {" · "}
-            <RelativeTime date={new Date(autosave.lastSavedAt).toISOString()} />
-          </span>
+      {/* The live and the quiet status never both hold text. */}
+      <div className="min-w-0 break-words">
+        <LiveStatus message={liveStatus?.text ?? null} tone={liveStatus?.tone} />
+        {quietStatus ? (
+          <p className="text-ink-2">
+            {quietStatus}
+            {autosave.status === "saved" && autosave.lastSavedAt ? (
+              <span className="text-ink-3">
+                {" · "}
+                <RelativeTime date={new Date(autosave.lastSavedAt).toISOString()} />
+              </span>
+            ) : null}
+          </p>
         ) : null}
-      </p>
+      </div>
       {autosave.status === "error" ? (
         <Button tone="ghost" className="px-3" onClick={() => void autosave.retry()}>
           Retry
         </Button>
       ) : (
-        <Button
-          type="submit"
-          tone="ghost"
-          className="px-3"
-          disabled={autosave.status === "saving"}
-        >
+        // Busy, not disabled, while a save runs: pressing it keeps focus here.
+        <Button type="submit" tone="ghost" className="px-3" busy={autosave.status === "saving"}>
           Save now
         </Button>
       )}
@@ -245,7 +252,7 @@ export function AlbumStyleBibleWorkspace({
   );
 
   const label = (key: keyof StyleBibleFormState) =>
-    SECTIONS.find((section) => section.key === key)?.label ?? key;
+    FIELDS.find((field) => field.key === key)?.label ?? key;
 
   /** A list over the limit won't save; say so under the field, not only in the status line. */
   const overLimit = (key: keyof StyleBibleFormState) => {
@@ -277,27 +284,26 @@ export function AlbumStyleBibleWorkspace({
           <Panel className="@container">
             <form onSubmit={(event) => void saveStyleBible(event)}>
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-                <p className="text-sm text-ink">
-                  <span className="type-figure font-semibold">{filled.length}</span> of{" "}
-                  <span className="type-figure">{SECTIONS.length}</span> sections filled
+                <p className="type-figure text-sm text-ink">
+                  {soundBibleFieldsSet(filled.length, FIELDS.length)}
                 </p>
                 {saveState}
               </div>
               <div aria-hidden="true" className="mt-2 flex gap-1">
-                {SECTIONS.map((section) => (
+                {FIELDS.map((field) => (
                   <span
-                    key={section.key}
+                    key={field.key}
                     className={
-                      form[section.key].trim()
+                      form[field.key].trim()
                         ? "h-1 flex-1 rounded-sm bg-ink-2"
                         : "h-1 flex-1 rounded-sm bg-line"
                     }
                   />
                 ))}
               </div>
-              {open.length && open.length < SECTIONS.length ? (
+              {open.length && open.length < FIELDS.length ? (
                 <p className="mt-2 max-w-[65ch] text-xs leading-relaxed text-ink-3">
-                  Still open: {open.map((section) => section.label).join(", ")}
+                  Still open: {open.map((field) => field.label).join(", ")}
                 </p>
               ) : null}
 

@@ -25,6 +25,8 @@ import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { scoreStory } from "@/lib/score-story";
+import { beforeRestoringDate } from "@/lib/version-labels";
+import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -111,6 +113,14 @@ function StatusRow({
   );
 }
 
+/** How the arrival line names the version just restored; a draft a restore kept is named as such. */
+function restoredVersionName(message: string | null | undefined) {
+  const name = message?.trim();
+  if (!name) return "an earlier version";
+  if (beforeRestoringDate(name)) return "the draft saved before an earlier restore";
+  return `“${name}”`;
+}
+
 export default async function AlbumOverviewPage({
   params,
   searchParams,
@@ -174,7 +184,7 @@ export default async function AlbumOverviewPage({
         className="max-w-[65ch]"
         message={
           restoredVersion
-            ? `Restored ${restoredVersion.message?.trim() ? `“${restoredVersion.message.trim()}”` : "an earlier version"} · the draft it replaced is saved in Version history.`
+            ? `Restored ${restoredVersionName(restoredVersion.message)} · the draft it replaced is saved in Version history.`
             : null
         }
       />
@@ -242,7 +252,7 @@ export default async function AlbumOverviewPage({
           <StatusRow
             href={`${base}/style`}
             label="Sound bible"
-            figure={`${styleSummary.filledCount} of ${styleSummary.totalCount} set`}
+            figure={soundBibleFieldsSet(styleSummary.filledCount, styleSummary.totalCount)}
             detail={styleBible.lead_voice || "Define the vocal identity, palette and mix limits before export."}
           />
           <StatusRow

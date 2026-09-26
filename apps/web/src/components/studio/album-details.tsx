@@ -1,9 +1,11 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { memo } from "react";
 
 import { ChipListEditor } from "@/components/studio/chip-list-editor";
 import type { StudioAlbum } from "@/components/studio/studio-model";
+import { sameKeys } from "@/components/studio/use-stable-event";
 import { Field, inputClass, textareaClass } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -32,20 +34,30 @@ export function albumFocusTarget(album: Pick<StudioAlbum, "concept_summary" | "c
  * very bottom of the editor column, named for its reach ("all tracks") so it never reads as
  * part of the current track.
  */
-export function AlbumDetails({
-  album,
-  onChange,
-  open,
-  onOpenChange,
-  className,
-}: {
+type AlbumDetailsProps = {
   album: StudioAlbum;
   onChange: (patch: AlbumPatch) => void;
   /** Whether the disclosure is expanded. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
   className?: string;
-}) {
+};
+
+/** The album fields the disclosure shows: typing a track's lyrics changes none of them. */
+const SHOWN_ALBUM_FIELDS = ["title", "artist", "primary_genre", "concept_summary", "central_themes", "recurring_motifs"] as const;
+
+/** AlbumDetails' memo test: its props by identity, the album by the fields it shows. */
+export function sameAlbumDetailsProps(prev: AlbumDetailsProps, next: AlbumDetailsProps): boolean {
+  return (
+    sameKeys(prev, next, ["onChange", "open", "onOpenChange", "className"]) &&
+    (prev.album === next.album || sameKeys(prev.album, next.album, SHOWN_ALBUM_FIELDS))
+  );
+}
+
+/** Memoized, so a keystroke in a track's lyrics doesn't re-render the album's fields. */
+export const AlbumDetails = memo(AlbumDetailsView, sameAlbumDetailsProps);
+
+function AlbumDetailsView({ album, onChange, open, onOpenChange, className }: AlbumDetailsProps) {
   return (
     <section
       id="album-details"

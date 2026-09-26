@@ -30,7 +30,7 @@ describe("getAlbumReadiness", () => {
     expect(readiness.items.map((item) => [item.label, item.done, item.href])).toEqual([
       ["2 of 4 tracks written", false, "/app/albums/a1/studio?song=2&focus=lyrics"],
       ["Starter chords on 3 tracks", false, "/app/albums/a1/studio?song=1"],
-      ["Sound bible 0 of 9 fields", false, "/app/albums/a1/style"],
+      ["Sound bible 0 of 9 fields set", false, "/app/albums/a1/style"],
     ]);
     expect(readiness.ready).toBe(false);
     expect(readiness.question).toBe("Publish with 2 of 4 tracks written?");

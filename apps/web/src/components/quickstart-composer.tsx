@@ -906,8 +906,8 @@ export function QuickStartComposer({
 
             {step === lastStep ? (
               <p className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
-                Saving creates the album in your workspace and opens it, ready for a first writing
-                pass in the Studio.
+                Saving creates the album in your workspace and opens its Overview, where the next
+                step to take is one click away.
               </p>
             ) : null}
           </div>

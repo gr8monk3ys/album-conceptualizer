@@ -24,6 +24,7 @@ import { summarizeStyleBible } from "@/server/style-bible";
 import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { albumMotifIndex, type MotifEntry } from "@/lib/motifs";
+import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,141 @@ const DISCLOSURE =
 
 function pad(trackNumber: number) {
   return String(trackNumber).padStart(2, "0");
+}
+
+type BeatTrack = AlbumBible["timeline"]["tracks"][number];
+
+function hasStoryNote(track: BeatTrack) {
+  return Boolean(track.narrativeSummary?.trim());
+}
+
+/** A track's number and title, as the spine names it: "01 · Track 1". */
+function trackName(track: BeatTrack) {
+  return `${pad(track.trackNumber)} · ${track.title}`;
+}
+
+/**
+ * The story beats, one row per track that has a Story note. Until any track has one, the
+ * section is a single empty state pointing at the first track (nine identical "No story note
+ * yet" rows say nothing); after that, the tracks still without one share one compact line of
+ * links, each opening that track's Story note in the Studio.
+ */
+function StoryBeats({ albumId, tracks }: { albumId: string; tracks: BeatTrack[] }) {
+  if (!tracks.length) {
+    return (
+      <EmptyState
+        title="No tracks yet"
+        action={<ButtonLink href={`/app/albums/${albumId}/studio`}>Open the Studio</ButtonLink>}
+      >
+        Add tracks in the Studio, then give each one a Story note: a sentence or two on what happens
+        in it.
+      </EmptyState>
+    );
+  }
+  const written = tracks.filter(hasStoryNote);
+  const blank = tracks.filter((track) => !hasStoryNote(track));
+  const storyHref = (track: BeatTrack) =>
+    coherenceFixHref(albumId, { focus: "story", trackNumber: track.trackNumber });
+
+  if (!written.length) {
+    const first = tracks[0];
+    return (
+      <EmptyState
+        title={`0 of ${tracks.length} ${tracks.length === 1 ? "track has" : "tracks have"} a story note`}
+        action={
+          <ButtonLink href={storyHref(first)}>
+            Start with {trackName(first)}
+          </ButtonLink>
+        }
+      >
+        A Story note is a sentence or two on what happens in a track. Once a few are written, the
+        beats read here in order and the Coherence report can follow the story.
+      </EmptyState>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <ol className="divide-y divide-line border-y border-line">
+        {written.map((track) => {
+          const tags = [...track.themes.slice(0, 6), ...track.motifs.slice(0, 4), ...track.characters.slice(0, 4)];
+          const sections = track.sections
+            .slice(0, 6)
+            .map((section) =>
+              [
+                section.sectionType,
+                section.narrativeFunction ? `function: ${section.narrativeFunction}` : null,
+                section.emotionalArc ? `arc: ${section.emotionalArc}` : null,
+              ]
+                .filter(Boolean)
+                .join(", "),
+            )
+            .join(" · ");
+          return (
+            <li key={track.trackNumber} className="flex gap-4 py-4">
+              <span className="type-figure flex h-11 w-8 shrink-0 items-center text-xl font-semibold text-ink-3">
+                {pad(track.trackNumber)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4">
+                  <h3 className="min-w-0 break-words text-sm font-semibold text-ink">
+                    {track.title}
+                    {typeof track.chronologicalOrder === "number" ? (
+                      <span className="type-figure ml-2 text-xs font-normal text-ink-3">
+                        story order {track.chronologicalOrder}
+                      </span>
+                    ) : null}
+                  </h3>
+                  <Link
+                    href={storyHref(track)}
+                    className="inline-flex min-h-11 items-center gap-1 text-sm text-ink-2 hover:text-ink"
+                  >
+                    Edit story note
+                    <span className="sr-only">{` for ${track.title}`}</span>
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </div>
+                <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">{track.narrativeSummary}</p>
+                {tags.length ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {tags.map((tag, index) => (
+                      <Chip key={`${track.trackNumber}-${tag}-${index}`}>{tag}</Chip>
+                    ))}
+                  </div>
+                ) : null}
+                {sections ? <p className="mt-2 max-w-[65ch] text-xs text-ink-3">{sections}</p> : null}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      {blank.length ? (
+        <div className="flex flex-wrap items-center gap-x-1 text-sm text-ink-2">
+          <span id="story-beats-blank" className="mr-1">
+            Still without a story note:
+          </span>
+          <ul aria-labelledby="story-beats-blank" className="flex flex-wrap items-center">
+            {blank.map((track, index) => (
+              <li key={track.trackNumber} className="flex items-center">
+                {index > 0 ? (
+                  <span aria-hidden="true" className="px-0.5 text-ink-3">
+                    ·
+                  </span>
+                ) : null}
+                <Link
+                  href={storyHref(track)}
+                  className="type-figure inline-flex min-h-11 min-w-11 items-center justify-center font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
+                >
+                  {pad(track.trackNumber)}
+                  <span className="sr-only">{` · ${track.title}: write its story note`}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -220,7 +356,9 @@ function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
                     y2={to + 0.5}
                     className="stroke-ink-3 forced-colors:stroke-[CanvasText]"
                     strokeWidth={Math.min(5, 1 + edge.weight)}
-                    strokeOpacity={Math.min(0.9, 0.35 + edge.weight * 0.15)}
+                    // Ash Ink at 0.7 is the faintest line: 3.5:1 on the raised surface and 3.7:1
+                    // on the ground (non-text contrast, 3:1). Heavier links grow bolder and wider.
+                    strokeOpacity={Math.min(1, 0.55 + edge.weight * 0.15)}
                     vectorEffect="non-scaling-stroke"
                   >
                     <title>
@@ -458,65 +596,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
             : "Tracks in tracklist order."
         }
       >
-        {bible.timeline.tracks.length ? (
-          <ol className="divide-y divide-line border-y border-line">
-            {bible.timeline.tracks.map((track) => {
-              const tags = [...track.themes.slice(0, 6), ...track.motifs.slice(0, 4), ...track.characters.slice(0, 4)];
-              const sections = track.sections
-                .slice(0, 6)
-                .map((section) =>
-                  [
-                    section.sectionType,
-                    section.narrativeFunction ? `function: ${section.narrativeFunction}` : null,
-                    section.emotionalArc ? `arc: ${section.emotionalArc}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(", "),
-                )
-                .join(" · ");
-              return (
-                <li key={track.trackNumber} className="flex gap-4 py-4">
-                  <span className="type-figure flex h-11 w-8 shrink-0 items-center text-xl font-semibold text-ink-3">
-                    {pad(track.trackNumber)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4">
-                      <h3 className="min-w-0 text-sm font-semibold text-ink">
-                        {track.title}
-                        {typeof track.chronologicalOrder === "number" ? (
-                          <span className="type-figure ml-2 text-xs font-normal text-ink-3">
-                            story order {track.chronologicalOrder}
-                          </span>
-                        ) : null}
-                      </h3>
-                      <Link
-                        href={coherenceFixHref(album.id, { focus: "story", trackNumber: track.trackNumber })}
-                        className="inline-flex min-h-11 items-center gap-1 text-sm text-ink-2 hover:text-ink"
-                      >
-                        Edit story note
-                        <span className="sr-only">{` for ${track.title}`}</span>
-                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                      </Link>
-                    </div>
-                    <p className={cn("max-w-[65ch] text-sm leading-relaxed", track.narrativeSummary ? "text-ink-2" : "text-ink-3")}>
-                      {track.narrativeSummary || "No story note yet."}
-                    </p>
-                    {tags.length ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {tags.map((tag, index) => (
-                          <Chip key={`${track.trackNumber}-${tag}-${index}`}>{tag}</Chip>
-                        ))}
-                      </div>
-                    ) : null}
-                    <p className="mt-2 max-w-[65ch] text-xs text-ink-3">{sections || "No sections yet."}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <p className="text-sm text-ink-2">No tracks yet.</p>
-        )}
+        <StoryBeats albumId={album.id} tracks={bible.timeline.tracks} />
       </Section>
 
       <Section
@@ -542,7 +622,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
       <Section
         id="bible-style"
         title="Sound bible"
-        description={`${styleSummary.filledCount} of ${styleSummary.totalCount} parts of the Sound bible are set. It lives under the Sound tab.`}
+        description={`${soundBibleFieldsSet(styleSummary.filledCount, styleSummary.totalCount)}. It lives under the Sound tab.`}
         actions={
           <Link href={`${base}/style`} className={FLUSH_LINK}>
             Open the Sound bible

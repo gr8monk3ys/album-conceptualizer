@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { CatalogItems } from "@/components/album-card";
 import { previewErrorMessage, usePlayerControls } from "@/components/player/player-provider";
 import { previewFailureMessage } from "@/components/player/preview-errors";
 import { RelativeTime } from "@/components/relative-time";
@@ -38,7 +39,12 @@ import { MoreMenu } from "@/components/studio/more-menu";
 import { TRACKS_TOGGLE_ID, useTracksOpen } from "@/components/studio/tracks-disclosure";
 import { ChordField, TempoField } from "@/components/studio/musical-fields";
 import { SongStoryEditor, SongStoryFields, STORY_FOCUS_TARGETS } from "@/components/studio/song-story-editor";
-import { STICKY_MIN_HEIGHT_QUERY, saveBarSticks, visibleBelowSticky } from "@/components/studio/sticky-stack";
+import {
+  STICKY_MIN_HEIGHT_QUERY,
+  frameWithTarget,
+  saveBarSticks,
+  visibleBelowSticky,
+} from "@/components/studio/sticky-stack";
 import { SECTION_KEYSHORTCUTS, studioShortcut } from "@/components/studio/studio-shortcuts";
 import {
   KEY_OPTIONS,
@@ -89,6 +95,7 @@ import {
   pad2,
 } from "@/components/studio/track-list";
 import { useUndoWindow } from "@/components/studio/undo-window";
+import { sameKeys, useStableEvent } from "@/components/studio/use-stable-event";
 import { Button, EmptyState, Field, inputClass, selectClass, textareaClass } from "@/components/ui";
 import { invalidChords } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
@@ -180,9 +187,43 @@ function focusedId() {
 /**
  * Where focus goes next and how the page may move to show it. "start" brings `scrollTo` (or
  * the target) to the top of the view, under the sticky bar, e.g. the section's heading above
- * its lyrics.
+ * its lyrics. `frame` names what should be seen with the target when both fit below the
+ * sticky layers (the track's header above its lyrics); then the frame goes to the top instead.
  */
-type PendingFocus = { id: string; scroll: "center" | "nearest" | "start" | "none"; scrollTo?: string };
+type PendingFocus = {
+  id: string;
+  scroll: "center" | "nearest" | "start" | "none";
+  scrollTo?: string;
+  frame?: string;
+};
+
+/** One empty list for every "not set yet", so memoized children see the same value each render. */
+const NO_ITEMS: string[] = [];
+
+// Every keystroke re-renders the Studio (it owns the album). These parts don't change with the
+// lyrics, so they skip those renders: the AI draft panel (plain props) and the section's
+// comments (the section is compared by what they show of it).
+const SongDevelopmentAiMemo = memo(SongDevelopmentAi);
+type SectionCommentsProps = ComponentProps<typeof SectionComments>;
+const SectionCommentsMemo = memo(
+  SectionComments,
+  (prev: SectionCommentsProps, next: SectionCommentsProps) =>
+    sameKeys(prev, next, ["albumId", "defaultOpen"]) &&
+    sameKeys(prev.section, next.section, ["id", "songTrackNumber", "sectionType", "sectionOrder", "label"]),
+);
+
+/** The track's header ("01 Track 1", Preview song, More, the catalog line). */
+const TRACK_HEADER_ID = "studio-track";
+
+/** Arriving at the lyrics (a "Write track" link, Write next): shown with the track's header. */
+function lyricsArrival(scroll: PendingFocus["scroll"]): PendingFocus {
+  return { id: "section-lyrics", scroll, frame: TRACK_HEADER_ID };
+}
+
+/** A deep link's field, centred; the lyrics (`focus=lyrics`) come with their track's header. */
+function arrivalFocus(target: FocusTarget): PendingFocus {
+  return target.id === "section-lyrics" ? lyricsArrival("center") : { id: target.id, scroll: "center" };
+}
 
 /** The Studio's in-page targets: the editor column, and the current section's editor. */
 const EDITOR_ID = "studio-editor";
@@ -292,6 +333,14 @@ function revealWhenSettled(el: HTMLElement) {
   timer = window.setTimeout(check, prefersReducedMotion() ? 50 : 900);
 }
 
+/** The page's scroll padding in px (globals.css: --sticky-offset plus 1rem). */
+function pageScrollPadding() {
+  const root = document.documentElement;
+  const padding = parseFloat(getComputedStyle(root).scrollPaddingTop);
+  if (Number.isFinite(padding)) return padding;
+  return parseFloat(getComputedStyle(root).getPropertyValue("--sticky-offset")) || 0;
+}
+
 function Kbd({ children }: { children: string }) {
   return <kbd className="type-figure rounded-sm border border-line px-1 font-sans text-xs text-ink-2">{children}</kbd>;
 }
@@ -335,7 +384,7 @@ function useAlbumStudioRender({
     null,
   );
   const [pendingFocus, setPendingFocus] = useState<PendingFocus | null>(() =>
-    initialTarget ? { id: initialTarget.id, scroll: "center" } : null,
+    initialTarget ? arrivalFocus(initialTarget) : null,
   );
   // In one column the track list folds into "Tracks · 04 of 10 · …" (remembered for the session).
   const [tracksOpen, setTracksOpen] = useTracksOpen();
@@ -377,7 +426,7 @@ function useAlbumStudioRender({
     if (initialSelection?.song) setSelection(resolveSelection(album, initialSelection));
     const target = focusTargetFor(initialSelection?.focus, album);
     if (target) {
-      setPendingFocus({ id: target.id, scroll: "center" });
+      setPendingFocus(arrivalFocus(target));
       if (target.opens === "story") setStoryOpen(true);
       else if (target.opens === "details") setDetailsOpen(true);
     }
@@ -414,25 +463,41 @@ function useAlbumStudioRender({
     const appHeader = header instanceof HTMLElement && header.tagName === "HEADER" ? header : null;
     const stuck = (el: HTMLElement) => /^(sticky|fixed)$/.test(getComputedStyle(el).position);
     const tall = window.matchMedia(STICKY_MIN_HEIGHT_QUERY);
+    // The docked preview player (playerbar.tsx) is fixed to the bottom and counts toward the
+    // same share. It publishes its height as the page's bottom scroll padding whenever it docks,
+    // resizes or leaves, so a change to <html>'s style is when to look at it again.
+    let player: Element | null = null;
     const measure = () => {
+      const docked = document.getElementById("preview-player");
+      if (docked !== player) {
+        if (player) observer.unobserve(player);
+        if (docked) observer.observe(docked);
+        player = docked;
+      }
       const headerHeight = appHeader && stuck(appHeader) ? appHeader.getBoundingClientRect().height : 0;
       const barHeight = bar.getBoundingClientRect().height;
       const sticks = saveBarSticks({
         tallEnough: tall.matches,
         headerHeight,
         barHeight,
+        playerHeight: player ? player.getBoundingClientRect().height : 0,
         viewportHeight: window.innerHeight,
       });
       setBarSticks(sticks);
-      root.style.setProperty("--sticky-offset", `${Math.round(headerHeight + (sticks ? barHeight : 0))}px`);
+      const offset = `${Math.round(headerHeight + (sticks ? barHeight : 0))}px`;
+      // Written only when it changes: the write is itself a style change the observer sees.
+      if (root.style.getPropertyValue("--sticky-offset") !== offset) root.style.setProperty("--sticky-offset", offset);
     };
-    measure();
     const observer = new ResizeObserver(measure);
+    const styleWatch = new MutationObserver(measure);
+    measure();
     observer.observe(bar);
     if (appHeader) observer.observe(appHeader);
+    styleWatch.observe(root, { attributes: true, attributeFilter: ["style"] });
     window.addEventListener("resize", measure);
     return () => {
       observer.disconnect();
+      styleWatch.disconnect();
       window.removeEventListener("resize", measure);
       root.style.removeProperty("--sticky-offset");
     };
@@ -453,7 +518,18 @@ function useAlbumStudioRender({
         // save bar on a short screen, where the bar scrolls away with the page).
         const rect = el.getBoundingClientRect();
         const offScreen = rect.bottom < 0 || rect.top > window.innerHeight;
-        if (pendingFocus.scroll !== "none" || offScreen) {
+        const frameEl = pendingFocus.frame ? document.getElementById(pendingFocus.frame) : null;
+        const framing =
+          frameEl && pendingFocus.scroll !== "none"
+            ? frameWithTarget(frameEl.getBoundingClientRect(), rect, pageScrollPadding(), window.innerHeight)
+            : null;
+        if (framing === "stay") {
+          // The header and the lyrics are both in view already.
+        } else if (framing === "frame" && frameEl) {
+          // The header just under the save bar, the lyrics below it: the page's scroll padding
+          // (--sticky-offset plus 1rem) places it; nothing here adds an offset of its own.
+          frameEl.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+        } else if (pendingFocus.scroll !== "none" || offScreen) {
           const scrollEl = (pendingFocus.scrollTo && document.getElementById(pendingFocus.scrollTo)) || el;
           // The page's scroll padding (globals.css, from --sticky-offset) keeps it clear of
           // the header and save bar; nothing here adds its own offset.
@@ -991,7 +1067,7 @@ function useAlbumStudioRender({
     if (!upNext) return;
     const song = songs[upNext.song];
     setSelection(upNext);
-    setPendingFocus({ id: "section-lyrics", scroll: "nearest" });
+    setPendingFocus(lyricsArrival("nearest"));
     const label = sectionLabels(song?.sections ?? [])[upNext.section] ?? "Section";
     setNavAnnouncement(upNext.song === songIndex ? label : `Track ${song?.track_number}: ${song?.title || "Untitled"}, ${label}`);
   }
@@ -1479,15 +1555,26 @@ function useAlbumStudioRender({
     );
   }
 
+  // Stable handlers for the memoized parts (track list, story editor, album details): the same
+  // function every render, running the latest code.
+  const onSelectTrack = useStableEvent(openTrack);
+  const onToggleTrackTheme = useStableEvent(toggleTrackTheme);
+  const onAddTrack = useStableEvent(addTrack);
+  const onAddThemes = useStableEvent(() => openAlbumField(ALBUM_THEMES_INPUT_ID));
+  const onStoryChange = useStableEvent(updateSongField) as typeof updateSongField;
+  const onAlbumDetailsChange = useStableEvent((patch: Partial<StudioAlbum>) => edit((prev) => ({ ...prev, ...patch })));
+  const centralThemes = album.central_themes ?? NO_ITEMS;
+  const albumMotifs = album.recurring_motifs ?? NO_ITEMS;
+
   const trackList = (
     <TrackList
       songs={songs}
-      centralThemes={album.central_themes ?? []}
+      centralThemes={centralThemes}
       activeIndex={songIndex}
-      onSelect={openTrack}
-      onToggleTheme={toggleTrackTheme}
-      onAddTrack={addTrack}
-      onAddThemes={() => openAlbumField(ALBUM_THEMES_INPUT_ID)}
+      onSelect={onSelectTrack}
+      onToggleTheme={onToggleTrackTheme}
+      onAddTrack={onAddTrack}
+      onAddThemes={onAddThemes}
       open={tracksOpen}
       onOpenChange={setTracksOpen}
     />
@@ -1521,13 +1608,10 @@ function useAlbumStudioRender({
             <span className="type-figure mr-1.5 text-3xl text-ink-3">{pad2(activeSong.track_number)}</span>{" "}
             <span className="break-words hyphens-auto">{activeSong.title || "Untitled"}</span>
           </h2>
-          <p className="type-catalog mt-1 flex flex-wrap gap-x-2 text-xs text-ink-2">
-            {catalog.map((part, i) => (
-              <span key={i} className="type-figure flex gap-x-2">
-                {i > 0 ? <span aria-hidden="true">·</span> : null}
-                {part}
-              </span>
-            ))}
+          {/* The release header's rule: each separator ends the item before it, so a wrapped
+              line never starts with a dot. */}
+          <p className="type-catalog type-figure mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">
+            <CatalogItems items={catalog} />
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1592,11 +1676,14 @@ function useAlbumStudioRender({
       <h2 id="studio-track-details-title" className="text-lg font-semibold text-ink">
         Track details
       </h2>
-      <div className="mt-4 grid grid-cols-2 gap-4 @lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      {/* Key and Tempo share a row only while each column holds the longest key whole
+          ("G# minor" needs 6.5rem, in rem so enlarged text needs more room); narrower (390px
+          with 200% text) they stack, so the select never reads "C m". */}
+      <div className="mt-4 grid grid-cols-1 gap-4 @min-[14.5rem]:grid-cols-2 @lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <Field
           label="Track title"
           htmlFor="song-title"
-          className="col-span-2 @lg:col-span-1"
+          className="@min-[14.5rem]:col-span-2 @lg:col-span-1"
           error={activeSong.title.trim() ? undefined : "A track needs a title before it can be saved."}
         >
           <input
@@ -1840,7 +1927,7 @@ function useAlbumStudioRender({
               ) : null}
 
               {stableIdsPersisted && activeSection.id ? (
-                <SectionComments
+                <SectionCommentsMemo
                   albumId={albumId}
                   section={{
                     id: activeSection.id,
@@ -1896,13 +1983,13 @@ function useAlbumStudioRender({
       <SongStoryEditor
         key={`story-${activeSong.id}`}
         song={activeSong}
-        albumThemes={album.central_themes ?? []}
-        albumMotifs={album.recurring_motifs ?? []}
-        onChange={updateSongField}
+        albumThemes={centralThemes}
+        albumMotifs={albumMotifs}
+        onChange={onStoryChange}
         open={storyOpen}
         onOpenChange={setStoryOpen}
       />
-      <SongDevelopmentAi
+      <SongDevelopmentAiMemo
         key={`ai-${activeSong.id}`}
         albumId={albumId}
         songTitle={songTitle}
@@ -1914,9 +2001,12 @@ function useAlbumStudioRender({
   ) : null;
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="@container/studio-top flex min-w-0 flex-col gap-4">
       {/* The first stop inside the album content: past the save bar and the whole track list,
-          straight to the current section's lyrics. Visible on focus, like the app's skip link. */}
+          straight to the current section's lyrics. In one column (a phone, enlarged text: the
+          same 42rem at which the track list folds) the lyrics are screens down, so it is a
+          visible link, an ink link like any other, that a touch can take; with the columns
+          side by side it is visible on focus only, like the app's skip link. */}
       {songs.length ? (
         <a
           href={`#${EDITOR_ID}`}
@@ -1924,8 +2014,13 @@ function useAlbumStudioRender({
             event.preventDefault();
             skipToLyrics();
           }}
-          className="sr-only z-50 rounded bg-accent text-sm font-semibold text-accent-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:inline-flex focus:min-h-11 focus:items-center focus:px-4 focus:py-3"
+          className={cn(
+            "inline-flex min-h-11 items-center gap-2 self-start rounded text-sm text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
+            "@min-[42rem]/studio-top:sr-only @min-[42rem]/studio-top:z-50 @min-[42rem]/studio-top:bg-accent @min-[42rem]/studio-top:font-semibold @min-[42rem]/studio-top:text-accent-ink @min-[42rem]/studio-top:no-underline",
+            "@min-[42rem]/studio-top:focus:not-sr-only @min-[42rem]/studio-top:focus:fixed @min-[42rem]/studio-top:focus:left-4 @min-[42rem]/studio-top:focus:top-4 @min-[42rem]/studio-top:focus:px-4 @min-[42rem]/studio-top:focus:py-3",
+          )}
         >
+          <ArrowDown className="h-4 w-4 shrink-0 text-ink-3 @min-[42rem]/studio-top:hidden" aria-hidden="true" />
           Skip to the lyrics
         </a>
       ) : null}
@@ -1983,7 +2078,7 @@ function useAlbumStudioRender({
             album={album}
             open={detailsOpen}
             onOpenChange={setDetailsOpen}
-            onChange={(patch) => edit((prev) => ({ ...prev, ...patch }))}
+            onChange={onAlbumDetailsChange}
           />
         </div>
       </div>

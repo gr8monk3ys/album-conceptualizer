@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { trackProductEventSafe } from "@/server/analytics";
 import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
@@ -7,7 +8,7 @@ import {
   buildReferenceData,
   mapReference,
   REFERENCE_SELECT,
-  ReferenceBodySchema,
+  parseReferenceBody,
 } from "@/server/references";
 
 export const runtime = "nodejs";
@@ -16,7 +17,8 @@ type Context = { params: Promise<{ albumId: string; referenceId: string }> };
 
 export const PATCH = apiHandler(async (request: Request, { params }: Context) => {
   const { userId, workspaceId } = await requireWorkspace();
-  const payload = await parseJsonBody(request, ReferenceBodySchema, "Invalid payload.");
+  // The 400 names the field and its rule, as the form does.
+  const payload = parseReferenceBody(await parseJsonBody(request, z.unknown()));
   const { albumId, referenceId } = await params;
   const album = await requireAlbum(workspaceId, albumId, { id: true, data: true });
   const prisma = getPrisma();

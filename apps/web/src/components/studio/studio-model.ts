@@ -1,6 +1,7 @@
 import { invalidChords, isScaffoldSection } from "@/lib/chords";
 import { isWrittenLyrics, lyricProgress } from "@/lib/lyrics";
 import type { AlbumJson } from "@/server/album-json";
+import { TEMPO_MAX, TEMPO_MIN } from "@/lib/tempo";
 
 // Pure helpers for the Studio: album parsing, section labels, keys and error text. No React.
 
@@ -214,8 +215,7 @@ export function normalizeKey(value: unknown): string | null {
   return `${letter.toUpperCase()}${sign} ${minor ? "minor" : "major"}`;
 }
 
-export const TEMPO_MIN = 20;
-export const TEMPO_MAX = 300;
+export { TEMPO_MAX, TEMPO_MIN };
 
 export function clampTempo(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return 120;
@@ -342,6 +342,22 @@ export function carriedThemes(songThemes: readonly string[] | null | undefined, 
  * section that has one (album order), so the save status can say "Saved · 2 chords won't
  * export" and take the artist to the field.
  */
+/**
+ * Unreadable-chord counts per progression array. Typing lyrics replaces a section's object but
+ * keeps its chord array, so the album-wide count below re-reads only the chords that changed.
+ */
+const unreadableCounts = new WeakMap<object, number>();
+
+function unreadableCount(progression: unknown): number {
+  if (!progression || typeof progression !== "object") return invalidChords(progression).length;
+  let count = unreadableCounts.get(progression);
+  if (count === undefined) {
+    count = invalidChords(progression).length;
+    unreadableCounts.set(progression, count);
+  }
+  return count;
+}
+
 export function unreadableChordsOnAlbum(
   songs: readonly { sections?: readonly { chord_progression?: unknown }[] | null }[],
 ): { count: number; first: { song: number; section: number } | null } {
@@ -349,7 +365,7 @@ export function unreadableChordsOnAlbum(
   let first: { song: number; section: number } | null = null;
   songs.forEach((song, songIndex) => {
     (song.sections ?? []).forEach((section, sectionIndex) => {
-      const bad = invalidChords(section?.chord_progression).length;
+      const bad = unreadableCount(section?.chord_progression);
       if (!bad) return;
       count += bad;
       first ??= { song: songIndex, section: sectionIndex };
