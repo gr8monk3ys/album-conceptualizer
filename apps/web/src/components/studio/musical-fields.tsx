@@ -10,8 +10,9 @@ import {
   tempoLimitMessage,
   unreadableChords,
 } from "@/components/studio/input-checks";
-import { TEMPO_MAX, TEMPO_MIN, parseChordProgression, stringifyChordProgression } from "@/components/studio/studio-model";
+import { parseChordProgression, stringifyChordProgression } from "@/components/studio/studio-model";
 import { Field, inputClass } from "@/components/ui";
+import { TEMPO_MAX, TEMPO_MIN } from "@/lib/tempo";
 import { cn } from "@/lib/utils";
 
 /**

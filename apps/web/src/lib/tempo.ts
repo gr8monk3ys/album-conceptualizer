@@ -4,3 +4,6 @@
  */
 export const TEMPO_MIN = 20;
 export const TEMPO_MAX = 300;
+
+/** The tempo the create wizard gives every track, and the one the Coherence report treats as unset. */
+export const SETUP_TEMPO = 120;

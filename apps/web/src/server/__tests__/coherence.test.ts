@@ -137,9 +137,11 @@ describe("analyzeAlbumCoherence on a template scaffold", () => {
       "Narrative",
       "Lyrics",
       "Harmony",
-      "Sequence",
+      // "Sequence" is the spine's name; the dimension is Flow (its key stays `sequence`).
+      "Flow",
       "Motifs",
     ]);
+    expect(report.breakdown.find((item) => item.key === "sequence")?.label).toBe("Flow");
     expect(report.nextActions.length).toBeGreaterThan(0);
   });
 });
@@ -306,19 +308,23 @@ describe("coherence copy", () => {
     });
   });
 
-  it("names a shared tempo instead of a zero spread", () => {
-    const report = analyzeAlbumCoherence(scaffoldAlbum(4));
-    const energy = report.issues.find((issue) => issue.id === "repeated_energy_profile");
-    expect(energy?.detail).toContain("Every track has the same tempo (120 BPM).");
+  it("names a shared tempo the artist set instead of a zero spread", () => {
+    const songs = Array.from({ length: 4 }, (_, index) => ({ ...scaffoldSong(index), tempo: 96 }));
+    const energy = analyzeAlbumCoherence(album(songs)).issues.find((issue) => issue.id === "repeated_energy_profile");
+    expect(energy?.severity).toBe("warning");
+    expect(energy?.progress).toBeUndefined();
+    expect(energy?.detail).toContain("Every track has the same tempo (96 BPM).");
     expect(energy?.detail).not.toMatch(/spread|\b0 BPM/);
   });
 
-  it("says what is missing when no tempo is set", () => {
+  it("leaves unset tempos to the missing tempo finding, with no warning about repetition", () => {
     const songs = Array.from({ length: 4 }, (_, index) => ({ ...scaffoldSong(index), tempo: null }));
-    const energy = analyzeAlbumCoherence(album(songs)).issues.find(
-      (issue) => issue.id === "repeated_energy_profile",
+    const report = analyzeAlbumCoherence(album(songs));
+    expect(report.issues.find((issue) => issue.id === "repeated_energy_profile")).toBeUndefined();
+    expect(report.issues.find((issue) => issue.id === "default_tempos")).toBeUndefined();
+    expect(report.issues.find((issue) => issue.id === "missing_key_tempo")?.detail).toContain(
+      "All 4 tracks have no tempo",
     );
-    expect(energy?.detail).toContain("No track has a tempo yet");
   });
 
   it("uses the singular for one track", () => {
@@ -650,5 +656,72 @@ describe("a chorus counts once its lyrics are written", () => {
     expect(breakdown(analyzeAlbumCoherence(withChorus), "lyrics").signal).toBe(
       "1 of 4 tracks have a written chorus",
     );
+  });
+});
+
+// Critique run 12: an Ember "Warning" fired on the product's own defaults ("section energy repeats
+// too often … Every track has the same tempo (120 BPM)") before the artist had set any tempo.
+describe("the setup's tempo and template sections", () => {
+  it("asks for tempos as work to do, naming the tracks, instead of warning", () => {
+    const report = analyzeAlbumCoherence(scaffoldAlbum(6));
+    expect(report.issues.find((issue) => issue.id === "repeated_energy_profile")).toBeUndefined();
+    expect(report.issues.find((issue) => issue.id === "default_tempos")).toMatchObject({
+      severity: "info",
+      progress: true,
+      category: "sequence",
+      title: "Set each track's tempo",
+      detail: "All 6 tracks are still at the setup's 120 BPM, on the verse–chorus template, so the album's flow can't be judged yet.",
+      relatedTracks: [1, 2, 3, 4, 5, 6],
+      trackFocus: "song",
+      fix: { focus: "song", trackNumber: 1 },
+    });
+    expect(breakdown(report, "sequence").signal).toBe("No track has a tempo of its own yet");
+  });
+
+  it("names only the tracks still at the setup's tempo when others are unset", () => {
+    const songs = Array.from({ length: 4 }, (_, index) => ({ ...scaffoldSong(index), tempo: index < 2 ? 120 : null }));
+    const finding = analyzeAlbumCoherence(album(songs)).issues.find((issue) => issue.id === "default_tempos");
+    expect(finding?.relatedTracks).toEqual([1, 2]);
+    expect(finding?.detail).toMatch(/^2 of 4 tracks are still at the setup's 120 BPM/);
+  });
+
+  it("keeps the warning once the artist has set a tempo and the tracks still run alike", () => {
+    const songs = Array.from({ length: 4 }, (_, index) => ({ ...scaffoldSong(index), tempo: index === 3 ? 124 : 120 }));
+    const report = analyzeAlbumCoherence(album(songs));
+    expect(report.issues.find((issue) => issue.id === "default_tempos")).toBeUndefined();
+    const energy = report.issues.find((issue) => issue.id === "repeated_energy_profile");
+    expect(energy?.severity).toBe("warning");
+    expect(energy?.progress).toBeUndefined();
+    expect(energy?.detail).toContain("Tempos only range from 120 to 124 BPM.");
+  });
+});
+
+describe("what holds each dimension, for the whole album's figure", () => {
+  it("names the lyric cap and what lifts it", () => {
+    const report = analyzeAlbumCoherence(cappedAlbum());
+    for (const item of report.breakdown) {
+      expect(item.heldBy).toBe("lyrics");
+      expect(item.heldUntil).toBe("5 more tracks have lyrics");
+    }
+  });
+
+  it("names Harmony's own chords cap when a written track has no chords of its own", () => {
+    const songs = cappedAlbum().songs as Array<Record<string, unknown>>;
+    // Track 3 is written but back on the starter loop: 2 of 8 tracks have chords of their own.
+    songs[2] = scaffoldSong(2, { verse: "Streetlights hum the same four notes", themes: ["distance"], motifs: ["phone"] });
+    const report = analyzeAlbumCoherence(album(songs, { recurring_motifs: ["phone"] }));
+    const harmony = breakdown(report, "harmony");
+    expect(harmony.score).toBe(25);
+    expect(harmony.heldBy).toBe("chords");
+    expect(harmony.heldUntil).toBe("track 3 has chords of its own");
+    expect(breakdown(report, "lyrics").heldBy).toBe("lyrics");
+  });
+
+  it("names no cap for a row nothing holds", () => {
+    const report = analyzeAlbumCoherence(scaffoldAlbum());
+    for (const item of report.breakdown) {
+      expect(item.heldBy).toBeUndefined();
+      expect(item.heldUntil).toBeUndefined();
+    }
   });
 });

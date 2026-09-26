@@ -99,6 +99,12 @@ export const POST = apiHandler(async (request: Request, { params }: Context) => 
       select: { id: true },
     });
     if (!comment) throw new ApiError(400, "That comment isn't on this album.");
+    // One task per comment: a second press (or a second tab) finds the one already made.
+    const existing = await prisma.albumTask.findFirst({
+      where: { albumId: album.id, sourceCommentId, deletedAt: null },
+      select: { id: true },
+    });
+    if (existing) throw new ApiError(409, "This comment already has a task. Find it in Comments and tasks.");
   }
 
   const created = await prisma.albumTask.create({

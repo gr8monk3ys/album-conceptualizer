@@ -8,7 +8,7 @@ import { ReadOnlySpine } from "@/components/read-only-spine";
 import { ButtonLink, Chip, PageHeader, Section } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { lyricExcerptsByTrack, writtenSummaryItems } from "@/lib/discover";
-import { scoreStory } from "@/lib/score-story";
+import { dimensionFigure, scoreStory, wholeAlbumCapLine } from "@/lib/score-story";
 import { getSpineRows, getSpineThemes } from "@/server/album-songs";
 import {
   analyzeAlbumCoherence,
@@ -98,6 +98,8 @@ export default async function DiscoverAlbumPage({
   const excerpts = lyricExcerptsByTrack(album.data);
   const coherence = analyzeAlbumCoherence(album.data);
   const story = scoreStory(coherence);
+  // The lyric cap the whole album's figures share, said once under the dimensions.
+  const capLine = wholeAlbumCapLine(coherence);
   const written = writtenSummaryItems({
     tracks: rows.length,
     withLyrics: rows.filter((row) => row.lyricSections > 0).length,
@@ -234,7 +236,11 @@ export default async function DiscoverAlbumPage({
             <Section
               title="How it holds together"
               headingLevel={2}
-              description="The Coherence report, scored out of 100 from what the artist has written so far, weakest dimension first."
+              description={
+                story.progress && !coherence.insufficient
+                  ? "The Coherence report: what the artist's written tracks score on each dimension, out of 100, weakest first."
+                  : "The Coherence report, scored out of 100 from what the artist has written so far, weakest dimension first."
+              }
             >
               {coherence.insufficient ? (
                 <>
@@ -271,16 +277,26 @@ export default async function DiscoverAlbumPage({
                       ))}
                     </dl>
                   </div>
-                  {/* The same order as the owner's Coherence report ("By dimension"): weakest
-                      first, so a visitor and the artist read the dimensions alike. */}
+                  {/* The same order and figures as the owner's Coherence report ("By dimension"):
+                      weakest first, and while tracks are unwritten each figure is what the written
+                      tracks score, with the whole album's cap said once under the list. */}
                   <dl>
-                    {dimensionsWeakestFirst(coherence.breakdown).map((item) => (
-                      <div key={item.key} className="flex items-baseline justify-between gap-3 border-b border-line py-2">
-                        <dt className="text-sm text-ink-2">{item.label}</dt>
-                        <dd className="type-figure text-sm font-semibold text-ink">{item.score}</dd>
-                      </div>
-                    ))}
+                    {dimensionsWeakestFirst(coherence.breakdown).map((item) => {
+                      const figure = dimensionFigure(item, coherence);
+                      return (
+                        <div key={item.key} className="flex items-baseline justify-between gap-3 border-b border-line py-2">
+                          <dt className="text-sm text-ink-2">{item.label}</dt>
+                          <dd className="type-figure text-sm font-semibold text-ink">
+                            {figure?.label ? <span className="sr-only">{figure.label} </span> : null}
+                            {figure?.value ?? item.score}
+                          </dd>
+                        </div>
+                      );
+                    })}
                   </dl>
+                  {capLine ? (
+                    <p className="type-figure mt-2 max-w-[65ch] text-xs leading-relaxed text-ink-3">{capLine}</p>
+                  ) : null}
                 </>
               )}
             </Section>

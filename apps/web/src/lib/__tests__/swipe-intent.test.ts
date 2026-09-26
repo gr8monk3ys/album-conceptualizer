@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SWIPE_INTENT_PX, rangeValueAt, swipeIntent } from "@/lib/swipe-intent";
+import { SWIPE_INTENT_PX, rangeValueAt, sliderPointerStart, swipeIntent } from "@/lib/swipe-intent";
 
 describe("swipeIntent", () => {
   it("is undecided until the finger has travelled the threshold", () => {
@@ -34,5 +34,23 @@ describe("rangeValueAt", () => {
     expect(rangeValueAt(0, track, 3, 23)).toBe(3);
     expect(rangeValueAt(900, track, 3, 23)).toBe(23);
     expect(Number.isInteger(rangeValueAt(151, track, 3, 23))).toBe(true);
+  });
+});
+
+describe("sliderPointerStart", () => {
+  it("leaves a pointer the input itself took to the input", () => {
+    expect(sliderPointerStart("mouse", true)).toBe("native");
+    expect(sliderPointerStart("touch", true)).toBe("native");
+  });
+
+  it("waits for a touch to go sideways before it moves the slider", () => {
+    expect(sliderPointerStart("touch", false)).toBe("swipe");
+  });
+
+  it("drags at once for a mouse or pen where the input takes no pointer events (a touch-first device)", () => {
+    // The input ignores pointers when the primary one is coarse; a trackpad or a stylus there
+    // reaches only the wrapper, which used to ignore a mouse, so the slider couldn't be used.
+    expect(sliderPointerStart("mouse", false)).toBe("drag");
+    expect(sliderPointerStart("pen", false)).toBe("drag");
   });
 });

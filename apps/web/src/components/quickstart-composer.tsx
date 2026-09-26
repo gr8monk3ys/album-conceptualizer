@@ -22,7 +22,8 @@ import {
   type QuickStartFormState,
 } from "@/lib/create-draft";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
-import { rangeValueAt, swipeIntent } from "@/lib/swipe-intent";
+import { rangeValueAt, sliderPointerStart, swipeIntent } from "@/lib/swipe-intent";
+import { SETUP_TEMPO } from "@/lib/tempo";
 import { clearDraft, useDraftState } from "@/lib/use-autosave";
 import { cn } from "@/lib/utils";
 import type { SpineRow } from "@/server/album-songs";
@@ -159,7 +160,7 @@ function buildAlbumJson(input: QuickStartFormState, ids: DraftAlbumIds) {
       title,
       track_number: trackNumber,
       key: progression.key,
-      tempo: 120,
+      tempo: SETUP_TEMPO,
       narrative_position: null,
       narrative_summary: null,
       themes: [],
@@ -504,7 +505,8 @@ function QuickStartStepFields({
  * native slider jumps to the finger on touchdown, so there the input takes no pointer events:
  * its box leaves vertical pans to the page, and the value follows the finger only once it has
  * clearly moved sideways (`swipeIntent`). A tap or a vertical swipe never changes the count;
- * the ± steppers and the keyboard still do.
+ * the ± steppers and the keyboard still do. A mouse, trackpad or pen on such a device drags it
+ * at once, as the native slider would (`sliderPointerStart`).
  */
 function TrackCountSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -521,10 +523,18 @@ function TrackCountSlider({ value, onChange }: { value: number; onChange: (value
     <div
       className="flex min-w-0 flex-1 touch-pan-y"
       onPointerDown={(event) => {
-        // Only touches that reach the box itself: where the input takes pointer events (a
-        // mouse, or a touch laptop), it handles them natively.
-        if (event.pointerType === "mouse" || event.target === inputRef.current) return;
-        touch.current = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
+        // Only pointers that reach the box itself: where the input takes pointer events (a
+        // fine primary pointer), it handles them natively.
+        const start = sliderPointerStart(event.pointerType, event.target === inputRef.current);
+        if (start === "native") return;
+        touch.current = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: start === "drag" };
+        if (start === "drag") {
+          // A mouse or pen on a touch-first device: moves the slider as the native one would.
+          event.preventDefault();
+          inputRef.current?.focus();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          follow(event.clientX);
+        }
       }}
       onPointerMove={(event) => {
         const start = touch.current;

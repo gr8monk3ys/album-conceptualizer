@@ -6,6 +6,7 @@ import { useState, type MouseEvent } from "react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
 import { LiveStatus, Panel, Section, buttonClass } from "@/components/ui";
+import { andList } from "@/lib/and-list";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 export type ExportFormat = "midi" | "chordpro" | "musicxml" | "json" | "text";
@@ -26,6 +27,7 @@ const HANDOFF_PACKS = [
     destination: "Suno",
     title: "Suno brief",
     use: "For generating tracks in Suno without losing the album's voice.",
+    next: "paste each track's prompt line into Suno, one track at a time, with the references kept beside it",
     contents: [
       "A prompt line for every track, built from its tempo, key, themes and your Sound bible",
       "Negative prompt guidance from your avoid list",
@@ -38,6 +40,7 @@ const HANDOFF_PACKS = [
     destination: "Udio",
     title: "Udio brief",
     use: "For Udio sessions where you extend and replace sections one at a time.",
+    next: "start each track in Udio from its prompt line, then extend it section by section",
     contents: [
       "A prompt line per track to start from, with the emotional targets to keep",
       "Your references listed beside each prompt, never in it: Udio rejects artist names",
@@ -50,6 +53,7 @@ const HANDOFF_PACKS = [
     destination: "DAW session",
     title: "DAW session notes",
     use: "For a producer, an engineer or your own session file.",
+    next: "open them beside the session, or send them to whoever runs it",
     contents: [
       "A session objective per track: arrangement guardrails, mix focus and primary references",
       "The section map with bar counts and chords",
@@ -122,6 +126,23 @@ export function zipNextStep(formats: ReadonlySet<ExportFormat>): string {
   return "the tracklist is in the text file";
 }
 
+/**
+ * The handoff's confirmation, ending on what to do with the brief (the Next Step Ends It
+ * Rule): "Suno brief downloaded — paste each track's prompt line into Suno…".
+ */
+export function handoffDownloaded(pack: { title: string; next: string }): string {
+  return `${pack.title.charAt(0).toUpperCase()}${pack.title.slice(1)} downloaded — ${pack.next}.`;
+}
+
+/** What the zip will hold, said above its button: "The zip holds MIDI, ChordPro and JSON, with your production notes." */
+export function zipContents(formats: ReadonlySet<ExportFormat>, includeProductionNotes: boolean): string {
+  const names = ALL_FORMATS.filter((format) => formats.has(format.key)).map((format) => format.title);
+  if (!names.length) return "Pick at least one format below to build a zip.";
+  return `The zip holds ${names.length === ALL_FORMATS.length ? "every format" : andList(names)}${
+    includeProductionNotes ? ", with your production notes" : ""
+  }.`;
+}
+
 export function AlbumExport({
   albumId,
   creditsRemaining,
@@ -190,68 +211,60 @@ export function AlbumExport({
       `The ${pack.title} couldn't be built.`,
     );
     setHandoffBusy(null);
-    setHandoffStatus(
-      result.ok
-        ? { tone: "ok", text: `${pack.destination} pack downloaded.` }
-        : { tone: "danger", text: result.message },
-    );
+    setHandoffStatus(result.ok ? { tone: "ok", text: handoffDownloaded(pack) } : { tone: "danger", text: result.message });
   }
 
   return (
     <div className="flex flex-col gap-10">
-      <Section
-        id="handoff"
-        title="Hand off the album"
-        description="Pick where the record goes next. Each pack is a plain-text brief (.md) built from your Story bible, Coherence report, references and Sound bible, so every track carries the same world."
-      >
-        <ul className="@container divide-y divide-line border-y border-line">
-          {HANDOFF_PACKS.map((pack) => (
-            <li
-              key={pack.key}
-              className="grid grid-cols-1 gap-4 py-5 @2xl:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_minmax(0,auto)] @2xl:gap-6"
-            >
-              <div className="min-w-0">
-                <h3 className="text-lg font-semibold text-ink">{pack.destination}</h3>
-                <p className="mt-1 max-w-[65ch] text-sm text-ink-2">{pack.use}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-ink-3">What&apos;s inside</p>
-                <ul className="mt-1.5 max-w-[65ch] list-disc space-y-1 pl-5 text-sm leading-relaxed text-ink-2 marker:text-ink-3">
-                  {pack.contents.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="@2xl:pt-1">
-                <a
-                  href={`/api/albums/${albumId}/handoff?target=${pack.key}`}
-                  download
-                  aria-busy={handoffBusy === pack.key || undefined}
-                  onClick={(event) => void downloadHandoff(event, pack)}
-                  className={buttonClass("secondary", "text-center")}
-                >
-                  Download {pack.title}
-                </a>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <p className="max-w-[65ch] text-sm text-ink-3">
-            Every pack also carries the album blueprint, the Sound bible, your references, rough
-            demo reviews and the top Coherence fixes. Fields you haven&apos;t set are left out. Handoff packs don&apos;t use credits.
-          </p>
-          <LiveStatus message={handoffStatus?.text ?? null} tone={handoffStatus?.tone} />
-        </div>
-      </Section>
-
+      {/* The zip first: it is this tab's one primary, so the tab opens with it in view. What
+          it will hold, its price and the balance sit above the choices, which update them. */}
       <Section
         id="export-files"
         title="Download the files"
         description="One zip with the formats you pick, ready for a DAW, notation software or a chord chart app."
       >
         <Panel className="@container">
-          <div className="grid grid-cols-1 gap-6 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
+          <div className="flex flex-col gap-2">
+            <p id="export-zip-contents" className="max-w-[65ch] text-sm text-ink">
+              {zipContents(selected, includeProductionNotes)}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {/* A zip spends credits, so it asks once before charging. */}
+              <ConfirmSpend
+                cost={cost}
+                remaining={remaining}
+                actionLabel="Download zip"
+                tone="primary"
+                busy={isZipping}
+                disabled={selected.size === 0 || !canAfford}
+                onConfirm={downloadZip}
+              >
+                {isZipping ? "Preparing zip…" : `Download zip · ${credits(cost)}`}
+              </ConfirmSpend>
+              {selected.size > 0 && canAfford ? (
+                <p id="export-zip-cost" className="min-w-0 text-sm text-ink-3">
+                  You have {credits(remaining)}.
+                </p>
+              ) : null}
+            </div>
+            {selected.size > 0 && !canAfford ? (
+              <p id="export-zip-cost" className="max-w-[65ch] text-sm text-warn">
+                A zip costs {credits(cost)} and you have {credits(remaining)}. Earn more from{" "}
+                <Link href="/app/challenges" className="underline underline-offset-4 hover:text-ink">
+                  challenges
+                </Link>{" "}
+                or{" "}
+                <Link href="/app/settings/billing" className="underline underline-offset-4 hover:text-ink">
+                  change your plan
+                </Link>
+                . Handoff packs below are free.
+              </p>
+            ) : null}
+            {/* Always mounted, so "Preparing…" and the result are both announced. */}
+            <LiveStatus message={zipStatus?.text ?? null} tone={zipStatus?.tone} className="max-w-[65ch]" />
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-6 border-t border-line pt-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
             {/* In a narrow panel (a phone at 200% text) each hint drops its indent and sits under
                 its checkbox, so a long word ("progressions") still fits inside the border. The
                 hint tucks up under its label, and the label is positioned so it paints over
@@ -313,51 +326,57 @@ export function AlbumExport({
                   Adds your production notes to the formats that can carry them.
                 </p>
               </fieldset>
-
-              <div className="flex flex-col gap-2 border-t border-line pt-4">
-                {/* A zip spends credits, so it asks once before charging. */}
-                <ConfirmSpend
-                  cost={cost}
-                  remaining={remaining}
-                  actionLabel="Download zip"
-                  tone="primary"
-                  busy={isZipping}
-                  disabled={selected.size === 0 || !canAfford}
-                  onConfirm={downloadZip}
-                >
-                  {isZipping ? "Preparing zip…" : `Download zip · ${credits(cost)}`}
-                </ConfirmSpend>
-                {selected.size === 0 ? (
-                  <p id="export-zip-cost" className="text-sm text-ink-2">
-                    Pick at least one format to build a zip.
-                  </p>
-                ) : canAfford ? (
-                  <p id="export-zip-cost" className="text-sm text-ink-3">
-                    You have {credits(remaining)}.
-                  </p>
-                ) : (
-                  <p id="export-zip-cost" className="max-w-[65ch] text-sm text-warn">
-                    A zip costs {credits(cost)} and you have {credits(remaining)}. Earn more from{" "}
-                    <Link href="/app/challenges" className="underline underline-offset-4 hover:text-ink">
-                      challenges
-                    </Link>{" "}
-                    or{" "}
-                    <Link
-                      href="/app/settings/billing"
-                      className="underline underline-offset-4 hover:text-ink"
-                    >
-                      change your plan
-                    </Link>
-                    . Handoff packs above are free.
-                  </p>
-                )}
-                {/* Always mounted, so "Preparing…" and the result are both announced. */}
-                <LiveStatus message={zipStatus?.text ?? null} tone={zipStatus?.tone} />
-              </div>
             </div>
           </div>
         </Panel>
       </Section>
+
+      <Section
+        id="handoff"
+        title="Hand off the album"
+        description="Pick where the record goes next. Each pack is a plain-text brief (.md) built from your Story bible, Coherence report, references and Sound bible, so every track carries the same world."
+      >
+        <ul className="@container divide-y divide-line border-y border-line">
+          {HANDOFF_PACKS.map((pack) => (
+            <li
+              key={pack.key}
+              className="grid grid-cols-1 gap-4 py-5 @2xl:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_minmax(0,auto)] @2xl:gap-6"
+            >
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold text-ink">{pack.destination}</h3>
+                <p className="mt-1 max-w-[65ch] text-sm text-ink-2">{pack.use}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-ink-3">What&apos;s inside</p>
+                <ul className="mt-1.5 max-w-[65ch] list-disc space-y-1 pl-5 text-sm leading-relaxed text-ink-2 marker:text-ink-3">
+                  {pack.contents.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="@2xl:pt-1">
+                <a
+                  href={`/api/albums/${albumId}/handoff?target=${pack.key}`}
+                  download
+                  aria-busy={handoffBusy === pack.key || undefined}
+                  onClick={(event) => void downloadHandoff(event, pack)}
+                  className={buttonClass("secondary", "text-center")}
+                >
+                  Download {pack.title}
+                </a>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <p className="max-w-[65ch] text-sm text-ink-3">
+            Every pack also carries the album blueprint, the Sound bible, your references, rough
+            demo reviews and the top Coherence fixes. Fields you haven&apos;t set are left out. Handoff packs don&apos;t use credits.
+          </p>
+          <LiveStatus message={handoffStatus?.text ?? null} tone={handoffStatus?.tone} />
+        </div>
+      </Section>
+
     </div>
   );
 }

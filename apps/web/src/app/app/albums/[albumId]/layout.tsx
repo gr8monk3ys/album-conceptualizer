@@ -54,7 +54,9 @@ export default async function AlbumLayout({
       {/* A size container (release), so the release title steps down in a narrow header (a
           phone at 200% text) instead of breaking inside words (--text-display-release), and
           the header tightens and shortens its catalog line below 42rem and 30rem. */}
-      <header className="@container/release flex flex-wrap items-end justify-between gap-x-8 gap-y-3 @min-[42rem]/release:gap-y-4">
+      {/* 20px between rows below 42rem: the Version history link's stretched 48px target reaches
+          16px past its line, and a 12px gap let it cover the top of the next-step button. */}
+      <header className="@container/release flex flex-wrap items-end justify-between gap-x-8 gap-y-5 @min-[42rem]/release:gap-y-4">
         <div className="flex min-w-0 max-w-full flex-col gap-2 @min-[42rem]/release:gap-3 group-has-[#studio-editor]/album:flex-row group-has-[#studio-editor]/album:flex-wrap group-has-[#studio-editor]/album:items-baseline group-has-[#studio-editor]/album:gap-x-4 group-has-[#studio-editor]/album:gap-y-1">
           {/* The first stop in the album frame: past the title, catalog line, tabs and
               sequence, to the page itself. A visible ink link in a narrow header (a phone,

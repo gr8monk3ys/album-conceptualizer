@@ -161,9 +161,10 @@ export default async function DiscoverPage({
 
   return (
     <div className="flex flex-col gap-8">
+      {/* The display cut: Discover is a public page of artists' work, not one of the app's own
+          screens (DESIGN.md, Typography: display-md for Discover; page-title for Home, New album…). */}
       <PageHeader
         title="Discover"
-        size="page"
         description={`Albums artists have published, yours included. Open one to read its sequence and lyrics. A remix makes a new private album in your workspace for ${CREDIT_COSTS.albumFork} credits; the original and its artist are not affected.`}
       />
 

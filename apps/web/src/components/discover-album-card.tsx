@@ -84,11 +84,12 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
     >
       <div className="grid grid-cols-[minmax(0,1fr)] gap-x-6 @min-[40rem]:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
-          {/* A block link stretched over the row, so the whole row is the target. `wrap-anywhere`
-              breaks a long unspaced title inside the column instead of pushing the page. */}
+          {/* A block link stretched over the row, so the whole row is the target. The title steps
+              down in a narrow row (9% of it, never under 1rem), so a thirteen-letter word stays
+              whole at 320px with 200% text; `wrap-anywhere` is only the last resort. */}
           <Link
             href={`/app/discover/${album.id}`}
-            className="block max-w-full text-lg font-semibold text-ink wrap-anywhere hyphens-auto after:absolute after:inset-0"
+            className="block max-w-full text-[length:max(1rem,min(1.125rem,9cqi))] font-semibold leading-snug text-ink wrap-anywhere hyphens-auto after:absolute after:inset-0"
           >
             {album.title}
           </Link>

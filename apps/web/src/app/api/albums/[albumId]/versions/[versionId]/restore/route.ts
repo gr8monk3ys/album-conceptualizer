@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 
 import { beforeRestoringMessage } from "@/lib/version-labels";
 import { AlbumJsonSchema } from "@/server/album-json";
-import { writeAlbumSnapshot } from "@/server/album-sync";
+import { updateAlbumSnapshot } from "@/server/album-sync";
 import { ApiError, apiHandler, requireAlbum, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
 
@@ -16,7 +16,7 @@ export const POST = apiHandler(
   ) => {
     const { userId, workspaceId } = await requireWorkspace();
     const { albumId, versionId } = await params;
-    const album = await requireAlbum(workspaceId, albumId, { id: true, data: true });
+    const album = await requireAlbum(workspaceId, albumId, { id: true });
 
     const prisma = getPrisma();
     const version = await prisma.albumVersion.findFirst({
@@ -28,11 +28,14 @@ export const POST = apiHandler(
     const parsed = AlbumJsonSchema.safeParse(version.data);
     if (!parsed.success) throw new ApiError(422, "This version can't be restored because it was saved in a format this app no longer reads.");
 
-    const restored = { ...parsed.data, updated_at: new Date().toISOString() };
-
     await prisma.$transaction(async (tx) => {
+      // The album as stored under the row lock, so a save that committed a moment ago is in it.
+      const { replaced } = await updateAlbumSnapshot(tx, album.id, (stored) => ({
+        album: parsed.data,
+        replaced: stored,
+      }));
       // Keep the state being overwritten so a restore can itself be undone.
-      if (album.data !== null) {
+      if (replaced !== null) {
         await tx.albumVersion.create({
           data: {
             albumId: album.id,
@@ -40,12 +43,11 @@ export const POST = apiHandler(
             // Named after the version being restored, never nested ("Before restoring Before
             // restoring …"): an auto-saved or unnamed version is named by when it was saved.
             message: beforeRestoringMessage(version),
-            data: album.data as Prisma.InputJsonValue,
+            data: replaced as Prisma.InputJsonValue,
           },
           select: { id: true },
         });
       }
-      await writeAlbumSnapshot(tx, album.id, restored);
     });
 
     return NextResponse.json({ ok: true });

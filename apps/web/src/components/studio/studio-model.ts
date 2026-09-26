@@ -214,8 +214,6 @@ export function normalizeKey(value: unknown): string | null {
   return `${letter.toUpperCase()}${sign} ${minor ? "minor" : "major"}`;
 }
 
-export { TEMPO_MAX, TEMPO_MIN };
-
 export function clampTempo(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return 120;
   return Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, Math.round(value)));
@@ -302,15 +300,6 @@ export function moveTrackTo<T extends { track_number: number; title?: string | n
 ): T[] | null {
   const moved = moveItem(songs, from, to);
   return moved ? renumberTracks(moved) : null;
-}
-
-/** The tracklist with one track moved a step up (-1) or down (1): `moveTrackTo` one place. */
-export function moveTrack<T extends { track_number: number; title?: string | null }>(
-  songs: readonly T[],
-  index: number,
-  dir: -1 | 1,
-): T[] | null {
-  return moveTrackTo(songs, index, index + dir);
 }
 
 /** A title a move changed (a default name following its number): what it was, what it became. */
@@ -626,12 +615,34 @@ export function parseInitialAlbum(initialAlbum: unknown): { album: StudioAlbum; 
   };
 }
 
+/**
+ * The Studio's document title, naming the track on screen: "Studio · Harbour Wall · Salt Year
+ * · Album Conceptualizer" (the page's own title, "Studio · Salt Year", in the root layout's
+ * "%s · Album Conceptualizer" template, with the track put in).
+ */
+export function studioDocumentTitle(
+  song: { title?: string | null; track_number: number } | undefined,
+  albumTitle: string | null | undefined,
+): string {
+  const track = song ? song.title?.trim() || `Track ${song.track_number}` : null;
+  return ["Studio", track, albumTitle?.trim() || "Untitled album", "Album Conceptualizer"].filter(Boolean).join(" · ");
+}
+
+/** Where the problem `albumProblem` names is fixed: the album's title, or track `index`'s. */
+export function albumProblemField(
+  album: StudioAlbum,
+): { field: "album-title" } | { field: "track-title"; index: number } | null {
+  if (!album.title?.trim()) return { field: "album-title" };
+  const index = album.songs.findIndex((song) => !song.title?.trim());
+  return index >= 0 ? { field: "track-title", index } : null;
+}
+
 /** The first track that would fail to save because it has no title, as a plain sentence. */
 export function albumProblem(album: StudioAlbum): string | null {
-  if (!album.title?.trim()) return "Give the album a title before saving.";
-  const untitled = album.songs.find((song) => !song.title?.trim());
-  if (untitled) return `Give track ${untitled.track_number} a title before saving.`;
-  return null;
+  const at = albumProblemField(album);
+  if (!at) return null;
+  if (at.field === "album-title") return "Give the album a title before saving.";
+  return `Give track ${album.songs[at.index]?.track_number} a title before saving.`;
 }
 
 // ---------------------------------------------------------------- save status
@@ -642,18 +653,6 @@ export type SaveMode = "auto" | "manual" | "version";
 export function versionSavedText(note: string | null | undefined): string {
   const name = note?.trim();
   return name ? `Saved “${name}” as a version.` : "Saved as a version.";
-}
-
-/**
- * Saves up to this size go with keepalive, so one in flight survives a reload or a closed tab.
- * Browsers refuse keepalive bodies over 64 KB (in flight, all together); this leaves headroom.
- */
-export const KEEPALIVE_BODY_LIMIT = 60_000;
-
-/** Whether a request body is small enough to send with keepalive. */
-export function keepaliveFits(body: string, limit = KEEPALIVE_BODY_LIMIT): boolean {
-  // UTF-8 bytes, not UTF-16 units: an accented lyric line counts for what it weighs.
-  return new TextEncoder().encode(body).length <= limit;
 }
 
 /**

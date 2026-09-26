@@ -10,7 +10,7 @@ import { Field, inputClass } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 export const SONG_STORY_ID = "song-story";
-/** Deep-link targets inside the story (`?focus=story|role|song-themes|motifs`). */
+/** Deep-link targets inside the story (`?focus=story|role|song-themes|motifs|characters`). */
 export const STORY_FOCUS_TARGETS = {
   /** The Story note (`narrative_summary`). */
   story: "song-narrative-summary",
@@ -18,6 +18,7 @@ export const STORY_FOCUS_TARGETS = {
   role: "song-narrative-position",
   themes: "song-themes",
   motifs: "song-motifs",
+  characters: "song-characters",
 } as const;
 
 type StoryField = "themes" | "motifs" | "characters";
@@ -172,7 +173,7 @@ function SongStoryEditorView({
           />
 
           <ChipListEditor
-            id="song-characters"
+            id={STORY_FOCUS_TARGETS.characters}
             label="Characters"
             noun="character"
             values={song.characters ?? []}

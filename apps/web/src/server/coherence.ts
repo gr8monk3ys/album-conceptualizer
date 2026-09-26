@@ -2,6 +2,7 @@ import { trackHasWrittenHarmony } from "@/lib/chords";
 import { isWrittenLyrics } from "@/lib/lyrics";
 import { albumMotifIndex } from "@/lib/motifs";
 import { AlbumJsonSchema } from "@/server/album-json";
+import { SETUP_TEMPO } from "@/lib/tempo";
 
 export type CoherenceIssueSeverity = "info" | "warning" | "error";
 export type CoherenceDimension = "narrative" | "lyrics" | "harmony" | "sequence" | "motifs";
@@ -119,6 +120,13 @@ export type CoherenceBreakdownItem = {
   /** Why the cap holds `score` below `uncapped` ("only 3 of 8 tracks are written"); absent when it doesn't. */
   heldBecause?: string;
   /**
+   * Which cap holds it, when one does: the lyric cap every dimension shares, or Harmony's own
+   * chords cap. Pages say the shared lyric cap once and a row's own cap on its row.
+   */
+  heldBy?: "lyrics" | "chords";
+  /** What lifts the cap, for the end of a sentence: "5 more tracks have lyrics", "tracks 1–3 have chords of their own". */
+  heldUntil?: string;
+  /**
    * The one thing that lifts the score, as a plain sentence, when there is one clear lever:
    * "Write lyrics on 5 more tracks (4–8) to lift this." while the lyric cap holds it, and
    * "Change the starter loop on tracks 1–3 to score Harmony." while written tracks have no
@@ -219,13 +227,28 @@ type SongSnapshot = {
   motifs: string[];
 };
 
-const CATEGORY_LABELS: Record<CoherenceDimension, string> = {
+/**
+ * The dimensions' visible names. The track order and song structure dimension is "Flow" (its
+ * key stays `sequence`): "Sequence" is the spine's name, the album's songs in running order,
+ * and one word never names two things (the One Term Rule).
+ */
+export const CATEGORY_LABELS: Record<CoherenceDimension, string> = {
   narrative: "Narrative",
   lyrics: "Lyrics",
   harmony: "Harmony",
-  sequence: "Sequence",
+  sequence: "Flow",
   motifs: "Motifs",
 };
+
+/**
+ * The tempo the setup writes on every track (components/quickstart-composer.tsx). While every
+ * tempo is still this one, or unset, the tracks sharing a tempo is the product's default, not
+ * the artist's choice, so the report asks for tempos instead of warning about repetition.
+ */
+export { SETUP_TEMPO };
+
+/** The section pattern the setup writes on every track: a verse, then a chorus. */
+const SETUP_SECTION_PATTERN = "verse > chorus";
 
 function uniqStrings(values: Array<string | null | undefined>) {
   const set = new Set(
@@ -293,6 +316,7 @@ const PROGRESS_FINDINGS = new Set([
   "no_themes",
   "no_motifs",
   "minimal_structure",
+  "default_tempos",
 ]);
 
 function isEmptyProgression(chords: string[] | undefined) {
@@ -318,7 +342,14 @@ function buildBreakdownItem(
   key: CoherenceDimension,
   score: number,
   summary: string,
-  extra: { uncapped?: number; heldBecause?: string; lever?: string; signal?: string } = {},
+  extra: {
+    uncapped?: number;
+    heldBecause?: string;
+    heldBy?: "lyrics" | "chords";
+    heldUntil?: string;
+    lever?: string;
+    signal?: string;
+  } = {},
 ): CoherenceBreakdownItem {
   const limited = clampScore(score);
   return {
@@ -328,6 +359,8 @@ function buildBreakdownItem(
     summary,
     uncapped: clampScore(extra.uncapped ?? score),
     ...(extra.heldBecause ? { heldBecause: extra.heldBecause } : {}),
+    ...(extra.heldBecause && extra.heldBy ? { heldBy: extra.heldBy } : {}),
+    ...(extra.heldBecause && extra.heldUntil ? { heldUntil: extra.heldUntil } : {}),
     ...(extra.lever ? { lever: extra.lever } : {}),
     signal: extra.signal ?? summary,
   };
@@ -396,6 +429,8 @@ type AlbumFacts = {
   weakBookends: boolean;
   duplicateTrackNumbers: boolean;
   repeatedEnergyProfile: boolean;
+  /** No track has a tempo of its own yet: every tempo is the setup's or unset. */
+  setupTempos: boolean;
   /** Every track has a key and they are all the same one. */
   singleKey: boolean;
 };
@@ -475,7 +510,9 @@ function dimensionSignals(
       : counts.minimalStructure
         ? of(counts.minimalStructure, "has fewer than 2 sections", "have fewer than 2 sections")
         : album.repeatedEnergyProfile
-          ? "Most tracks share one section pattern and tempo"
+          ? album.setupTempos
+            ? "No track has a tempo of its own yet"
+            : "Most tracks share one section pattern and tempo"
           : album.weakBookends
             ? "The opener and closer don't frame the record yet"
             : "Track order and song structure hold",
@@ -714,9 +751,9 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
   const tempoSpread =
     tempos.length > 1 ? Math.max(...tempos) - Math.min(...tempos) : 0;
   const sortedTempos = Array.from(new Set(tempos)).sort((left, right) => left - right);
-  const tempoFact = !tempos.length
-    ? "No track has a tempo yet, so pacing can't be told apart."
-    : uniqueTempos === 1
+  // Only said once some track has a tempo of its own (see `setupTempos` below).
+  const tempoFact =
+    uniqueTempos === 1
       ? tempos.length === songCount
         ? `Every track has the same tempo (${sortedTempos[0]} BPM).`
         : `Every track with a tempo is at ${sortedTempos[0]} BPM.`
@@ -727,6 +764,12 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     songCount >= 4 &&
     dominantPatternCount >= Math.ceil(songCount * 0.75) &&
     (uniqueTempos <= 2 || tempoSpread <= 10);
+  // Every tempo is still the setup's (or unset): the tracks sharing one is the default, not a
+  // decision, so there is nothing to warn about yet, only tempos to set.
+  const setupTempos = tempos.every((tempo) => tempo === SETUP_TEMPO);
+  const setupTempoTracks = snapshots.filter((song) => song.tempo === SETUP_TEMPO).map((song) => song.trackNumber);
+  const dominantPattern =
+    Array.from(patternCounts.entries()).find(([, count]) => count === dominantPatternCount)?.[0] ?? "";
 
   // Every track that carries none of the album's themes, tagged or not, in sequence.
   const themeDriftTracks = albumThemes.length
@@ -1015,7 +1058,26 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     });
   }
 
-  if (repeatedEnergyProfile) {
+  if (repeatedEnergyProfile && setupTempos) {
+    // Unset tempos are already "no tempo" in missing_key_tempo; this names the tracks still on
+    // the setup's tempo, as work to do rather than a fault.
+    if (setupTempoTracks.length) {
+      const template = dominantPattern === SETUP_SECTION_PATTERN;
+      issues.push({
+        id: "default_tempos",
+        severity: "info",
+        category: "sequence",
+        title: "Set each track's tempo",
+        detail: `${tracksThat(setupTempoTracks.length, songCount, "is", "are")} still at the setup's ${SETUP_TEMPO} BPM${
+          template ? ", on the verse–chorus template," : ""
+        } so the album's flow can't be judged yet.`,
+        suggestion: "Give each track the tempo it wants; the contrast between tracks is what keeps the middle of the record moving.",
+        relatedTracks: setupTempoTracks,
+        trackFocus: "song",
+        fix: { focus: "song", trackNumber: setupTempoTracks[0] },
+      });
+    }
+  } else if (repeatedEnergyProfile) {
     issues.push({
       id: "repeated_energy_profile",
       severity: "warning",
@@ -1057,6 +1119,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     weakBookends,
     duplicateTrackNumbers: duplicateTrackNumbers.size > 0,
     repeatedEnergyProfile,
+    setupTempos,
     singleKey: songCount >= 4 && uniqueKeys <= 1 && songsMissingKeys === 0,
   };
   const rawScores = dimensionScores(countTracks(snapshots, albumThemes), albumFacts);
@@ -1085,11 +1148,14 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     unwritten.length === 1
       ? `Write lyrics on track ${unwritten[0]} to lift this.`
       : `Write lyrics on ${unwritten.length} more tracks (${formatTrackRuns(unwritten)}) to lift this.`;
+  const lyricsUntil =
+    unwritten.length === 1 ? `track ${unwritten[0]} has lyrics` : `${unwritten.length} more tracks have lyrics`;
   // The lever while the chords cap holds Harmony: the written tracks without chords of their
   // own (that cap is below the lyric cap only when some written track lacks them).
   const writtenWithoutChords = writtenSongs.filter((song) => !song.hasChords);
   const harmonyVerb = songsWithChords ? "lift" : "score";
   const harmonyTracks = tracksPhrase(writtenWithoutChords.map((song) => song.trackNumber));
+  const harmonyUntil = `${harmonyTracks} ${writtenWithoutChords.length === 1 ? "has chords of its own" : "have chords of their own"}`;
   const harmonyLever = writtenWithoutChords.every((song) => song.starterHarmony)
     ? `Change the starter loop on ${harmonyTracks} to ${harmonyVerb} Harmony.`
     : writtenWithoutChords.every((song) => !song.starterHarmony)
@@ -1102,6 +1168,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     capReason = writtenFact,
     heldLever = lyricsLever,
     ownLever?: string,
+    heldBy: "lyrics" | "chords" = "lyrics",
   ) => {
     const limited = Math.min(rawScores[key], cap);
     // Unscored reports show what each dimension needs, not a cap nobody can see.
@@ -1109,6 +1176,8 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     return buildBreakdownItem(key, limited, summary, {
       uncapped: uncapped[key],
       heldBecause: held ? capReason : undefined,
+      heldBy,
+      heldUntil: heldBy === "chords" ? harmonyUntil : lyricsUntil,
       lever: insufficient ? undefined : held ? heldLever : ownLever,
       signal: signals[key],
     });
@@ -1146,11 +1215,14 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
         : writtenFact,
       harmonyCap < scoreCap && writtenWithoutChords.length ? harmonyLever : lyricsLever,
       writtenWithoutChords.length ? harmonyLever : undefined,
+      harmonyCap < scoreCap && writtenWithoutChords.length ? "chords" : "lyrics",
     ),
     capped(
       "sequence",
       repeatedEnergyProfile
-        ? "Tempo and section energy need more contrast across the record."
+        ? setupTempos
+          ? "No track has a tempo of its own yet, so the record's pacing can't be judged."
+          : "Tempo and section energy need more contrast across the record."
         : "Track order and internal song structure are mostly holding together.",
     ),
     capped(

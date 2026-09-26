@@ -35,38 +35,45 @@ export function remixRowLink(publishedRemixId: string | null, fallbackUrl: strin
 }
 
 /**
- * The published remix each remix notification reports, by notification id. Remix
- * notifications don't yet record the new album's id, so a remix is found by its provenance: an
- * album in a workspace the remixer owns or belongs to, whose `remixed_from.album_id` is the
- * original, created no later than the notification (the latest such album, since every remix
- * notifies once, right after it is made). A remix that isn't on Discover has no page the owner
- * can open, so only published ones are returned.
+ * The published remix each remix notification reports, by notification id. Newer notifications
+ * record the remix's id, and those are looked up together, in one query. Older ones find it by
+ * its provenance: an album in a workspace the remixer owns or belongs to, whose
+ * `remixed_from.album_id` is the original, created no later than the notification (the latest
+ * such album, since every remix notifies once, right after it is made). A remix that isn't on
+ * Discover has no page the owner can open, so only published ones are returned.
  */
 export async function publishedRemixes(notifications: RemixNotification[]): Promise<Map<string, string>> {
   const remixes = notifications.filter((n) => n.type === "remix" && n.albumId);
   const found = new Map<string, string>();
   if (!remixes.length) return found;
   const prisma = getPrisma();
-  await Promise.all(
-    remixes.map(async (n) => {
-      const recorded = recordedRemixId(n.metadata);
-      if (!recorded && !n.actorUserId) return;
-      const where: Prisma.AlbumWhereInput = recorded
-        ? { id: recorded }
-        : {
-            createdAt: { lte: n.createdAt },
-            data: { path: ["remixed_from", "album_id"], equals: n.albumId as string },
-            workspace: {
-              OR: [{ ownerId: n.actorUserId as string }, { members: { some: { userId: n.actorUserId as string } } }],
-            },
-          };
+  const recorded = new Map(remixes.map((n) => [n.id, recordedRemixId(n.metadata)]));
+  const recordedIds = [...new Set([...recorded.values()].filter((id): id is string => id !== null))];
+
+  const [published] = await Promise.all([
+    recordedIds.length
+      ? prisma.album.findMany({ where: { id: { in: recordedIds }, isPublic: true }, select: { id: true } })
+      : Promise.resolve([]),
+    ...remixes.map(async (n) => {
+      if (recorded.get(n.id) || !n.actorUserId) return;
       const remix = await prisma.album.findFirst({
-        where,
+        where: {
+          createdAt: { lte: n.createdAt },
+          data: { path: ["remixed_from", "album_id"], equals: n.albumId as string },
+          workspace: {
+            OR: [{ ownerId: n.actorUserId }, { members: { some: { userId: n.actorUserId } } }],
+          },
+        },
         orderBy: { createdAt: "desc" },
         select: { id: true, isPublic: true },
       });
       if (remix?.isPublic) found.set(n.id, remix.id);
     }),
-  );
+  ]);
+
+  const publishedIds = new Set(published.map((album) => album.id));
+  for (const [notificationId, remixId] of recorded) {
+    if (remixId && publishedIds.has(remixId)) found.set(notificationId, remixId);
+  }
   return found;
 }

@@ -22,6 +22,7 @@ import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
 import { STYLE_BIBLE_LIST_LIMIT } from "@/lib/style-bible-limits";
 import { useAutosave } from "@/lib/use-autosave";
 import type { AlbumStyleBible } from "@/server/album-json";
+import { bodyBytes, pageKeepaliveBudget } from "@/components/studio/save-transport";
 
 type StyleBibleSummary = {
   referenceRoles: string[];
@@ -146,17 +147,30 @@ export function AlbumStyleBibleWorkspace({
   const save = useCallback(
     async (value: StyleBibleBody) => {
       const payload = JSON.stringify(value);
-      let response: Response;
-      try {
-        response = await fetch(`/api/albums/${albumId}/style-bible`, {
+      const bytes = bodyBytes(payload);
+      const send = (keepalive: boolean) =>
+        fetch(`/api/albums/${albumId}/style-bible`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: payload,
-          // Lets the last edits reach the server even as the tab closes.
-          keepalive: payload.length < 60_000,
+          keepalive,
         });
+      let response: Response;
+      // Keepalive lets the last edits reach the server as the tab closes, but the page shares
+      // one 64 KiB keepalive budget with the Studio's saves: take room from it, and send
+      // without keepalive (never fail) when the browser refuses.
+      const keepalive = pageKeepaliveBudget.take(bytes, "routine");
+      try {
+        try {
+          response = await send(keepalive);
+        } catch (error) {
+          if (!keepalive) throw error;
+          response = await send(false);
+        }
       } catch {
         throw new Error("Couldn't reach the server. Your text is still here.");
+      } finally {
+        if (keepalive) pageKeepaliveBudget.give(bytes);
       }
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { error?: unknown } | null;

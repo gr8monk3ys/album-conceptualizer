@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ComponentProps } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -31,6 +31,7 @@ import {
   ALBUM_CONCEPT_INPUT_ID,
   ALBUM_MOTIFS_INPUT_ID,
   ALBUM_THEMES_INPUT_ID,
+  ALBUM_TITLE_INPUT_ID,
   AlbumDetails,
   albumFocusTarget,
 } from "@/components/studio/album-details";
@@ -38,6 +39,7 @@ import { previewBlockedMessage } from "@/components/studio/input-checks";
 import { DeleteConfirm, deleteSectionQuestion, deleteTrackQuestion } from "@/components/studio/delete-confirm";
 import { MoreMenu } from "@/components/studio/more-menu";
 import { MoveTrackForm } from "@/components/studio/move-track-form";
+import { OwnAddresses, addressKey } from "@/components/studio/own-addresses";
 import { TRACKS_TOGGLE_ID, useTracksOpen } from "@/components/studio/tracks-disclosure";
 import { ChordField, TempoField } from "@/components/studio/musical-fields";
 import { SongStoryEditor, SongStoryFields, STORY_FOCUS_TARGETS } from "@/components/studio/song-story-editor";
@@ -58,7 +60,7 @@ import {
   SECTION_TYPES,
   albumFrameKey,
   albumProblem,
-  keepaliveFits,
+  albumProblemField,
   versionSavedText,
   applyProgressionToType,
   batchChordsSummary,
@@ -88,6 +90,7 @@ import {
   sectionLabels,
   sectionTypeLabel,
   saveStatusParts,
+  studioDocumentTitle,
   toggleTheme,
   trackRenames,
   tracksSharingTitle,
@@ -109,6 +112,7 @@ import {
   TrackThemeToggles,
   pad2,
 } from "@/components/studio/track-list";
+import { albumPatchBody, sendAlbumPatch, type AlbumPatch } from "@/components/studio/save-transport";
 import { TrackTitle, TRACK_TITLE_ID } from "@/components/studio/track-title";
 import { useUndoWindow } from "@/components/studio/undo-window";
 import { sameKeys, useStableEvent } from "@/components/studio/use-stable-event";
@@ -128,7 +132,7 @@ type SelectionInput = {
   /**
    * Deep-link focus, always with `song=<trackNumber>` for the track-level ones:
    * story (Story note) | role: focus that field, under the track title.
-   * song-themes | motifs: open the track's "Themes and motifs", focus that field.
+   * song-themes | motifs | characters: open the track's "Themes and motifs", focus that field.
    * album (the first empty album field) | album-motifs: open Album details, focus that field.
    * lyrics: select the song's first unwritten section and focus its lyrics.
    * Older links keep working: themes = song-themes, position = role, album-themes, album-concept.
@@ -234,7 +238,7 @@ const SectionCommentsMemo = memo(
   SectionComments,
   (prev: SectionCommentsProps, next: SectionCommentsProps) =>
     sameKeys(prev, next, ["albumId", "defaultOpen"]) &&
-    sameKeys(prev.section, next.section, ["id", "songTrackNumber", "sectionType", "sectionOrder", "label"]),
+    sameKeys(prev.section, next.section, ["id", "songTrackNumber", "songTitle", "sectionType", "sectionOrder", "label"]),
 );
 
 /** The track's header ("01 Track 1", Preview song, More, the catalog line). */
@@ -324,6 +328,8 @@ function focusTargetFor(focus: string | undefined | null, album: StudioAlbum): F
       return { id: STORY_FOCUS_TARGETS.themes, opens: "story" };
     case "motifs":
       return { id: STORY_FOCUS_TARGETS.motifs, opens: "story" };
+    case "characters":
+      return { id: STORY_FOCUS_TARGETS.characters, opens: "story" };
     case "album":
       return { id: albumFocusTarget(album), opens: "details" };
     case "album-themes":
@@ -443,8 +449,9 @@ function useAlbumStudioRender({
   const queuedRef = useRef<SaveMode | null>(null);
   // The save in flight, so leaving the Studio can wait for it before saving what's left.
   const inFlightRef = useRef<Promise<boolean> | null>(null);
-  // The revision a keepalive save in flight carries: leaving then needs no second copy of it.
-  const keepaliveRevisionRef = useRef<number | null>(null);
+  // The save in flight and the revision it carries: when it went with keepalive, leaving then
+  // needs no second copy of it.
+  const patchInFlightRef = useRef<{ revision: number; patch: AlbumPatch } | null>(null);
   const dirtyRef = useRef(false);
   const frameKeyRef = useRef(albumFrameKey(album));
   const structuralRef = useRef(false);
@@ -454,17 +461,24 @@ function useAlbumStudioRender({
   const saveBarRef = useRef<HTMLDivElement | null>(null);
 
   // Deep links (?song=N&section=M&sid=…&focus=…) select a track and section. They are applied
-  // on first render and again whenever the link itself changes, never on ordinary edits.
+  // on first render and again whenever the link itself changes, never on ordinary edits. The
+  // addresses the Studio writes itself (below) come back as props after a layout refresh that
+  // started on a track the writer has since left: those leave the selection where it is.
+  const [ownAddresses] = useState(() => new OwnAddresses());
+  // The layout refresh after a save that changed the album's frame, pending until it commits.
+  const [refreshing, startRefresh] = useTransition();
   const selectionKey = [initialSelection?.song, initialSelection?.section, initialSelection?.sid, initialSelection?.focus].join("|");
   const [appliedSelectionKey, setAppliedSelectionKey] = useState(selectionKey);
   if (appliedSelectionKey !== selectionKey) {
     setAppliedSelectionKey(selectionKey);
-    if (initialSelection?.song) setSelection(resolveSelection(album, initialSelection));
-    const target = focusTargetFor(initialSelection?.focus, album);
-    if (target) {
-      setPendingFocus(arrivalFocus(target));
-      if (target.opens === "story") setStoryOpen(true);
-      else if (target.opens === "details") setDetailsOpen(true);
+    if (!ownAddresses.isEcho(initialSelection ?? {})) {
+      if (initialSelection?.song) setSelection(resolveSelection(album, initialSelection));
+      const target = focusTargetFor(initialSelection?.focus, album);
+      if (target) {
+        setPendingFocus(arrivalFocus(target));
+        if (target.opens === "story") setStoryOpen(true);
+        else if (target.opens === "details") setDetailsOpen(true);
+      }
     }
   }
 
@@ -588,25 +602,31 @@ function useAlbumStudioRender({
   }, [dirty]);
 
   // The arrival line is said once: drop `?remixed=1` from the address (keeping the rest), so a
-  // reload or a shared link doesn't announce the remix again.
+  // reload or a shared link doesn't announce the remix again. In place, like the address sync
+  // below: a navigation would re-render from the server with the address it started from.
   useEffect(() => {
     if (!arrival) return;
     const url = new URL(window.location.href);
     if (!url.searchParams.has("remixed")) return;
     url.searchParams.delete("remixed");
-    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
-  }, [arrival, router]);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [arrival]);
 
   // The address follows the track and section on screen (?song=N&sid=…), so a reload, Back or a
   // copied link opens what the writer was looking at, even after a move renumbers the track.
-  // History is replaced in place, not navigated: nothing re-renders from the server.
+  // History is replaced in place, not navigated: nothing re-renders from the server. Never while
+  // a layout refresh is on its way: Next.js takes an address changed under it for another page
+  // and loads the Studio afresh, dropping the words typed meanwhile. It follows once it lands.
   const shownTrack = activeSong?.track_number;
   const shownSection = activeSection?.id;
   useEffect(() => {
-    if (shownTrack == null) return;
+    if (shownTrack == null || refreshing) return;
     const url = new URL(window.location.href);
     const song = String(shownTrack);
-    if (url.searchParams.get("song") === song && url.searchParams.get("sid") === (shownSection ?? null)) return;
+    ownAddresses.wrote(addressKey(song, shownSection));
+    // One-shot hints (`section`, `focus`) go once applied, even when the track and section match.
+    const oneShot = url.searchParams.has("section") || url.searchParams.has("focus");
+    if (!oneShot && url.searchParams.get("song") === song && url.searchParams.get("sid") === (shownSection ?? null)) return;
     url.searchParams.set("song", song);
     if (shownSection) url.searchParams.set("sid", shownSection);
     else url.searchParams.delete("sid");
@@ -615,7 +635,25 @@ function useAlbumStudioRender({
     url.searchParams.delete("focus");
     // `null` state, as Next.js documents: it syncs the router, so a later refresh keeps it.
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-  }, [shownTrack, shownSection]);
+    // Again after every link applied, so its one-shot hints go too.
+  }, [shownTrack, shownSection, appliedSelectionKey, ownAddresses, refreshing]);
+
+  // The tab names the track on screen, once the selection has settled. The page's own title
+  // (Next.js metadata) streams in after the page and comes again with a layout refresh: the
+  // track goes back into it, only while the Studio is on screen, so the next page's is its own.
+  const documentTitle = studioDocumentTitle(activeSong, album.title);
+  useEffect(() => {
+    const apply = () => {
+      if (document.title !== documentTitle) document.title = documentTitle;
+    };
+    apply();
+    const studio = saveBarRef.current;
+    const observer = new MutationObserver(() => {
+      if (studio?.isConnected) apply();
+    });
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [documentTitle]);
 
   useEffect(() => {
     if (!arrival) return;
@@ -694,22 +732,28 @@ function useAlbumStudioRender({
     return saveRef.current("auto");
   }
 
-  /** A last-chance save that outlives the page (keepalive). Best effort: bodies over 64 KB
-   * are refused by the browser, which is why in-app navigation saves normally first. */
+  /**
+   * A last-chance save that outlives the page (keepalive), in the room a save in flight leaves
+   * it. Best effort: a body keepalive can't carry goes without it and may not survive the page
+   * going, which is why in-app navigation saves normally first.
+   */
   function sendKeepaliveSave() {
     const snapshot = albumRef.current;
     if (albumProblem(snapshot)) return;
     // A save already on its way with these very edits outlives the page by itself.
-    if (keepaliveRevisionRef.current === revisionRef.current) return;
-    try {
-      void fetch(`/api/albums/${albumId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ album: snapshot }),
-        keepalive: true,
-      }).catch(() => undefined);
-    } catch {
-      // A body too large for keepalive throws synchronously; nothing more can be done here.
+    const inFlight = patchInFlightRef.current;
+    if (inFlight?.revision === revisionRef.current && inFlight.patch.keepalive()) return;
+    void sendAlbumPatch(albumId, albumPatchBody(snapshot), "last-chance").response.catch(() => undefined);
+  }
+
+  /** Focus on the title a save is waiting for: the album's, or the first untitled track's. */
+  function focusMissingTitle(snapshot: StudioAlbum) {
+    const at = albumProblemField(snapshot);
+    if (at?.field === "album-title") {
+      openAlbumField(ALBUM_TITLE_INPUT_ID);
+    } else if (at?.field === "track-title") {
+      if (at.index !== songIndex) setSelection({ song: at.index, section: 0 });
+      setPendingFocus({ id: TRACK_TITLE_ID, scroll: "center" });
     }
   }
 
@@ -733,6 +777,8 @@ function useAlbumStudioRender({
     const problem = albumProblem(snapshot);
     if (problem) {
       setSaveError(problem);
+      // A save the writer asked for goes to the title it needs; an autosave never moves focus.
+      if (mode !== "auto") focusMissingTitle(snapshot);
       return false;
     }
     const revision = revisionRef.current;
@@ -743,18 +789,12 @@ function useAlbumStudioRender({
     setSavingMode(mode);
     setSaveError(null);
     if (mode !== "auto") setSavedFlash(null);
-    const body = JSON.stringify({ album: snapshot, versionMessage: message });
-    // Sent with keepalive when the browser allows its size, so a reload or a closed tab
-    // while it is on its way doesn't cancel it (a delete, then an at-once reload).
-    const keepalive = keepaliveFits(body);
-    if (keepalive) keepaliveRevisionRef.current = revision;
+    // Sent with keepalive when it leaves room for a last-chance save, so a reload or a closed
+    // tab while it is on its way doesn't cancel it (a delete, then an at-once reload).
+    const patch = sendAlbumPatch(albumId, albumPatchBody(snapshot, message), "routine");
+    patchInFlightRef.current = { revision, patch };
     try {
-      const response = await fetch(`/api/albums/${albumId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body,
-        keepalive,
-      });
+      const response = await patch.response;
       if (!response.ok) {
         throw new Error(await readApiError(response, "Something went wrong on our side."));
       }
@@ -773,10 +813,11 @@ function useAlbumStudioRender({
       const frameKey = albumFrameKey(snapshot);
       if (frameKey !== frameKeyRef.current) {
         frameKeyRef.current = frameKey;
-        router.refresh();
+        startRefresh(() => router.refresh());
       }
       return true;
     } catch (err) {
+      // Only an unreachable server: a keepalive the browser refused was already sent again.
       const offline = err instanceof TypeError;
       setSaveError(
         offline
@@ -787,7 +828,7 @@ function useAlbumStudioRender({
       );
       return false;
     } finally {
-      if (keepaliveRevisionRef.current === revision) keepaliveRevisionRef.current = null;
+      if (patchInFlightRef.current?.patch === patch) patchInFlightRef.current = null;
       savingRef.current = false;
       setSaving(false);
       const queued = queuedRef.current;
@@ -1451,10 +1492,6 @@ function useAlbumStudioRender({
       "No changes yet"
     ) : null;
 
-  // Undo, and Retry after a failed save, lie over the save status (see the save bar).
-  const retryShown = retryOffered;
-  const offerShown = anyOffer;
-
   const writeNextLabel = upNext
     ? `${upNext.song === songIndex ? "" : trackPrefix(songs[upNext.song])}${
         sectionLabels(songs[upNext.song]?.sections ?? [])[upNext.section] ?? "Section"
@@ -1522,7 +1559,7 @@ function useAlbumStudioRender({
             <p
               className={cn(
                 "hidden flex-none text-xs text-ink-3 @min-[35rem]:block",
-                offerShown && "invisible",
+                anyOffer && "invisible",
               )}
             >
               <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
@@ -1532,7 +1569,7 @@ function useAlbumStudioRender({
               </span>
             </p>
           </div>
-          {offerShown ? (
+          {anyOffer ? (
             // Undo (and Retry after a failed save) are laid over the status and the hints, in
             // the box's own space, so the bar keeps its height and nothing beside it moves when
             // one appears or lapses. The line beside them says what they are about: the failed
@@ -1547,18 +1584,18 @@ function useAlbumStudioRender({
               className="absolute inset-x-0 top-0 flex min-h-full min-w-0 items-center gap-x-2 bg-ground text-sm max-[22em]:min-h-11"
             >
               <span
-                id={retryShown ? undefined : "studio-undo-text"}
-                className={cn("min-w-0 break-words", retryShown ? "text-danger" : "text-ink")}
-                aria-hidden={retryShown ? true : undefined}
+                id={retryOffered ? undefined : "studio-undo-text"}
+                className={cn("min-w-0 break-words", retryOffered ? "text-danger" : "text-ink")}
+                aria-hidden={retryOffered ? true : undefined}
               >
-                {retryShown ? saveError : undo ? undoText(undo) : null}
+                {retryOffered ? saveError : undo ? undoText(undo) : null}
               </span>
-              {retryShown && undo ? (
+              {retryOffered && undo ? (
                 <span id="studio-undo-text" className="sr-only">
                   {undoText(undo)}
                 </span>
               ) : null}
-              {retryShown ? (
+              {retryOffered ? (
                 <Button
                   id={RETRY_SAVE_ID}
                   tone="secondary"
@@ -1592,7 +1629,7 @@ function useAlbumStudioRender({
             (320px, or enlarged text on a phone) only their 44px icons fit, names kept. On a
             phone (coarse pointer) below 48em, Help, which opens the keyboard shortcuts, gives
             its room to them; Help stays in the app's navigation. */}
-        <div ref={saveActionsRef} className={cn("flex flex-none items-center gap-x-1", offerShown && "max-[22em]:invisible")}>
+        <div ref={saveActionsRef} className={cn("flex flex-none items-center gap-x-1", anyOffer && "max-[22em]:invisible")}>
           <Link
             href="/app/help#keyboard-title"
             className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded px-3 text-sm font-semibold text-ink-2 transition-colors hover:bg-hover hover:text-ink max-[48em]:px-2.5 max-[48em]:pointer-coarse:hidden"
@@ -2103,6 +2140,7 @@ function useAlbumStudioRender({
                   section={{
                     id: activeSection.id,
                     songTrackNumber: activeSong.track_number,
+                    songTitle: activeSong.title,
                     sectionType: activeSection.section_type,
                     sectionOrder: activeSection.order,
                     label: activeLabel,

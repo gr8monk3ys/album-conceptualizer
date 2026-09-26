@@ -176,6 +176,104 @@ test.describe("Studio", () => {
     await page.reload();
     await expect(page.getByLabel("Lyrics draft")).toHaveValue(words);
   });
+  // A save that changes the album's frame (a track title) refreshes the layout. When the writer
+  // moved to another track while it was out, the Studio rewrote its address under the refresh,
+  // and Next.js then loaded the Studio afresh: focus and the words typed meanwhile were gone
+  // from the editor. Its props also named the track the writer had left.
+  test("a refresh after a title edit keeps the track the writer moved to", async ({ page, isMobile }) => {
+    test.skip(isMobile, "The track list sits beside the editor on a desktop-sized window.");
+    await devLogin(page);
+    await createAlbumAndOpenStudio(page, `Stay ${randomSuffix()}`);
+    const rows = page.locator('button[id^="track-row-"]');
+    while ((await rows.count()) < 3) {
+      const count = await rows.count();
+      await page.getByRole("button", { name: "Add track", exact: true }).first().click();
+      await expect(rows).toHaveCount(count + 1);
+      await expect(page.getByText("Saving…")).toHaveCount(0);
+    }
+    const trackRow = (n: number) => rows.nth(n - 1);
+    await trackRow(2).click();
+    await expect(page).toHaveURL(/[?&]song=2(&|$)/);
+
+    // Hold the layout refresh the title's save sets off, until the writer has moved on.
+    const held: Array<() => Promise<void>> = [];
+    let holding = true;
+    await page.route(
+      (url) => url.pathname.endsWith("/studio"),
+      async (route) => {
+        const headers = route.request().headers();
+        if (!holding || headers.rsc !== "1" || headers["next-router-prefetch"]) return route.continue();
+        held.push(() => route.continue());
+      },
+    );
+    await page.getByLabel("Track title").fill("Harbour Wall");
+    const saved = page.waitForResponse((response) => response.request().method() === "PATCH" && response.ok());
+    await page.getByRole("button", { name: "Save now", exact: true }).click();
+    await saved;
+    await expect.poll(() => held.length).toBeGreaterThan(0);
+
+    await trackRow(3).click();
+    const third = await page.getByLabel("Track title").inputValue();
+    // Words typed while the refresh is out stay, in the same editor (never loaded afresh).
+    await page.evaluate(() => document.getElementById("studio-editor")?.setAttribute("data-probe", "kept"));
+    const lyrics = page.getByLabel("Lyrics draft");
+    await lyrics.fill("Typed while the refresh was out");
+    holding = false;
+    const landed = page.waitForResponse((response) => response.url().includes("_rsc") && response.url().includes("/studio?"));
+    for (const release of held.splice(0)) await release();
+    await landed;
+    await page.waitForTimeout(1000);
+
+    await expect(page.locator("#studio-editor")).toHaveAttribute("data-probe", "kept");
+    await expect(trackRow(3)).toHaveAttribute("aria-current", "true");
+    await expect(page.getByLabel("Track title")).toHaveValue(third);
+    await expect(lyrics).toHaveValue("Typed while the refresh was out");
+    await expect(lyrics).toBeFocused();
+    // Once it has landed, the address follows the track on screen.
+    await expect(page).toHaveURL(/[?&]song=3(&|$)/);
+  });
+  // `focus` and `section` describe an arrival, not where the writer is: they leave the address
+  // once applied, even when the link already names the track and section on screen.
+  test("a deep link's one-shot focus leaves the address once applied", async ({ page }) => {
+    await devLogin(page);
+    await createAlbumAndOpenStudio(page, `One Shot ${randomSuffix()}`);
+    await expect(page).toHaveURL(/[?&]sid=/);
+    const here = page.url();
+    await page.goto(`${here}&focus=story`);
+    await expect(page.getByLabel("Story note")).toBeFocused();
+    await expect(page).not.toHaveURL(/focus=/);
+    expect(new URL(page.url()).search).toBe(new URL(here).search);
+    // A remix arrival drops its `remixed` too, in place, keeping the track and section.
+    await page.goto(`${here}&remixed=1`);
+    await expect(page.getByText(/^Remixed into your workspace/)).toBeVisible();
+    await expect(page).not.toHaveURL(/remixed=/);
+    expect(new URL(page.url()).search).toBe(new URL(here).search);
+  });
+  test("Save now with an untitled track goes to its title; the tab names the track", async ({ page }) => {
+    await devLogin(page);
+    const album = `Untitled Save ${randomSuffix()}`;
+    await createAlbumAndOpenStudio(page, album);
+    const title = page.getByLabel("Track title");
+    const name = await title.inputValue();
+    await expect(page).toHaveTitle(`Studio · ${name} · ${album} · Album Conceptualizer`);
+    await title.fill("");
+    await page.getByRole("button", { name: "Save now", exact: true }).click();
+    await expect(page.getByText("Couldn't save — Give track 1 a title before saving.")).toBeVisible();
+    await expect(title).toBeFocused();
+    await expect(page).toHaveTitle(`Studio · Track 1 · ${album} · Album Conceptualizer`);
+    // Adding a chip is said, as removing one is.
+    await title.fill("Harbour Wall");
+    await expect(page).toHaveTitle(`Studio · Harbour Wall · ${album} · Album Conceptualizer`);
+    await page.getByRole("button", { name: /Themes and motifs/ }).click();
+    await page.getByLabel("Themes", { exact: true }).fill("tide, salt,");
+    await expect(page.locator("[aria-live=polite]").filter({ hasText: "Added 2 themes." })).toHaveCount(1);
+    // The next page names itself: the Studio's title never follows it out.
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Story bible", exact: true }).click();
+    await page.waitForURL("**/bible");
+    await expect(page).toHaveTitle(new RegExp(`^(?!Studio).*${album}`));
+    await page.waitForTimeout(500);
+    await expect(page).not.toHaveTitle(/^Studio/);
+  });
   test("after a restore, focus lands on the line that says what was restored, said once", async ({ page }) => {
     await devLogin(page);
     await createAlbumAndOpenStudio(page, `Restore Focus ${randomSuffix()}`);

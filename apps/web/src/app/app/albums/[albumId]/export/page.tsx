@@ -46,8 +46,9 @@ export default async function AlbumExportPage({
     plan: effectivePlan(workspace.subscription),
   });
 
-  // Readiness first: what the packs and the zip will carry as the album stands. It informs;
-  // every download still works.
+  // Readiness first, in one short line of items: what the zip and the packs will carry as the
+  // album stands. It informs; every download still works. Then the zip, the tab's one primary,
+  // so it is in the first screen, and the free handoff packs under it.
   const readiness = getAlbumReadiness(album.id, album.data);
 
   return (

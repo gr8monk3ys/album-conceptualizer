@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { BibleActions } from "@/components/bible-actions";
@@ -273,10 +274,11 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
                   <Link
                     href={coherenceFixHref(albumId, { focus: "song-themes", trackNumber: track.trackNumber })}
                     title={`${track.title}: edit its themes`}
-                    className="type-figure mx-auto grid h-11 w-11 place-items-center rounded-sm text-sm font-semibold text-ink-3 hover:bg-hover hover:text-ink"
+                    // Inset ring: the link sits flush with the scroller's edge, which clips an outset one.
+                    className="type-figure mx-auto grid h-11 w-11 place-items-center rounded-sm text-sm font-semibold text-ink-3 hover:bg-hover hover:text-ink focus-visible:-outline-offset-2"
                   >
                     {pad(track.trackNumber)}
-                    <span className="sr-only">{`, ${track.title}: edit its themes`}</span>
+                    <span className="sr-only">{` ${track.title}: edit its themes`}</span>
                   </Link>
                 </th>
               ))}
@@ -511,7 +513,13 @@ function MotifList({ albumId, motifs }: { albumId: string; motifs: MotifEntry[] 
   );
 }
 
-function IndexList({ entries, empty }: { entries: Array<{ name: string; trackNumbers: number[] }>; empty: string }) {
+function IndexList({
+  entries,
+  empty,
+}: {
+  entries: Array<{ name: string; trackNumbers: number[] }>;
+  empty: ReactNode;
+}) {
   if (!entries.length) return <p className="text-sm text-ink-2">{empty}</p>;
   return (
     <ul className="divide-y divide-line border-y border-line text-sm">
@@ -538,6 +546,8 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
   const styleSummary = summarizeStyleBible(bible.styleBible);
   const graph = buildMotifCharacterGraph(bible, { maxCharacters: 10, maxMotifs: 10, minEdgeWeight: 1 });
   const motifs = albumMotifIndex(album.data);
+  const trackNumbers = bible.timeline.tracks.map((track) => track.trackNumber);
+  const firstTrack = trackNumbers.length ? Math.min(...trackNumbers) : null;
   // Track-by-track gaps are the Coherence report's job and Sound bible gaps show under
   // "Sound bible"; this page checks only how the album's threads hang together.
   const structure = bible.issues.filter((issue) => issue.scope === "structure");
@@ -653,7 +663,27 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <div className="min-w-0">
               <h3 className="mb-2 text-sm font-semibold text-ink">Characters</h3>
-              <IndexList entries={bible.characterIndex} empty="No characters tagged yet." />
+              <IndexList
+                entries={bible.characterIndex}
+                empty={
+                  // Like Motifs, the empty list says where to fill it: the first track's
+                  // Characters, in the Studio's "Themes and motifs".
+                  <>
+                    No characters tagged yet.
+                    {firstTrack !== null ? (
+                      <>
+                        {" "}
+                        <Link
+                          href={`${base}/studio?song=${firstTrack}&focus=characters`}
+                          className="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
+                        >
+                          Tag who appears in each track in the Studio
+                        </Link>
+                      </>
+                    ) : null}
+                  </>
+                }
+              />
             </div>
             <div className="min-w-0">
               <h3 className="mb-2 text-sm font-semibold text-ink">Motifs</h3>

@@ -263,7 +263,10 @@ export default async function AlbumOverviewPage({
             figure={plural(references.length, "saved", "saved")}
             detail={
               firstReference
-                ? `${firstReference.title}${firstReference.artist ? ` · ${firstReference.artist}` : ""}`
+                ? // The first saved, then how many more, so one title never reads as the whole list.
+                  `${firstReference.title}${firstReference.artist ? ` · ${firstReference.artist}` : ""}${
+                    references.length > 1 ? ` + ${references.length - 1} more` : ""
+                  }`
                 : "Pin down the opener, closer, vocal and mix references before exporting."
             }
           />

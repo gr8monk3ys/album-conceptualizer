@@ -23,8 +23,11 @@ export default async function CreatePage() {
   ]);
   return (
     <div className="flex flex-col gap-8">
+      {/* The page-title size: "New album" names one of the app's own screens, not a work; the
+          display cut is spent on album titles and public pages (DESIGN.md, Typography). */}
       <PageHeader
         title="New album"
+        size="page"
         description="Three short steps to a blueprint: the idea, its direction, and a first tracklist. Everything stays editable in the Studio afterwards."
       />
       <QuickStartComposer aiAvailable={aiAvailable} creditsRemaining={credits.remaining} />

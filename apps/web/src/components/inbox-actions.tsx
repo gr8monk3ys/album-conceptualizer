@@ -96,7 +96,7 @@ function InboxAction({
   body: Record<string, unknown>;
   label: string;
   busyLabel: string;
-  /** The confirmation for this item, e.g. "Resolved the comment on Track 3, section 2." */
+  /** The confirmation for this item, e.g. "Resolved the comment on Low Tide Leaving, Verse 1." */
   done: (itemLabel: string) => string;
   itemLabel: string;
   failure: string;

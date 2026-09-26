@@ -162,7 +162,11 @@ function showsPrimary(content: Element) {
   const candidates = content.querySelectorAll<HTMLElement>(
     `.${PRIMARY_ACTION_MARKER}, a.bg-accent, button.bg-accent`,
   );
-  return Array.from(candidates).some((el) => el.getClientRects().length > 0);
+  // An unavailable primary (Save version before it is named) doesn't hold the saffron: the
+  // header's next step keeps it, so the screen never ends up with none.
+  return Array.from(candidates).some(
+    (el) => el.getClientRects().length > 0 && !el.matches('[aria-disabled="true"], :disabled'),
+  );
 }
 
 /**
@@ -185,7 +189,7 @@ function useContentHasPrimary(segment: string, enabled: boolean) {
         subtree: true,
         childList: true,
         attributes: true,
-        attributeFilter: ["class", "open", "hidden"],
+        attributeFilter: ["class", "open", "hidden", "aria-disabled", "disabled"],
       });
       return () => {
         cancelAnimationFrame(frame);

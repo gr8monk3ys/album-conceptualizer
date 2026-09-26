@@ -80,6 +80,23 @@ describe.skipIf(!hasDatabase)("remix notification links (database)", () => {
     expect(found.get(secondNote.id)).toBe(second);
   });
 
+  it("uses the remix ids notifications record, only for remixes on Discover", async () => {
+    const shown = await remix();
+    const hidden = await remix();
+    await prisma.album.update({ where: { id: shown }, data: { isPublic: true } });
+    const [firstNote, secondNote] = await remixNotes();
+    const found = await publishedRemixes([
+      { ...firstNote, actorUserId: null, metadata: { remixAlbumId: shown } },
+      { ...secondNote, actorUserId: null, metadata: { remixAlbumId: hidden } },
+      // Two rows about one remix both lead to it.
+      { ...secondNote, id: "again", actorUserId: null, metadata: { remixAlbumId: shown } },
+    ]);
+    expect([...found.entries()].sort()).toEqual([
+      ["again", shown],
+      [firstNote.id, shown],
+    ].sort());
+  });
+
   it("uses the remix id a notification records", async () => {
     const id = await remix();
     await prisma.album.update({ where: { id }, data: { isPublic: true } });

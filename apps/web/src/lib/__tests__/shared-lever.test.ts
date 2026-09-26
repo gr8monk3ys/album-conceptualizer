@@ -12,7 +12,7 @@ describe("sharedLever", () => {
       { key: "harmony", label: "Harmony", lever: "Change the starter loop on tracks 1–3 to score Harmony." },
       { key: "lyrics", label: "Lyrics", lever: lyrics },
     ]);
-    expect(shared?.sentence).toBe("Write lyrics on 6 more tracks (3 and 5–9) to lift Arc, Themes and Lyrics.");
+    expect(shared?.sentence).toBe("Write lyrics on 6 more tracks (3 and 5–9) to lift Arc, Themes, and Lyrics.");
     expect([...(shared?.keys ?? [])]).toEqual(["arc", "themes", "lyrics"]);
   });
 

@@ -59,7 +59,8 @@ function NavLink({
           <span className="break-words">{item.label}</span>
           {badge ? (
             <span className="type-figure rounded-sm bg-ink px-1.5 text-xs font-semibold text-ground">
-              <span className="sr-only">, </span>
+              {/* No separator of its own: the label and the badge are flex items, so the name
+                  already reads "Notifications 1 unread" (a ", " here read as "Notifications , 1"). */}
               {Math.min(99, badge)}
               <span className="sr-only"> unread</span>
             </span>

@@ -6,6 +6,13 @@ import { Plus, X } from "lucide-react";
 import { Button, LiveStatus, inputClass } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
+/** What adding chips says: "Added theme “tide”.", or "Added 2 themes." for a comma batch. */
+export function chipAddedMessage(noun: string, added: readonly string[]): string | null {
+  if (!added.length) return null;
+  if (added.length === 1) return `Added ${noun} “${added[0]}”.`;
+  return `Added ${added.length} ${noun}s.`;
+}
+
 /**
  * A labelled list of short values (themes, motifs, characters) edited as chips. New values
  * come from free entry (Enter or comma adds) or from one-click suggestions; every chip has
@@ -15,6 +22,7 @@ import { cn } from "@/lib/utils";
  * async work): Add returns to the field (or, once the list is full, to the last chip's
  * remove button); removing a chip moves to the next chip's remove button, else the previous
  * one, else the field; taking a suggestion moves to the next suggestion, else the field.
+ * Every add and remove is said once (focus lands on a control that names only itself).
  */
 export function ChipListEditor({
   id,
@@ -41,8 +49,8 @@ export function ChipListEditor({
   max?: number;
 }) {
   const [draft, setDraft] = useState("");
-  // Said once when a chip goes: focus moves to the next chip, which names only itself.
-  const [removed, setRemoved] = useState<string | null>(null);
+  // Said once when a chip comes or goes: focus moves on to a control that names only itself.
+  const [announcement, setAnnouncement] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // Where focus goes after the next commit: a data-chip-focus key, or "input".
@@ -73,7 +81,9 @@ export function ChipListEditor({
       seen.add(value.toLowerCase());
       next.push(value);
     }
-    if (next.length !== values.length) onChange(next);
+    if (next.length === values.length) return;
+    setAnnouncement(chipAddedMessage(noun, next.slice(values.length)));
+    onChange(next);
   }
 
   function commitDraft() {
@@ -91,7 +101,7 @@ export function ChipListEditor({
   }
 
   function remove(value: string) {
-    setRemoved(`Removed ${noun} “${value}”.`);
+    setAnnouncement(`Removed ${noun} “${value}”.`);
     const index = values.indexOf(value);
     const neighbour = values[index + 1] ?? values[index - 1];
     pendingFocus.current = neighbour !== undefined ? `remove:${neighbour}` : "input";
@@ -157,6 +167,7 @@ export function ChipListEditor({
               e.preventDefault();
               commitDraft();
             } else if (e.key === "Backspace" && !draft && values.length) {
+              setAnnouncement(`Removed ${noun} “${values[values.length - 1]}”.`);
               onChange(values.slice(0, -1));
             }
           }}
@@ -206,7 +217,7 @@ export function ChipListEditor({
         </div>
       ) : null}
 
-      <LiveStatus message={removed} className="sr-only" />
+      <LiveStatus message={announcement} className="sr-only" />
 
       {hint ? (
         <p id={hintId} className="max-w-[65ch] text-xs leading-relaxed text-ink-3">

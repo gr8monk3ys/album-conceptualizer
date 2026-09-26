@@ -4,10 +4,12 @@ import { notFound } from "next/navigation";
 import { CompleteTaskButton, ResolveCommentButton } from "@/components/inbox-actions";
 import { RelativeTime } from "@/components/relative-time";
 import { ButtonLink, Chip, EmptyState, Section } from "@/components/ui";
+import { AlbumJsonSchema } from "@/server/album-json";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { placeFor, sectionPlaceLine, sectionPlacePhrase, sectionPlaces, type SectionPlace } from "@/lib/section-place";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata({
@@ -43,30 +45,13 @@ function formatSectionType(value: string | null) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** "Track 3 · Section 2 · Chorus": where in the album a comment or task points. */
-function SectionPlace({
-  track,
-  order,
-  type,
-}: {
-  track: number | null;
-  order: number | null;
-  type: string | null;
-}) {
-  const sectionType = formatSectionType(type);
-  if (!track) return <>Whole album</>;
-  return (
-    <>
-      Track <span className="type-figure">{track}</span>
-      {order !== null ? (
-        <>
-          {" · Section "}
-          <span className="type-figure">{order + 1}</span>
-        </>
-      ) : null}
-      {sectionType ? ` · ${sectionType}` : null}
-    </>
-  );
+/**
+ * "01 · Low Tide Leaving · Verse 1": where in the album a comment or task points, named as the
+ * spine and the Studio name it (`@/lib/section-place`), or "Whole album".
+ */
+function PlaceLine({ place }: { place: SectionPlace | null }) {
+  if (!place) return <>Whole album</>;
+  return <span className="type-figure break-words">{sectionPlaceLine(place)}</span>;
 }
 
 // The album layout renders the title, catalog line, album tabs and spine above this page.
@@ -77,9 +62,13 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
 
   const album = await prisma.album.findFirst({
     where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true, title: true },
+    select: { id: true, title: true, data: true },
   });
   if (!album) notFound();
+  // Tracks move and get renamed: each comment is named by where its section is now.
+  const parsed = AlbumJsonSchema.safeParse(album.data);
+  const songs = parsed.success ? parsed.data.songs : [];
+  const places = sectionPlaces(songs);
 
   const [comments, tasks, otherMembers] = await Promise.all([
     prisma.albumSectionComment.findMany({
@@ -151,7 +140,8 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
             <ul className="@container divide-y divide-line border-y border-line">
               {comments.map((comment) => {
                 const author = comment.author.name || comment.author.email || "A collaborator";
-                const place = `Track ${comment.songTrackNumber}, section ${comment.sectionOrder + 1}`;
+                const place = placeFor(places, songs, comment);
+                const phrase = place ? sectionPlacePhrase(place) : "the album";
                 return (
                   <li
                     key={comment.id}
@@ -159,11 +149,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                   >
                     <div className="min-w-0">
                       <p className="text-sm text-ink-2">
-                        <SectionPlace
-                          track={comment.songTrackNumber}
-                          order={comment.sectionOrder}
-                          type={comment.sectionType}
-                        />
+                        <PlaceLine place={place} />
                       </p>
                       <p className="mt-1 max-w-[65ch] break-words text-sm leading-relaxed text-ink">
                         {excerpt(comment.body)}
@@ -177,14 +163,14 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                         href={sectionUrl(comment.songTrackNumber, comment.sectionId)}
                         tone="ghost"
                         className="px-3"
-                        aria-label={`Open in Studio: ${place}`}
+                        aria-label={`Open in Studio: ${place ? sectionPlaceLine(place) : "the album"}`}
                       >
                         Open in Studio
                       </ButtonLink>
                       <ResolveCommentButton
                         albumId={album.id}
                         commentId={comment.id}
-                        itemLabel={`comment on ${place}`}
+                        itemLabel={`comment on ${phrase}`}
                       />
                     </div>
                   </li>
@@ -246,11 +232,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                         ) : null}
                       </div>
                       <p className="mt-1 text-sm text-ink-2">
-                        <SectionPlace
-                          track={task.songTrackNumber}
-                          order={task.sectionOrder}
-                          type={task.sectionType}
-                        />
+                        <PlaceLine place={placeFor(places, songs, task)} />
                       </p>
                       {task.body ? (
                         <p className="mt-1 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">

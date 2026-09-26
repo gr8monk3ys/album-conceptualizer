@@ -1,5 +1,5 @@
 import { parseProgression } from "@/lib/chords";
-import { TEMPO_MAX, TEMPO_MIN } from "@/components/studio/studio-model";
+import { TEMPO_MAX, TEMPO_MIN } from "@/lib/tempo";
 
 // Checks for the Studio's musical input, run where it's typed. Pure; no React.
 

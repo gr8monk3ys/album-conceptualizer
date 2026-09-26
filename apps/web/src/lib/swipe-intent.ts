@@ -16,6 +16,18 @@ export function swipeIntent(dx: number, dy: number, threshold = SWIPE_INTENT_PX)
 }
 
 /**
+ * What a slider's wrapper does with a pointer pressed on it. Where the input takes pointer
+ * events itself (`reachedInput`), it handles them natively. On a touch-first device (primary
+ * pointer coarse) the input takes none, so everything reaches the wrapper: a touch moves the
+ * slider only once it has gone sideways ("swipe"), while a mouse, trackpad or pen, which can't
+ * be starting a scroll, drags it from where it pressed ("drag").
+ */
+export function sliderPointerStart(pointerType: string, reachedInput: boolean): "native" | "swipe" | "drag" {
+  if (reachedInput) return "native";
+  return pointerType === "touch" ? "swipe" : "drag";
+}
+
+/**
  * The value of a range slider under the point `x` (client px), given the track's box and the
  * thumb's width: the thumb's centre travels from `left + thumb / 2` to `right - thumb / 2`.
  * Clamped to `min`…`max` and rounded to a whole step of 1.

@@ -8,7 +8,6 @@ import {
   firstUnwrittenSection,
   moveItem,
   mergeRenames,
-  moveTrack,
   moveTrackTo,
   moveUndoLabel,
   nextToWrite,
@@ -46,9 +45,9 @@ describe("moveItem", () => {
   });
 });
 
-describe("moveTrack", () => {
+describe("moveTrackTo one place", () => {
   it("swaps neighbours and renumbers the whole album 1…n", () => {
-    const moved = moveTrack(songs(["Intro", "Signal", "Static"]), 2, -1);
+    const moved = moveTrackTo(songs(["Intro", "Signal", "Static"]), 2, 1);
     expect(moved?.map((s) => [s.track_number, s.title])).toEqual([
       [1, "Intro"],
       [2, "Static"],
@@ -61,15 +60,15 @@ describe("moveTrack", () => {
       { title: "A", track_number: 3 },
       { title: "B", track_number: 7 },
     ];
-    expect(moveTrack(gappy, 0, 1)?.map((s) => [s.track_number, s.title])).toEqual([
+    expect(moveTrackTo(gappy, 0, 1)?.map((s) => [s.track_number, s.title])).toEqual([
       [1, "B"],
       [2, "A"],
     ]);
   });
 
   it("refuses to move the first track up or the last one down", () => {
-    expect(moveTrack(songs(["A", "B"]), 0, -1)).toBeNull();
-    expect(moveTrack(songs(["A", "B"]), 1, 1)).toBeNull();
+    expect(moveTrackTo(songs(["A", "B"]), 0, -1)).toBeNull();
+    expect(moveTrackTo(songs(["A", "B"]), 1, 2)).toBeNull();
   });
 });
 
@@ -102,13 +101,13 @@ describe("default track names follow their numbers", () => {
   });
 
   it("moving a track up or down renames both default names", () => {
-    const moved = moveTrack(songs(["Track 1", "Track 2", "Static"]), 1, -1);
+    const moved = moveTrackTo(songs(["Track 1", "Track 2", "Static"]), 1, 0);
     expect(moved && titles(moved)).toEqual([
       [1, "Track 1"],
       [2, "Track 2"],
       [3, "Static"],
     ]);
-    const down = moveTrack(songs(["Signal", "Track 2", "Track 3"]), 0, 1);
+    const down = moveTrackTo(songs(["Signal", "Track 2", "Track 3"]), 0, 1);
     expect(down && titles(down)).toEqual([
       [1, "Track 1"],
       [2, "Signal"],
@@ -186,7 +185,7 @@ describe("moving a track several places at once", () => {
     let list = album;
     let renames: ReturnType<typeof trackRenames> = [];
     for (let i = 0; i < 3; i += 1) {
-      const next = moveTrack(list, i, 1)!;
+      const next = moveTrackTo(list, i, i + 1)!;
       renames = mergeRenames(renames, trackRenames(list, next));
       list = next;
     }

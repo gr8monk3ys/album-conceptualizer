@@ -27,7 +27,7 @@ import { requireUser } from "@/server/identity";
 import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
-import { scoreStory } from "@/lib/score-story";
+import { dimensionFigure, scoreStory, wholeAlbumCapLine } from "@/lib/score-story";
 import { sharedLever } from "@/lib/shared-lever";
 import { cn } from "@/lib/utils";
 
@@ -207,8 +207,8 @@ const DIMENSION_HELP: Array<{ label: string; text: string }> = [
     text: "Chords of each track's own, a key and a tempo on every track, and more than one key across the album.",
   },
   {
-    label: "Sequence",
-    text: "One number per track, at least two sections per song, variety in tempo and section patterns, and the bookends.",
+    label: "Flow",
+    text: "How the record moves in running order: one number per track, at least two sections per song, variety in tempo and section patterns, and the bookends.",
   },
   {
     label: "Motifs",
@@ -253,9 +253,10 @@ function HowScored({ report }: { report: CoherenceReport }) {
         <p>
           No dimension scores above the share of tracks that have lyrics: {capExample}. Harmony also
           scores no higher than the share of tracks with chords of their own, on the written tracks as
-          well as the whole album. While a score is held down, its row says what lifts it, and under that
-          what the written tracks score on their own; the rows run weakest first by that second number.
-          The overall score weighs Narrative most, then Lyrics, Harmony, Sequence and Motifs.
+          well as the whole album. While tracks are unwritten, each row leads with what the written
+          tracks score on their own, with the whole album&apos;s figure under it, and the rows run
+          weakest first by the written tracks&apos; figure. The overall score weighs Narrative most, then
+          Lyrics, Harmony, Flow and Motifs.
         </p>
         <p>
           <span className="font-semibold text-ink">Unfinished</span> means at least one track still has no
@@ -306,10 +307,11 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
   // Weakest first by each dimension's own value, so the weak spot leads even while the cap
   // holds every score at the same number.
   const dimensions = dimensionsWeakestFirst(report.breakdown);
-  const anyHeld = scored && dimensions.some((item) => item.heldBecause);
   const partlyWritten = stats.songsWithLyrics < stats.songCount;
-  // The lyric lever most rows share is said once above the list, not on every row.
+  // The lyric lever most rows share is said once above the list, not on every row, and so is
+  // the lyric cap they share (each row says only its own whole-album figure).
   const shared = scored ? sharedLever(dimensions) : null;
+  const capLine = dimensions.some((item) => item.heldBy === "lyrics") ? wholeAlbumCapLine(report) : null;
   // The One Score Story: progress first while tracks are unwritten, then the written tracks'
   // score and the whole album's, always in that order (lib/score-story, shared by every page
   // that shows a score). Once every track is written there is one score.
@@ -477,56 +479,50 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
         description={
           !scored
             ? "Scores appear once enough lyrics are written. Until then, here is what each dimension still needs."
-            : anyHeld && partlyWritten
-              ? "Each dimension out of 100, weakest first by what the written tracks show on their own."
+            : partlyWritten
+              ? "What the written tracks score on each dimension, out of 100, weakest first."
               : "Each dimension scored out of 100, weakest first."
         }
       >
-        {shared ? (
-          <p className="mb-3 max-w-[65ch] text-sm leading-relaxed text-ink">{shared.sentence}</p>
+        {shared || capLine ? (
+          <div className="mb-3 flex max-w-[65ch] flex-col gap-1 text-sm leading-relaxed">
+            {capLine ? <p className="type-figure text-ink-2">{capLine}</p> : null}
+            {shared ? <p className="text-ink">{shared.sentence}</p> : null}
+          </div>
         ) : null}
         <ul className="divide-y divide-line border-y border-line">
           {dimensions.map((item) => {
-            const held = scored && item.heldBecause;
-            // What the written tracks score alone, while the cap holds this dimension.
-            const alone = partlyWritten
-              ? `The written tracks alone score ${item.uncapped}.`
-              : `On its own it scores ${item.uncapped}.`;
+            // The One Score Story, row by row: while tracks are unwritten the figure is what the
+            // written tracks score on this dimension, and the whole album's (capped) figure is
+            // said small under it; once every track is written, one score (lib/score-story).
+            const figure = dimensionFigure(item, report);
             const lever = scored && item.lever && !shared?.keys.has(item.key) ? item.lever : null;
+            // While tracks are unwritten the row's evidence is the written tracks' own, like its figure.
+            const evidence = scored && partlyWritten ? `${item.signal}.` : item.summary;
             return (
               <li key={item.key} className="flex flex-wrap items-baseline gap-x-6 gap-y-1 py-3">
                 <span className="min-w-0 basis-28 text-sm font-semibold text-ink">{item.label}</span>
                 <span className="type-figure min-w-0 basis-16 text-lg font-semibold text-ink">
-                  {scored ? (
+                  {figure ? (
                     <>
-                      {item.score}
+                      {figure.label ? <span className="sr-only">{figure.label} </span> : null}
+                      {figure.value}
                       <span className="text-xs font-normal text-ink-3">/100</span>
                     </>
                   ) : (
                     <span className="text-sm font-normal text-ink-3">Not yet</span>
                   )}
                 </span>
-                {lever ? (
-                  // One plain sentence naming what lifts the score; the evidence (and, while the
-                  // score is held, what the written tracks score alone) sits under it as detail.
-                  // The rule itself is in "How this is scored".
-                  <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
-                    <span className="block">{lever}</span>
-                    <span className="type-figure mt-0.5 block text-xs text-ink-3">
-                      {held ? `${item.signal}. ${alone}` : item.summary}
-                    </span>
-                  </span>
-                ) : held ? (
-                  // Held by the shared lever said above the list: the row keeps its own signal.
-                  <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
-                    <span className="type-figure block">{item.signal}.</span>
-                    <span className="type-figure mt-0.5 block text-xs text-ink-3">{alone}</span>
-                  </span>
-                ) : (
-                  <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
-                    {item.summary}
-                  </span>
-                )}
+                {/* One plain sentence naming what lifts the score, when the row has its own
+                    lever; then the row's evidence, and the whole album's figure under it. The
+                    rule itself is in "How this is scored". */}
+                <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
+                  {lever ? <span className="block">{lever}</span> : null}
+                  <span className={cn("type-figure block", lever && "mt-0.5 text-xs text-ink-3")}>{evidence}</span>
+                  {figure?.note ? (
+                    <span className="type-figure mt-0.5 block text-xs text-ink-3">{figure.note}</span>
+                  ) : null}
+                </span>
               </li>
             );
           })}
