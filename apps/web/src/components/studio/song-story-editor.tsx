@@ -1,12 +1,13 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 
 import { ChipListEditor } from "@/components/studio/chip-list-editor";
-import type { StudioSong } from "@/components/studio/studio-model";
+import { carriedThemes, type StudioSong } from "@/components/studio/studio-model";
 import { sameKeys } from "@/components/studio/use-stable-event";
 import { Field, inputClass } from "@/components/ui";
+import { carriedThemesPhrase } from "@/lib/theme-keys";
 import { cn } from "@/lib/utils";
 
 export const SONG_STORY_ID = "song-story";
@@ -39,10 +40,88 @@ export function storySummary(song: StudioSong): string {
     .join(" · ");
 }
 
+/** The folded Role and Story note's toggle, and the fields it shows (`StoryFieldsFold`). */
+export const STORY_FIELDS_TOGGLE_ID = "song-story-fields-toggle";
+export const STORY_FIELDS_BODY_ID = "song-story-fields";
+
+/** A Story note's first words ("She leaves before the storm…"), whole words, at most `words`. */
+export function storyNoteExcerpt(note: string | null | undefined, words = 6): string {
+  const all = (note ?? "").trim().split(/\s+/).filter(Boolean);
+  if (all.length <= words) return all.join(" ");
+  return `${all.slice(0, words).join(" ").replace(/[,;:.!?…—–-]+$/, "")}…`;
+}
+
 /**
- * The track's Role and Story note, always in view under its title (above the lyrics): the two
- * things the coherence report asks of every track first, so they are never behind a
- * disclosure. Role is defined where it is asked.
+ * The folded Role and Story note in one line: the role or "No role yet", the Story note's first
+ * words or "no Story note yet", and, when the album has themes, which of them the track carries
+ * ("Opening · She leaves before the storm. · Carries tide"). Each separator is held to the item
+ * before it (a no-break space), so a wrapped line never starts with a dot.
+ */
+export function storyFieldsSummary(song: StudioSong, albumThemes: readonly string[] = []): string {
+  const themes = albumThemes.filter((t) => t.trim());
+  return [
+    song.narrative_position?.trim() || "No role yet",
+    storyNoteExcerpt(song.narrative_summary) || "no Story note yet",
+    themes.length ? carriedThemesPhrase(carriedThemes(song.themes, themes), themes.length) : null,
+  ]
+    .filter(Boolean)
+    .join("\u00a0· ");
+}
+
+/**
+ * Below the 42rem single-column layout (a phone, enlarged text) the track's Role, Story note and
+ * album-theme toggles fold into one line under the title, so the lyrics come within a screen of
+ * the Studio's top; the line says what they hold, and a deep link to either field opens it.
+ * From 42rem the toggle is gone and the fields are always in view, as the Coherence report asks
+ * every track for them.
+ */
+export function StoryFieldsFold({
+  summary,
+  open,
+  onOpenChange,
+  children,
+}: {
+  summary: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <h3 className="text-base text-ink @2xl/studio:hidden">
+        <button
+          id={STORY_FIELDS_TOGGLE_ID}
+          type="button"
+          aria-expanded={open}
+          aria-controls={STORY_FIELDS_BODY_ID}
+          onClick={() => onOpenChange(!open)}
+          className="-mx-2 flex min-h-11 w-full min-w-0 flex-col gap-0.5 rounded px-2 py-1.5 text-left transition-colors hover:bg-hover"
+        >
+          {/* The name and Edit/Hide on one line, what the fields hold under them. */}
+          <span className="flex min-w-0 flex-wrap items-center justify-between gap-x-3">
+            <span className="min-w-0 break-words font-semibold">Role and Story note</span>
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-ink">
+              {open ? "Hide" : "Edit"}
+              <ChevronDown
+                className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", open && "rotate-180")}
+                aria-hidden="true"
+              />
+            </span>
+          </span>
+          <span className="min-w-0 max-w-[65ch] break-words text-sm text-ink-2">{summary}</span>
+        </button>
+      </h3>
+      <div id={STORY_FIELDS_BODY_ID} className={cn("flex min-w-0 flex-col gap-4", !open && "@max-2xl/studio:hidden")}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The track's Role and Story note, under its title (above the lyrics): the two things the
+ * coherence report asks of every track first. In view from 42rem; below it they fold into
+ * `StoryFieldsFold`'s one line. Role is defined where it is asked.
  */
 export function SongStoryFields({
   song,

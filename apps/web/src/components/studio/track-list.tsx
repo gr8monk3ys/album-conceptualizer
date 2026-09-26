@@ -553,16 +553,23 @@ export function TrackThemeToggles({
   centralThemes,
   onToggle,
   className,
+  place = "story",
 }: {
   song: StudioSong;
   centralThemes: string[];
   onToggle: (theme: string) => void;
   className?: string;
+  /**
+   * Which of its two places this is (the Studio renders it in both and shows one by width):
+   * under the title in the folded Role and Story note below 42rem ("story"), or in Track
+   * details from 42rem ("details"). Keeps the label's id unique on the page.
+   */
+  place?: "story" | "details";
 }) {
   const themes = centralThemes.filter((t) => t.trim()).slice(0, MAX_THEME_COLUMNS);
   if (!themes.length) return null;
   const carried = new Set(carriedThemes(song.themes, themes).map((t) => t.trim().toLowerCase()));
-  const labelId = `track-theme-toggles-${song.id ?? song.track_number}`;
+  const labelId = `track-theme-toggles-${place}-${song.id ?? song.track_number}`;
   return (
     <div role="group" aria-labelledby={labelId} className={cn("flex min-w-0 flex-col gap-1.5", className)}>
       <p id={labelId} className="text-sm font-medium text-ink">

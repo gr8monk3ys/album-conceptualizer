@@ -93,12 +93,12 @@ export function TrackTitle({
         className="@container -mt-1 flex min-w-0 items-start gap-x-2 text-2xl font-semibold text-ink"
       >
         {/* The number's line box is the field's height, so the two share a centre line and
-            the number stays level with the title's first line when it wraps. Below a 16rem
-            row (a phone at 200% text) it steps down to the spine's size, leaving the room to
-            the title. */}
+            the number stays level with the title's first line when it wraps. Below a 14rem
+            row (a phone at 200% text; not a phone's row beside the 44px Preview and More) it
+            steps down to the spine's size, leaving the room to the title. */}
         <span
           aria-hidden="true"
-          className="type-figure flex min-h-11 flex-none items-center text-3xl text-ink-3 @max-[16rem]:text-base"
+          className="type-figure flex min-h-11 flex-none items-center text-3xl text-ink-3 @max-[14rem]:text-base"
         >
           {number}
         </span>

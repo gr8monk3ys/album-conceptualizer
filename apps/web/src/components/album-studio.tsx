@@ -8,6 +8,7 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpDown,
+  Check,
   CircleHelp,
   Copy,
   Download,
@@ -42,7 +43,13 @@ import { MoveTrackForm } from "@/components/studio/move-track-form";
 import { OwnAddresses, addressKey } from "@/components/studio/own-addresses";
 import { TRACKS_TOGGLE_ID, useTracksOpen } from "@/components/studio/tracks-disclosure";
 import { ChordField, TempoField } from "@/components/studio/musical-fields";
-import { SongStoryEditor, SongStoryFields, STORY_FOCUS_TARGETS } from "@/components/studio/song-story-editor";
+import {
+  SongStoryEditor,
+  SongStoryFields,
+  STORY_FOCUS_TARGETS,
+  StoryFieldsFold,
+  storyFieldsSummary,
+} from "@/components/studio/song-story-editor";
 import {
   STICKY_MIN_HEIGHT_QUERY,
   frameWithTarget,
@@ -312,17 +319,17 @@ function resolveSelection(album: StudioAlbum, selection: SelectionInput | undefi
   return { song, section };
 }
 
-type FocusTarget = { id: string; opens: "story" | "details" | null };
+type FocusTarget = { id: string; opens: "fields" | "story" | "details" | null };
 
 /** A deep-link `focus` value → the field to focus and the disclosure that holds it. */
 function focusTargetFor(focus: string | undefined | null, album: StudioAlbum): FocusTarget | null {
   switch (focus) {
-    // Story note and Role are always in view under the track title.
+    // Story note and Role sit under the track title (folded below 42rem, so they open it).
     case "story":
-      return { id: STORY_FOCUS_TARGETS.story, opens: null };
+      return { id: STORY_FOCUS_TARGETS.story, opens: "fields" };
     case "role":
     case "position":
-      return { id: STORY_FOCUS_TARGETS.role, opens: null };
+      return { id: STORY_FOCUS_TARGETS.role, opens: "fields" };
     case "themes":
     case "song-themes":
       return { id: STORY_FOCUS_TARGETS.themes, opens: "story" };
@@ -427,6 +434,8 @@ function useAlbumStudioRender({
   );
   // In one column the track list folds into "Sequence · 04 of 10 · …" (remembered for the session).
   const [tracksOpen, setTracksOpen] = useTracksOpen();
+  // Below 42rem the track's Role and Story note fold into one line under its title.
+  const [storyFieldsOpen, setStoryFieldsOpen] = useState(() => initialTarget?.opens === "fields");
   const [storyOpen, setStoryOpen] = useState(() => initialTarget?.opens === "story");
   const [detailsOpen, setDetailsOpen] = useState(() => initialTarget?.opens === "details");
   // "Save version…" in the save bar opens its name field inline, in the bar.
@@ -476,7 +485,8 @@ function useAlbumStudioRender({
       const target = focusTargetFor(initialSelection?.focus, album);
       if (target) {
         setPendingFocus(arrivalFocus(target));
-        if (target.opens === "story") setStoryOpen(true);
+        if (target.opens === "fields") setStoryFieldsOpen(true);
+        else if (target.opens === "story") setStoryOpen(true);
         else if (target.opens === "details") setDetailsOpen(true);
       }
     }
@@ -1762,6 +1772,7 @@ function useAlbumStudioRender({
   // function every render, running the latest code.
   const onSelectTrack = useStableEvent(openTrack);
   const onToggleTrackTheme = useStableEvent(toggleTrackTheme);
+  const onToggleActiveTheme = (theme: string) => toggleTrackTheme(songIndex, theme);
   const onAddTrack = useStableEvent(addTrack);
   const onAddThemes = useStableEvent(() => openAlbumField(ALBUM_THEMES_INPUT_ID));
   const onStoryChange = useStableEvent(updateSongField) as typeof updateSongField;
@@ -1801,11 +1812,13 @@ function useAlbumStudioRender({
   const trackHeader = activeSong ? (
     <section id="studio-track" aria-labelledby="studio-song-title" className="flex min-w-0 flex-col gap-4">
       <div>
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 @max-2xl/studio:gap-x-3">
         {/* The heading is the track's title, edited in place (TrackTitle): renaming happens
             where the name is read. Named "Track 01: Storm Warning" once, set outright. It
-            takes the row's room; Preview song and More wrap below it when there is none. */}
-        <div className="min-w-0 flex-1 basis-64">
+            takes the row's room; Preview song and More wrap below it when there is none.
+            Below 42rem they are 44px icons (names kept) and the title needs only 12rem, so on
+            a phone they share its row and the lyrics start a row sooner. */}
+        <div className="min-w-0 flex-1 basis-48 @2xl/studio:basis-64">
           <TrackTitle
             headingId="studio-song-title"
             trackNumber={activeSong.track_number}
@@ -1820,13 +1833,20 @@ function useAlbumStudioRender({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button id="preview-song" tone="secondary" onClick={previewSong} busy={previewing}>
-            <Play className="h-4 w-4" aria-hidden="true" />
-            Preview song
+          <Button
+            id="preview-song"
+            tone="secondary"
+            className="min-w-11 @max-2xl/studio:px-2.5"
+            onClick={previewSong}
+            busy={previewing}
+          >
+            <Play className="h-4 w-4 flex-none" aria-hidden="true" />
+            <span className="@max-2xl/studio:sr-only">Preview song</span>
           </Button>
           <MoreMenu
             label="track actions"
             triggerId={TRACK_MENU_ID}
+            compactClassName="@max-2xl/studio"
             items={[
               {
                 key: "up",
@@ -1879,22 +1899,32 @@ function useAlbumStudioRender({
       ) : null}
       </div>
 
-      {/* The track's Role and Story note, always in view: Coherence asks every track for them. */}
-      <SongStoryFields song={activeSong} onChange={updateSongField} />
-      {/* Where the track list has no theme columns (a phone, enlarged text), this track's
-          album themes are toggled here instead. */}
-      <TrackThemeToggles
-        className="@5xl/studio:hidden"
-        song={activeSong}
-        centralThemes={album.central_themes ?? []}
-        onToggle={(theme) => toggleTrackTheme(songIndex, theme)}
-      />
+      {/* The track's Role and Story note: Coherence asks every track for them. In view from
+          42rem; below it (one column) they fold into one line that says what they hold. */}
+      <StoryFieldsFold
+        summary={storyFieldsSummary(activeSong, centralThemes)}
+        open={storyFieldsOpen}
+        onOpenChange={setStoryFieldsOpen}
+      >
+        <SongStoryFields song={activeSong} onChange={updateSongField} />
+        {/* Where the track list has no theme columns (a phone, enlarged text), this track's
+            album themes are toggled here instead, inside the fold. From 42rem they are in
+            Track details, after the writing, so the lyrics keep the first screen. */}
+        <TrackThemeToggles
+          className="@2xl/studio:hidden"
+          place="story"
+          song={activeSong}
+          centralThemes={centralThemes}
+          onToggle={onToggleActiveTheme}
+        />
+      </StoryFieldsFold>
     </section>
   ) : null;
 
   // The track's key and tempo: set once and rarely changed, so they follow the writing rather
   // than stand between the track's title and its lyrics (the catalog line under the title
-  // already shows them). The title is edited in the track's heading.
+  // already shows them). The title is edited in the track's heading. From 42rem until the
+  // track list grows theme columns (64rem), the track's album-theme toggles sit here too.
   const trackDetails = activeSong ? (
     <section aria-labelledby="studio-track-details-title" className="border-t border-line pt-5">
       <h2 id="studio-track-details-title" className="text-lg font-semibold text-ink">
@@ -1939,13 +1969,20 @@ function useAlbumStudioRender({
           onClamped={setNavAnnouncement}
         />
       </div>
+      <TrackThemeToggles
+        className="mt-5 hidden @2xl/studio:flex @5xl/studio:hidden"
+        place="details"
+        song={activeSong}
+        centralThemes={centralThemes}
+        onToggle={onToggleActiveTheme}
+      />
     </section>
   ) : null;
 
   // "Sections" heads the list's own column, and Add section follows the list, so the heading
   // shares a row with the current section's heading and the lyrics start one row sooner.
   const sectionsHeading = (
-    <h2 id="studio-sections-title" className="flex min-h-11 items-center text-lg font-semibold text-ink">
+    <h2 id="studio-sections-title" className="flex min-h-11 items-center text-lg font-semibold text-ink @max-xl:mb-2 @max-xl:mr-3 @max-xl:inline-flex @max-xl:align-top">
       Sections
     </h2>
   );
@@ -1953,13 +1990,24 @@ function useAlbumStudioRender({
     <section aria-labelledby="studio-sections-title" className="border-t border-line pt-5">
       {sections.length ? (
         <div className="grid grid-cols-1 gap-x-6 gap-y-6 @xl:grid-cols-[12rem_minmax(0,1fr)]">
-          <div className="flex min-w-0 flex-col gap-3 self-start">
+          {/* Beside the editor (from 36rem) the sections are a list of rows. Narrower (a phone,
+              enlarged text) they are 44px chips set in one line of text with the heading and
+              Add section (a 44px icon), wrapping like words: each names its section, with a
+              check once its lyrics are written (the rows' status line is read out only), so
+              the lyrics start rows sooner and the reading order stays heading, sections, Add. */}
+          <div className="flex min-w-0 flex-col gap-3 self-start @max-xl:-mb-2 @max-xl:block">
             {sectionsHeading}
-            <ol aria-label={`Sections of ${songTitle}`} className="border-t border-line">
+            <ol
+              aria-label={`Sections of ${songTitle}`}
+              className="min-w-0 border-t border-line @max-xl:inline @max-xl:border-t-0"
+            >
               {sections.map((section, index) => {
                 const isActive = index === sectionIndex;
                 return (
-                  <li key={section.id ?? `${section.section_type}-${section.order}`} className="border-b border-line">
+                  <li
+                    key={section.id ?? `${section.section_type}-${section.order}`}
+                    className="min-w-0 border-b border-line @max-xl:mb-2 @max-xl:mr-2 @max-xl:inline-block @max-xl:max-w-full @max-xl:align-top @max-xl:border-b-0"
+                  >
                     <button
                       id={`section-row-${section.id}`}
                       type="button"
@@ -1968,28 +2016,39 @@ function useAlbumStudioRender({
                       aria-keyshortcuts={SECTION_KEYSHORTCUTS}
                       className={cn(
                         "relative flex min-h-11 w-full items-center justify-between gap-2 px-2 py-1.5 text-left transition-colors",
+                        "@max-xl:w-auto @max-xl:max-w-full @max-xl:rounded @max-xl:border @max-xl:px-3",
                         // The current row's fill and weight vanish in forced colors (High
                         // Contrast), so it also carries a transparent frame drawn there in Highlight.
                         isActive
-                          ? "bg-selected text-ink after:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-transparent after:content-[''] forced-colors:after:border-[color:Highlight]"
-                          : "text-ink-2 hover:bg-hover hover:text-ink",
+                          ? "bg-selected text-ink after:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-transparent after:content-[''] forced-colors:after:border-[color:Highlight] @max-xl:border-ink-3"
+                          : "text-ink-2 hover:bg-hover hover:text-ink @max-xl:border-line-strong",
                       )}
                     >
                       <span className="min-w-0">
-                        <span className={cn("block break-words text-sm", isActive && "font-semibold")}>{labels[index]}</span>
-                        <span className="type-figure block break-words text-xs text-ink-3">
+                        <span className={cn("block break-words text-sm", isActive && "font-semibold")}>{labels[index]}</span>{" "}
+                        <span className="type-figure block break-words text-xs text-ink-3 @max-xl:sr-only">
                           {isWritten(section.lyrics) ? "Lyrics written" : "No lyrics yet"} ·{" "}
                           {sectionChordSummary(sections, index)}
                         </span>
                       </span>
+                      {/* As a chip, a written section is marked with a check (the words are
+                          still read out above). */}
+                      {isWritten(section.lyrics) ? (
+                        <Check className="hidden h-4 w-4 flex-none text-ink-2 @max-xl:block" aria-hidden="true" />
+                      ) : null}
                     </button>
                   </li>
                 );
               })}
             </ol>
-            <Button id={ADD_SECTION_ID} tone="secondary" className="self-start" onClick={addSection}>
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Add section
+            <Button
+              id={ADD_SECTION_ID}
+              tone="secondary"
+              className="min-w-11 self-start @max-xl:mb-2 @max-xl:px-2.5 @max-xl:align-top"
+              onClick={addSection}
+            >
+              <Plus className="h-4 w-4 flex-none" aria-hidden="true" />
+              <span className="@max-xl:sr-only">Add section</span>
             </Button>
           </div>
 
@@ -2021,13 +2080,22 @@ function useAlbumStudioRender({
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
-                  <Button id="preview-section" tone="secondary" onClick={previewSection} busy={previewing}>
-                    <Play className="h-4 w-4" aria-hidden="true" />
-                    Preview section
+                  {/* 44px icons where the sections are chips (names kept), so the row fits
+                      beside the section's heading and the lyrics start a row sooner. */}
+                  <Button
+                    id="preview-section"
+                    tone="secondary"
+                    className="min-w-11 @max-xl:px-2.5"
+                    onClick={previewSection}
+                    busy={previewing}
+                  >
+                    <Play className="h-4 w-4 flex-none" aria-hidden="true" />
+                    <span className="@max-xl:sr-only">Preview section</span>
                   </Button>
                   <MoreMenu
                     label="section actions"
                     triggerId={SECTION_MENU_ID}
+                    compactClassName="@max-xl"
                     items={[
                       {
                         key: "mp3",

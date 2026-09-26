@@ -21,6 +21,16 @@ export type MoreMenuItem = {
   keyshortcuts?: string;
 };
 
+// Whole class names, so Tailwind finds them.
+const COMPACT_TRIGGER = {
+  "@max-2xl/studio": "min-w-11 @max-2xl/studio:px-2.5",
+  "@max-xl": "min-w-11 @max-xl:px-2.5",
+} as const;
+const COMPACT_WORD = {
+  "@max-2xl/studio": "@max-2xl/studio:sr-only",
+  "@max-xl": "@max-xl:sr-only",
+} as const;
+
 /**
  * The overflow for actions that don't belong on the writing path (reordering, downloads,
  * deleting). A menu button: Enter, Space or ↓ opens it on the first item, ↑ on the last; ↑/↓,
@@ -33,12 +43,19 @@ export function MoreMenu({
   items,
   className,
   triggerId,
+  compactClassName,
 }: {
   label: string;
   items: MoreMenuItem[];
   className?: string;
   /** An id for the "More" button, so the page can return focus to it. */
   triggerId?: string;
+  /**
+   * Where the button shows only its icon: the variant prefix of a narrow layout (e.g.
+   * "@max-2xl/studio"), which hides the word "More" there (still read as the button's name)
+   * and squares the button to 44px.
+   */
+  compactClassName?: "@max-2xl/studio" | "@max-xl";
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -146,10 +163,10 @@ export function MoreMenu({
         aria-controls={open ? menuId : undefined}
         onClick={() => (open ? hide(false) : show("first"))}
         onKeyDown={onTriggerKeyDown}
-        className={buttonClass("ghost", "px-3")}
+        className={buttonClass("ghost", cn("px-3", compactClassName && COMPACT_TRIGGER[compactClassName]))}
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-        More
+        <span className={compactClassName ? COMPACT_WORD[compactClassName] : undefined}>More</span>
         <span className="sr-only"> {label}</span>
       </button>
       {open ? (
