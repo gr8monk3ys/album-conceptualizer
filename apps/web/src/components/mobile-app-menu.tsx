@@ -7,7 +7,7 @@ import { AccountBlock } from "@/components/account-block";
 import { AppNavLinks } from "@/components/app-nav-links";
 import { CreditsMeter } from "@/components/credits-meter";
 import { FadeScroll } from "@/components/fade-scroll";
-import { Wordmark } from "@/components/sidebar";
+import { Wordmark } from "@/components/wordmark";
 import { IconButton } from "@/components/ui";
 
 export function MobileAppMenu({

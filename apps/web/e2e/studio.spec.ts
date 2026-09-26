@@ -189,6 +189,8 @@ test.describe("Studio", () => {
     const line = page.getByText(/^Restored “First pass”/);
     await expect(line).toBeVisible();
     await expect(page.locator(":focus")).toContainText("Restored “First pass”");
+    // Focus reads it, so no live region says it again.
+    await expect(page.locator("[aria-live], [role=status], [role=alert]").filter({ hasText: "Restored" })).toHaveCount(0);
     // The address drops ?restored=, so a reload doesn't announce it again.
     await expect(page).not.toHaveURL(/restored=/);
     await page.reload();

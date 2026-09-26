@@ -253,7 +253,9 @@ export function AlbumExport({
         <Panel className="@container">
           <div className="grid grid-cols-1 gap-6 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
             {/* In a narrow panel (a phone at 200% text) each hint drops its indent and sits under
-                its checkbox, so a long word ("progressions") still fits inside the border. */}
+                its checkbox, so a long word ("progressions") still fits inside the border. The
+                hint tucks up under its label, and the label is positioned so it paints over
+                that overlap: the whole 44px row stays the checkbox's hit area. */}
             <fieldset className="min-w-0">
               <legend className="text-sm font-semibold text-ink">Formats</legend>
               <ul className="mt-2 divide-y divide-line">
@@ -263,7 +265,7 @@ export function AlbumExport({
                     <li key={fmt.key} className="py-1.5">
                       <label
                         htmlFor={inputId}
-                        className="flex min-h-11 min-w-0 cursor-pointer items-center gap-3 text-sm font-semibold text-ink"
+                        className="relative flex min-h-11 min-w-0 cursor-pointer items-center gap-3 text-sm font-semibold text-ink"
                       >
                         <input
                           id={inputId}
@@ -292,7 +294,7 @@ export function AlbumExport({
                 <legend className="text-sm font-semibold text-ink">Options</legend>
                 <label
                   htmlFor="include-production-notes"
-                  className="mt-2 flex min-h-11 min-w-0 cursor-pointer items-center gap-3 text-sm font-semibold text-ink"
+                  className="relative mt-2 flex min-h-11 min-w-0 cursor-pointer items-center gap-3 text-sm font-semibold text-ink"
                 >
                   <input
                     id="include-production-notes"

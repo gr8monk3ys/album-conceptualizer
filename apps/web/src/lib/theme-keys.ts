@@ -3,6 +3,8 @@
 // out, never rotated names); and one sentence per track that says which themes it carries,
 // for screen readers.
 
+import { andList } from "@/lib/and-list";
+
 function letters(theme: string) {
   return theme.normalize("NFKD").replace(/[^\p{L}\p{N}]/gu, "").toUpperCase();
 }
@@ -25,8 +27,6 @@ export function themeAbbreviations(themes: readonly string[]): string[] {
   });
 }
 
-const LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
-
 /**
  * What a track carries, as one phrase: "Carries memory and signal", or "Carries none of the
  * album themes". `carried` keeps the album's theme order and spelling.
@@ -35,7 +35,7 @@ export function carriedThemesPhrase(carried: readonly string[], total: number): 
   if (!total) return "";
   if (!carried.length) return "Carries none of the album themes";
   if (carried.length === total && total > 2) return `Carries all ${total} album themes`;
-  return `Carries ${LIST.format(carried)}`;
+  return `Carries ${andList(carried)}`;
 }
 
 /** The width of a theme column headed by its name: 3rem, about seven condensed capitals. */

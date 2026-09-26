@@ -7,6 +7,7 @@ import { Download, Tags } from "lucide-react";
 import { useUndoWindow } from "@/components/studio/undo-window";
 import { Button, LiveStatus, buttonClass } from "@/components/ui";
 import { useReturnFocus } from "@/components/use-return-focus";
+import { andList } from "@/lib/and-list";
 import {
   TAG_KINDS,
   countTags,
@@ -50,16 +51,14 @@ function albumMatchKeys(proposals: TrackTagProposal[]) {
   );
 }
 
-const LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
-
 /** "Undone: took tide off 04 and static off 05." Past six tags it counts them. */
 function describeRemovedTags(tracks: TrackTags[]) {
   const total = countTags(tracks);
   if (!total) return "Nothing to undo: those tags were already gone.";
   if (total > 6) {
-    return `Undone: took the ${total} tags off ${tracks.length === 1 ? "track" : "tracks"} ${LIST.format(tracks.map((track) => pad(track.trackNumber)))}.`;
+    return `Undone: took the ${total} tags off ${tracks.length === 1 ? "track" : "tracks"} ${andList(tracks.map((track) => pad(track.trackNumber)))}.`;
   }
-  const parts = tracks.map((track) => `${LIST.format(TAG_KINDS.flatMap((kind) => track[kind]))} off ${pad(track.trackNumber)}`);
+  const parts = tracks.map((track) => `${andList(TAG_KINDS.flatMap((kind) => track[kind]))} off ${pad(track.trackNumber)}`);
   return `Undone: took ${parts.join(", ")}.`;
 }
 

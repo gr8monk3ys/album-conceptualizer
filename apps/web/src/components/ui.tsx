@@ -224,9 +224,12 @@ export { TableScroller } from "@/components/table-scroller";
 const CONTROL =
   "w-full rounded border border-line-control bg-sunken px-3 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-ink-3 focus-visible:border-accent disabled:opacity-60";
 
-export const inputClass = cn(CONTROL, "min-h-11");
-export const textareaClass = cn(CONTROL, "min-h-24 py-2.5 leading-relaxed");
-export const selectClass = cn(CONTROL, "min-h-11 appearance-auto");
+// Joined as plain strings, not with cn(): nothing here conflicts, so tailwind-merge would return
+// the same classes, and calling it while this module loads built its whole class map (about 40ms
+// on a throttled phone) inside the page's start-up task on every screen.
+export const inputClass = `${CONTROL} min-h-11`;
+export const textareaClass = `${CONTROL} min-h-24 py-2.5 leading-relaxed`;
+export const selectClass = `${CONTROL} min-h-11 appearance-auto`;
 
 /** The props Field gives its control so the hint or error is read with it. */
 export type FieldControlProps = {

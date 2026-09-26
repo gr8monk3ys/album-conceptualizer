@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 
-import { Wordmark } from "@/components/sidebar";
+import { Wordmark } from "@/components/wordmark";
 import { Button, ButtonLink } from "@/components/ui";
 
 export default function RootError({

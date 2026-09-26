@@ -7,15 +7,32 @@
 export type EdgeFade = "none" | "start" | "end" | "both";
 
 /**
+ * How close to an end a scroller must be to count as at that end, in px: a pixel of slack
+ * absorbs sub-pixel rounding, so a strip that exactly fits never shows a fade. The one
+ * threshold for "at the end": `@/lib/scroll-clear` uses it too, so focus scrolling that stops
+ * at an end always leaves that end without a fade.
+ */
+export const EDGE_SLACK_PX = 1;
+
+/** Whether a scroller at `offset` is at its start (no fade there). */
+export function atScrollStart(offset: number): boolean {
+  return offset <= EDGE_SLACK_PX;
+}
+
+/** Whether a scroller at `offset` is at its end (no fade there). */
+export function atScrollEnd(offset: number, viewport: number, content: number): boolean {
+  return offset + viewport >= content - EDGE_SLACK_PX;
+}
+
+/**
  * Which edges have more content past them. `offset` is the scroll position (scrollLeft or
  * scrollTop), `viewport` the visible size (clientWidth or clientHeight), `content` the full
- * size (scrollWidth or scrollHeight). A pixel of slack absorbs sub-pixel rounding, so a strip
- * that exactly fits never shows a fade.
+ * size (scrollWidth or scrollHeight).
  */
 export function edgeFade(offset: number, viewport: number, content: number): EdgeFade {
-  if (content <= viewport + 1) return "none";
-  const atStart = offset <= 1;
-  const atEnd = offset + viewport >= content - 1;
+  if (content <= viewport + EDGE_SLACK_PX) return "none";
+  const atStart = atScrollStart(offset);
+  const atEnd = atScrollEnd(offset, viewport, content);
   if (atStart && atEnd) return "none";
   if (atStart) return "end";
   if (atEnd) return "start";
@@ -23,12 +40,15 @@ export function edgeFade(offset: number, viewport: number, content: number): Edg
 }
 
 // Literal class names, so Tailwind generates them. The fade is 1.5rem across (2rem down the
-// sidebar), in rem so it grows with the text it covers.
+// sidebar), in rem so it grows with the text it covers. Along x the start fade begins after
+// `--sticky-start` (a sticky first column's width, which `TableScroller` measures; 0 when there
+// is none), so a column that stays put while the rest scrolls under it is never faded.
 const FADE_X: Record<EdgeFade, string> = {
   none: "",
-  start: "[mask-image:linear-gradient(to_right,transparent,black_1.5rem)]",
+  start:
+    "[mask-image:linear-gradient(to_right,black_var(--sticky-start,0px),transparent_var(--sticky-start,0px),black_calc(var(--sticky-start,0px)_+_1.5rem))]",
   end: "[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)]",
-  both: "[mask-image:linear-gradient(to_right,transparent,black_1.5rem,black_calc(100%-1.5rem),transparent)]",
+  both: "[mask-image:linear-gradient(to_right,black_var(--sticky-start,0px),transparent_var(--sticky-start,0px),black_calc(var(--sticky-start,0px)_+_1.5rem),black_calc(100%-1.5rem),transparent)]",
 };
 
 const FADE_Y: Record<EdgeFade, string> = {

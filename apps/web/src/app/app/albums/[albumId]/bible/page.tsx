@@ -24,6 +24,7 @@ import { summarizeStyleBible } from "@/server/style-bible";
 import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { albumMotifIndex, type MotifEntry } from "@/lib/motifs";
+import { themeHeadLines } from "@/lib/theme-keys";
 import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +47,14 @@ export async function generateMetadata({
 
 /** The map's text version is listed in full up to this many connections, then folded away. */
 const CONNECTIONS_SHOWN = 10;
+/**
+ * The Theme map's slim (phone) columns: the room each gives a theme's name (the column less its
+ * padding), in rem, and the container range it is shown in (see ThemeMatrix).
+ */
+const SLIM_THEME_COLUMNS = [
+  { nameRem: 4.5, className: "@min-[14rem]:@max-[28rem]:block" },
+  { nameRem: 3, className: "@max-[14rem]:block" },
+] as const;
 /**
  * A text link that sits flush with the rows around it (no button padding), so it lines up
  * with the list below it at every width: the cross-link to the Sound bible, and the way on to
@@ -228,17 +237,25 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
   // The theme column sticks while the track columns scroll under it, at a width set against the
   // scroller (`cqw`, from the @container wrapper) so it can never outgrow it at 200% text: at
   // most 12rem or 40% of the scroller. The scroller's scroll padding is the same width, so a
-  // track link reached by Tab scrolls clear of the sticky column instead of under it. Below
-  // 28rem (rem, so enlarged text reaches it sooner: a phone, or 200% text) there's no room for
-  // a sticky column; it scrolls with the rest and keeps a readable 9rem instead of 40% of a
-  // narrow scroller (which broke names mid-word into a cell 440px tall), and the track
-  // columns scroll sideways beside it. Names break only between words, or inside a word too
-  // long for the whole column.
+  // track link reached by Tab scrolls clear of the sticky column instead of under it, and the
+  // start fade begins after it (TableScroller measures it), so the names never fade out.
+  // Below 28rem (rem, so enlarged text reaches it sooner: a phone, or 200% text) the column
+  // stays sticky but slims to 5rem: each name in catalog caps on up to two lines, broken at a
+  // space or at a syllable of a long word, never inside a short one (`themeHeadLines`), over
+  // its count; below 14rem (a phone at 200% text) to 3.5rem, the spine's name slot, so a
+  // focused track head still fits clear of the fades beside it. The arc sentence moves under
+  // the table there, which also names every theme in full, so a name the slim column
+  // truncates is still read whole.
   const themeColumn =
-    "w-[min(12rem,40cqw)] min-w-[min(12rem,40cqw)] max-w-[45cqw] bg-ground pr-4 text-left sticky left-0 z-10 @max-[28rem]:static @max-[28rem]:w-[9rem] @max-[28rem]:min-w-[9rem] @max-[28rem]:max-w-none";
+    "w-[min(12rem,40cqw)] min-w-[min(12rem,40cqw)] max-w-[45cqw] bg-ground pr-4 text-left sticky left-0 z-10 @min-[14rem]:@max-[28rem]:w-[5rem] @min-[14rem]:@max-[28rem]:min-w-[5rem] @min-[14rem]:@max-[28rem]:max-w-[5rem] @max-[28rem]:pr-2 @max-[14rem]:w-[3.5rem] @max-[14rem]:min-w-[3.5rem] @max-[14rem]:max-w-[3.5rem]";
+  const sequence = tracks.map((track) => track.trackNumber);
+  const arcs = rows.map((row) => (row.trackNumbers.length ? themeArc(row.trackNumbers, sequence) : ""));
   return (
     <div className="@container min-w-0 border-y border-line">
-      <TableScroller label="Theme map table" className="scroll-ps-[min(12rem,40%)] @max-[28rem]:scroll-ps-0">
+      <TableScroller
+        label="Theme map table"
+        className="scroll-ps-[min(12rem,40%)] @min-[14rem]:@max-[28rem]:scroll-ps-[5rem] @max-[14rem]:scroll-ps-[3.5rem]"
+      >
         {/* Auto layout: larger text widens the table (it scrolls inside this region) instead
             of starving the theme names. */}
         <table className="w-full border-collapse text-sm">
@@ -266,21 +283,38 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {rows.map((row, rowIndex) => (
               <tr key={row.label} className="border-b border-line last:border-b-0">
                 <th scope="row" className={cn(themeColumn, "py-2.5 font-normal")}>
-                  <span className="block font-semibold text-ink break-words hyphens-auto">{row.label}</span>
-                  <span className="type-figure block max-w-[40ch] text-xs text-ink-3">
-                    {row.trackNumbers.length
-                      ? `${row.trackNumbers.length} of ${tracks.length} · ${themeArc(
-                          row.trackNumbers,
-                          tracks.map((track) => track.trackNumber),
-                        )}`
-                      : "On no track yet"}
-                    {/* One phrase per row instead of a "yes"/"no" for every cell. */}
+                  <span className="block font-semibold text-ink break-words hyphens-auto @max-[28rem]:sr-only">
+                    {row.label}
+                  </span>
+                  {/* The slim column's name: visual only, the full name above is what's read. */}
+                  {SLIM_THEME_COLUMNS.map(({ nameRem, className }) => (
+                    <span
+                      key={nameRem}
+                      aria-hidden="true"
+                      title={row.label}
+                      className={cn("type-catalog hidden text-xs font-semibold leading-tight text-ink", className)}
+                    >
+                      {themeHeadLines(row.label, nameRem).lines.map((line, index) => (
+                        <span key={index} className="block truncate">
+                          {line}
+                        </span>
+                      ))}
+                    </span>
+                  ))}
+                  <span className="type-figure mt-0.5 block max-w-[40ch] text-xs text-ink-3">
                     {row.trackNumbers.length ? (
-                      <span className="sr-only">{`, ${themeTracksPhrase(row.trackNumbers, tracks.length)}`}</span>
-                    ) : null}
+                      <>
+                        {`${row.trackNumbers.length} of ${tracks.length}`}
+                        <span className="@max-[28rem]:sr-only">{`\u00a0· ${arcs[rowIndex]}`}</span>
+                        {/* One phrase per row instead of a "yes"/"no" for every cell. */}
+                        <span className="sr-only">{`, ${themeTracksPhrase(row.trackNumbers, tracks.length)}`}</span>
+                      </>
+                    ) : (
+                      "On no track yet"
+                    )}
                   </span>
                 </th>
                 {row.presence.map((present, index) => (
@@ -293,6 +327,16 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
           </tbody>
         </table>
       </TableScroller>
+      {/* Below 28rem: each theme's arc, which the slim column has no room for, named in full.
+          Hidden from screen readers, which hear the same words in the row headers above. */}
+      <ul aria-hidden="true" className="hidden border-t border-line py-3 @max-[28rem]:block">
+        {rows.map((row, rowIndex) => (
+          <li key={row.label} className="max-w-[65ch] break-words py-0.5 text-xs leading-relaxed text-ink-3">
+            <span className="font-semibold text-ink">{row.label}</span>
+            {`: ${arcs[rowIndex] || "on no track yet"}`}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -333,7 +377,7 @@ function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
                 <span className={`${label} text-right`} title={c.name}>
                   {c.name}
                 </span>
-                <span className="size-3 shrink-0 rounded-full bg-ink forced-colors:bg-[CanvasText]" />
+                <span className="size-2.5 shrink-0 rounded-full bg-ink forced-colors:bg-[CanvasText]" />
               </li>
             ))}
           </ul>
@@ -372,7 +416,7 @@ function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
           <ul className="min-w-0 flex-1">
             {motifs.map((m) => (
               <li key={`m-${m.name}`} className="flex h-11 items-center gap-3">
-                <span className="size-3 shrink-0 bg-ink-2 forced-colors:bg-[CanvasText]" />
+                <span className="size-2.5 shrink-0 bg-ink-2 forced-colors:bg-[CanvasText]" />
                 <span className={label} title={m.name}>
                   {m.name}
                 </span>

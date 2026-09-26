@@ -151,13 +151,16 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
               Sequence
             </h2>
             {tracks.length ? (
-              <ol className="mt-3 border-t border-line">
+              // A size container: below 20rem (a phone at 200% text) the number steps down to
+              // the spine's size and the gap tightens, so the title keeps room for a whole word
+              // ("Lighthouse") instead of breaking inside it.
+              <ol className="@container mt-3 border-t border-line">
                 {tracks.map((track) => (
                   <li
                     key={`${track.trackNumber}-${track.title}`}
-                    className="flex min-h-11 items-baseline gap-4 border-b border-line py-3"
+                    className="flex min-h-11 items-baseline gap-4 border-b border-line py-3 @max-[20rem]:gap-2"
                   >
-                    <span className="type-figure w-9 shrink-0 text-2xl font-semibold text-ink-3">
+                    <span className="type-figure w-9 shrink-0 text-2xl font-semibold text-ink-3 @max-[20rem]:w-auto @max-[20rem]:text-base">
                       {String(track.trackNumber).padStart(2, "0")}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -166,9 +169,11 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                         <p className="mt-0.5 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">{track.role}</p>
                       ) : null}
                       {track.themes.length ? (
-                        <p className="type-catalog mt-1 text-xs text-ink-3">
+                        // Each separator ends the theme before it, so a wrapped line never
+                        // starts with a dot.
+                        <p className="type-catalog mt-1 flex flex-wrap gap-x-2 text-xs text-ink-3">
                           <span className="sr-only">Themes: </span>
-                          {track.themes.join(" · ")}
+                          <CatalogItems items={track.themes} />
                         </p>
                       ) : null}
                     </div>

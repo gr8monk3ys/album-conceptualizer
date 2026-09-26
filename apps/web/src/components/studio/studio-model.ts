@@ -1,3 +1,4 @@
+import { andList } from "@/lib/and-list";
 import { invalidChords, isScaffoldSection } from "@/lib/chords";
 import { isWrittenLyrics, lyricProgress } from "@/lib/lyrics";
 import type { AlbumJson } from "@/server/album-json";
@@ -176,11 +177,9 @@ export function restoreProgressions(sections: readonly StudioSection[], previous
   });
 }
 
-const AND_LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
-
 /** Names a batch change: "Set Verse 2 and Verse 3 to C G Am F." */
 export function batchChordsSummary(changedLabels: readonly string[], chords: readonly string[]): string {
-  return `Set ${AND_LIST.format(changedLabels)} to ${chords.join(" ")}.`;
+  return `Set ${andList(changedLabels)} to ${chords.join(" ")}.`;
 }
 
 // ---------------------------------------------------------------- keys and tempo
@@ -400,7 +399,7 @@ export function sharedTitleHint(trackNumbers: readonly number[]): string {
   const numbers = trackNumbers.map((n) => String(n).padStart(2, "0"));
   return numbers.length === 1
     ? `Track ${numbers[0]} is also called this.`
-    : `Tracks ${AND_LIST.format(numbers)} are also called this.`;
+    : `Tracks ${andList(numbers)} are also called this.`;
 }
 
 /** The tracklist without the track at `index`, renumbered, default names following. */

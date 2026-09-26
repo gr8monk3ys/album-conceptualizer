@@ -22,6 +22,7 @@ import {
   type QuickStartFormState,
 } from "@/lib/create-draft";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { rangeValueAt, swipeIntent } from "@/lib/swipe-intent";
 import { clearDraft, useDraftState } from "@/lib/use-autosave";
 import { cn } from "@/lib/utils";
 import type { SpineRow } from "@/server/album-songs";
@@ -449,10 +450,9 @@ function QuickStartStepFields({
             {form.trackCount}
           </output>
         </div>
-        {/* Steppers beside the slider: a scroll that starts on the slider (a phone) can nudge
-            its value, so the count can also be set a track at a time. The slider leaves
-            vertical pans to the page. At either end a stepper is marked unavailable rather than
-            disabled, so focus stays on it instead of dropping to the page. */}
+        {/* Steppers beside the slider, so the count can also be set a track at a time. At
+            either end a stepper is marked unavailable rather than disabled, so focus stays on
+            it instead of dropping to the page. */}
         <div className="flex items-center gap-2">
           <IconButton
             label="One track fewer"
@@ -464,16 +464,7 @@ function QuickStartStepFields({
           >
             <Minus className="h-4 w-4" aria-hidden="true" />
           </IconButton>
-          <input
-            id="quickstart-track-count"
-            type="range"
-            min={MIN_TRACKS}
-            max={MAX_TRACKS}
-            value={form.trackCount}
-            onChange={(event) => setField("trackCount", Number(event.target.value))}
-            aria-describedby="quickstart-track-count-hint"
-            className="h-11 min-w-0 flex-1 cursor-pointer touch-pan-y accent-ink"
-          />
+          <TrackCountSlider value={form.trackCount} onChange={(value) => setField("trackCount", value)} />
           <IconButton
             label="One track more"
             className="border-line-control aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
@@ -504,6 +495,72 @@ function QuickStartStepFields({
         />
       </Field>
     </>
+  );
+}
+
+/**
+ * The track-count slider. With a mouse or the keyboard it is the native range input. On a
+ * touch screen a finger that lands on it is often starting a scroll of the page, and the
+ * native slider jumps to the finger on touchdown, so there the input takes no pointer events:
+ * its box leaves vertical pans to the page, and the value follows the finger only once it has
+ * clearly moved sideways (`swipeIntent`). A tap or a vertical swipe never changes the count;
+ * the ± steppers and the keyboard still do.
+ */
+function TrackCountSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const touch = useRef<{ id: number; x: number; y: number; dragging: boolean } | null>(null);
+
+  const follow = (x: number) => {
+    const input = inputRef.current;
+    if (!input) return;
+    const next = rangeValueAt(x, input.getBoundingClientRect(), MIN_TRACKS, MAX_TRACKS);
+    if (next !== value) onChange(next);
+  };
+
+  return (
+    <div
+      className="flex min-w-0 flex-1 touch-pan-y"
+      onPointerDown={(event) => {
+        // Only touches that reach the box itself: where the input takes pointer events (a
+        // mouse, or a touch laptop), it handles them natively.
+        if (event.pointerType === "mouse" || event.target === inputRef.current) return;
+        touch.current = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
+      }}
+      onPointerMove={(event) => {
+        const start = touch.current;
+        if (!start || start.id !== event.pointerId) return;
+        if (!start.dragging) {
+          const intent = swipeIntent(event.clientX - start.x, event.clientY - start.y);
+          if (intent === "undecided") return;
+          if (intent === "vertical") {
+            // A scroll: the page has it (it cancels the pointer), the count is untouched.
+            touch.current = null;
+            return;
+          }
+          start.dragging = true;
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }
+        follow(event.clientX);
+      }}
+      onPointerUp={() => {
+        touch.current = null;
+      }}
+      onPointerCancel={() => {
+        touch.current = null;
+      }}
+    >
+      <input
+        ref={inputRef}
+        id="quickstart-track-count"
+        type="range"
+        min={MIN_TRACKS}
+        max={MAX_TRACKS}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        aria-describedby="quickstart-track-count-hint"
+        className="h-11 w-full min-w-0 cursor-pointer touch-pan-y accent-ink pointer-coarse:pointer-events-none"
+      />
+    </div>
   );
 }
 

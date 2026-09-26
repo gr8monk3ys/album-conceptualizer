@@ -113,6 +113,7 @@ import { TrackTitle, TRACK_TITLE_ID } from "@/components/studio/track-title";
 import { useUndoWindow } from "@/components/studio/undo-window";
 import { sameKeys, useStableEvent } from "@/components/studio/use-stable-event";
 import { Button, EmptyState, Field, inputClass, selectClass, textareaClass } from "@/components/ui";
+import { andList } from "@/lib/and-list";
 import { invalidChords } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
 import { useLeaveGuard } from "@/lib/use-autosave";
@@ -1058,7 +1059,7 @@ function useAlbumStudioRender({
       if (owner >= 0) setSelection({ song: owner, section: sourceIndex });
       // The sections differ again, so the batch button is back: focus returns to it.
       setPendingFocus({ id: BATCH_CHORDS_ID, scroll: "nearest" });
-      setNavAnnouncement(`Put the earlier chords back on ${new Intl.ListFormat("en").format(targets)}.`);
+      setNavAnnouncement(`Put the earlier chords back on ${andList(targets)}.`);
     }
     setUndo(null);
   }
@@ -2081,7 +2082,7 @@ function useAlbumStudioRender({
                     Use these chords on every {sectionTypeLabel(activeSection.section_type)}
                   </Button>
                   <p id="use-chords-everywhere-hint" className="min-w-0 max-w-[65ch] text-xs text-ink-3">
-                    Changes {new Intl.ListFormat("en").format(batchTargets.map((i) => labels[i] ?? "Section"))} on
+                    Changes {andList(batchTargets.map((i) => labels[i] ?? "Section"))} on
                     this track. You can undo for 10 seconds.
                   </p>
                 </div>

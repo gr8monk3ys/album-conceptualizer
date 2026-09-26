@@ -2,6 +2,8 @@
 // are the shapes the proposal and the apply share (server route and Bible client alike), and
 // the one sentence that says what was added.
 
+import { andList } from "@/lib/and-list";
+
 export type TagKind = "themes" | "motifs" | "characters";
 
 export const TAG_KINDS: TagKind[] = ["themes", "motifs", "characters"];
@@ -37,8 +39,6 @@ function pad(trackNumber: number) {
   return String(trackNumber).padStart(2, "0");
 }
 
-const LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
-
 /** Above this many tags the sentence counts them instead of naming each one. */
 const NAMED_TAGS = 6;
 
@@ -54,11 +54,11 @@ export function describeAddedTags(tracks: readonly TrackTags[]): string {
   const total = countTags(touched);
   if (!total) return "No tags were added: every one is already on its track.";
   if (total > NAMED_TAGS) {
-    const numbers = LIST.format(touched.map((track) => pad(track.trackNumber)));
+    const numbers = andList(touched.map((track) => pad(track.trackNumber)));
     return `Added ${total} tags on ${touched.length === 1 ? "track" : "tracks"} ${numbers}.`;
   }
   const parts = touched.map(
-    (track) => `${LIST.format(TAG_KINDS.flatMap((kind) => track[kind]))} to ${pad(track.trackNumber)}`,
+    (track) => `${andList(TAG_KINDS.flatMap((kind) => track[kind]))} to ${pad(track.trackNumber)}`,
   );
   return `Added ${parts.join(", ")}.`;
 }

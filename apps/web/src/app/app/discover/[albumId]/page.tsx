@@ -178,7 +178,10 @@ export default async function DiscoverAlbumPage({
                 title="Lyrics"
                 description="Each track's story note and the first lines written for it. Select a title in the sequence to jump to it."
               >
-                <ol className="border-t border-line">
+                {/* A size container: below 20rem (a phone at 200% text) the number column shrinks
+                    to its figures and the excerpt drops its indent, so the words keep room to
+                    stay whole ("understand", "Lighthouse"). */}
+                <ol className="@container border-t border-line">
                   {rows
                     .filter((row) => readable.has(row.trackNumber))
                     .map((row) => {
@@ -188,7 +191,7 @@ export default async function DiscoverAlbumPage({
                         <li
                           key={row.trackNumber}
                           id={trackAnchor(row.trackNumber)}
-                          className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 border-b border-line py-4"
+                          className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 border-b border-line py-4 @max-[20rem]:grid-cols-[auto_minmax(0,1fr)] @max-[20rem]:gap-x-2"
                         >
                           <span className="type-figure pt-0.5 text-sm font-semibold text-ink-3">
                             <span className="sr-only">Track </span>
@@ -203,7 +206,7 @@ export default async function DiscoverAlbumPage({
                             ) : null}
                             {excerpt.length ? (
                               <figure className="mt-3">
-                                <blockquote className="max-w-[65ch] border-l border-line-strong pl-3 text-sm leading-relaxed text-ink">
+                                <blockquote className="max-w-[65ch] border-l border-line-strong pl-3 text-sm leading-relaxed text-ink @max-[20rem]:border-l-0 @max-[20rem]:pl-0">
                                   {excerpt.map((line, index) => (
                                     <p key={index} className="break-words">
                                       {line}
@@ -211,7 +214,7 @@ export default async function DiscoverAlbumPage({
                                     </p>
                                   ))}
                                 </blockquote>
-                                <figcaption className="mt-1 pl-3 text-xs text-ink-3">
+                                <figcaption className="mt-1 pl-3 text-xs text-ink-3 @max-[20rem]:pl-0">
                                   Excerpt: the first written lines
                                 </figcaption>
                               </figure>

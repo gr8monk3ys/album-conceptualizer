@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { PageNotFoundTitle } from "@/components/page-not-found-title";
-import { Wordmark } from "@/components/sidebar";
+import { Wordmark } from "@/components/wordmark";
 import { ButtonLink } from "@/components/ui";
 
 export const metadata = { title: "Page not found" };

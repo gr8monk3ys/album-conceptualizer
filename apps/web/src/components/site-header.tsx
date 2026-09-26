@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Wordmark } from "@/components/sidebar";
+import { Wordmark } from "@/components/wordmark";
 import { buttonClass } from "@/components/ui";
 
 /**

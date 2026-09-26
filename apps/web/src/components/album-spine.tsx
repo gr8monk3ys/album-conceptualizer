@@ -138,7 +138,12 @@ export function SpineSheet({
                     href && "relative transition-colors hover:bg-hover has-[a:focus-visible]:bg-hover",
                   )}
                 >
-                  <td className="type-figure h-11 py-1.5 pr-1 align-middle text-sm font-semibold text-ink-3">
+                  {/* The number names the row, so focusing its title scrolls the number into
+                      view with it rather than under the start fade (TableScroller). */}
+                  <td
+                    data-keep-in-view=""
+                    className="type-figure h-11 py-1.5 pr-1 align-middle text-sm font-semibold text-ink-3"
+                  >
                     {pad(row.trackNumber)}
                   </td>
                   <td className="py-1.5 pr-2 align-middle">

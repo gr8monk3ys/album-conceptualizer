@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ExampleAlbum } from "@/components/landing/example-album";
-import { Wordmark } from "@/components/sidebar";
+import { Wordmark } from "@/components/wordmark";
 import { SiteHeader } from "@/components/site-header";
 import { ButtonLink } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";

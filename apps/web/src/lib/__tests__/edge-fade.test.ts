@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { edgeFade, edgeFadeClass } from "@/lib/edge-fade";
+import { atScrollEnd, atScrollStart, edgeFade, edgeFadeClass } from "@/lib/edge-fade";
 
 describe("edgeFade", () => {
   it("shows no fade when the content fits", () => {
@@ -18,6 +18,15 @@ describe("edgeFade", () => {
     expect(edgeFade(99.5, 300, 400)).toBe("start");
   });
 
+  it("counts a pixel from either end as that end", () => {
+    expect(edgeFade(1, 300, 400)).toBe("end");
+    expect(edgeFade(99, 300, 400)).toBe("start");
+    expect(edgeFade(98, 300, 400)).toBe("both");
+    expect(atScrollStart(1)).toBe(true);
+    expect(atScrollEnd(99, 300, 400)).toBe(true);
+    expect(atScrollEnd(98, 300, 400)).toBe(false);
+  });
+
   it("fades both edges in between", () => {
     expect(edgeFade(40, 300, 400)).toBe("both");
   });
@@ -28,6 +37,10 @@ describe("edgeFadeClass", () => {
     expect(edgeFadeClass("none")).toBe("");
     expect(edgeFadeClass("end", "x")).toContain("to_right");
     expect(edgeFadeClass("end", "y")).toContain("to_bottom");
+    // Along x the start fade begins after a sticky first column (0 when there is none).
+    expect(edgeFadeClass("start", "x")).toContain("var(--sticky-start,0px)");
+    expect(edgeFadeClass("both", "x")).toContain("var(--sticky-start,0px)");
+    expect(edgeFadeClass("end", "x")).not.toContain("sticky");
     // The fade is a transparency mask, never a colour laid over the content.
     for (const fade of ["start", "end", "both"] as const) {
       expect(edgeFadeClass(fade, "x")).toMatch(/^\[mask-image:linear-gradient\(/);

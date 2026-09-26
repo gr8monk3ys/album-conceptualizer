@@ -88,12 +88,18 @@ export function TrackTitle({
         id={headingId}
         aria-label={`Track ${number}: ${title.trim() || "Untitled"}`}
         // The field's top padding is breathing room for the focus ring; pulled up by it, so the
-        // title's line sits where the plain heading's did and the lyrics keep their place.
-        className="-mt-1 flex min-w-0 items-start gap-x-2 text-2xl font-semibold text-ink"
+        // title's line sits where the plain heading's did and the lyrics keep their place. A
+        // size container, so the title steps down by the room its row has (below).
+        className="@container -mt-1 flex min-w-0 items-start gap-x-2 text-2xl font-semibold text-ink"
       >
         {/* The number's line box is the field's height, so the two share a centre line and
-            the number stays level with the title's first line when it wraps. */}
-        <span aria-hidden="true" className="type-figure flex min-h-11 flex-none items-center text-3xl text-ink-3">
+            the number stays level with the title's first line when it wraps. Below a 16rem
+            row (a phone at 200% text) it steps down to the spine's size, leaving the room to
+            the title. */}
+        <span
+          aria-hidden="true"
+          className="type-figure flex min-h-11 flex-none items-center text-3xl text-ink-3 @max-[16rem]:text-base"
+        >
           {number}
         </span>
         <textarea
@@ -113,7 +119,10 @@ export function TrackTitle({
           aria-invalid={empty ? true : undefined}
           aria-describedby={describedBy}
           className={cn(
-            "block min-h-11 w-full min-w-0 resize-none overflow-hidden rounded-sm border-0 border-b bg-transparent px-1 py-1.5 font-semibold leading-8 text-ink transition-colors placeholder:font-normal placeholder:text-ink-3",
+            // The Headline size, capped by the row's width (`cqi`) with a 1rem floor, like the
+            // release title: in a narrow row the title steps down instead of breaking inside a
+            // word ("Warni/ng"). Wherever the row has room it is the full 1.5rem.
+            "block min-h-11 w-full min-w-0 resize-none overflow-hidden rounded-sm border-0 border-b bg-transparent px-1 py-1.5 text-[length:max(1rem,min(1.5rem,13cqi))] font-semibold leading-8 text-ink transition-colors placeholder:font-normal placeholder:text-ink-3",
             empty ? "border-danger/60" : "border-line-control hover:border-ink-3",
           )}
         />
