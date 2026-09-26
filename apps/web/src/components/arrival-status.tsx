@@ -3,16 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { LiveStatus } from "@/components/ui";
-import { takeArrival } from "@/lib/arrival-handoff";
+import { safeSessionStorage, takeArrival } from "@/lib/arrival-handoff";
 import { cn } from "@/lib/utils";
-
-function safeSessionStorage(): Storage | null {
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * The one line that says what just happened on arrival ("Restored …"), in an always-mounted

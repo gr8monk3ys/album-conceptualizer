@@ -115,8 +115,8 @@ export const POST = apiHandler(async (request: Request, { params }: Context) => 
         // one. The table is qualified as in schema.prisma's @@schema.
         const rows = await tx.$queryRaw<Array<{ id: string }>>`
           SELECT "id" FROM "album_conceptualizer"."AlbumSectionComment"
-          WHERE "id" = ${sourceCommentId} AND "albumId" = ${album.id} FOR UPDATE`;
-        if (!rows.length) throw new ApiError(400, "That comment isn't on this album.");
+          WHERE "id" = ${sourceCommentId} AND "albumId" = ${album.id} AND "deletedAt" IS NULL FOR UPDATE`;
+        if (!rows.length) throw new ApiError(400, "That comment isn't on this album, or was deleted.");
         // One task per comment: a second press finds the one already made.
         const existing = await tx.albumTask.findFirst({
           where: { albumId: album.id, sourceCommentId, deletedAt: null },

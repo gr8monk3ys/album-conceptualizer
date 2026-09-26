@@ -96,13 +96,21 @@ function titleKey(title: string) {
  * album, or a second remix of the same one) is it told apart: "<title> (Remix)", then
  * "<title> (Remix 2)", and so on, compared trimmed and in any casing.
  */
+/** `text` in at most `limit` characters, cut at a word break when one is near enough. */
+function shortenTo(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const space = cut.lastIndexOf(" ");
+  return (space >= limit * 0.6 ? cut.slice(0, space) : cut).trimEnd();
+}
+
 export function remixTitle(sourceTitle: string, takenTitles: Iterable<string> = []): string {
   const base = sourceTitle.trim().slice(0, TITLE_LIMIT) || "Untitled album";
   const taken = new Set(Array.from(takenTitles, titleKey));
   if (!taken.has(titleKey(base))) return base;
   for (let n = 1; ; n += 1) {
     const suffix = n === 1 ? " (Remix)" : ` (Remix ${n})`;
-    const candidate = `${base.slice(0, TITLE_LIMIT - suffix.length).trimEnd()}${suffix}`;
+    const candidate = `${shortenTo(base, TITLE_LIMIT - suffix.length)}${suffix}`;
     if (!taken.has(titleKey(candidate))) return candidate;
   }
 }
@@ -182,22 +190,6 @@ export async function forkIntoWorkspace(input: {
       where: { id: input.userId },
       select: { name: true },
     });
-    // Only albums whose title could clash: the source's title with or without a suffix.
-    const sameName = await tx.album.findMany({
-      where: {
-        workspaceId: input.workspaceId,
-        title: { startsWith: parsed.data.title.trim(), mode: "insensitive" },
-      },
-      select: { title: true },
-    });
-    const forked = forkAlbumJson(parsed.data, {
-      title: remixTitle(
-        parsed.data.title,
-        sameName.map((album) => album.title),
-      ),
-      remixerName: remixer?.name ?? null,
-      sourceAlbumId: input.sourceAlbumId,
-    });
     await chargeCredits(tx, {
       workspaceId: input.workspaceId,
       plan: input.plan,
@@ -207,6 +199,22 @@ export async function forkIntoWorkspace(input: {
       insufficientMessage: "Not enough credits to remix. Complete a challenge or upgrade your plan.",
     });
     await enforceProjectLimit(tx, input.workspaceId, input.plan);
+    // After the charge: it locks the workspace's balance row, so two remixes into one workspace
+    // take turns and the second sees the first's title. The titles are compared here rather than
+    // in SQL (a LIKE prefix would need escaping, and misses a long title's shortened remixes);
+    // the plan's project limit keeps the list short.
+    const titles = await tx.album.findMany({
+      where: { workspaceId: input.workspaceId },
+      select: { title: true },
+    });
+    const forked = forkAlbumJson(parsed.data, {
+      title: remixTitle(
+        parsed.data.title,
+        titles.map((album) => album.title),
+      ),
+      remixerName: remixer?.name ?? null,
+      sourceAlbumId: input.sourceAlbumId,
+    });
     const album = await tx.album.create({
       data: { workspaceId: input.workspaceId, ...buildAlbumMutationData(forked) },
       select: { id: true },

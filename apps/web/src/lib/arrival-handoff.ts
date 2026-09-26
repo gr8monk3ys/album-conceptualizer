@@ -25,6 +25,15 @@ function isHandoff(value: unknown): value is Handoff {
   );
 }
 
+/** The tab's sessionStorage, or null where reading it throws (blocked site data, some previews). */
+export function safeSessionStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
 /** Leave the line for the page at `path` (a pathname, no query). Never throws. */
 export function leaveArrival(
   storage: StorageLike | null | undefined,

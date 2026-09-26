@@ -140,6 +140,20 @@ describe("remixTitle", () => {
     expect(title.endsWith(" (Remix)")).toBe(true);
   });
 
+  it("tells a long title's second remix from its first, cutting at a word", () => {
+    const long = `${"Salt Year ".repeat(19)}Salt Sands`.trim();
+    const first = remixTitle(long, [long]);
+    const second = remixTitle(long, [long, first]);
+    expect(second).not.toBe(first);
+    expect(second.length).toBeLessThanOrEqual(200);
+    expect(first).toMatch(/Year \(Remix\)$/);
+  });
+
+  it("compares titles with backslashes and wildcards as plain text", () => {
+    expect(remixTitle("Tide\\Tables", ["Tide\\Tables"])).toBe("Tide\\Tables (Remix)");
+    expect(remixTitle("100% Tide_Tables", ["100% Tide_Tables"])).toBe("100% Tide_Tables (Remix)");
+  });
+
   it("names an untitled source", () => {
     expect(remixTitle("   ")).toBe("Untitled album");
   });

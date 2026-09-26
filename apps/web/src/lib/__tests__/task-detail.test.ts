@@ -37,4 +37,10 @@ describe("taskDetail", () => {
     );
     expect(taskDetail("", "Only a body")).toBe("Only a body");
   });
+
+  it("doesn't take a title that ends inside the body's first word as repeated", () => {
+    expect(taskDetail("Tempo", "Tempos need contrast")).toBe("Tempos need contrast");
+    expect(taskDetail("Rewrite the bridge", "Rewrite the bridges tomorrow")).toBe("Rewrite the bridges tomorrow");
+    expect(taskDetail("Rewrite the bridge", "Rewrite the bridge tomorrow")).toBe("tomorrow");
+  });
 });

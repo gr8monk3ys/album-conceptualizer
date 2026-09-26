@@ -472,7 +472,8 @@ function dimensionScores(counts: TrackCounts, album: AlbumFacts): Record<Coheren
   // it stays low ("No motifs yet" beside 82 read as a bug and let an album without its motif
   // layer score in the 90s), and motifs that never return keep it under the middle.
   if (!album.uniqueMotifs) motifs = Math.min(motifs, 40);
-  else if (album.callbackMotifs === 0) motifs = Math.min(motifs, 60);
+  // A single track has no second track for a motif to return on, so that ceiling waits for one.
+  else if (album.callbackMotifs === 0 && album.songCount > 1) motifs = Math.min(motifs, 60);
 
   return {
     narrative: clampScore(narrative),

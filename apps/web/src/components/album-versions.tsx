@@ -7,7 +7,7 @@ import { RelativeTime } from "@/components/relative-time";
 import { versionSavedText } from "@/components/studio/studio-model";
 import { Button, EmptyState, Field, LiveStatus, Panel, Section, inputClass } from "@/components/ui";
 import { useReturnFocus } from "@/components/use-return-focus";
-import { leaveArrival, restoredArrivalText } from "@/lib/arrival-handoff";
+import { leaveArrival, restoredArrivalText, safeSessionStorage } from "@/lib/arrival-handoff";
 import { beforeRestoringDate } from "@/lib/version-labels";
 
 type VersionListItem = {
@@ -38,14 +38,6 @@ function VersionTitle({ message }: { message: string | null }) {
     );
   }
   return <>{message || "Untitled version"}</>;
-}
-
-function safeSessionStorage(): Storage | null {
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
 }
 
 export function AlbumVersions({ albumId, versions }: { albumId: string; versions: VersionListItem[] }) {

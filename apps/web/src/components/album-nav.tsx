@@ -273,7 +273,7 @@ function useContentHasPrimary(segment: string, enabled: boolean) {
         subtree: true,
         childList: true,
         attributes: true,
-        attributeFilter: ["class", "open", "hidden", "aria-disabled", "disabled"],
+        attributeFilter: ["class", "open", "hidden", "aria-disabled", "aria-busy", "disabled"],
       });
       return () => {
         cancelAnimationFrame(frame);

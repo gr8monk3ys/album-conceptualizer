@@ -17,6 +17,8 @@ export function taskDetail(title: string, body: string | null | undefined): stri
   const flatBody = squash(fullBody);
   if (!shown || flatBody === shown) return shown ? null : fullBody;
   if (!flatBody.startsWith(shown)) return fullBody;
+  // A whole title must end where a word of the body ends ("Tempo" is not the start of "Tempos").
+  if (!cut && flatBody.length > shown.length && !/\s/.test(flatBody[shown.length])) return fullBody;
 
   // The body starts with the title: keep only what follows it, from the body itself so its
   // line breaks survive. Walk the body until as many non-space characters as the title holds
