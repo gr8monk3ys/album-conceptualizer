@@ -10,7 +10,7 @@ import {
   requireAlbum,
   requireWorkspace,
 } from "@/server/api";
-import { reopenCommentForNewTask } from "@/server/comment-tasks";
+import { lockComment, syncCommentWithTask } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 import { albumItemUrl, notifyWorkspaceMembers } from "@/server/notify";
 
@@ -113,21 +113,21 @@ export const POST = apiHandler(async (request: Request, { params }: Context) => 
   const created = sourceCommentId
     ? await prisma.$transaction(async (tx) => {
         // Lock the comment, so two presses (or two tabs) can't both find no task and each make
-        // one. The table is qualified as in schema.prisma's @@schema.
-        const rows = await tx.$queryRaw<Array<{ id: string }>>`
-          SELECT "id" FROM "album_conceptualizer"."AlbumSectionComment"
-          WHERE "id" = ${sourceCommentId} AND "albumId" = ${album.id} AND "deletedAt" IS NULL FOR UPDATE`;
-        if (!rows.length) throw new ApiError(400, "That comment isn't on this album, or was deleted.");
+        // one.
+        if (!(await lockComment(tx, album.id, sourceCommentId, { live: true }))) {
+          throw new ApiError(400, "That comment isn't on this album, or was deleted.");
+        }
         // One task per comment: a second press finds the one already made.
         const existing = await tx.albumTask.findFirst({
           where: { albumId: album.id, sourceCommentId, deletedAt: null },
           select: { id: true },
         });
         if (existing) throw new ApiError(409, "This comment already has a task. Find it in Comments and tasks.");
-        // The comment and its task are one note (server/comment-tasks.ts): an open task means
-        // an open comment, so a task made from a resolved comment reopens it.
-        await reopenCommentForNewTask(tx, sourceCommentId);
-        return tx.albumTask.create({ data, select: TASK_SELECT });
+        // The comment and its task are one note (server/comment-tasks.ts): the comment takes
+        // the new task's state, open (a resolved comment reopens) or resolved if made done.
+        const task = await tx.albumTask.create({ data, select: TASK_SELECT });
+        await syncCommentWithTask(tx, { albumId: album.id, sourceCommentId, status: data.status }, userId);
+        return task;
       })
     : await prisma.albumTask.create({ data, select: TASK_SELECT });
 

@@ -667,7 +667,8 @@ function useAlbumStudioRender({
   // (add, move, delete, Undo) jumped to the top and left the focused field off screen. This
   // layout effect runs in the refresh's commit before the router's own (a parent's), so it
   // reads the position before the jump; the next frame, before anything is painted, puts it
-  // back if the router moved it.
+  // back if the router threw it to the top (only then: a fling or a smooth scroll the writer
+  // is in the middle of carries on).
   useLayoutEffect(() => {
     if (refreshing) {
       refreshCommitRef.current = true;
@@ -677,7 +678,7 @@ function useAlbumStudioRender({
     refreshCommitRef.current = false;
     const before = window.scrollY;
     const frame = requestAnimationFrame(() => {
-      if (Math.abs(window.scrollY - before) > 1) window.scrollTo({ top: before, behavior: "instant" });
+      if (before > 1 && window.scrollY <= 1) window.scrollTo({ top: before, behavior: "instant" });
     });
     return () => cancelAnimationFrame(frame);
   }, [refreshing]);
@@ -1636,7 +1637,12 @@ function useAlbumStudioRender({
       // Until the first edit, the arrival line stands where "Saved · …" would; before the
       // page has mounted it sits here, then moves into the live region to be announced.
       arrivalSpoken ? null : (
-        <span ref={arrivalLineRef} tabIndex={arrivalFocused ? -1 : undefined} className="text-ink">
+        <span
+          ref={arrivalLineRef}
+          tabIndex={arrivalFocused ? -1 : undefined}
+          data-focus-landing=""
+          className="text-ink"
+        >
           {arrivalNote}
         </span>
       )

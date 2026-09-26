@@ -434,7 +434,7 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
                       {tracked ? (
                         <Link
                           id={actionId(comment.id, "task-done")}
-                          href={`/app/albums/${albumId}/inbox#inbox-tasks`}
+                          href={`/app/albums/${albumId}/inbox#inbox-tasks-title`}
                           aria-label={`Tracked as a task: ${about}. Open Comments and tasks`}
                           className="inline-flex min-h-11 items-center gap-2 rounded px-3 text-sm text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:bg-hover hover:text-ink hover:decoration-ink"
                         >
@@ -455,17 +455,21 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
                         </Button>
                       ) : (
                         <>
-                          <Button
-                            id={actionId(comment.id, "task")}
-                            tone="ghost"
-                            className="px-3"
-                            busy={busy === "task"}
-                            aria-label={`${busy === "task" ? "Creating task" : "Create task"} from ${about}`}
-                            onClick={() => void makeTask(comment)}
-                          >
-                            <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
-                            {busy === "task" ? "Creating task…" : "Create task"}
-                          </Button>
+                          {/* A comment whose task is already done (an older note, or one made
+                              done) needs no second task: Resolve closes it. */}
+                          {task === "done" ? null : (
+                            <Button
+                              id={actionId(comment.id, "task")}
+                              tone="ghost"
+                              className="px-3"
+                              busy={busy === "task"}
+                              aria-label={`${busy === "task" ? "Creating task" : "Create task"} from ${about}`}
+                              onClick={() => void makeTask(comment)}
+                            >
+                              <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                              {busy === "task" ? "Creating task…" : "Create task"}
+                            </Button>
+                          )}
                           <Button
                             id={actionId(comment.id, "resolve")}
                             tone="ghost"

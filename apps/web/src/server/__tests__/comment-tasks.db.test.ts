@@ -97,6 +97,36 @@ describe.skipIf(!hasDatabase)("a comment and the task made from it are one note 
     expect((await comment()).resolvedAt).toBeNull();
   });
 
+  it("takes Mark done and Resolve of one note at the same moment without a deadlock", async () => {
+    // The task route used to lock the task, then the comment; the comment route the other way
+    // round: a pair at once deadlocked and one of them answered 500.
+    for (let round = 0; round < 8; round += 1) {
+      const taskId = await createTask();
+      await Promise.all([setTask(taskId, "done"), setComment("resolve")]);
+      expect((await task(taskId)).status).toBe("done");
+      expect((await comment()).resolvedAt).not.toBeNull();
+      await prisma.albumTask.update({ where: { id: taskId }, data: { deletedAt: new Date() } });
+      await prisma.albumSectionComment.update({ where: { id: commentId }, data: { resolvedAt: null } });
+    }
+  });
+
+  it("keeps the comment matching the task's last status when two changes race", async () => {
+    const taskId = await createTask();
+    await Promise.all([setTask(taskId, "done"), setTask(taskId, "in_progress")]);
+    const status = (await task(taskId)).status;
+    expect((await comment()).resolvedAt === null).toBe(status !== "done");
+  });
+
+  it("resolves the comment when a task is made from it already done", async () => {
+    const { POST } = await import("@/app/api/albums/[albumId]/tasks/route");
+    const response = await POST(
+      json("POST", `/api/albums/${albumId}/tasks`, { title: "Rewrite the bridge", sourceCommentId: commentId, status: "done" }),
+      { params: Promise.resolve({ albumId }) },
+    );
+    expect(response.status).toBe(201);
+    expect((await comment()).resolvedAt).not.toBeNull();
+  });
+
   it("resolves the comment when its task is marked done, and reopens it with the task", async () => {
     const taskId = await createTask();
     await setTask(taskId, "done");

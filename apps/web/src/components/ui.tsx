@@ -68,18 +68,20 @@ export function Button({
   type = "button",
   busy = false,
   onClick,
+  "aria-disabled": ariaDisabled,
   ...props
 }: ComponentProps<"button"> & { tone?: Tone; busy?: boolean }) {
   return (
     <button
       type={type}
       className={buttonClass(tone, className)}
-      aria-disabled={busy || props["aria-disabled"] || undefined}
+      {...props}
+      // After the spread, so a caller's aria-disabled={undefined} can't hide a busy state.
+      aria-disabled={busy || ariaDisabled || undefined}
       aria-busy={busy || undefined}
       // Only a client caller can be busy or pass a handler; a Server Component renders this
       // with neither, and must not be handed a function (it can't be serialised).
       onClick={busy ? preventWhileBusy : onClick}
-      {...props}
     />
   );
 }

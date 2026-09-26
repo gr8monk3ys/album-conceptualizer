@@ -10,7 +10,8 @@ import type { Prisma, PrismaClient } from "@prisma/client";
  * - Reopening either reopens the other: a reopened task would otherwise sit beside a comment
  *   that still says "Resolved" (two states for one note again), and a reopened comment beside
  *   a task that says "Done".
- * - Making a task from a resolved comment reopens the comment, for the same reason.
+ * - A new task from a comment sets the comment to match (open, or resolved if made done).
+ * - Every write locks the comment row first (`lockComment`), then touches the task.
  * - Deleting the task leaves the comment as it is (still unresolved if the task was open), so
  *   it is listed as a comment again; deleting the comment leaves the task, which keeps its own
  *   title and text.
@@ -50,27 +51,48 @@ export async function openNoteCounts(db: Db, albumId: string) {
 }
 
 /**
- * A task's status changed from `from` to `to`: its source comment follows, done resolving it
- * and a reopen reopening it. Nothing happens for a task without a comment, a deleted comment,
- * or a change between two open states (open and in progress).
+ * Lock a note's comment row (SELECT … FOR UPDATE) before changing the comment or its task, so
+ * every write to a note takes its locks in one order (comment, then task) and two of them can't
+ * deadlock. Resolves to whether the comment is on this album. The table is qualified as in
+ * schema.prisma's @@schema.
+ */
+export async function lockComment(
+  tx: Prisma.TransactionClient,
+  albumId: string,
+  commentId: string,
+  { live = false }: { live?: boolean } = {},
+): Promise<boolean> {
+  const rows = live
+    ? await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "album_conceptualizer"."AlbumSectionComment"
+        WHERE "id" = ${commentId} AND "albumId" = ${albumId} AND "deletedAt" IS NULL FOR UPDATE`
+    : await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "album_conceptualizer"."AlbumSectionComment"
+        WHERE "id" = ${commentId} AND "albumId" = ${albumId} FOR UPDATE`;
+  return rows.length > 0;
+}
+
+/**
+ * A task made from a comment now has `status`: the comment follows, resolved while the task is
+ * done and open while it isn't. It depends only on the new status, so it is idempotent and
+ * heals any drift between the two. Nothing happens for a task without a comment or a deleted
+ * comment.
  */
 export async function syncCommentWithTask(
   tx: Db,
-  task: { sourceCommentId: string | null; from: string; to: string },
+  task: { albumId: string; sourceCommentId: string | null; status: string },
   userId: string,
 ) {
   if (!task.sourceCommentId) return;
-  const wasOpen = isOpenTaskStatus(task.from);
-  const isOpen = isOpenTaskStatus(task.to);
-  if (wasOpen === isOpen) return;
-  if (!isOpen) {
+  const where = { id: task.sourceCommentId, albumId: task.albumId, deletedAt: null };
+  if (!isOpenTaskStatus(task.status)) {
     await tx.albumSectionComment.updateMany({
-      where: { id: task.sourceCommentId, deletedAt: null, resolvedAt: null },
+      where: { ...where, resolvedAt: null },
       data: { resolvedAt: new Date(), resolvedByUserId: userId },
     });
   } else {
     await tx.albumSectionComment.updateMany({
-      where: { id: task.sourceCommentId, deletedAt: null, resolvedAt: { not: null } },
+      where: { ...where, resolvedAt: { not: null } },
       data: { resolvedAt: null, resolvedByUserId: null },
     });
   }
@@ -80,22 +102,14 @@ export async function syncCommentWithTask(
  * A comment was resolved or reopened: its task follows, done or open again. Returns how many
  * tasks changed (0 or 1: the server keeps one task per comment), so the caller can say so.
  */
-export async function syncTaskWithComment(tx: Db, commentId: string, resolved: boolean) {
+export async function syncTaskWithComment(tx: Db, albumId: string, commentId: string, resolved: boolean) {
   const result = await tx.albumTask.updateMany({
     where: resolved
-      ? { sourceCommentId: commentId, deletedAt: null, status: { not: "done" } }
-      : { sourceCommentId: commentId, deletedAt: null, status: "done" },
+      ? { albumId, sourceCommentId: commentId, deletedAt: null, status: { not: "done" } }
+      : { albumId, sourceCommentId: commentId, deletedAt: null, status: "done" },
     data: { status: resolved ? "done" : "open" },
   });
   return result.count;
-}
-
-/** A task was just made from this comment: a resolved comment is open again, as its task is. */
-export async function reopenCommentForNewTask(tx: Db, commentId: string) {
-  await tx.albumSectionComment.updateMany({
-    where: { id: commentId, deletedAt: null, resolvedAt: { not: null } },
-    data: { resolvedAt: null, resolvedByUserId: null },
-  });
 }
 
 /**

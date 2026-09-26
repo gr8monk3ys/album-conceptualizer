@@ -318,7 +318,11 @@ export function wideThemeHeads(
     const total = slotRem.reduce((sum, slot) => sum + slot, 0);
     layouts.push({
       slotRem,
-      fromRem: Number(ceilTo(otherColumnsRem + total, 0.05).toFixed(2)),
+      // Never before the named heads themselves start (`themeNamesFromRem`): below that the
+      // keys and legend show, and a wide name must not appear beside a key.
+      fromRem: Number(
+        ceilTo(Math.max(otherColumnsRem + total, themeNamesFromRem(themes.length)), 0.05).toFixed(2),
+      ),
       truncated: themes.some(
         (theme, index) => themeHeadLines(theme, slotRem[index] - THEME_NAME_PADDING_REM).truncated,
       ),

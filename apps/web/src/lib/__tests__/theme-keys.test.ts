@@ -248,3 +248,11 @@ describe("wide theme heads: whole names where the sheet has room", () => {
     if (last.truncated) expect(css.split("@container").pop()).not.toContain("theme-legend");
   });
 });
+
+describe("wide theme heads never start before the named heads", () => {
+  it("waits for the keys to give way, even for one short name", () => {
+    const [first] = wideThemeHeads(["Memory"]);
+    expect(first).toBeDefined();
+    expect(first.fromRem).toBeGreaterThanOrEqual(themeNamesFromRem(1));
+  });
+});

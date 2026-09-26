@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { ApiError, apiHandler, parseJsonBody, requireWorkspace } from "@/server/api";
-import { syncCommentWithTask } from "@/server/comment-tasks";
+import { lockComment, syncCommentWithTask } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 import { albumItemUrl, notifyWorkspaceMembers } from "@/server/notify";
 
@@ -60,6 +60,11 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
   // One note, two views (server/comment-tasks.ts): marking a task made from a comment done
   // resolves the comment, and reopening it reopens the comment, in the same transaction.
   const updated = await prisma.$transaction(async (tx) => {
+    // The comment's row first, then the task's: the order every write to a note takes, so a
+    // Mark done and a Resolve of the same note queue instead of deadlocking.
+    if (payload.status && existing.sourceCommentId) {
+      await lockComment(tx, existing.albumId, existing.sourceCommentId);
+    }
     const task = await tx.albumTask.update({
       where: { id: existing.id },
       data: {
@@ -90,7 +95,7 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
     if (payload.status) {
       await syncCommentWithTask(
         tx,
-        { sourceCommentId: existing.sourceCommentId, from: existing.status, to: payload.status },
+        { albumId: existing.albumId, sourceCommentId: existing.sourceCommentId, status: payload.status },
         userId,
       );
     }

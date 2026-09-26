@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { ApiError, apiHandler, parseJsonBody, requireWorkspace } from "@/server/api";
-import { syncTaskWithComment } from "@/server/comment-tasks";
+import { lockComment, syncTaskWithComment } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 
 export const runtime = "nodejs";
@@ -52,6 +52,8 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
   // One note, two views (server/comment-tasks.ts): resolving a comment that became a task marks
   // the task done, and reopening it reopens the task, in the same transaction.
   const { updated, taskChanged } = await getPrisma().$transaction(async (tx) => {
+    // The comment's row first, then the task's (the order every write to a note takes).
+    await lockComment(tx, albumId, comment.id);
     const saved = await tx.albumSectionComment.update({
       where: { id: comment.id },
       data,
@@ -71,7 +73,7 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
       },
     });
     const changed =
-      payload.action === "edit" ? 0 : await syncTaskWithComment(tx, comment.id, payload.action === "resolve");
+      payload.action === "edit" ? 0 : await syncTaskWithComment(tx, albumId, comment.id, payload.action === "resolve");
     return { updated: saved, taskChanged: changed > 0 };
   });
 
