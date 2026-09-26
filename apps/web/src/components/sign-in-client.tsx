@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 
 import { SiteHeader } from "@/components/site-header";
 import { Button, Field, inputClass } from "@/components/ui";
+import type { SignInErrorMessage } from "@/lib/sign-in-errors";
 
 type SignInFormState = {
   devEmail: string;
@@ -18,11 +19,23 @@ export function SignInClient({
   githubEnabled,
   emailEnabled,
   devLoginEnabled,
+  error = null,
 }: {
   githubEnabled: boolean;
   emailEnabled: boolean;
   devLoginEnabled: boolean;
+  /** Why the last sign-in failed (from `?error=`), mapped to plain words on the server. */
+  error?: SignInErrorMessage | null;
 }) {
+  const errorRef = useRef<HTMLDivElement>(null);
+  // Arriving from a failed sign-in, focus goes to the message so it is read first and the next
+  // Tab reaches the sign-in methods; never taken from something the person already focused.
+  useEffect(() => {
+    if (!error) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    errorRef.current?.focus();
+  }, [error]);
   const [callbackUrl] = useState(() => {
     if (typeof window === "undefined") return "/app";
     const params = new URLSearchParams(window.location.search);
@@ -70,6 +83,20 @@ export function SignInClient({
           </p>
 
           <div className="mt-8 flex flex-col">
+            {error ? (
+              // Server-rendered with the page, so it is there before hydration.
+              <div
+                ref={errorRef}
+                role="alert"
+                tabIndex={-1}
+                id="sign-in-error"
+                className="mb-6 rounded border border-danger/60 bg-danger-soft p-4 text-sm leading-relaxed text-danger"
+              >
+                <p className="max-w-[65ch] font-semibold">{error.title}</p>
+                <p className="mt-1 max-w-[65ch]">{error.body}</p>
+              </div>
+            ) : null}
+
             {githubEnabled ? (
               <div className="border-t border-line py-6">
                 <Button

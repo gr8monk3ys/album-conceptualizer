@@ -10,7 +10,7 @@ const DISCLOSURE =
 
 function StepRows({ steps, idPrefix }: { steps: AlbumOnboardingStep[]; idPrefix: string }) {
   return (
-    <ul className="divide-y divide-line border-y border-line">
+    <ul className="@container divide-y divide-line border-y border-line">
       {steps.map((step) => {
         const detailId = `${idPrefix}-${step.key}-detail`;
         return (
@@ -28,7 +28,7 @@ function StepRows({ steps, idPrefix }: { steps: AlbumOnboardingStep[]; idPrefix:
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
               </span>
-              <span className="min-w-0 flex-1">
+              <span className="min-w-0 flex-1 wrap-break-word">
                 <span className={cn("text-sm", step.complete ? "text-ink-2" : "font-semibold text-ink")}>
                   {step.label}
                   <span className="sr-only">{step.complete ? " (done)" : " (to do)"}</span>
@@ -38,7 +38,7 @@ function StepRows({ steps, idPrefix }: { steps: AlbumOnboardingStep[]; idPrefix:
                 </span>
               </span>
               <ArrowRight
-                className="mt-0.5 h-4 w-4 shrink-0 text-ink-3 transition-colors group-hover:text-ink motion-safe:transition-[color,transform] motion-safe:group-hover:translate-x-0.5"
+                className="mt-0.5 hidden h-4 w-4 shrink-0 text-ink-3 @[12rem]:block transition-colors group-hover:text-ink motion-safe:transition-[color,transform] motion-safe:group-hover:translate-x-0.5"
                 aria-hidden="true"
               />
             </Link>

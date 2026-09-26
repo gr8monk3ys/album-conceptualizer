@@ -122,7 +122,7 @@ export function SongStoryEditor({
           <span className="min-w-0 break-words text-sm text-ink-2">{storySummary(song)}</span>
           <span className="inline-flex items-center gap-1 text-sm font-medium text-ink">
             {open ? "Hide" : "Edit"}
-            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} aria-hidden="true" />
+            <ChevronDown className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true" />
           </span>
         </button>
       </h3>

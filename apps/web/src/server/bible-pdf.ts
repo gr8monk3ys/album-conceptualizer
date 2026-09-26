@@ -4,6 +4,28 @@ import type { AlbumBible } from "@/server/bible";
 import { buildMotifCharacterGraph } from "@/server/bible-relationships";
 import { safeFilename } from "@/server/headers";
 
+/**
+ * The printed Album Bible's palette. This is print output on white paper, not the app's UI, so it
+ * doesn't use the design tokens (they are for a dark screen); these are the only colours the PDF
+ * uses. Near-black inks step down in weight for hierarchy; the one colour marks warnings.
+ */
+const PRINT = {
+  /** Album title and section headings. */
+  title: "#111111",
+  /** Body paragraphs. */
+  body: "#222222",
+  /** Lesser headings (the "Info" group of issues). */
+  subheading: "#333333",
+  /** The cover's byline and generated date. */
+  byline: "#444444",
+  /** Empty-state lines, secondary facts, tags. */
+  muted: "#555555",
+  /** The faintest note ("No sections."). */
+  faint: "#777777",
+  /** The "Warnings" heading. */
+  warning: "#a40034",
+} as const;
+
 type TextBlockOpts = {
   size?: number;
   color?: string;
@@ -15,9 +37,9 @@ function writeHeading(doc: PDFKit.PDFDocument, text: string, opts?: TextBlockOpt
   doc.font("Helvetica-Bold");
   doc.fontSize(opts?.size ?? 14);
   if (opts?.color) doc.fillColor(opts.color);
-  else doc.fillColor("#111111");
+  else doc.fillColor(PRINT.title);
   doc.text(text, { align: "left" });
-  doc.fillColor("#111111");
+  doc.fillColor(PRINT.title);
   doc.font("Helvetica");
   doc.fontSize(11);
   doc.moveDown((opts?.spacing ?? 0.3) as number);
@@ -27,9 +49,9 @@ function writeParagraph(doc: PDFKit.PDFDocument, text: string, opts?: TextBlockO
   doc.font("Helvetica");
   doc.fontSize(opts?.size ?? 11);
   if (opts?.color) doc.fillColor(opts.color);
-  else doc.fillColor("#222222");
+  else doc.fillColor(PRINT.body);
   doc.text(text, { align: "left" });
-  doc.fillColor("#111111");
+  doc.fillColor(PRINT.title);
   doc.moveDown((opts?.spacing ?? 0.3) as number);
 }
 
@@ -62,17 +84,17 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
   // Cover
   doc.font("Helvetica-Bold");
   doc.fontSize(24);
-  doc.fillColor("#111111");
+  doc.fillColor(PRINT.title);
   doc.text(bible.title, { align: "left" });
   doc.font("Helvetica");
   doc.fontSize(12);
-  doc.fillColor("#444444");
+  doc.fillColor(PRINT.byline);
   doc.text(
     [bible.artist ? `by ${bible.artist}` : null, bible.primaryGenre ? bible.primaryGenre : null]
       .filter(Boolean)
       .join(" · ") || "Album bible",
   );
-  doc.fillColor("#444444");
+  doc.fillColor(PRINT.byline);
   doc.moveDown(0.2);
   doc.fontSize(10);
   doc.text(`Generated ${new Date().toLocaleString()}`);
@@ -87,21 +109,21 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
 
   writeHeading(doc, "Album Themes", { size: 14 });
   if (bible.centralThemes.length) writeBullets(doc, bible.centralThemes);
-  else writeParagraph(doc, "No album-level themes set.", { color: "#555555" });
+  else writeParagraph(doc, "No album-level themes set.", { color: PRINT.muted });
 
   writeHeading(doc, "Recurring Motifs", { size: 14 });
   if (bible.recurringMotifs.length) writeBullets(doc, bible.recurringMotifs);
-  else writeParagraph(doc, "No album-level motifs set.", { color: "#555555" });
+  else writeParagraph(doc, "No album-level motifs set.", { color: PRINT.muted });
 
   writeHeading(doc, "Style bible", { size: 14 });
   writeParagraph(
     doc,
     bible.styleBible.lead_voice?.trim() || "No lead voice brief set.",
-    { color: bible.styleBible.lead_voice ? "#222222" : "#555555" },
+    { color: bible.styleBible.lead_voice ? PRINT.body : PRINT.muted },
   );
   if (bible.styleBible.narrator_perspective) {
     writeParagraph(doc, `Narrator perspective: ${bible.styleBible.narrator_perspective}`, {
-      color: "#555555",
+      color: PRINT.muted,
       size: 10,
       spacing: 0.2,
     });
@@ -125,10 +147,10 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
       : null,
   ].filter((line): line is string => Boolean(line));
   if (styleLines.length) writeBullets(doc, styleLines);
-  else writeParagraph(doc, "No style constraints or palette anchors set.", { color: "#555555" });
+  else writeParagraph(doc, "No style constraints or palette anchors set.", { color: PRINT.muted });
   if (bible.styleBible.reference_strategy) {
     writeParagraph(doc, `Reference strategy: ${bible.styleBible.reference_strategy}`, {
-      color: "#555555",
+      color: PRINT.muted,
       size: 10,
     });
   }
@@ -138,14 +160,14 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
 
   writeHeading(doc, "Issues", { size: 14 });
   if (!warnings.length && !infos.length) {
-    writeParagraph(doc, "No issues detected.", { color: "#555555" });
+    writeParagraph(doc, "No issues detected.", { color: PRINT.muted });
   } else {
     if (warnings.length) {
-      writeHeading(doc, "Warnings", { size: 12, color: "#a40034" });
+      writeHeading(doc, "Warnings", { size: 12, color: PRINT.warning });
       writeBullets(doc, warnings.map((w) => `${w.title}: ${w.detail}`));
     }
     if (infos.length) {
-      writeHeading(doc, "Info", { size: 12, color: "#333333" });
+      writeHeading(doc, "Info", { size: 12, color: PRINT.subheading });
       writeBullets(doc, infos.map((i) => `${i.title}: ${i.detail}`));
     }
   }
@@ -155,7 +177,7 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
   writeHeading(doc, "Relationships (Characters x Motifs)", { size: 14 });
   if (!graph.edges.length) {
     writeParagraph(doc, "No relationships found. Tag characters and motifs per track to visualize ties.", {
-      color: "#555555",
+      color: PRINT.muted,
     });
   } else {
     writeBullets(
@@ -163,7 +185,7 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
       graph.edges.slice(0, 50).map((e) => `${e.character} ↔ ${e.motif} (tracks: ${e.trackNumbers.join(", ")})`),
     );
     if (graph.edges.length > 50) {
-      writeParagraph(doc, `…${graph.edges.length - 50} more`, { color: "#555555" });
+      writeParagraph(doc, `…${graph.edges.length - 50} more`, { color: PRINT.muted });
     }
   }
 
@@ -173,13 +195,13 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
   writeParagraph(
     doc,
     `Mode: ${bible.timeline.mode === "chronological" ? "chronological_order" : "track_number"}`,
-    { color: "#555555" },
+    { color: PRINT.muted },
   );
 
   for (const track of bible.timeline.tracks) {
     writeHeading(doc, `Track ${track.trackNumber}: ${track.title}`, { size: 13 });
     if (typeof track.chronologicalOrder === "number") {
-      writeParagraph(doc, `Chronological order: ${track.chronologicalOrder}`, { color: "#555555" });
+      writeParagraph(doc, `Chronological order: ${track.chronologicalOrder}`, { color: PRINT.muted });
     }
     writeParagraph(doc, track.narrativeSummary?.trim() || "No story note yet.", { spacing: 0.2 });
 
@@ -187,7 +209,7 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
     if (track.themes.length) tags.push(`Themes: ${track.themes.join(", ")}`);
     if (track.motifs.length) tags.push(`Motifs: ${track.motifs.join(", ")}`);
     if (track.characters.length) tags.push(`Characters: ${track.characters.join(", ")}`);
-    if (tags.length) writeParagraph(doc, tags.join(" · "), { color: "#555555", size: 10, spacing: 0.2 });
+    if (tags.length) writeParagraph(doc, tags.join(" · "), { color: PRINT.muted, size: 10, spacing: 0.2 });
 
     if (track.sections.length) {
       const sectionLines = track.sections.map((s) => {
@@ -200,18 +222,18 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
       });
       writeBullets(doc, sectionLines, { indent: 12 });
     } else {
-      writeParagraph(doc, "No sections.", { color: "#777777", size: 10 });
+      writeParagraph(doc, "No sections.", { color: PRINT.faint, size: 10 });
     }
   }
 
   // Indices
   doc.addPage();
   writeHeading(doc, "Character Index", { size: 16 });
-  if (!bible.characterIndex.length) writeParagraph(doc, "No characters tagged.", { color: "#555555" });
+  if (!bible.characterIndex.length) writeParagraph(doc, "No characters tagged.", { color: PRINT.muted });
   else writeBullets(doc, bible.characterIndex.map((c) => `${c.name}: ${c.trackNumbers.join(", ")}`), { indent: 12 });
 
   writeHeading(doc, "Motif Index", { size: 16 });
-  if (!bible.motifIndex.length) writeParagraph(doc, "No motifs tagged.", { color: "#555555" });
+  if (!bible.motifIndex.length) writeParagraph(doc, "No motifs tagged.", { color: PRINT.muted });
   else writeBullets(doc, bible.motifIndex.map((m) => `${m.name}: ${m.trackNumbers.join(", ")}`), { indent: 12 });
 
   doc.end();

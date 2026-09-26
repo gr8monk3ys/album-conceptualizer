@@ -61,7 +61,7 @@ export function AlbumDetails({
           className="-mx-2 inline-flex min-h-11 items-center gap-2 rounded px-2 transition-colors hover:bg-hover"
         >
           Album details (all tracks)
-          <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} aria-hidden="true" />
+          <ChevronDown className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true" />
         </button>
       </h2>
       <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">

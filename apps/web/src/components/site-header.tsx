@@ -10,9 +10,11 @@ import { buttonClass } from "@/components/ui";
  */
 export function SiteHeader({ showSignIn = true }: { showSignIn?: boolean }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line pb-3">
+    <header className="@container flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line pb-3">
       <Link href="/" className="inline-flex min-h-11 min-w-0 items-center rounded">
-        <Wordmark className="text-base" />
+        {/* Never smaller than at 100% text, never wider than the header: "CONCEPTUALIZER" is
+            about 8.9em wide in this cut, so 10.5cqi keeps it inside the column at 320px and 200%. */}
+        <Wordmark className="text-[length:max(min(1rem,16px),min(1rem,10.5cqi))]" />
       </Link>
 
       {showSignIn ? (

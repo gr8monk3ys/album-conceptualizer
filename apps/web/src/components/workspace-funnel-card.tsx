@@ -25,17 +25,23 @@ export function WorkspaceFunnelCard({ summary }: { summary: WorkspaceFunnelSumma
       <h2 id="funnel-window-title" className="text-lg font-semibold text-ink">
         Last {summary.windowDays} days
       </h2>
-      <dl className="mt-4 grid grid-cols-2 gap-y-5 border-y border-line py-5 md:grid-cols-4 md:divide-x md:divide-line">
-        {METRICS.map((metric) => (
-          <div key={metric.key} className="min-w-0 pr-4 md:px-5 md:first:pl-0">
-            <dt className="type-catalog text-xs text-ink-2">{metric.label}</dt>
-            <dd className="type-figure mt-2 text-3xl font-semibold text-ink">
-              {summary[metric.key]}
-            </dd>
-            <dd className="mt-1 text-xs text-ink-3">{metric.hint}</dd>
-          </div>
-        ))}
-      </dl>
+      {/* Columns by the room the section has (a container query in rem, so enlarged text
+          needs more): four figures side by side from 36rem, two from 16rem, one below that,
+          so a long word in a hint ("Downloaded") never runs into the next column at 320px
+          with 200% text. Should a word still be wider than its column, it wraps inside it. */}
+      <div className="@container">
+        <dl className="mt-4 grid grid-cols-1 gap-y-5 border-y border-line py-5 @[16rem]:grid-cols-2 @[36rem]:grid-cols-4 @[36rem]:divide-x @[36rem]:divide-line">
+          {METRICS.map((metric) => (
+            <div key={metric.key} className="min-w-0 pr-4 wrap-break-word @[36rem]:px-5 @[36rem]:first:pl-0">
+              <dt className="type-catalog text-xs text-ink-2">{metric.label}</dt>
+              <dd className="type-figure mt-2 text-3xl font-semibold text-ink">
+                {summary[metric.key]}
+              </dd>
+              <dd className="mt-1 text-xs text-ink-3">{metric.hint}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
     </section>
   );
 }

@@ -476,7 +476,7 @@ export function IdeationAi({
             disabled={!hasEnoughInput}
           >
             {isBusy ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
             ) : (
               <Sparkles className="h-4 w-4" aria-hidden="true" />
             )}

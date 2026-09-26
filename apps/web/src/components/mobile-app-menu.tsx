@@ -67,15 +67,21 @@ export function MobileAppMenu({
             enlarged text. */}
         <FadeScroll className="h-full overflow-y-auto">
           <div className="flex min-h-full flex-col gap-6 px-3 py-4 *:shrink-0">
-            <div className="flex items-start justify-between gap-2 pl-3">
-              {/* flex-1: the wordmark sizes itself to this column (a size container). */}
-              <div className="min-w-0 flex-1 pt-2 @container">
-                <Wordmark fit />
-                <span className="mt-1 block break-words text-xs text-ink-3">{workspaceName}</span>
+            {/* The wordmark and workspace name share a row with the close button while the
+                sheet has room for them (15rem, so enlarged text needs more); narrower, the
+                close button keeps the top corner and they take the full row beneath it, so
+                the wordmark keeps its size and "Workspace" stays whole. */}
+            <div className="@container">
+              <div className="flex flex-col-reverse items-end gap-1 @[15rem]:flex-row @[15rem]:items-start @[15rem]:justify-between @[15rem]:gap-2">
+                {/* The wordmark sizes itself to this block (a size container). */}
+                <div className="w-full min-w-0 self-stretch pl-3 @container @[15rem]:w-auto @[15rem]:flex-1 @[15rem]:self-auto @[15rem]:pt-2">
+                  <Wordmark fit />
+                  <span className="mt-1 block break-words text-xs text-ink-3">{workspaceName}</span>
+                </div>
+                <IconButton ref={closeRef} autoFocus label="Close navigation menu" onClick={() => setOpen(false)}>
+                  <X className="h-5 w-5" aria-hidden="true" />
+                </IconButton>
               </div>
-              <IconButton ref={closeRef} autoFocus label="Close navigation menu" onClick={() => setOpen(false)}>
-                <X className="h-5 w-5" aria-hidden="true" />
-              </IconButton>
             </div>
             <AppNavLinks unreadNotifications={unreadNotifications} onNavigate={() => setOpen(false)} />
             <div className="mt-auto">

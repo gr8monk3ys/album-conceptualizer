@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Minus, Plus } from "lucide-react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
 import { IdeationAi, type BrainstormPatch } from "@/components/ideation-ai";
 import { ReadOnlySpine } from "@/components/read-only-spine";
-import { Button, Chip, Field, LiveStatus, Panel, inputClass, textareaClass } from "@/components/ui";
+import { Button, Chip, Field, IconButton, LiveStatus, Panel, inputClass, textareaClass } from "@/components/ui";
 import { STARTER_PROGRESSIONS } from "@/lib/chords";
 import {
   CREATE_DRAFT_KEY,
@@ -441,16 +441,42 @@ function QuickStartStepFields({
             {form.trackCount}
           </output>
         </div>
-        <input
-          id="quickstart-track-count"
-          type="range"
-          min={MIN_TRACKS}
-          max={MAX_TRACKS}
-          value={form.trackCount}
-          onChange={(event) => setField("trackCount", Number(event.target.value))}
-          aria-describedby="quickstart-track-count-hint"
-          className="h-11 w-full cursor-pointer accent-ink"
-        />
+        {/* Steppers beside the slider: a scroll that starts on the slider (a phone) can nudge
+            its value, so the count can also be set a track at a time. The slider leaves
+            vertical pans to the page. At either end a stepper is marked unavailable rather than
+            disabled, so focus stays on it instead of dropping to the page. */}
+        <div className="flex items-center gap-2">
+          <IconButton
+            label="One track fewer"
+            className="border-line-control aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            aria-disabled={form.trackCount <= MIN_TRACKS}
+            onClick={() => {
+              if (form.trackCount > MIN_TRACKS) setField("trackCount", form.trackCount - 1);
+            }}
+          >
+            <Minus className="h-4 w-4" aria-hidden="true" />
+          </IconButton>
+          <input
+            id="quickstart-track-count"
+            type="range"
+            min={MIN_TRACKS}
+            max={MAX_TRACKS}
+            value={form.trackCount}
+            onChange={(event) => setField("trackCount", Number(event.target.value))}
+            aria-describedby="quickstart-track-count-hint"
+            className="h-11 min-w-0 flex-1 cursor-pointer touch-pan-y accent-ink"
+          />
+          <IconButton
+            label="One track more"
+            className="border-line-control aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            aria-disabled={form.trackCount >= MAX_TRACKS}
+            onClick={() => {
+              if (form.trackCount < MAX_TRACKS) setField("trackCount", form.trackCount + 1);
+            }}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </IconButton>
+        </div>
         <p id="quickstart-track-count-hint" className="text-xs leading-relaxed text-ink-3">
           Between {MIN_TRACKS} and {MAX_TRACKS}. You can add or remove tracks later in the Studio.
         </p>
@@ -783,8 +809,15 @@ export function QuickStartComposer({
 
           <WizardProgress step={step} form={form} visited={visited} onStepSelect={goTo} />
 
-          <div className="mt-5">
-            <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold text-ink">
+          {/* A size container: the step title stays under 16% of the panel, so at 320px with
+              200% text "Foundation" fits whole inside it; it never sets smaller than it does
+              at 100% text (20px), and from 320px at normal text size nothing changes. */}
+          <div className="mt-5 @container">
+            <h2
+              ref={headingRef}
+              tabIndex={-1}
+              className="text-[length:max(min(1.25rem,20px),min(1.25rem,16cqi))] font-semibold leading-snug text-ink wrap-break-word"
+            >
               {currentStep.title}
             </h2>
             <p className="mt-1 text-sm text-ink-2">

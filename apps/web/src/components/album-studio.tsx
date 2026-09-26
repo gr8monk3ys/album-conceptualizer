@@ -1152,7 +1152,7 @@ function useAlbumStudioRender({
           ) : null}
           {/* The live and the quiet status never both hold text, so no gap between them. */}
           <p className={cn("flex min-w-0 flex-wrap items-center text-sm", saveError ? "text-danger" : "text-ink-2")}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 flex-none animate-spin" aria-hidden="true" /> : null}
+            {saving ? <Loader2 className="mr-2 h-4 w-4 flex-none animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
             <span
               role="status"
               className={cn(

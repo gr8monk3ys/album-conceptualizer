@@ -112,7 +112,9 @@ export function buildAuthOptions(): NextAuthOptions {
     adapter: PrismaAdapter(prisma),
     secret: authSecret,
     session: { strategy: "jwt" },
-    pages: { signIn: "/sign-in" },
+    // Errors come back to the sign-in page too (not NextAuth's own error page), which reads
+    // `?error=<code>` and says what happened in plain words (lib/sign-in-errors.ts).
+    pages: { signIn: "/sign-in", error: "/sign-in" },
     providers,
     callbacks: {
       session: async ({ session, token }) => {

@@ -54,10 +54,12 @@ function centerTab(scroller: HTMLElement, tab: HTMLElement) {
  * One way around an album, the same on every album screen. Six tabs in one row on a hairline
  * when the album column has room (32rem, so enlarged text needs more); with less room they
  * wrap into ruled rows, each tab as wide as its own name (the rows share out the spare room),
- * so every tab is visible and whole on a phone, even "Coherence" at 320px with 200% text,
- * rather than clipped by a fixed column or scrolled out of sight. If the one row still can't
- * fit (an unusually wide font), the strip scrolls inside itself, centres the current tab and
- * fades the edge with more tabs.
+ * so every tab is visible and whole on a phone, even "Coherence" at 320px with 200% text.
+ * Wrapped, nothing scrolls or fades: the strip clips nothing, so no first letter or focus ring
+ * is masked. A name wider than the whole column (a very narrow window at a large text size)
+ * wraps inside its tab rather than widening the strip. Only the one row can overflow (an
+ * unusually wide font): then the strip scrolls inside itself, centres the current tab and
+ * fades the edge with more tabs, and only while it actually overflows.
  */
 export function AlbumNav({ albumId }: { albumId: string }) {
   const segment = useAlbumSegment(albumId);
@@ -80,8 +82,10 @@ export function AlbumNav({ albumId }: { albumId: string }) {
       <nav
         ref={scrollerRef}
         aria-label="Album"
-        // Scrolls inside itself: min-w-0 keeps the tab strip from ever widening the page.
-        className={cn("-mx-1 min-w-0 max-w-[calc(100%+0.5rem)] overflow-x-auto", edgeFadeClass(fade, "x"))}
+        // One row scrolls inside itself (min-w-0 keeps the strip from ever widening the page);
+        // wrapped rows never overflow, so they neither scroll nor fade (the fade measures an
+        // actual overflow, so it stays off there).
+        className={cn("-mx-1 min-w-0 max-w-[calc(100%+0.5rem)] @lg:overflow-x-auto", edgeFadeClass(fade, "x"))}
       >
         <ul className="flex flex-wrap px-1 @lg:min-w-max @lg:flex-nowrap @lg:gap-1 @lg:border-b @lg:border-line">
           {TABS.map((tab) => {
@@ -96,7 +100,7 @@ export function AlbumNav({ albumId }: { albumId: string }) {
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     // The ring sits inside the tab so the scrolling strip doesn't clip it.
-                    "-mb-px flex min-h-11 items-center break-words border-b-2 px-3 text-sm transition-colors hyphens-auto focus-visible:-outline-offset-2 @lg:inline-flex",
+                    "-mb-px flex min-h-11 items-center border-b-2 px-3 text-sm transition-colors focus-visible:-outline-offset-2 @lg:inline-flex",
                     active
                       ? // Forced colors draw even transparent borders in the text colour, so
                         // there the current tab's underline turns Highlight and the idle tabs
@@ -105,7 +109,10 @@ export function AlbumNav({ albumId }: { albumId: string }) {
                       : "border-transparent text-ink-2 hover:border-line-strong hover:text-ink forced-colors:border-b-0",
                   )}
                 >
-                  {tab.label}
+                  {/* min-w-0 lets the name itself shrink (a flex item otherwise keeps its
+                      min-content width, which `break-words` doesn't lower); it only breaks
+                      inside a word when that word is wider than the whole column. */}
+                  <span className="min-w-0 wrap-anywhere">{tab.label}</span>
                 </Link>
               </li>
             );

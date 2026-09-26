@@ -249,7 +249,7 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
           {openCount && openCount !== count ? (
             <span className="type-figure text-sm text-ink-2">· {openCount} open</span>
           ) : null}
-          <ChevronDown className={cn("h-4 w-4 text-ink-2 transition-transform", open && "rotate-180")} aria-hidden="true" />
+          <ChevronDown className={cn("h-4 w-4 text-ink-2 transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true" />
         </button>
       </h3>
 

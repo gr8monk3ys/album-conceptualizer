@@ -1,4 +1,5 @@
 import { SignInClient } from "@/components/sign-in-client";
+import { signInErrorMessage } from "@/lib/sign-in-errors";
 
 export const metadata = {
   title: "Sign in",
@@ -9,7 +10,14 @@ function hasValue(value: string | undefined) {
   return Boolean(value?.trim());
 }
 
-export default function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // NextAuth sends failed sign-ins back here with `?error=<code>`. The message is rendered on the
+  // server so it is on the page before hydration.
+  const error = signInErrorMessage((await searchParams).error);
   const githubEnabled =
     hasValue(process.env.GITHUB_ID) && hasValue(process.env.GITHUB_SECRET);
   const emailEnabled =
@@ -21,6 +29,7 @@ export default function SignInPage() {
       githubEnabled={githubEnabled}
       emailEnabled={emailEnabled}
       devLoginEnabled={devLoginEnabled}
+      error={error}
     />
   );
 }

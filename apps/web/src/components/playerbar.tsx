@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { ChevronDown, Loader2, Pause, Play, Repeat2, Square, Volume2, X } from "lucide-react";
 
 import { INSTRUMENT_LABELS, usePlayer, type PreviewInstrument } from "@/components/player/player-provider";
-import { IconButton, buttonClass, selectClass } from "@/components/ui";
+import { IconButton, LiveStatus, buttonClass, selectClass } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 function formatClock(totalSeconds: number) {
@@ -164,7 +164,7 @@ function PlayPauseButton() {
       className="border border-line-strong text-ink"
     >
       {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
       ) : playing ? (
         <Pause className="h-4 w-4" aria-hidden="true" />
       ) : (
@@ -251,7 +251,15 @@ export function Playerbar() {
     if (target) target.focus();
   }
 
-  if (!docked) return null;
+  // The player's one live region, mounted with the page (empty) rather than with the bar, so a
+  // message put into it is announced. It carries what the player itself changes: a notice (an
+  // instrument switch) and instrument loading. A preview's loading and result belong to the
+  // Studio's Preview button and its status line, so they aren't announced twice.
+  const announcement = player.notice ?? (player.instrumentLoading ? "Loading instrument…" : null);
+  const liveStatus = <LiveStatus message={announcement} className="sr-only" />;
+
+  // Same first child in both returns, so the region stays mounted when the bar docks or leaves.
+  if (!docked) return <>{liveStatus}</>;
 
   const closeButton = (
     <IconButton label="Close preview player" onClick={close}>
@@ -263,6 +271,7 @@ export function Playerbar() {
 
   return (
     <>
+      {liveStatus}
       {/* Keeps the end of the page reachable above the docked bar, whatever its height. */}
       <div aria-hidden="true" style={{ height: barHeight }} />
       <section
@@ -276,9 +285,6 @@ export function Playerbar() {
               <span className="font-semibold">{title}</span>
               {status ? <span className="text-ink-2"> · {status}</span> : null}
             </p>
-            <span role="status" className="sr-only">
-              {player.notice ?? (player.status === "loading" ? "Loading preview…" : "")}
-            </span>
             <PlayPauseButton />
             {closeButton}
           </div>
@@ -287,7 +293,7 @@ export function Playerbar() {
             <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
               <div className="min-w-0 flex-1 basis-40">
                 <p className="truncate text-sm font-semibold text-ink">{title}</p>
-                <p role="status" className={cn("text-xs", player.notice ? "text-warn" : "truncate text-ink-2")}>
+                <p className={cn("text-xs", player.notice ? "text-warn" : "truncate text-ink-2")}>
                   {status}
                 </p>
               </div>
@@ -346,7 +352,7 @@ export function Playerbar() {
                   "-ml-2 cursor-pointer list-none justify-start px-2 [&::-webkit-details-marker]:hidden",
                 )}
               >
-                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                <ChevronDown className="h-4 w-4 transition-transform motion-reduce:transition-none group-open:rotate-180" aria-hidden="true" />
                 Sound options
               </summary>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-1">

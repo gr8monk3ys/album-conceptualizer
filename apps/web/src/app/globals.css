@@ -105,9 +105,13 @@
   --text-display-lg: clamp(1.625rem, 0.9rem + 4.4vw, 3rem);
   --text-display-lg--line-height: 1.02;
   /* The landing headline and a shared album's title. Inside a narrow container (the landing's
-     5:7 hero column) it also stays under 11% of the container, so a phrase like "concept
-     album" keeps to one line; the 2rem floor still grows with the reader's text size. */
-  --text-display-xl: clamp(2rem, min(1.1rem + 3.9vw, 11cqi), 3.5rem);
+     hero column) it stays under 11% of the container, so a phrase like "concept album" keeps
+     to one line, and the floor steps down with it like the release title's (2rem, but never
+     over 11% of the container, and never under 1rem): at 320px with 200% text the column is
+     256px and the headline sets at 28px, so "concept" stays whole (the old 2rem floor held it
+     at 64px and broke it as "conce / pt"). At normal text size it reads as before (at 320px,
+     31.7px instead of 32px). */
+  --text-display-xl: clamp(max(1rem, min(2rem, 11cqi)), min(1.1rem + 3.9vw, 11cqi), 3.5rem);
   --text-display-xl--line-height: 1.02;
   /* The album title in the release header on every album screen: 2.25rem on a phone,
      growing to 3.75rem on a wide screen, and never above 13% of a narrow header. Its floor is

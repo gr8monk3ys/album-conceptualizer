@@ -39,6 +39,26 @@ test.describe("Authentication", () => {
     await expect(page.getByRole("button", { name: "Continue (dev)" })).toBeVisible();
   });
 
+  test("a failed sign-in explains itself and takes focus", async ({ page }) => {
+    await page.goto("/sign-in?error=CredentialsSignin");
+    const alert = page.getByRole("alert").filter({ hasText: "Those details didn't sign you in." });
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText("Check the email address, then try again.");
+    await expect(alert).toBeFocused();
+    // The sign-in methods are still offered right below it.
+    await expect(page.getByRole("button", { name: "Continue (dev)" })).toBeVisible();
+  });
+
+  test("an unknown sign-in error code gets the default message, not the code", async ({
+    page,
+  }) => {
+    await page.goto("/sign-in?error=SomethingOdd");
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Something went wrong while signing you in." }),
+    ).toBeVisible();
+    await expect(page.getByText("SomethingOdd")).toHaveCount(0);
+  });
+
   test("dev login authenticates user and redirects to dashboard", async ({ page }) => {
     await devLogin(page, randomEmail("sign-in"), "Sign-In Test User");
     await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();

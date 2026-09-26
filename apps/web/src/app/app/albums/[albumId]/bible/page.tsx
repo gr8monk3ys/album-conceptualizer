@@ -167,70 +167,74 @@ function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
   const chars = graph.characters;
   const motifs = graph.motifs;
   const edges = graph.edges.slice(0, 120);
-  const row = 34;
-  const padY = 26;
-  const viewW = 800;
-  const viewH = Math.max(chars.length, motifs.length) * row + padY * 2;
-  const leftX = 220;
-  const rightX = 580;
-  const yForIndex = (idx: number) => padY + idx * row + row / 2;
-  const charY = new Map(chars.map((c, i) => [c.name, yForIndex(i)] as const));
-  const motifY = new Map(motifs.map((m, i) => [m.name, yForIndex(i)] as const));
+  // Labels are HTML in rem-tall rows, so they grow with the reader's text size and never overlap;
+  // the SVG between the two columns only draws the lines, in row units stretched to the rows'
+  // real height. Chromium doesn't force SVG colours in forced-colors mode, so the lines and the
+  // markers name system colours there themselves.
+  const rows = Math.max(chars.length, motifs.length);
+  const charIndex = new Map(chars.map((c, i) => [c.name, i] as const));
+  const motifIndex = new Map(motifs.map((m, i) => [m.name, i] as const));
+  const label = "line-clamp-2 min-w-0 break-words text-sm leading-tight text-ink";
 
   return (
     <div className="flex flex-col gap-4">
       <TableScroller label="Character and motif map">
-        <svg
-          viewBox={`0 0 ${viewW} ${viewH}`}
-          className="w-full min-w-[640px] max-w-[880px]"
+        <div
           role="img"
           aria-label="Which characters appear on tracks with which motifs"
+          className="flex w-full min-w-[36rem] max-w-[55rem]"
         >
-          {edges.map((edge) => {
-            const y1 = charY.get(edge.character);
-            const y2 = motifY.get(edge.motif);
-            if (!y1 || !y2) return null;
-            return (
-              <line
-                key={`${edge.character}::${edge.motif}`}
-                x1={leftX}
-                y1={y1}
-                x2={rightX}
-                y2={y2}
-                className="stroke-ink-3"
-                strokeWidth={Math.min(5, 1 + edge.weight)}
-                strokeOpacity={Math.min(0.9, 0.35 + edge.weight * 0.15)}
-                vectorEffect="non-scaling-stroke"
-              >
-                <title>
-                  {`${edge.character} and ${edge.motif}: tracks ${edge.trackNumbers.join(", ")}`}
-                </title>
-              </line>
-            );
-          })}
-          {chars.map((c) => {
-            const y = charY.get(c.name) ?? 0;
-            return (
-              <g key={`c-${c.name}`}>
-                <circle cx={leftX} cy={y} r={6} className="fill-ink" />
-                <text x={leftX - 16} y={y + 5} fontSize={16} textAnchor="end" className="fill-ink">
+          <ul className="min-w-0 flex-1">
+            {chars.map((c) => (
+              <li key={`c-${c.name}`} className="flex h-11 items-center justify-end gap-3">
+                <span className={`${label} text-right`} title={c.name}>
                   {c.name}
-                </text>
-              </g>
-            );
-          })}
-          {motifs.map((m) => {
-            const y = motifY.get(m.name) ?? 0;
-            return (
-              <g key={`m-${m.name}`}>
-                <rect x={rightX - 6} y={y - 6} width={12} height={12} className="fill-ink-2" />
-                <text x={rightX + 16} y={y + 5} fontSize={16} textAnchor="start" className="fill-ink">
+                </span>
+                <span className="size-3 shrink-0 rounded-full bg-ink forced-colors:bg-[CanvasText]" />
+              </li>
+            ))}
+          </ul>
+          <div className="relative min-w-[10rem] flex-[1.6]">
+            <svg
+              viewBox={`0 0 100 ${rows}`}
+              preserveAspectRatio="none"
+              className="absolute inset-0 h-full w-full overflow-visible"
+            >
+              {edges.map((edge) => {
+                const from = charIndex.get(edge.character);
+                const to = motifIndex.get(edge.motif);
+                if (from === undefined || to === undefined) return null;
+                return (
+                  <line
+                    key={`${edge.character}::${edge.motif}`}
+                    x1={0}
+                    y1={from + 0.5}
+                    x2={100}
+                    y2={to + 0.5}
+                    className="stroke-ink-3 forced-colors:stroke-[CanvasText]"
+                    strokeWidth={Math.min(5, 1 + edge.weight)}
+                    strokeOpacity={Math.min(0.9, 0.35 + edge.weight * 0.15)}
+                    vectorEffect="non-scaling-stroke"
+                  >
+                    <title>
+                      {`${edge.character} and ${edge.motif}: tracks ${edge.trackNumbers.join(", ")}`}
+                    </title>
+                  </line>
+                );
+              })}
+            </svg>
+          </div>
+          <ul className="min-w-0 flex-1">
+            {motifs.map((m) => (
+              <li key={`m-${m.name}`} className="flex h-11 items-center gap-3">
+                <span className="size-3 shrink-0 bg-ink-2 forced-colors:bg-[CanvasText]" />
+                <span className={label} title={m.name}>
                   {m.name}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </TableScroller>
       {graph.edges.length > CONNECTIONS_SHOWN ? (
         <details>

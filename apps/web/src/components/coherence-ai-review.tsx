@@ -171,7 +171,7 @@ export function CoherenceAiReview({
               onConfirm={start}
               busy={isBusy}
             >
-              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+              {isBusy ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
               {buttonLabel}
             </ConfirmSpend>
           </span>
