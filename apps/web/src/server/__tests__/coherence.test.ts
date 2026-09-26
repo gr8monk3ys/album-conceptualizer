@@ -472,16 +472,17 @@ describe("each dimension's own signal while the cap holds", () => {
     expect(breakdown(report, "harmony").signal).toBe("3 of 3 written tracks have chords of their own");
     expect(breakdown(report, "narrative").uncapped).toBe(82);
     expect(breakdown(report, "narrative").signal).toBe("0 of 3 written tracks have a story note");
-    expect(breakdown(report, "lyrics").signal).toBe("3 of 3 written tracks have a chorus");
+    // Its three written tracks have verses only: the empty choruses don't count.
+    expect(breakdown(report, "lyrics").signal).toBe("0 of 3 written tracks have a written chorus");
     expect(breakdown(report, "motifs").signal).toBe("1 motif comes back on a second track");
   });
 
   it("orders dimensions weakest first by their own value, ties in report order", () => {
     expect(dimensionsWeakestFirst(report.breakdown).map((item) => item.key)).toEqual([
       "narrative",
+      "lyrics",
       "sequence",
       "motifs",
-      "lyrics",
       "harmony",
     ]);
     expect(weakestDimension(report).key).toBe("narrative");
@@ -622,5 +623,33 @@ describe("an unreadable album", () => {
     expect(report.insufficient).toBe(true);
     expect(report.score).toBe(0);
     expect(report.summary).not.toMatch(/schema|json|payload/i);
+  });
+});
+
+describe("a chorus counts once its lyrics are written", () => {
+  // Every track starts with an empty chorus; a verse alone must not make the chorus "done".
+  const versesOnly = album(
+    Array.from({ length: 4 }, (_, index) =>
+      scaffoldSong(index, { verse: `A written verse for track ${index + 1}\nand its second line` }),
+    ),
+  );
+
+  it("doesn't count an empty or placeholder chorus", () => {
+    const report = analyzeAlbumCoherence(versesOnly);
+    expect(breakdown(report, "lyrics").signal).toBe("0 of 4 tracks have a written chorus");
+  });
+
+  it("counts it once the chorus has words", () => {
+    const withChorus = album(
+      Array.from({ length: 4 }, (_, index) =>
+        scaffoldSong(index, {
+          verse: `A written verse for track ${index + 1}`,
+          chorus: index === 0 ? "A chorus that is really written" : undefined,
+        }),
+      ),
+    );
+    expect(breakdown(analyzeAlbumCoherence(withChorus), "lyrics").signal).toBe(
+      "1 of 4 tracks have a written chorus",
+    );
   });
 });

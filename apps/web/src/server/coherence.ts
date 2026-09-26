@@ -473,7 +473,7 @@ function dimensionSignals(
 
   return {
     narrative: `${album.hasConcept ? "" : "No concept summary yet; "}${of(counts.withStory, "has a story note", "have a story note")}`,
-    lyrics: of(total - counts.withoutChorus, "has a chorus", "have a chorus"),
+    lyrics: of(total - counts.withoutChorus, "has a written chorus", "have a written chorus"),
     harmony: `${of(total - counts.missingChords, "has chords of its own", "have chords of their own")}${keyOrTempo}`,
     sequence: album.duplicateTrackNumbers
       ? "Two tracks share a number"
@@ -637,8 +637,11 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       const starterHarmony =
         !hasChords && song.sections.some((section) => !isEmptyProgression(section.chord_progression));
       const hasNarrativeSummary = Boolean(song.narrative_summary?.trim());
+      // A chorus counts once its lyrics are written: every track starts with an empty one, and
+      // placeholders never count as done (CONTEXT.md, "Written").
       const hasChorus = song.sections.some(
-        (section) => section.section_type.trim().toLowerCase() === "chorus",
+        (section) =>
+          section.section_type.trim().toLowerCase() === "chorus" && isWrittenLyrics(section.lyrics),
       );
       const key = typeof song.key === "string" && song.key.trim() ? song.key.trim() : null;
       const tempo = typeof song.tempo === "number" ? song.tempo : null;
@@ -1006,7 +1009,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       severity: "info",
       category: "lyrics",
       title: "Hook structure is still under-defined",
-      detail: `${tracksThat(songsWithoutChorus, songCount, "has", "have")} no chorus section yet.`,
+      detail: `${tracksThat(songsWithoutChorus, songCount, "has", "have")} no written chorus yet.`,
       suggestion: "Add chorus sections where they fit so the album has memorable anchors.",
       relatedTracks: snapshots.filter((song) => !song.hasChorus).map((song) => song.trackNumber),
       trackFocus: "song",
