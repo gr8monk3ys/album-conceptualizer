@@ -6,6 +6,7 @@ import { Check, Minus, Plus } from "lucide-react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
 import { IdeationAi, type BrainstormPatch } from "@/components/ideation-ai";
+import { openingTrackTitle, trackTitlesByPosition } from "@/components/quickstart-track-names";
 import { ReadOnlySpine } from "@/components/read-only-spine";
 import { Button, Chip, Field, IconButton, LiveStatus, Panel, inputClass, textareaClass } from "@/components/ui";
 import { STARTER_PROGRESSIONS } from "@/lib/chords";
@@ -111,8 +112,8 @@ function splitListInput(raw: string): string[] {
     .filter(Boolean);
 }
 
-/** Track titles are one per line: a title may contain a comma. */
-function splitTrackNames(raw: string): string[] {
+/** One entry per line, blank lines dropped (references: an entry may contain a comma). */
+function splitLines(raw: string): string[] {
   return raw
     .split(/\r?\n/g)
     .map((value) => value.trim())
@@ -140,14 +141,15 @@ function ensureDraftAlbumIds(ids: DraftAlbumIds, trackCount: number) {
 
 function buildAlbumJson(input: QuickStartFormState, ids: DraftAlbumIds) {
   const now = new Date().toISOString();
-  const trackNames = splitTrackNames(input.trackNamesRaw);
+  // A blank line keeps its place: that track is untitled and opens as "Track N".
+  const trackNames = trackTitlesByPosition(input.trackNamesRaw, input.trackCount);
   const centralThemes = splitListInput(input.centralThemesRaw);
   // One per line, like track titles: "Blonde, Frank Ocean" is one reference, not two.
-  const referenceAlbums = splitTrackNames(input.referenceAlbumsRaw);
+  const referenceAlbums = splitLines(input.referenceAlbumsRaw);
 
   const songs = Array.from({ length: input.trackCount }, (_, index) => {
     const trackNumber = index + 1;
-    const title = trackNames[index] || `Track ${trackNumber}`;
+    const title = openingTrackTitle(trackNames, index);
     const progression = progressionFor(index);
     const [verseId, chorusId] = ids.sectionIds[index] ?? [newId(), newId()];
 
@@ -216,7 +218,7 @@ function getStepValidity(step: number, form: QuickStartFormState) {
     return Boolean(
       form.narrativeStructure ||
         splitListInput(form.centralThemesRaw).length > 0 ||
-        splitTrackNames(form.referenceAlbumsRaw).length > 0,
+        splitLines(form.referenceAlbumsRaw).length > 0,
     );
   }
 
@@ -491,7 +493,7 @@ function QuickStartStepFields({
       <Field
         label="Track titles (optional)"
         htmlFor="quickstart-track-names"
-        hint="One per line, in running order. Tracks without a title are called Track 1, Track 2 and so on."
+        hint="One per line, in running order. Leave a line empty to skip a track: a track without a title is called by its number, like Track 3."
       >
         <textarea
           id="quickstart-track-names"
@@ -519,7 +521,7 @@ function BlueprintPreview({
   const spineThemes = Array.from(new Map(themes.map((theme) => [theme.toLowerCase(), theme])).values()).slice(0, 6);
   const previewRows: SpineRow[] = Array.from({ length: form.trackCount }, (_, index) => ({
     trackNumber: index + 1,
-    title: trackNames[index] || `Track ${index + 1}`,
+    title: openingTrackTitle(trackNames, index),
     sections: 2,
     lyricSections: 0,
     themes: 0,
@@ -568,30 +570,34 @@ function BlueprintPreview({
         ) : null}
       </div>
 
-      {spineThemes.length ? (
-        // The spine the album will open with: every theme still to be tagged, every lyric
-        // still to write. The artist fills it in the Studio.
-        <div className="mt-6">
-          <h3 className="mb-2 text-sm font-semibold text-ink">Sequence</h3>
+      {/* The sequence the album will open with, headed as the album screens head it: with
+          themes, the spine (every theme still to be tagged, every lyric still to write); without,
+          the numbered titles. The artist fills it in the Studio. */}
+      <div className="mt-6">
+        <h3 id="blueprint-sequence-title" className="mb-2 text-sm font-semibold text-ink">
+          Sequence
+        </h3>
+        {spineThemes.length ? (
           <ReadOnlySpine rows={previewRows} themes={spineThemes} />
-        </div>
-      ) : (
-        <ol className="mt-6 border-t border-line" aria-label="Tracklist">
-          {previewRows.map((row) => {
-            const named = Boolean(trackNames[row.trackNumber - 1]);
-            return (
-              <li key={row.trackNumber} className="flex min-h-11 items-baseline gap-3 border-b border-line py-2.5">
-                <span className="type-figure w-6 shrink-0 text-sm font-semibold text-ink-3">
-                  {pad(row.trackNumber)}
-                </span>
-                <span className={cn("min-w-0 break-words text-sm", named ? "text-ink" : "text-ink-3")}>
-                  {row.title}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-      )}
+        ) : (
+          <ol className="border-t border-line" aria-labelledby="blueprint-sequence-title">
+            {previewRows.map((row) => {
+              // An untitled position (no line, or a blank one) reads as its number, in Ash Ink.
+              const named = Boolean(trackNames[row.trackNumber - 1]);
+              return (
+                <li key={row.trackNumber} className="flex min-h-11 items-baseline gap-3 border-b border-line py-2.5">
+                  <span className="type-figure w-6 shrink-0 text-sm font-semibold text-ink-3">
+                    {pad(row.trackNumber)}
+                  </span>
+                  <span className={cn("min-w-0 break-words text-sm", named ? "text-ink" : "text-ink-3")}>
+                    {row.title}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
       <p className="mt-3 max-w-[65ch] text-xs leading-relaxed text-ink-3">
         Every track opens with an empty verse and chorus over a starter chord loop, there only so
         you can hear it right away; it doesn&apos;t count as written.
@@ -663,7 +669,10 @@ export function QuickStartComposer({
     return buildAlbumJson(form, draftIdsRef.current);
   }, [form]);
 
-  const trackNames = useMemo(() => splitTrackNames(form.trackNamesRaw), [form.trackNamesRaw]);
+  const trackNames = useMemo(
+    () => trackTitlesByPosition(form.trackNamesRaw, form.trackCount),
+    [form.trackNamesRaw, form.trackCount],
+  );
   const currentStep = WIZARD_STEPS[step] ?? WIZARD_STEPS[0];
   const lastStep = WIZARD_STEPS.length - 1;
 

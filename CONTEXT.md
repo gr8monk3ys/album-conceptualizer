@@ -33,6 +33,10 @@ _Avoid_: recurring motifs as a separate list, callbacks (a callback is a motif c
 **Written**:
 A Section's lyrics are written once anything is left after removing "[…]" placeholders (`lib/lyrics.ts`); its chords are written once they differ from the starter loop the setup writes (`lib/chords.ts`). Placeholders and the starter loop never count as done, anywhere a count is shown.
 
+**Sequence**:
+The album's Songs in running order, as a track sheet: the spine on every album screen, the Studio's list and the blueprint preview are all headed "Sequence".
+_Avoid_: tracklist, track list (the create wizard's step is still named "Tracklist")
+
 **Section**:
 A part of a Song (verse, chorus, bridge…) carrying lyrics, chords and its narrative function.
 

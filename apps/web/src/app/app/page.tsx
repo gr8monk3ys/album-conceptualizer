@@ -1,11 +1,12 @@
 import Link from "next/link";
 
-import { AlbumList, CatalogItems, albumStatusLabel, toAlbumListItem } from "@/components/album-card";
+import { AlbumList, CatalogItems, ProgressLine, albumStatusLabel, toAlbumListItem } from "@/components/album-card";
 import { RelativeTime } from "@/components/relative-time";
 import { ButtonLink, EmptyState, PageHeader, Section } from "@/components/ui";
+import { albumCatalogStatus } from "@/lib/album-skip";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
-import { albumProgressById } from "@/server/album-progress";
-import { getSpineRows, nextAlbumStep } from "@/server/album-songs";
+import { albumProgress, albumProgressById } from "@/server/album-progress";
+import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum, listAlbums } from "@/server/albums";
 import { getDailyChallenge } from "@/server/challenges";
 import { requireUser } from "@/server/identity";
@@ -20,10 +21,6 @@ export const metadata = {
 /** Other albums shown under Continue; the Library has the full catalog. */
 const OTHERS_LIMIT = 4;
 
-function fraction(count: number, total: number) {
-  return `${count}/${total}`;
-}
-
 /**
  * Home is for picking the work back up: the album you edited last with its next step, a
  * few other albums in progress, and today's writing challenge. The Library is the catalog;
@@ -34,7 +31,9 @@ export default async function AppHomePage() {
   const workspace = await getActiveWorkspaceForUser(userId);
   const albums = await listAlbums(workspace.id);
   const latest = albums[0] ? await getAlbum(workspace.id, albums[0].id) : null;
-  const latestRows = latest ? getSpineRows(latest.data) : [];
+  // Where the latest album stands, told as every catalog row and the Coherence report tell it
+  // (the One Score Story: "4 of 6 tracks written · Unfinished", then both scores).
+  const latestProgress = latest ? albumProgress(latest.data) : null;
   // The same next step the album's release header shows, so the two never disagree.
   const step = latest ? nextAlbumStep(latest.id, latest.data) : null;
   const stepTitle = step?.trackTitle ?? null;
@@ -48,16 +47,8 @@ export default async function AppHomePage() {
   const others = otherAlbums.map((album) => ({ ...toAlbumListItem(album), progress: otherProgress.get(album.id) }));
   const { challenge } = getDailyChallenge();
 
-  // Where the latest album stands, counted the way the spine and the handoff pack count it
-  // (lib/lyrics): a track's lyrics are written once any of its sections has words of its own.
-  const total = latestRows.length;
-  const progress = total
-    ? [
-        { label: "Lyrics written", value: latestRows.filter((row) => row.lyricSections > 0).length },
-        { label: "Themes tagged", value: latestRows.filter((row) => row.themes > 0).length },
-        { label: "Story notes", value: latestRows.filter((row) => row.hasNarrative).length },
-      ]
-    : [];
+  const total = latestProgress?.tracks ?? 0;
+  const story = latestProgress?.story ?? null;
 
   return (
     <div className="flex flex-col gap-10">
@@ -93,27 +84,18 @@ export default async function AppHomePage() {
                     <span key="tracks" className="type-figure">
                       {total} {total === 1 ? "track" : "tracks"}
                     </span>,
-                    albumStatusLabel(latest.status),
+                    // "On Discover" for a published album, as the Library row and the album's
+                    // own catalog line say it.
+                    albumCatalogStatus(latest, albumStatusLabel),
                     <span key="edited">
                       Edited <RelativeTime date={latest.updatedAt.toISOString()} />
                     </span>,
                   ]}
                 />
               </p>
-              {progress.length ? (
-                <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
-                  {progress.map((item) => (
-                    <div key={item.label} className="flex min-w-0 items-baseline gap-2">
-                      <dt className="type-catalog text-xs text-ink-3">{item.label}</dt>
-                      <dd className="type-figure text-sm font-semibold text-ink">
-                        <span aria-hidden="true">{fraction(item.value, total)}</span>
-                        <span className="sr-only">
-                          {item.value} of {total} {total === 1 ? "track" : "tracks"}
-                        </span>
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+              {/* The One Score Story, in the words and order of the Library rows below. */}
+              {total && story ? (
+                <ProgressLine story={story} className="mt-4" />
               ) : null}
               <p className="mt-4 max-w-[65ch] break-words text-base text-ink">
                 {step.statement}

@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { DiscoverAlbumCard } from "@/components/discover-album-card";
+import { DiscoverFilters } from "@/components/discover-filters";
 import { SubmitOnChangeSelect } from "@/components/submit-on-change-select";
 import { Button, ButtonLink, EmptyState, Field, PageHeader, inputClass, selectClass } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -22,6 +23,7 @@ import {
   widenViewHref,
   type DiscoverView,
 } from "@/lib/discover";
+import { discoverFilterSummary, hasActiveDiscoverFilters } from "@/lib/discover-filters";
 import { cn } from "@/lib/utils";
 import { getSpineRows, getSpineThemes } from "@/server/album-songs";
 import { getPrisma } from "@/server/db";
@@ -168,9 +170,12 @@ export default async function DiscoverPage({
       <div className="flex flex-col gap-3">
         {/* One GET form for the whole view, so every view is its own URL: the search, one Sort
             and one Show select (and the genre once there is more than one). A select applies
-            as soon as it changes; without JavaScript, Search applies everything. Stacked on a
-            narrow column, side by side once the row has room (rem, so enlarged text stacks). */}
-        <Form action="/app/discover" role="search" aria-label="Published albums search" className="@container">
+            as soon as it changes; without JavaScript, Search applies everything. A size
+            container: below 40rem (a phone, enlarged text) the selects fold into a "Filters"
+            disclosure that names their settings, so the list starts in the first screen;
+            stacked in a narrow column, side by side once the row has room (rem, so enlarged
+            text stacks). */}
+        <Form action="/app/discover" role="search" aria-label="Published albums search" className="@container/filters">
           <div className="flex flex-wrap items-end gap-3">
             <Field htmlFor="discover-q" label="Search published albums" className="min-w-0 flex-[1_1_16rem]">
               <input
@@ -188,12 +193,13 @@ export default async function DiscoverPage({
               Search
             </Button>
           </div>
-          <div
-            className={cn(
-              "mt-3 grid grid-cols-1 gap-3 @md:grid-cols-2",
-              showGenre ? "@3xl:grid-cols-3" : "@3xl:max-w-[36rem]",
-            )}
-          >
+          <DiscoverFilters summary={discoverFilterSummary(view)} defaultOpen={hasActiveDiscoverFilters(view)}>
+            <div
+              className={cn(
+                "grid grid-cols-1 gap-3 @md:grid-cols-2",
+                showGenre ? "@3xl:grid-cols-3" : "@3xl:max-w-[36rem]",
+              )}
+            >
               <Field htmlFor="discover-sort" label="Sort" className="min-w-0">
                 <SubmitOnChangeSelect
                   id="discover-sort"
@@ -244,7 +250,8 @@ export default async function DiscoverPage({
                   </SubmitOnChangeSelect>
                 </Field>
               ) : null}
-          </div>
+            </div>
+          </DiscoverFilters>
         </Form>
 
         <p className="max-w-[65ch] break-words text-sm text-ink-2" aria-live="polite">

@@ -136,7 +136,7 @@ export function sameTrackListProps(prev: TrackListProps, next: TrackListProps): 
  * track is in the page flow; beside the editor the list sticks and scrolls on its own, and
  * says how many rows are out of view.
  *
- * In one column the list folds into a disclosure ("Tracks · 04 of 10 · Track 4", `open` /
+ * In one column the list folds into a disclosure ("Sequence · 04 of 10 · Track 4", `open` /
  * `onOpenChange`, remembered by the Studio for the session), so the current track's editor
  * follows straight after it instead of screens further down. Beside the editor it is always open.
  *
@@ -303,7 +303,7 @@ function TrackListView({
               <span className="type-figure min-w-0 break-words">{tracksSummary(songs[activeSafe], songs.length)}</span>
             </button>
           ) : null}
-          <span className={cn(folds && "hidden @2xl:inline")}>Tracks</span>
+          <span className={cn(folds && "hidden @2xl:inline")}>Sequence</span>
         </h2>
         {/* Folded, the list's own actions fold with it; the editor offers Add track too. */}
         <Button tone="ghost" onClick={onAddTrack} className={cn(folds && !open && "@max-2xl:hidden")}>
@@ -320,7 +320,7 @@ function TrackListView({
         // when enlarged text leaves no room, and on its own beside the editor.
         <TableScroller
           ref={scrollRef}
-          label="Track list"
+          label="Tracks in sequence"
           className="mt-1 min-h-0 border-b border-line focus-visible:-outline-offset-2 [@media(min-height:31.3125em)]:@2xl:flex-1 [@media(min-height:31.3125em)]:@2xl:overflow-y-auto"
         >
           <table

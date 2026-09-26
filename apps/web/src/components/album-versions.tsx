@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { RelativeTime } from "@/components/relative-time";
+import { versionSavedText } from "@/components/studio/studio-model";
 import { Button, EmptyState, Field, LiveStatus, Panel, Section, inputClass } from "@/components/ui";
 import { useReturnFocus } from "@/components/use-return-focus";
 import { beforeRestoringDate } from "@/lib/version-labels";
@@ -77,7 +78,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
       });
       if (!res.ok) throw new Error(await errorFrom(res, "The version wasn't saved. Try again in a moment."));
       setMessage("");
-      setSaveStatus({ tone: "ok", text: "Version saved." });
+      setSaveStatus({ tone: "ok", text: versionSavedText(trimmed) });
       router.refresh();
     } catch (err) {
       setSaveStatus({
@@ -161,14 +162,14 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                 {isSaving ? "Saving…" : "Save version"}
               </Button>
               {/* An unavailable button says why, where the eye already is. */}
-              {/* Not beside "Version saved.": the field clears after a save, and the reason is
+              {/* Not beside "Saved “…” as a version.": the field clears after a save, and the reason is
                   only news once someone starts naming the next one. */}
               {named || saveStatus?.tone === "ok" ? null : (
                 <p id="version-save-reason" className="min-w-0 text-sm text-ink-3">
                   Name the version to save it.
                 </p>
               )}
-              {/* Always mounted, so "Version saved." is announced when it arrives. */}
+              {/* Always mounted, so the save ("Saved “First pass” as a version.") is announced once, when it arrives. */}
               <LiveStatus message={saveStatus?.text ?? null} tone={saveStatus?.tone} />
             </div>
           </form>

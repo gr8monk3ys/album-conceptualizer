@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 
 import { CatalogItems, albumStatusLabel } from "@/components/album-card";
 import { AlbumCatalogLink } from "@/components/album-catalog-link";
-import { AlbumBody, AlbumNav, AlbumNextAction, AlbumSkipLink } from "@/components/album-nav";
-import { AlbumSpine } from "@/components/album-spine";
+import { AlbumFrameBody } from "@/components/album-frame-body";
+import { AlbumNav, AlbumNextAction, AlbumSkipLink } from "@/components/album-nav";
 import { RelativeTime } from "@/components/relative-time";
 import { ReleaseTitle } from "@/components/release-title";
 import { albumCatalogStatus } from "@/lib/album-skip";
@@ -124,16 +124,11 @@ export default async function AlbumLayout({
         <AlbumNextAction albumId={album.id} step={{ action: step.action, href: step.href }} />
       </header>
       <AlbumNav albumId={album.id} />
-      <AlbumBody
-        trackCount={rows.length}
-        themeCount={themes.length}
-        spine={<AlbumSpine albumId={album.id} rows={rows} themes={themes} />}
-        compactSpine={
-          <AlbumSpine albumId={album.id} rows={rows} themes={themes} heading={false} idPrefix="album-spine-compact" />
-        }
-      >
+      {/* The spine for the page being shown: on the Story bible without its theme columns,
+          which the page's own Theme map shows. */}
+      <AlbumFrameBody albumId={album.id} rows={rows} themes={themes}>
         {children}
-      </AlbumBody>
+      </AlbumFrameBody>
     </div>
   );
 }

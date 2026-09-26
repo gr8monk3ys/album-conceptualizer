@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -58,6 +58,8 @@ import {
   SECTION_TYPES,
   albumFrameKey,
   albumProblem,
+  keepaliveFits,
+  versionSavedText,
   applyProgressionToType,
   batchChordsSummary,
   buildNewSection,
@@ -183,6 +185,9 @@ function arrivalText(arrival: AlbumStudioProps["arrival"], credits: number | und
   return `Remixed into your workspace · ${credits} ${credits === 1 ? "credit" : "credits"} left`;
 }
 
+/** The save bar's Retry, after a failed save. */
+const RETRY_SAVE_ID = "studio-retry-save";
+
 /** A preview's status, shown beside the control that asked for it (the track's or the section's). */
 type PreviewNote = {
   scope: "track" | "section";
@@ -259,8 +264,13 @@ const VERSION_FORM_ID = "studio-version-form";
 const PREVIEW_CHORD_LIMIT = 128;
 
 const AUTOSAVE_DELAY_MS = 2000;
-/** Adding, deleting or moving a track saves almost at once, so the header and spine follow. */
-const STRUCTURAL_SAVE_DELAY_MS = 400;
+/**
+ * Adding, deleting or moving a track or section saves at once (on the next task, so a run of
+ * edits in one event is one save): the header and spine follow, and a reload a moment later
+ * already finds the change on the server instead of racing the page's own last-chance save.
+ */
+const STRUCTURAL_SAVE_DELAY_MS = 0;
+
 /** How long "Saved." stays after an explicit save before the relative time returns. */
 const SAVED_FLASH_MS = 4000;
 
@@ -408,7 +418,7 @@ function useAlbumStudioRender({
   const [pendingFocus, setPendingFocus] = useState<PendingFocus | null>(() =>
     initialTarget ? arrivalFocus(initialTarget) : null,
   );
-  // In one column the track list folds into "Tracks · 04 of 10 · …" (remembered for the session).
+  // In one column the track list folds into "Sequence · 04 of 10 · …" (remembered for the session).
   const [tracksOpen, setTracksOpen] = useTracksOpen();
   const [storyOpen, setStoryOpen] = useState(() => initialTarget?.opens === "story");
   const [detailsOpen, setDetailsOpen] = useState(() => initialTarget?.opens === "details");
@@ -432,6 +442,8 @@ function useAlbumStudioRender({
   const queuedRef = useRef<SaveMode | null>(null);
   // The save in flight, so leaving the Studio can wait for it before saving what's left.
   const inFlightRef = useRef<Promise<boolean> | null>(null);
+  // The revision a keepalive save in flight carries: leaving then needs no second copy of it.
+  const keepaliveRevisionRef = useRef<number | null>(null);
   const dirtyRef = useRef(false);
   const frameKeyRef = useRef(albumFrameKey(album));
   const structuralRef = useRef(false);
@@ -639,6 +651,20 @@ function useAlbumStudioRender({
     setNavAnnouncement("Undo is no longer available.");
   });
 
+  // Below 22em an offer lies over the save bar's actions, which hide under it. Should one of
+  // them hold focus then (Save now, whose save just failed), focus moves to the offer's own
+  // button before the frame is painted, so it is never left on nothing.
+  const saveActionsRef = useRef<HTMLDivElement>(null);
+  const retryOffered = Boolean(saveError && !saving);
+  const anyOffer = retryOffered || Boolean(undo);
+  useLayoutEffect(() => {
+    const group = saveActionsRef.current;
+    const active = document.activeElement;
+    if (!anyOffer || !group || !(active instanceof HTMLElement) || !group.contains(active)) return;
+    if (getComputedStyle(group).visibility !== "hidden") return;
+    document.getElementById(retryOffered ? RETRY_SAVE_ID : "studio-undo")?.focus();
+  }, [anyOffer, retryOffered]);
+
   /** Where focus goes when Undo lapses under it: the affected track's or section's row. */
   function undoLapseFocusId(entry: UndoEntry): string {
     if (entry.kind === "track") {
@@ -672,6 +698,8 @@ function useAlbumStudioRender({
   function sendKeepaliveSave() {
     const snapshot = albumRef.current;
     if (albumProblem(snapshot)) return;
+    // A save already on its way with these very edits outlives the page by itself.
+    if (keepaliveRevisionRef.current === revisionRef.current) return;
     try {
       void fetch(`/api/albums/${albumId}`, {
         method: "PATCH",
@@ -714,11 +742,17 @@ function useAlbumStudioRender({
     setSavingMode(mode);
     setSaveError(null);
     if (mode !== "auto") setSavedFlash(null);
+    const body = JSON.stringify({ album: snapshot, versionMessage: message });
+    // Sent with keepalive when the browser allows its size, so a reload or a closed tab
+    // while it is on its way doesn't cancel it (a delete, then an at-once reload).
+    const keepalive = keepaliveFits(body);
+    if (keepalive) keepaliveRevisionRef.current = revision;
     try {
       const response = await fetch(`/api/albums/${albumId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ album: snapshot, versionMessage: message }),
+        body,
+        keepalive,
       });
       if (!response.ok) {
         throw new Error(await readApiError(response, "Something went wrong on our side."));
@@ -730,7 +764,7 @@ function useAlbumStudioRender({
       if (mode !== "auto") {
         // Saved, but honestly: chords the exports can't read are said with it.
         const unreadable = unreadableChordsOnAlbum(snapshot.songs).count;
-        const saved = mode === "version" ? "Saved as a new version." : "Saved.";
+        const saved = mode === "version" ? versionSavedText(message) : "Saved.";
         setSavedFlash(unreadable ? `${saved} ${unreadableChordsStatus(unreadable)}.` : saved);
       }
       // The album's shared frame (release header, track count, spine on the other tabs) is
@@ -752,6 +786,7 @@ function useAlbumStudioRender({
       );
       return false;
     } finally {
+      if (keepaliveRevisionRef.current === revision) keepaliveRevisionRef.current = null;
       savingRef.current = false;
       setSaving(false);
       const queued = queuedRef.current;
@@ -965,6 +1000,7 @@ function useAlbumStudioRender({
   function addSection() {
     const index = sections.length;
     const added = buildNewSection(index);
+    structuralRef.current = true;
     updateSections(activeSong?.id, (list) => [...list, added]);
     setSelection({ song: songIndex, section: index });
     setPendingFocus({ id: "section-lyrics", scroll: "nearest" });
@@ -975,6 +1011,7 @@ function useAlbumStudioRender({
   function deleteSection(index: number) {
     const section = sections[index];
     if (!activeSong?.id || !section) return;
+    structuralRef.current = true;
     updateSections(activeSong.id, (list) => list.filter((_, i) => i !== index));
     setUndo({ kind: "section", songId: activeSong.id, section, index, label: labels[index] ?? "Section", key: Date.now() });
     setSelection({ song: songIndex, section: Math.max(0, Math.min(index, sections.length - 2)) });
@@ -1414,8 +1451,8 @@ function useAlbumStudioRender({
     ) : null;
 
   // Undo, and Retry after a failed save, lie over the save status (see the save bar).
-  const retryShown = Boolean(saveError && !saving);
-  const offerShown = retryShown || Boolean(undo);
+  const retryShown = retryOffered;
+  const offerShown = anyOffer;
 
   const writeNextLabel = upNext
     ? `${upNext.song === songIndex ? "" : trackPrefix(songs[upNext.song])}${
@@ -1443,41 +1480,74 @@ function useAlbumStudioRender({
         barSticks && "[@media(min-height:31.3125em)]:sticky [@media(min-height:31.3125em)]:top-header-offset",
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-        {/* `relative`: Undo and Retry lie over this column (below), so they never reflow the bar. */}
-        <div className="relative flex min-h-11 min-w-0 flex-1 basis-40 flex-col max-[48em]:basis-32 justify-center">
-          {currentTrack ? (
-            <p className="type-figure truncate text-sm font-semibold text-ink" title={currentTrack}>
-              <span className="sr-only">Track </span>
-              {currentTrack}
+      {/* Below 22em the status shares its row with the actions' icons and is too narrow for
+          an offer's sentence, so there Undo and Retry lie over the whole row (see below). */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 max-[22em]:relative">
+        {/* The status and the keyboard hints share one box, `relative` so Undo and Retry can
+            lie over both (below) and never reflow the bar. It is a size container: the hints
+            show only where the box holds them beside a readable status (rem, so enlarged text
+            counts), so they never squeeze the status or push the actions to another row. */}
+        <div className="@container relative flex min-h-11 min-w-0 flex-1 basis-40 items-center gap-x-3 max-[48em]:basis-32 max-[22em]:static max-[22em]:@container-normal">
+          <div className="flex min-w-0 flex-1 flex-col justify-center">
+            {currentTrack ? (
+              <p className="type-figure truncate text-sm font-semibold text-ink" title={currentTrack}>
+                <span className="sr-only">Track </span>
+                {currentTrack}
+              </p>
+            ) : null}
+            {/* The live and the quiet status never both hold text, so no gap between them. */}
+            <p className={cn("flex min-w-0 flex-wrap items-center text-sm", saveError ? "text-danger" : "text-ink-2")}>
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 flex-none animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              ) : null}
+              <span
+                role="status"
+                className={cn(
+                  "min-w-0 break-words",
+                  savedFlash && !saving && !saveError && "text-ok",
+                  arrivalSpoken && "text-ink",
+                )}
+              >
+                {liveStatus}
+              </span>
+              {quietStatus ? <span className="min-w-0 break-words">{quietStatus}</span> : null}
             </p>
-          ) : null}
-          {/* The live and the quiet status never both hold text, so no gap between them. */}
-          <p className={cn("flex min-w-0 flex-wrap items-center text-sm", saveError ? "text-danger" : "text-ink-2")}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 flex-none animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
-            <span
-              role="status"
+          </div>
+          {/* Keyboard hints: only with a fine pointer, and only where the box has room for them
+              beside a status of about 13rem (Help lists every shortcut). While Undo or Retry is offered
+              they give the offer their room: hidden, but still holding their place, so the bar
+              keeps its height and nothing moves. */}
+          <div className="contents pointer-coarse:hidden">
+            <p
               className={cn(
-                "min-w-0 break-words",
-                savedFlash && !saving && !saveError && "text-ok",
-                arrivalSpoken && "text-ink",
+                "hidden flex-none text-xs text-ink-3 @min-[35rem]:block",
+                offerShown && "invisible",
               )}
             >
-              {liveStatus}
-            </span>
-            {quietStatus ? <span className="min-w-0 break-words">{quietStatus}</span> : null}
-          </p>
+              <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
+              <span className="hidden @min-[46rem]:inline">
+                {" "}
+                · <Kbd>Ctrl Alt Shift PgUp/PgDn</Kbd> move track
+              </span>
+            </p>
+          </div>
           {offerShown ? (
-            // Undo (and Retry after a failed save) are laid over the track and status lines, in
-            // the column's own box, so the bar keeps its height and nothing beside it moves when
+            // Undo (and Retry after a failed save) are laid over the status and the hints, in
+            // the box's own space, so the bar keeps its height and nothing beside it moves when
             // one appears or lapses. The line beside them says what they are about: the failed
             // save's reason (already spoken by the status above, so hidden from it here), or
-            // what Undo would put back.
-            <div {...undoWindow.groupProps} className="absolute inset-0 flex min-w-0 items-center gap-x-2 bg-ground text-sm">
+            // what Undo would put back, in full: never clamped, so a track's name is never cut.
+            // It has the status's and the hints' width, one line on a laptop (below 22em, the
+            // whole first row's, the actions hidden under it meanwhile, not Write next on the
+            // row below); where a narrow bar needs a third line the overlay grows down over the
+            // page rather than cutting it (still without moving anything).
+            <div
+              {...undoWindow.groupProps}
+              className="absolute inset-x-0 top-0 flex min-h-full min-w-0 items-center gap-x-2 bg-ground text-sm max-[22em]:min-h-11"
+            >
               <span
                 id={retryShown ? undefined : "studio-undo-text"}
-                className={cn("line-clamp-2 min-w-0 flex-1 break-words", retryShown ? "text-danger" : "text-ink")}
-                title={retryShown ? (saveError ?? undefined) : undo ? undoText(undo) : undefined}
+                className={cn("min-w-0 break-words", retryShown ? "text-danger" : "text-ink")}
                 aria-hidden={retryShown ? true : undefined}
               >
                 {retryShown ? saveError : undo ? undoText(undo) : null}
@@ -1488,7 +1558,13 @@ function useAlbumStudioRender({
                 </span>
               ) : null}
               {retryShown ? (
-                <Button tone="secondary" className="flex-none" onClick={() => void save("manual")} aria-label="Retry save">
+                <Button
+                  id={RETRY_SAVE_ID}
+                  tone="secondary"
+                  className="flex-none"
+                  onClick={() => void save("manual")}
+                  aria-label="Retry save"
+                >
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   Retry
                 </Button>
@@ -1509,24 +1585,13 @@ function useAlbumStudioRender({
             </div>
           ) : null}
         </div>
-        <div className="contents pointer-coarse:hidden">
-          <p className="hidden min-w-0 text-xs text-ink-3 lg:block">
-            <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
-            {/* Only where the bar has room for it on the same row (from 85rem the row holds
-                the status, every hint and the actions); Help lists every shortcut. */}
-            <span className="hidden min-[85rem]:inline">
-              {" "}
-              · <Kbd>Ctrl Alt Shift PgUp/PgDn</Kbd> move track
-            </span>
-          </p>
-        </div>
         {/* Help, Save version and Save now stay together as one group, never one left alone on
             a row. Below 48em their names shorten to "Version" and "Save" (the full names kept
             for assistive technology), and the group sits beside the status; below 22em
             (320px, or enlarged text on a phone) only their 44px icons fit, names kept. On a
             phone (coarse pointer) below 48em, Help, which opens the keyboard shortcuts, gives
             its room to them; Help stays in the app's navigation. */}
-        <div className="flex flex-none items-center gap-x-1">
+        <div ref={saveActionsRef} className={cn("flex flex-none items-center gap-x-1", offerShown && "max-[22em]:invisible")}>
           <Link
             href="/app/help#keyboard-title"
             className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded px-3 text-sm font-semibold text-ink-2 transition-colors hover:bg-hover hover:text-ink max-[48em]:px-2.5 max-[48em]:pointer-coarse:hidden"

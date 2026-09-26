@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
 
 import type { AlbumNextStep } from "@/server/album-songs";
@@ -52,7 +55,8 @@ function StepRows({ steps, idPrefix }: { steps: AlbumOnboardingStep[]; idPrefix:
 /**
  * The album's "What's next": ONE next step, the same one the release header's button takes
  * (`nextAlbumStep`), so the Overview never offers two different "next" things. The whole path
- * from blueprint to handoff sits behind "Show all steps", each step ticked from the album
+ * from blueprint to handoff sits behind "Show all 7 steps" ("Hide the steps" while open, and
+ * its expanded state said), each step ticked from the album
  * itself; the blueprint is saved by the time the album exists, so it heads the list instead of
  * counting as a step.
  */
@@ -64,6 +68,7 @@ export function FirstProjectChecklist({
   /** The album's next step, stated; left out where a banner above already says it. */
   step?: Pick<AlbumNextStep, "statement" | "trackTitle"> | null;
 }) {
+  const [open, setOpen] = useState(false);
   return (
     <div className="flex flex-col gap-4">
       {step ? (
@@ -77,8 +82,10 @@ export function FirstProjectChecklist({
         <span className="type-figure font-semibold text-ink">{summary.completeCount}</span> of{" "}
         <span className="type-figure">{summary.totalCount}</span> steps done
       </p>
-      <details>
-        <summary className={DISCLOSURE}>{`Show all ${summary.totalCount} steps`}</summary>
+      <details onToggle={(event) => setOpen(event.currentTarget.open)}>
+        <summary className={DISCLOSURE} aria-expanded={open}>
+          {open ? "Hide the steps" : `Show all ${summary.totalCount} steps`}
+        </summary>
         <div className="mt-3">
           <StepRows steps={summary.steps} idPrefix="step-all" />
         </div>

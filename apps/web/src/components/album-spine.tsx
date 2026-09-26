@@ -231,6 +231,10 @@ export function SpineSheet({
  * every row opens that track in the Studio. The side column widens with the theme count so
  * the heads show names (15rem plus 3rem a theme, `themeHeadClasses`: up to four themes on a
  * laptop, all six in the Sequence disclosure); only the narrowest column falls back to keys.
+ *
+ * `showThemes={false}` leaves the theme columns out (number, title, lyrics and role stay): the
+ * Story bible's Theme map already sets the tracks against the themes, and one screen shows
+ * that relationship once.
  */
 export function AlbumSpine({
   albumId,
@@ -238,6 +242,7 @@ export function AlbumSpine({
   themes,
   heading = true,
   idPrefix = "album-spine",
+  showThemes = true,
 }: {
   albumId: string;
   rows: SpineRow[];
@@ -246,16 +251,23 @@ export function AlbumSpine({
   /** The side column shows a "Sequence" heading; the compact disclosure has its own summary. */
   heading?: boolean;
   idPrefix?: string;
+  /** Theme columns under the theme heads; false where the page has its own theme map. */
+  showThemes?: boolean;
 }) {
   const base = `/app/albums/${albumId}`;
+  const shownThemes = showThemes ? themes : [];
 
   const body = rows.length ? (
     <SpineSheet
       rows={rows}
-      themes={themes}
-      heads={albumSpineHeads(themes.length)}
+      themes={shownThemes}
+      heads={albumSpineHeads(shownThemes.length)}
       rowHref={(trackNumber) => `${base}/studio?song=${trackNumber}`}
-      caption="Tracks in sequence: lyrics written, the album themes each track carries, and whether it has a role in the arc. Select a title to open the track in the Studio."
+      caption={
+        showThemes
+          ? "Tracks in sequence: lyrics written, the album themes each track carries, and whether it has a role in the arc. Select a title to open the track in the Studio."
+          : "Tracks in sequence: lyrics written and whether each track has a role in the arc. Select a title to open the track in the Studio."
+      }
       legendId={`${idPrefix}-theme-keys`}
     />
   ) : (
@@ -281,7 +293,7 @@ export function AlbumSpine({
         </h2>
       ) : null}
       {body}
-      {rows.length && !themes.length ? (
+      {rows.length && showThemes && !themes.length ? (
         <p className="mt-3 max-w-[65ch] text-xs leading-relaxed text-ink-3">
           Name the album&apos;s themes to see which tracks carry them.{" "}
           <Link href={`${base}/studio?focus=album`} className="text-ink-2 underline decoration-line-strong underline-offset-4">

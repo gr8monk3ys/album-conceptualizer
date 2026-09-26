@@ -94,8 +94,22 @@ describe("themeHeadLines: the whole name over its column", () => {
 
   it("hyphenates a long single word at a syllable, choosing the most even pair", () => {
     expect(themeHeadLines("isolation", SLOT)).toEqual({ lines: ["isola-", "tion"], truncated: false });
-    expect(themeHeadLines("memory", SLOT)).toEqual({ lines: ["me-", "mory"], truncated: false });
     expect(themeHeadLines("Heartbreak", SLOT)).toEqual({ lines: ["Heart-", "break"], truncated: false });
+  });
+
+  it("never splits a word of seven letters or fewer: it truncates and the legend names it", () => {
+    // "ME-/MORY" and "SIG-/NAL" read as fragments; the head keeps the word whole.
+    expect(themeHeadLines("memory", SLOT)).toEqual({ lines: ["memory"], truncated: true });
+    // The Studio's narrower head (2.5rem): "signal" no longer fits on one line there.
+    expect(themeHeadLines("signal", 2.5)).toEqual({ lines: ["signal"], truncated: true });
+    expect(themeHeadLines("longing", SLOT)).toEqual({ lines: ["longing"], truncated: true });
+    // Eight letters is long enough to take a hyphen.
+    expect(themeHeadLines("darkness", 2.3).lines).toEqual(["dark-", "ness"]);
+  });
+
+  it("still breaks a short word's name at a space", () => {
+    expect(themeHeadLines("new tides", 2.3).lines).toEqual(["new", "tides"]);
+    expect(themeHeadLines("old signal", SLOT)).toEqual({ lines: ["old", "signal"], truncated: false });
   });
 
   it("prefers a space to a hyphen when both fit", () => {
@@ -122,7 +136,7 @@ describe("hyphenationPoints", () => {
 
   it("breaks before a common suffix", () => {
     expect(hyphenationPoints("longing")).toEqual([4]);
-    expect(themeHeadLines("longing", 2.75).lines).toEqual(["long-", "ing"]);
+    expect(themeHeadLines("longings", 2.75).lines).toEqual(["long-", "ings"]);
   });
 
   it("never splits th, ch, ng or qu, and leaves two letters before and three after", () => {

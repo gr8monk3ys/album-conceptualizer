@@ -169,6 +169,23 @@ export function hyphenationPoints(text: string): number[] {
   return points.sort((a, b) => a - b);
 }
 
+/**
+ * The shortest word a head may hyphenate, in letters. A short word split over two lines
+ * ("ME-/MORY", "SIG-/NAL") reads as two fragments; it truncates instead, and the legend under
+ * the table names it in full.
+ */
+export const MIN_HYPHENATED_WORD_LETTERS = 8;
+
+/** The number of letters in the word around string index `index` (0 when it isn't in a word). */
+function wordLettersAt(text: string, index: number): number {
+  if (!isLetter(text[index])) return 0;
+  let start = index;
+  while (start > 0 && isLetter(text[start - 1])) start -= 1;
+  let end = index;
+  while (end < text.length && isLetter(text[end])) end += 1;
+  return end - start;
+}
+
 export type ThemeHead = {
   /** One or two lines, as set (a hyphen ends the first when the break falls inside a word). */
   lines: string[];
@@ -179,8 +196,10 @@ export type ThemeHead = {
 /**
  * How a theme's name heads a column `widthRem` wide: on one line when it fits, otherwise on
  * two, broken at a space or an existing hyphen when that fits, at a syllable (with a hyphen)
- * when only that does, choosing the most even pair. When not even two lines hold it, the
- * head keeps one truncated line and says so, so the table can show its legend.
+ * when only that does, choosing the most even pair. Only a word of eight letters or more is
+ * hyphenated ("ISOLA-/TION"); a shorter one ("memory", "signal") is never split. When not
+ * even two lines hold the name, the head keeps one truncated line and says so, so the table
+ * can show its legend.
  */
 export function themeHeadLines(theme: string, widthRem: number): ThemeHead {
   const name = theme.trim();
@@ -199,7 +218,10 @@ export function themeHeadLines(theme: string, widthRem: number): ThemeHead {
     if (name[i] === " ") consider(name.slice(0, i).trimEnd(), name.slice(i + 1).trimStart(), 0);
     if (/[-‐–—/]/.test(name[i - 1]) && name[i] !== " ") consider(name.slice(0, i), name.slice(i), 0);
   }
-  for (const i of hyphenationPoints(name)) consider(`${name.slice(0, i)}-`, name.slice(i), 1);
+  for (const i of hyphenationPoints(name)) {
+    if (wordLettersAt(name, i) < MIN_HYPHENATED_WORD_LETTERS) continue;
+    consider(`${name.slice(0, i)}-`, name.slice(i), 1);
+  }
 
   const chosen = best as { lines: string[] } | null;
   return chosen ? { lines: chosen.lines, truncated: false } : { lines: [name], truncated: true };

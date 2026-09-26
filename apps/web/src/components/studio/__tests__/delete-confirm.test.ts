@@ -17,8 +17,8 @@ describe("delete questions name what goes", () => {
 
 describe("tracksSummary", () => {
   it("says where you are in the sequence", () => {
-    expect(tracksSummary({ track_number: 4, title: "Track 4" }, 10)).toBe("Tracks · 04 of 10 · Track 4");
-    expect(tracksSummary({ track_number: 1, title: " " }, 3)).toBe("Tracks · 01 of 03 · Untitled");
-    expect(tracksSummary(undefined, 0)).toBe("Tracks");
+    expect(tracksSummary({ track_number: 4, title: "Track 4" }, 10)).toBe("Sequence · 04 of 10 · Track 4");
+    expect(tracksSummary({ track_number: 1, title: " " }, 3)).toBe("Sequence · 01 of 03 · Untitled");
+    expect(tracksSummary(undefined, 0)).toBe("Sequence");
   });
 });

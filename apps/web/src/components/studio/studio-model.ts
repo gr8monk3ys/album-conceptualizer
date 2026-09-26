@@ -639,6 +639,24 @@ export function albumProblem(album: StudioAlbum): string | null {
 
 export type SaveMode = "auto" | "manual" | "version";
 
+/** The confirmation of a named snapshot, naming it: "Saved “First pass” as a version." */
+export function versionSavedText(note: string | null | undefined): string {
+  const name = note?.trim();
+  return name ? `Saved “${name}” as a version.` : "Saved as a version.";
+}
+
+/**
+ * Saves up to this size go with keepalive, so one in flight survives a reload or a closed tab.
+ * Browsers refuse keepalive bodies over 64 KB (in flight, all together); this leaves headroom.
+ */
+export const KEEPALIVE_BODY_LIMIT = 60_000;
+
+/** Whether a request body is small enough to send with keepalive. */
+export function keepaliveFits(body: string, limit = KEEPALIVE_BODY_LIMIT): boolean {
+  // UTF-8 bytes, not UTF-16 units: an accented lyric line counts for what it weighs.
+  return new TextEncoder().encode(body).length <= limit;
+}
+
 /**
  * What the save bar says, split in two: `live` goes in the one status region and changes
  * only for events (a save the artist asked for, its result, a failure); `quiet` is shown

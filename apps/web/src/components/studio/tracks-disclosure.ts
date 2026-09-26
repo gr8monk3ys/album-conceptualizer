@@ -50,9 +50,12 @@ export function useTracksOpen(): [boolean, (open: boolean) => void] {
 /** The toggle that folds and unfolds the list in one column. */
 export const TRACKS_TOGGLE_ID = "studio-tracks-toggle";
 
-/** "Tracks · 04 of 10 · Track 4": the folded list's summary (where you are in the sequence). */
+/**
+ * "Sequence · 04 of 10 · Track 4": the folded list's summary (where you are in the sequence).
+ * "Sequence", as the album screens' spine and its disclosure say it (the One Term Rule).
+ */
 export function tracksSummary(current: { track_number: number; title?: string | null } | undefined, count: number) {
-  if (!current || !count) return "Tracks";
+  if (!current || !count) return "Sequence";
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `Tracks · ${pad(current.track_number)} of ${pad(count)} · ${current.title?.trim() || "Untitled"}`;
+  return `Sequence · ${pad(current.track_number)} of ${pad(count)} · ${current.title?.trim() || "Untitled"}`;
 }

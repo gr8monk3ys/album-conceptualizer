@@ -108,10 +108,17 @@ export function CatalogItems({ items }: { items: Array<ReactNode | CatalogItem> 
  * The One Score Story, as the Coherence report tells it: "Coherence 3 of 8 tracks written ·
  * Unfinished", then "Written tracks 65/100 · Whole album 25/100" (one score once finished).
  */
-function ProgressLine({ progress }: { progress: NonNullable<AlbumListItem["progress"]> }) {
-  const { headline, scoreLine } = progress.story;
+/** The One Score Story as a catalog line: "Coherence" over the headline, then the scores. */
+export function ProgressLine({
+  story,
+  className = "mt-1.5",
+}: {
+  story: NonNullable<AlbumListItem["progress"]>["story"];
+  className?: string;
+}) {
+  const { headline, scoreLine } = story;
   return (
-    <dl className="mt-1.5 flex min-w-0 flex-wrap items-baseline gap-x-2">
+    <dl className={cn("flex min-w-0 flex-wrap items-baseline gap-x-2", className)}>
       <dt className="type-catalog text-xs text-ink-3">Coherence</dt>
       <dd className="type-figure min-w-0 text-sm text-ink">
         <span className="font-semibold">{headline}</span>
@@ -162,7 +169,7 @@ export function AlbumCard({
               ]}
             />
           </p>
-          {album.progress?.tracks ? <ProgressLine progress={album.progress} /> : null}
+          {album.progress?.tracks ? <ProgressLine story={album.progress.story} /> : null}
         </div>
         <div className="flex items-center justify-between gap-3 @min-[20rem]:justify-end">
           <span className="flex min-w-0 flex-wrap items-center gap-3">
