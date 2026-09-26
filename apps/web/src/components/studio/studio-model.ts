@@ -231,7 +231,7 @@ export function buildNewSection(order: number): StudioSection {
 export function buildNewSong(trackNumber: number): StudioSong {
   return {
     id: newId(),
-    title: `Track ${trackNumber}`,
+    title: defaultTrackTitle(trackNumber),
     track_number: trackNumber,
     key: null,
     tempo: null,
@@ -256,6 +256,29 @@ export function normalizeTrackNumbers<T extends { track_number: number }>(songs:
   return songs.map((song, index) => ({ ...song, track_number: index + 1 }));
 }
 
+/** The name a track gets until the artist writes one: "Track 5" (the setup writes it too). */
+export function defaultTrackTitle(trackNumber: number) {
+  return `Track ${trackNumber}`;
+}
+
+/**
+ * The tracklist renumbered 1…n after a delete, a move, an add or an Undo, keeping each number
+ * and its name in agreement: a track still called by its old default name ("Track 2", trimmed,
+ * exact case, matching its number before the change) takes the default for its new place
+ * ("Track 1"), so "01" is never "Track 2". Titles the artist wrote are never touched.
+ */
+export function renumberTracks<T extends { track_number: number; title?: string | null }>(songs: readonly T[]): T[] {
+  return songs.map((song, index) => {
+    const number = index + 1;
+    if (song.track_number === number) return song;
+    const keepsDefault =
+      typeof song.title === "string" && song.title.trim() === defaultTrackTitle(song.track_number);
+    return keepsDefault
+      ? { ...song, track_number: number, title: defaultTrackTitle(number) }
+      : { ...song, track_number: number };
+  });
+}
+
 // ---------------------------------------------------------------- sequencing
 
 /** A copy of `list` with the item at `from` moved to `to`, or null when either is out of range. */
@@ -267,10 +290,36 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] |
   return next;
 }
 
-/** The tracklist with one track moved a step up (-1) or down (1), renumbered 1…n. */
-export function moveTrack<T extends { track_number: number }>(songs: readonly T[], index: number, dir: -1 | 1): T[] | null {
+/**
+ * The tracklist with one track moved a step up (-1) or down (1), renumbered 1…n; default names
+ * follow their new numbers (`renumberTracks`).
+ */
+export function moveTrack<T extends { track_number: number; title?: string | null }>(
+  songs: readonly T[],
+  index: number,
+  dir: -1 | 1,
+): T[] | null {
   const moved = moveItem(songs, index, index + dir);
-  return moved ? normalizeTrackNumbers(moved) : null;
+  return moved ? renumberTracks(moved) : null;
+}
+
+/** The tracklist without the track at `index`, renumbered, default names following. */
+export function removeTrack<T extends { track_number: number; title?: string | null }>(songs: readonly T[], index: number): T[] {
+  return renumberTracks(songs.filter((_, i) => i !== index));
+}
+
+/**
+ * Undo for `removeTrack`: `song` (as it was when deleted, number and name) back at `index`,
+ * and every other default name back to its number again.
+ */
+export function restoreTrack<T extends { track_number: number; title?: string | null }>(
+  songs: readonly T[],
+  song: T,
+  index: number,
+): T[] {
+  const next = [...songs];
+  next.splice(Math.min(Math.max(0, index), next.length), 0, song);
+  return renumberTracks(next);
 }
 
 /** A track's themes with `theme` added, or removed when it is already there (any casing). */

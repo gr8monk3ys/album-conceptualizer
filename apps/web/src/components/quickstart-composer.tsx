@@ -319,7 +319,7 @@ function QuickStartStepFields({
             value={form.title}
             onChange={(event) => setField("title", event.target.value)}
             className={inputClass}
-            placeholder="e.g. The Last Summer"
+            placeholder="e.g. Tidewater"
             autoComplete="off"
             aria-required="true"
             aria-invalid={titleError ? true : undefined}
@@ -333,7 +333,7 @@ function QuickStartStepFields({
             value={form.artist}
             onChange={(event) => setField("artist", event.target.value)}
             className={inputClass}
-            placeholder="e.g. The Storytellers"
+            placeholder="e.g. Halcyon"
             autoComplete="off"
             aria-describedby="quickstart-artist-hint"
           />
@@ -437,7 +437,13 @@ function QuickStartStepFields({
           <label htmlFor="quickstart-track-count" className="text-sm font-medium text-ink">
             Track count
           </label>
-          <output htmlFor="quickstart-track-count" className="type-figure text-xl font-semibold text-ink">
+          {/* Hidden from assistive tech: <output> is a live status, and the slider already
+              announces its own value, so the count was read twice. */}
+          <output
+            htmlFor="quickstart-track-count"
+            aria-hidden="true"
+            className="type-figure text-xl font-semibold text-ink"
+          >
             {form.trackCount}
           </output>
         </div>
@@ -792,7 +798,11 @@ export function QuickStartComposer({
     // under the form instead of being pushed off-screen.
     <div className="@container">
       <div className="grid grid-cols-1 gap-x-10 gap-y-10 @4xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @4xl:items-start">
-        <Panel className="min-w-0">
+        {/* The side padding follows the column (4% of it, 0.5rem to 1.25rem) rather than the
+            text size: at 320px with 200% text the fixed 1rem padding took 64px and cut the
+            placeholders short ("e.g. The La"); from about 20em of column it is the usual. The
+            md: copy keeps Panel's md:p-5 from putting the fixed padding back. */}
+        <Panel className="min-w-0 px-[clamp(0.5rem,4cqi,1.25rem)] md:px-[clamp(0.5rem,4cqi,1.25rem)]">
           {/* Mounted empty, then filled once the draft is restored after hydration, so the
               restore is announced; Start over sits beside it, outside the live region. */}
           <div className={cn("flex flex-wrap items-center gap-x-1", draft.restored && "-mt-1 mb-3")}>
@@ -857,8 +867,10 @@ export function QuickStartComposer({
 
             {/* One row: Back on the left, the next step on the right. The right column takes
                 the rest of the width, so an open spend confirm wraps inside it (question, then
-                its buttons, right-aligned) instead of stacking under Back. */}
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
+                its buttons, right-aligned) instead of stacking under Back. Bottom-aligned, so
+                Back shares a line with the buttons ("Save and continue", Cancel), not with the
+                question above them. */}
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-3">
               {step > 0 ? (
                 <Button tone="ghost" onClick={goBack}>
                   Back

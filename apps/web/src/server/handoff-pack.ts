@@ -3,7 +3,8 @@ import { trackHasLyrics } from "@/lib/lyrics";
 import { albumMotifIndex } from "@/lib/motifs";
 import { AlbumJsonSchema } from "@/server/album-json";
 import { buildAlbumBible } from "@/server/bible";
-import { analyzeAlbumCoherence, verdictText } from "@/server/coherence";
+import { analyzeAlbumCoherence } from "@/server/coherence";
+import { scoreStory } from "@/lib/score-story";
 import type { AlbumReferenceRecord } from "@/server/references";
 import { analyzeAlbumRoughDemos } from "@/server/rough-demo-review";
 import { getRoughDemoSourceLabel, listAlbumRoughDemos } from "@/server/rough-demos";
@@ -79,7 +80,7 @@ function mdList(values: string[], emptyText: string) {
 }
 
 /** Empty style block: one plain line instead of a column of blanks. */
-export const STYLE_BIBLE_EMPTY_LINE = "Not set yet — add it in the Style bible.";
+export const STYLE_BIBLE_EMPTY_LINE = "Not set yet — add it in the Sound bible.";
 
 /**
  * One "- **Label:** value" line, or nothing when the value is empty: a pack never prints a
@@ -204,7 +205,7 @@ function buildDawObjective(input: {
 
   return lines.length
     ? lines.map((line) => `- ${line}`).join("\n")
-    : "Nothing set for this session yet — add a story note, themes, or Style bible arrangement rules.";
+    : "Nothing set for this session yet — add a story note, themes, or Sound bible arrangement rules.";
 }
 
 function formatSectionOrdinal(order: number) {
@@ -318,14 +319,8 @@ export function buildHandoffPackMarkdown(input: {
     );
   }
   lines.push(
-    `- **Coherence:** ${
-      coherence.insufficient
-        ? "Not scored yet"
-        : coherence.writtenScore !== null
-          ? // Progress first, as the report reads: the capped whole-album score comes second.
-            `${verdictText(coherence.verdict)} · the written tracks score ${coherence.writtenScore}/100 (the whole album ${coherence.score}/100 until the rest are written)`
-          : `${coherence.score}/100 · ${verdictText(coherence.verdict)}`
-    }`,
+    // The same story, in the same order, as every screen that shows the score (One Score Story).
+    `- **Coherence:** ${scoreStory(coherence).text}`,
   );
   if (coherence.nextActions.length) {
     lines.push(
@@ -338,7 +333,7 @@ export function buildHandoffPackMarkdown(input: {
   lines.push("");
 
   const style = bible.styleBible;
-  lines.push("## Style bible");
+  lines.push("## Sound bible");
   lines.push(
     ...block(
       [
@@ -501,8 +496,8 @@ export function buildHandoffPackMarkdown(input: {
   lines.push(
     lineWrap(
       input.target === "daw"
-        ? "Keep the singer perspective, palette, motif callbacks, and mix priorities consistent between sessions. If a track drifts, update the Style bible or References before continuing."
-        : "If a generated track drifts from the album voice, update the Style bible or References first, then regenerate with the revised prompt line instead of treating the song in isolation.",
+        ? "Keep the singer perspective, palette, motif callbacks, and mix priorities consistent between sessions. If a track drifts, update the Sound bible or References before continuing."
+        : "If a generated track drifts from the album voice, update the Sound bible or References first, then regenerate with the revised prompt line instead of treating the song in isolation.",
     ),
   );
   lines.push("");

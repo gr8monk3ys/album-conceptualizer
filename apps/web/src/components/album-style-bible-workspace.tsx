@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import { RelativeTime } from "@/components/relative-time";
@@ -37,7 +39,7 @@ type StyleBibleFormState = {
 
 type StyleBibleBody = ReturnType<typeof buildBody>;
 
-/** The nine sections of a style bible, in the order the form asks for them. */
+/** The nine sections of the Sound bible (`style_bible`), in the order the form asks for them. */
 const SECTIONS: Array<{ key: keyof StyleBibleFormState; label: string }> = [
   { key: "leadVoice", label: "Lead voice brief" },
   { key: "narratorPerspective", label: "Narrator perspective" },
@@ -160,7 +162,7 @@ export function AlbumStyleBibleWorkspace({
             ? "You're signed out. Sign in again in another tab, then retry."
             : typeof data?.error === "string" && data.error.trim()
               ? data.error
-              : "The style bible didn't save. Your text is still here.",
+              : "The Sound bible didn't save. Your text is still here.",
         );
       }
     },
@@ -212,7 +214,7 @@ export function AlbumStyleBibleWorkspace({
               : autosave.status === "error"
                 ? `Unsaved changes — ${autosave.error}`
                 : showExplicit
-                  ? "Style bible saved."
+                  ? "Sound bible saved."
                   : autosave.status === "saved"
                     ? "Saved"
                     : "All changes saved"}
@@ -247,8 +249,19 @@ export function AlbumStyleBibleWorkspace({
   return (
     <Section
       id="style-bible"
-      title="Style bible — how this album should sound"
+      title="Sound bible — how this album should sound"
       description="The lead voice, sonic palette, arrangement rules and mix priorities, in one place. Collaborators and every handoff pack read them from here."
+      actions={
+        // Its twin: the Story bible holds what the album is about.
+        <Link
+          href={`/app/albums/${albumId}/bible`}
+          className="inline-flex min-h-11 min-w-0 items-center gap-1 text-sm font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
+        >
+          What it&apos;s about
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          <span className="sr-only">:</span> Story bible
+        </Link>
+      }
     >
       <div className="@container">
         <div className="grid grid-cols-1 gap-8 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] @3xl:items-start">
@@ -364,10 +377,10 @@ export function AlbumStyleBibleWorkspace({
           </Panel>
           <LeavePrompt
             guard={autosave.leaveGuard}
-            message="Your latest style bible changes didn't save. If you leave now, they'll be lost."
+            message="Your latest Sound bible changes didn't save. If you leave now, they'll be lost."
           />
 
-          <section aria-label="References behind the style bible" className="flex min-w-0 flex-col gap-8">
+          <section aria-label="References behind the Sound bible" className="flex min-w-0 flex-col gap-8">
             <div>
               <h3 className="text-base font-semibold text-ink">Reference roles</h3>
               <p className="mt-1 text-sm text-ink-2">Use the saved references on purpose.</p>
@@ -392,7 +405,7 @@ export function AlbumStyleBibleWorkspace({
             <div>
               <h3 className="text-base font-semibold text-ink">Saved references</h3>
               <p className="mt-1 max-w-[65ch] text-sm text-ink-2">
-                The album&apos;s references informing the style bible.
+                The album&apos;s references informing the Sound bible.
               </p>
               {referenceTargets.length ? (
                 <ul className="mt-3 divide-y divide-line border-y border-line">

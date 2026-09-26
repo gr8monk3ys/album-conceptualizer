@@ -90,7 +90,7 @@ export function buildBibleMarkdown(bible: AlbumBible, generatedAt: Date = new Da
   lines.push("");
 
   const style = bible.styleBible;
-  lines.push("## Style bible");
+  lines.push("## Sound bible");
   lines.push(
     ...block(
       [
@@ -104,13 +104,13 @@ export function buildBibleMarkdown(bible: AlbumBible, generatedAt: Date = new Da
         field("Emotional targets", style.emotional_targets),
         field("Reference strategy", style.reference_strategy),
       ],
-      "Not set yet — add it in the Style bible.",
+      "Not set yet — add it in the Sound bible.",
     ),
   );
   lines.push("");
 
   // As on the Bible page: how the threads hang together. Per-track gaps are the Coherence
-  // report's job, and Style bible gaps show as the block above.
+  // report's job, and Sound bible gaps show as the block above.
   const threads = bible.issues.filter((i) => i.scope === "structure");
   lines.push("## Loose threads");
   lines.push(

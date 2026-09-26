@@ -23,20 +23,20 @@ function song(trackNumber: number, { lyrics, chords }: { lyrics?: string; chords
 }
 
 describe("getAlbumReadiness", () => {
-  it("counts written tracks, starter chords and Style bible fields, each linked to its fix", () => {
+  it("counts written tracks, starter chords and Sound bible fields, each linked to its fix", () => {
     const readiness = getAlbumReadiness("a1", {
       songs: [song(1, { lyrics: "Words" }), song(2), song(3), song(4, { lyrics: "More", chords: ["Am", "E"] })],
     });
     expect(readiness.items.map((item) => [item.label, item.done, item.href])).toEqual([
       ["2 of 4 tracks written", false, "/app/albums/a1/studio?song=2&focus=lyrics"],
       ["Starter chords on 3 tracks", false, "/app/albums/a1/studio?song=1"],
-      ["Style bible 0 of 9 fields", false, "/app/albums/a1/style"],
+      ["Sound bible 0 of 9 fields", false, "/app/albums/a1/style"],
     ]);
     expect(readiness.ready).toBe(false);
     expect(readiness.question).toBe("Publish with 2 of 4 tracks written?");
   });
 
-  it("is ready once every track is written with its own chords and the Style bible is set", () => {
+  it("is ready once every track is written with its own chords and the Sound bible is set", () => {
     const readiness = getAlbumReadiness("a1", {
       title: "City Lights",
       concept_summary: "A record about false exits.",

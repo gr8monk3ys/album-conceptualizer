@@ -27,6 +27,7 @@ import { requireUser } from "@/server/identity";
 import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { scoreStory } from "@/lib/score-story";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +76,7 @@ function findingChip(issue: CoherenceIssue): { label: string; tone: "danger" | "
 }
 
 function fixLabel(fix: CoherenceFix | undefined) {
-  return fix?.focus === "style" ? "Open the Style bible" : "Fix in Studio";
+  return fix?.focus === "style" ? "Open the Sound bible" : "Fix in Studio";
 }
 
 /** What a track link opens, for its accessible name: "Track 3 story note". */
@@ -304,10 +305,13 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
   const dimensions = dimensionsWeakestFirst(report.breakdown);
   const anyHeld = scored && dimensions.some((item) => item.heldBecause);
   const partlyWritten = stats.songsWithLyrics < stats.songCount;
-  // While tracks are unwritten the report leads with the progress and what the written tracks
-  // score; the whole album's score, held down by the cap, comes second.
-  const leadWithProgress = scored && partlyWritten && report.writtenScore !== null;
+  // The One Score Story: progress first while tracks are unwritten, then the written tracks'
+  // score and the whole album's, always in that order (lib/score-story, shared by every page
+  // that shows a score). Once every track is written there is one score.
+  const story = scoreStory(report);
   const unwrittenCount = stats.songCount - stats.songsWithLyrics;
+  const weakest = weakestDimension(report);
+  const topIssue = report.issues[0];
 
   return (
     <div className="flex flex-col gap-10">
@@ -317,49 +321,54 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
         path={`/app/albums/${album.id}/coherence`}
       />
 
-      <Section
-        id="coherence-summary"
-        title="Coherence report"
-        description={scored && !leadWithProgress ? report.summary : undefined}
-      >
-        {leadWithProgress ? (
-          <div className="flex flex-col gap-2">
+      <Section id="coherence-summary" title="Coherence report">
+        {scored ? (
+          <div className="flex flex-col gap-3">
             <p className="type-figure text-base font-semibold text-ink">
-              {stats.songsWithLyrics} of {stats.songCount} tracks written
-              <span className="font-normal text-ink-2"> · {overall.label}</span>
+              {story.progress ? (
+                <>
+                  {story.progress}
+                  {/* Unfinished is progress, not a fault: neutral ink. */}
+                  <span className="font-normal text-ink-2"> · {story.verdict}</span>
+                </>
+              ) : (
+                <span className={VERDICT_CLASS[overall.tone]}>{story.verdict}</span>
+              )}
             </p>
-            <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-              <span className="type-figure text-5xl font-semibold text-ink">
-                {report.writtenScore}
-                <span className="text-lg font-normal text-ink-3">/100</span>
-              </span>
-              <span className="text-base text-ink">
-                The written {stats.songsWithLyrics === 1 ? "track scores" : "tracks score"}{" "}
-                <span className="type-figure">{report.writtenScore}</span>
-              </span>
-            </p>
+            <dl className="flex flex-wrap items-end gap-x-10 gap-y-3">
+              {story.scores.map((figure) => (
+                <div key={figure.label ?? "score"} className="flex min-w-0 flex-col">
+                  <dt className={figure.label ? "type-catalog text-xs text-ink-3" : "sr-only"}>
+                    {figure.label ?? "Overall"}
+                  </dt>
+                  <dd className="type-figure text-5xl font-semibold text-ink">
+                    {figure.value}
+                    <span className="text-lg font-normal text-ink-3">/100</span>
+                  </dd>
+                </div>
+              ))}
+            </dl>
             <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
-              <span className="type-figure">
-                The whole album scores {report.score}/100 for now
-              </span>
-              : no dimension counts above <span className="type-figure">{report.scoreCap}</span> until{" "}
-              {unwrittenCount === 1 ? "the last track has" : `the other ${unwrittenCount} tracks have`} lyrics.
-              On the written ones, {weakestDimension(report).label} is weakest.
+              {partlyWritten ? (
+                <>
+                  The whole album&apos;s score is capped for now: no dimension counts above{" "}
+                  <span className="type-figure">{report.scoreCap}</span> until{" "}
+                  {unwrittenCount === 1 ? "the last track has" : `the other ${unwrittenCount} tracks have`} lyrics.
+                  On the written ones, {weakest.label} is weakest.
+                </>
+              ) : topIssue ? (
+                <>
+                  Weakest area: {weakest.label} (<span className="type-figure">{weakest.score}/100</span>). Top
+                  issue: {topIssue.title}.
+                </>
+              ) : (
+                "The album is structurally coherent across the current draft."
+              )}
             </p>
           </div>
-        ) : scored ? (
-          <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <span className="type-figure text-5xl font-semibold text-ink">
-              {report.score}
-              <span className="text-lg font-normal text-ink-3">/100</span>
-            </span>
-            <span className={`text-base font-semibold ${VERDICT_CLASS[overall.tone]}`}>
-              {overall.label}
-              {overall.detail ? <span className="type-figure font-normal"> · {overall.detail}</span> : null}
-            </span>
-          </p>
         ) : (
           <div className="flex flex-col gap-3">
+            <p className="type-figure text-sm text-ink-2">{story.headline}</p>
             <p className="max-w-[65ch] text-base font-semibold text-ink">{report.summary}</p>
             <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
               Placeholder lines and the starter chord loop don&apos;t count. Still missing:

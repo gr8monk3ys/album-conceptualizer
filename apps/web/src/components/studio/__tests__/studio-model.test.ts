@@ -11,6 +11,9 @@ import {
   nextToWrite,
   normalizeKey,
   parseChordProgression,
+  removeTrack,
+  renumberTracks,
+  restoreTrack,
   parseInitialAlbum,
   saveStatusParts,
   toggleTheme,
@@ -60,6 +63,68 @@ describe("moveTrack", () => {
   it("refuses to move the first track up or the last one down", () => {
     expect(moveTrack(songs(["A", "B"]), 0, -1)).toBeNull();
     expect(moveTrack(songs(["A", "B"]), 1, 1)).toBeNull();
+  });
+});
+
+describe("default track names follow their numbers", () => {
+  const titles = (list: { track_number: number; title: string }[]) => list.map((s) => [s.track_number, s.title]);
+
+  it("deleting the first track renames the default names after it, never a written one", () => {
+    const album = songs(["Track 1", "Track 2", "Signal", "Track 4", " Track 5 ", "track 6"]);
+    expect(titles(removeTrack(album, 0))).toEqual([
+      [1, "Track 1"],
+      [2, "Signal"],
+      [3, "Track 3"],
+      [4, "Track 4"],
+      // "track 6" isn't the default (case-sensitive), so it keeps its name.
+      [5, "track 6"],
+    ]);
+  });
+
+  it("a default name only follows when it matched its old number", () => {
+    // "Track 3" at position 2 is a name the artist chose (or a stale one): left as written.
+    const album = [
+      { title: "Intro", track_number: 1 },
+      { title: "Track 3", track_number: 2 },
+      { title: "Track 3", track_number: 3 },
+    ];
+    expect(titles(removeTrack(album, 0))).toEqual([
+      [1, "Track 3"],
+      [2, "Track 2"],
+    ]);
+  });
+
+  it("moving a track up or down renames both default names", () => {
+    const moved = moveTrack(songs(["Track 1", "Track 2", "Static"]), 1, -1);
+    expect(moved && titles(moved)).toEqual([
+      [1, "Track 1"],
+      [2, "Track 2"],
+      [3, "Static"],
+    ]);
+    const down = moveTrack(songs(["Signal", "Track 2", "Track 3"]), 0, 1);
+    expect(down && titles(down)).toEqual([
+      [1, "Track 1"],
+      [2, "Signal"],
+      [3, "Track 3"],
+    ]);
+  });
+
+  it("Undo of a delete puts every name back", () => {
+    const album = songs(["Track 1", "Track 2", "Signal", "Track 4"]);
+    const deleted = album[0]!;
+    const after = removeTrack(album, 0);
+    expect(titles(restoreTrack(after, deleted, 0))).toEqual(titles(album));
+  });
+
+  it("an added track takes the default for its place; renumbering in place changes nothing", () => {
+    const album = songs(["Track 1", "Signal"]);
+    const added = renumberTracks([...album, buildNewSong(3)]);
+    expect(titles(added)).toEqual([
+      [1, "Track 1"],
+      [2, "Signal"],
+      [3, "Track 3"],
+    ]);
+    expect(renumberTracks(album)[0]).toBe(album[0]);
   });
 });
 

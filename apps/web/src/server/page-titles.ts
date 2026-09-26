@@ -42,7 +42,7 @@ export const workspaceAlbumTitle = cache(async (albumId: string): Promise<string
   return album.title.trim() || null;
 });
 
-/** "Style · Night Drive": a page of an album, or just the page when the album is unknown. */
+/** "Sound bible · Night Drive": a page of an album, or just the page when the album is unknown. */
 export function albumPageTitle(page: string, albumTitle: string | null): string {
   return albumTitle ? `${page} · ${albumTitle}` : page;
 }

@@ -8,7 +8,6 @@ import {
   formatTrackList,
   formatTrackRuns,
   isWrittenLyrics,
-  verdictText,
   type CoherenceReport,
 } from "@/server/coherence";
 
@@ -362,7 +361,7 @@ describe("honest signals on a half-written album", () => {
   it("scores it, but calls it Unfinished with the count, never Needs polish", () => {
     expect(report.insufficient).toBe(false);
     expect(report.verdict.label).toBe("Unfinished");
-    expect(verdictText(report.verdict)).toBe("Unfinished · 3 of 7 tracks written");
+    expect(report.verdict.detail).toBe("3 of 7 tracks written");
     expect(report.summary.startsWith("3 of 7 tracks written.")).toBe(true);
     expect(report.summary).not.toMatch(/Needs polish/);
   });

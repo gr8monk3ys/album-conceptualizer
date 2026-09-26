@@ -33,7 +33,9 @@ import {
   albumFocusTarget,
 } from "@/components/studio/album-details";
 import { previewBlockedMessage } from "@/components/studio/input-checks";
+import { DeleteConfirm, deleteSectionQuestion, deleteTrackQuestion } from "@/components/studio/delete-confirm";
 import { MoreMenu } from "@/components/studio/more-menu";
+import { TRACKS_TOGGLE_ID, useTracksOpen } from "@/components/studio/tracks-disclosure";
 import { ChordField, TempoField } from "@/components/studio/musical-fields";
 import { SongStoryEditor, SongStoryFields, STORY_FOCUS_TARGETS } from "@/components/studio/song-story-editor";
 import { STICKY_MIN_HEIGHT_QUERY, saveBarSticks, visibleBelowSticky } from "@/components/studio/sticky-stack";
@@ -58,7 +60,9 @@ import {
   nextToWrite,
   normalizeKey,
   normalizeOrders,
-  normalizeTrackNumbers,
+  removeTrack,
+  renumberTracks,
+  restoreTrack,
   parseInitialAlbum,
   readApiError,
   restoreProgressions,
@@ -182,6 +186,8 @@ const EDITOR_ID = "studio-editor";
 const SECTION_EDITOR_ID = "studio-section-editor";
 const BATCH_CHORDS_ID = "use-chords-everywhere";
 const SECTION_MENU_ID = "section-more";
+const TRACK_MENU_ID = "track-more";
+const DELETE_CONFIRM_ID = "studio-delete-confirm";
 const ADD_TRACK_ID = "studio-add-track";
 const ADD_SECTION_ID = "studio-add-section";
 const VERSION_TOGGLE_ID = "save-version-toggle";
@@ -315,9 +321,16 @@ function useAlbumStudioRender({
   const [previewing, setPreviewing] = useState(false);
   const [previewNote, setPreviewNote] = useState<PreviewNote | null>(null);
   const [undo, setUndo] = useState<UndoEntry | null>(null);
+  // The inline "Delete … and its written lyrics?" question, for the track or section it was
+  // asked about (`at`: the selection it belongs to; moving elsewhere drops it).
+  const [confirmDelete, setConfirmDelete] = useState<{ kind: "track" | "section"; at: string; question: string } | null>(
+    null,
+  );
   const [pendingFocus, setPendingFocus] = useState<PendingFocus | null>(() =>
     initialTarget ? { id: initialTarget.id, scroll: "center" } : null,
   );
+  // In one column the track list folds into "Tracks · 04 of 10 · …" (remembered for the session).
+  const [tracksOpen, setTracksOpen] = useTracksOpen();
   const [storyOpen, setStoryOpen] = useState(() => initialTarget?.opens === "story");
   const [detailsOpen, setDetailsOpen] = useState(() => initialTarget?.opens === "details");
   // "Save version…" in the save bar opens its name field inline, in the bar.
@@ -370,6 +383,8 @@ function useAlbumStudioRender({
   const activeSection: StudioSection | undefined = sections[sectionIndex];
   const labels = useMemo(() => sectionLabels(sections), [sections]);
   const activeLabel = labels[sectionIndex] ?? "Section";
+  const confirmAt = `${activeSong?.id ?? ""}|${activeSection?.id ?? ""}`;
+  if (confirmDelete && confirmDelete.at !== confirmAt) setConfirmDelete(null);
 
   useEffect(() => {
     albumRef.current = album;
@@ -419,7 +434,11 @@ function useAlbumStudioRender({
   useEffect(() => {
     if (!pendingFocus) return;
     const frame = requestAnimationFrame(() => {
-      const el = document.getElementById(pendingFocus.id);
+      let el = document.getElementById(pendingFocus.id);
+      // A track's row inside the folded list (one column) can't take focus: its summary can.
+      if (el && pendingFocus.id.startsWith("track-row-") && !el.getClientRects().length) {
+        el = document.getElementById(TRACKS_TOGGLE_ID) ?? el;
+      }
       if (el) {
         el.focus({ preventScroll: true });
         // "none" keeps the page still unless the target is out of sight (e.g. Undo in the
@@ -737,7 +756,7 @@ function useAlbumStudioRender({
   function addTrack() {
     const index = songs.length;
     structuralRef.current = true;
-    edit((prev) => ({ ...prev, songs: [...prev.songs, buildNewSong(prev.songs.length + 1)] }));
+    edit((prev) => ({ ...prev, songs: renumberTracks([...prev.songs, buildNewSong(prev.songs.length + 1)]) }));
     setSelection({ song: index, section: 0 });
     setPendingFocus({ id: "song-title", scroll: "nearest" });
   }
@@ -748,16 +767,74 @@ function useAlbumStudioRender({
     const song = songs[index];
     if (!song) return;
     structuralRef.current = true;
-    edit((prev) => ({ ...prev, songs: normalizeTrackNumbers(prev.songs.filter((_, i) => i !== index)) }));
+    // Renumbered, and default names ("Track 3") follow their new numbers.
+    edit((prev) => ({ ...prev, songs: removeTrack(prev.songs, index) }));
     setUndo({ kind: "track", song, index, label: song.title || `Track ${song.track_number}`, key: Date.now() });
     setSelection({ song: Math.max(0, Math.min(index, songs.length - 2)), section: 0 });
     setPendingFocus({ id: "studio-undo", scroll: "none" });
   }
 
+  /**
+   * "Delete track" from the track's More menu. A track holding written lyrics asks first, inline,
+   * naming what goes; an empty or starter-only track goes at once, with Undo.
+   */
+  function requestDeleteTrack() {
+    const song = songs[songIndex];
+    if (!song) return;
+    const written = (song.sections ?? []).filter((section) => isWritten(section.lyrics)).length;
+    if (!written) {
+      deleteTrack(songIndex);
+      return;
+    }
+    setConfirmDelete({ kind: "track", at: confirmAt, question: deleteTrackQuestion(song.title, song.track_number, written) });
+  }
+
+  /** "Delete section": asks first when the section's lyrics are written. */
+  function requestDeleteSection() {
+    const section = sections[sectionIndex];
+    if (!section) return;
+    if (!isWritten(section.lyrics)) {
+      deleteSection(sectionIndex);
+      return;
+    }
+    setConfirmDelete({ kind: "section", at: confirmAt, question: deleteSectionQuestion(activeLabel) });
+  }
+
+  /** The confirmed delete: as the instant one (Undo, focus to Undo) once the artist said yes. */
+  function confirmDeleteNow() {
+    const kind = confirmDelete?.kind;
+    setConfirmDelete(null);
+    if (kind === "track") deleteTrack(songIndex);
+    else if (kind === "section") deleteSection(sectionIndex);
+  }
+
+  /** Cancel or Escape: nothing deleted, focus back on the "More" button that asked. */
+  function cancelDelete() {
+    const kind = confirmDelete?.kind;
+    setConfirmDelete(null);
+    setPendingFocus({ id: kind === "section" ? SECTION_MENU_ID : TRACK_MENU_ID, scroll: "none" });
+  }
+
+  function deleteConfirm(kind: "track" | "section") {
+    return confirmDelete?.kind === kind ? (
+      <DeleteConfirm
+        id={DELETE_CONFIRM_ID}
+        question={confirmDelete.question}
+        onConfirm={confirmDeleteNow}
+        onCancel={cancelDelete}
+      />
+    ) : null;
+  }
+
+  /** Adds a verse at the end of the track, selects it and puts focus in its lyrics, and says so. */
   function addSection() {
     const index = sections.length;
-    updateSections(activeSong?.id, (list) => [...list, buildNewSection(list.length)]);
+    const added = buildNewSection(index);
+    updateSections(activeSong?.id, (list) => [...list, added]);
     setSelection({ song: songIndex, section: index });
+    setPendingFocus({ id: "section-lyrics", scroll: "nearest" });
+    const label = sectionLabels([...sections, added])[index] ?? "Section";
+    setNavAnnouncement(`${label} added, section ${index + 1} of ${index + 1}.`);
   }
 
   function deleteSection(index: number) {
@@ -774,11 +851,7 @@ function useAlbumStudioRender({
     if (undo.kind === "track") {
       const { song, index } = undo;
       structuralRef.current = true;
-      edit((prev) => {
-        const next = [...prev.songs];
-        next.splice(Math.min(index, next.length), 0, song);
-        return { ...prev, songs: normalizeTrackNumbers(next) };
-      });
+      edit((prev) => ({ ...prev, songs: restoreTrack(prev.songs, song, index) }));
       setSelection({ song: index, section: 0 });
       setPendingFocus({ id: `track-row-${song.id}`, scroll: "nearest" });
     } else if (undo.kind === "section") {
@@ -838,12 +911,14 @@ function useAlbumStudioRender({
 
   /** Moves a track one place and renumbers the album; the moved track stays selected. */
   function moveTrackBy(index: number, dir: -1 | 1) {
-    const song = songs[index];
-    if (!song || !moveTrack(songs, index, dir)) return;
+    const moved = moveTrack(songs, index, dir);
+    if (!moved) return;
     structuralRef.current = true;
     edit((prev) => ({ ...prev, songs: moveTrack(prev.songs, index, dir) ?? prev.songs }));
     setSelection({ song: index + dir, section: sectionIndex });
-    setNavAnnouncement(`Moved “${song.title || "Untitled"}” to track ${index + dir + 1} of ${songs.length}.`);
+    // Named as it is now: a default name follows its new number ("Track 2" → "Track 1").
+    const title = moved[index + dir]?.title.trim() || "Untitled";
+    setNavAnnouncement(`Moved “${title}” to track ${index + dir + 1} of ${songs.length}.`);
   }
 
   /** The track list's theme toggles: tag or untag one track with one central theme. */
@@ -1126,10 +1201,11 @@ function useAlbumStudioRender({
 
   // One quiet row: the current track (so a phone writer knows where they are while typing) and
   // the save status, with Undo or Retry laid over them while offered (so the bar never reflows),
-  // keyboard hints (only with a fine pointer and room for them), then the actions: on a small
-  // screen "Write next" (the screen's one primary there; from 48em it sits in the editor),
-  // Help, "Save version…" (its name field opens inline, below) and a ghost "Save now". Below
-  // 48em (a phone, or enlarged text) the last three are 44px icons with their names kept.
+  // keyboard hints (only with a fine pointer and room for them), then the actions: Help,
+  // "Save version…" (its name field opens inline, below) and a ghost "Save now", as one group
+  // with short visible names below 48em, and on a small screen "Write next" (the screen's one
+  // primary there; from 48em it sits in the editor) on a second row of its own, so a phone's
+  // bar is at most two rows.
   // Autosave does the saving; the saffron on this screen belongs to the next step of the
   // writing. The bar sticks only where it leaves most of the window for writing (see the
   // measurement above); otherwise it scrolls with the page.
@@ -1143,7 +1219,7 @@ function useAlbumStudioRender({
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
         {/* `relative`: Undo and Retry lie over this column (below), so they never reflow the bar. */}
-        <div className="relative flex min-h-11 min-w-0 flex-1 basis-40 flex-col justify-center">
+        <div className="relative flex min-h-11 min-w-0 flex-1 basis-40 flex-col max-[48em]:basis-32 justify-center">
           {currentTrack ? (
             <p className="type-figure truncate text-sm font-semibold text-ink" title={currentTrack}>
               <span className="sr-only">Track </span>
@@ -1212,39 +1288,59 @@ function useAlbumStudioRender({
             <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-x-1">
-          {upNext ? (
-            // Small screens only (em, so enlarged text counts as small), where the editor can
-            // be a long way down the page: the one "Write next" there, and the screen's primary.
-            // From 48em it sits in the editor instead (below); never both at once.
-            <Button tone="primary" onClick={writeNext} className="min-[48em]:hidden">
-              Write next: {writeNextLabel}
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          ) : null}
+        {/* Help, Save version and Save now stay together as one group, never one left alone on
+            a row. Below 48em their names shorten to "Version" and "Save" (the full names kept
+            for assistive technology), and the group sits beside the status; below 22em
+            (320px, or enlarged text on a phone) only their 44px icons fit, names kept. On a
+            phone (coarse pointer) below 48em, Help, which opens the keyboard shortcuts, gives
+            its room to them; Help stays in the app's navigation. */}
+        <div className="flex flex-none items-center gap-x-1">
           <Link
             href="/app/help#keyboard-title"
-            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded px-3 text-sm font-semibold text-ink-2 transition-colors hover:bg-hover hover:text-ink"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded px-3 text-sm font-semibold text-ink-2 transition-colors hover:bg-hover hover:text-ink max-[48em]:px-2.5 max-[48em]:pointer-coarse:hidden"
           >
-            <CircleHelp className="h-4 w-4" aria-hidden="true" />
-            <span className="max-[48em]:sr-only">Help</span>
+            <CircleHelp className="h-4 w-4 flex-none" aria-hidden="true" />
+            <span className="max-[22em]:sr-only">Help</span>
             <span className="sr-only"> with the Studio and its shortcuts</span>
           </Link>
           <Button
             id={VERSION_TOGGLE_ID}
             tone="ghost"
+            className="min-w-11 max-[48em]:px-2.5"
+            aria-label="Save version…"
             aria-expanded={versionOpen}
             aria-controls={VERSION_FORM_ID}
             onClick={() => (versionOpen ? closeVersion() : openVersion())}
           >
-            <History className="h-4 w-4" aria-hidden="true" />
-            <span className="max-[48em]:sr-only">Save version…</span>
+            <History className="h-4 w-4 flex-none" aria-hidden="true" />
+            <span className="max-[48em]:hidden">Save version…</span>
+            <span aria-hidden="true" className="hidden max-[48em]:inline max-[22em]:hidden">
+              Version
+            </span>
           </Button>
-          <Button tone="ghost" onClick={() => void save("manual")} busy={saving} aria-keyshortcuts="Control+S Meta+S">
-            <Save className="h-4 w-4" aria-hidden="true" />
-            <span className="max-[48em]:sr-only">Save now</span>
+          <Button
+            tone="ghost"
+            className="min-w-11 max-[48em]:px-2.5"
+            onClick={() => void save("manual")}
+            busy={saving}
+            aria-keyshortcuts="Control+S Meta+S"
+          >
+            <Save className="h-4 w-4 flex-none" aria-hidden="true" />
+            <span className="max-[22em]:sr-only">
+              Save<span className="max-[48em]:sr-only"> now</span>
+            </span>
           </Button>
         </div>
+        {upNext ? (
+          // Small screens only (em, so enlarged text counts as small), where the editor can be
+          // a long way down the page: the one "Write next" there, and the screen's primary, on
+          // the bar's second row, full width. From 48em it sits in the editor instead (below);
+          // never both at once.
+          <Button tone="primary" onClick={writeNext} className="basis-full min-[48em]:hidden">
+            <span className="min-w-0 break-words">Write next: {writeNextLabel}</span>
+            <ArrowRight className="h-4 w-4 flex-none" aria-hidden="true" />
+          </Button>
+        ) : null}
       </div>
       {/* A named snapshot, kept in version history: an occasional act, so it opens here, in
           the bar, only when asked for. Escape closes it and focus returns to its trigger. */}
@@ -1336,8 +1432,13 @@ function useAlbumStudioRender({
       onToggleTheme={toggleTrackTheme}
       onAddTrack={addTrack}
       onAddThemes={() => openAlbumField(ALBUM_THEMES_INPUT_ID)}
+      open={tracksOpen}
+      onOpenChange={setTracksOpen}
     />
   );
+
+  // Whether deleting this track asks first (it holds written lyrics).
+  const trackWritten = sections.some((section) => isWritten(section.lyrics));
 
   const catalog = activeSong
     ? [
@@ -1380,6 +1481,7 @@ function useAlbumStudioRender({
           </Button>
           <MoreMenu
             label="track actions"
+            triggerId={TRACK_MENU_ID}
             items={[
               {
                 key: "up",
@@ -1398,16 +1500,19 @@ function useAlbumStudioRender({
               {
                 key: "delete",
                 label: "Delete track",
-                hint: "Removes the track and its sections. You can undo for 10 seconds.",
+                hint: trackWritten
+                  ? "Removes the track and its sections. Asks first, since it has written lyrics; you can undo for 10 seconds."
+                  : "Removes the track and its sections. You can undo for 10 seconds.",
                 icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
                 danger: true,
-                onSelect: () => deleteTrack(songIndex),
+                onSelect: requestDeleteTrack,
               },
             ]}
           />
         </div>
       </div>
       {previewStatus("track")}
+      {deleteConfirm("track")}
       </div>
 
       {/* The track's Role and Story note, always in view: Coherence asks every track for them. */}
@@ -1553,6 +1658,8 @@ function useAlbumStudioRender({
                       href={`#track-row-${activeSong.id}`}
                       onClick={(event) => {
                         event.preventDefault();
+                        // The list may be folded here (one column): open it on this track.
+                        setTracksOpen(true);
                         setPendingFocus({ id: `track-row-${activeSong.id}`, scroll: "center" });
                       }}
                       className="-mx-1 inline-flex min-h-11 items-center gap-1 self-center rounded px-1 text-xs text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink hover:decoration-ink @2xl/studio:hidden"
@@ -1596,16 +1703,19 @@ function useAlbumStudioRender({
                       {
                         key: "delete",
                         label: "Delete section",
-                        hint: "You can undo for 10 seconds.",
+                        hint: isWritten(activeSection.lyrics)
+                          ? "Asks first, since its lyrics are written. You can undo for 10 seconds."
+                          : "You can undo for 10 seconds.",
                         icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
                         danger: true,
-                        onSelect: () => deleteSection(sectionIndex),
+                        onSelect: requestDeleteSection,
                       },
                     ]}
                   />
                 </div>
               </div>
               {previewStatus("section")}
+              {deleteConfirm("section")}
               </div>
 
               <Field label="Lyrics draft" htmlFor="section-lyrics">

@@ -6,8 +6,8 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Album Bibles",
-  description: "Open the Album Bible for any album: themes, motifs, characters and style.",
+  title: "Story bibles",
+  description: "Open the Story bible for any album: themes, motifs, characters and style.",
 };
 
 export default async function BiblesPage() {
@@ -18,7 +18,7 @@ export default async function BiblesPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title="Album Bibles"
+        title="Story bibles"
         description="Each album's reference for consistency: its concept, themes, motifs, characters and style, and which tracks carry them."
       />
 
@@ -26,20 +26,20 @@ export default async function BiblesPage() {
         <AlbumList
           label="Albums"
           albums={albums}
-          hint="Open Bible"
+          hint="Open Story bible"
           hrefFor={(album) => `/app/albums/${album.id}/bible`}
         />
       ) : (
         <EmptyState
-          title="No Album Bibles yet"
+          title="No Story bibles yet"
           action={
             <ButtonLink tone="primary" href="/app/create">
               Start your first album
             </ButtonLink>
           }
         >
-          An Album Bible is built from the album itself. Start an album and give its songs themes
-          and motifs; the Bible then shows which tracks carry each one.
+          A Story bible is built from the album itself. Start an album and give its songs themes
+          and motifs; the Story bible then shows which tracks carry each one.
         </EmptyState>
       )}
     </div>

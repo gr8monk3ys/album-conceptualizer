@@ -35,12 +35,12 @@ async function createAlbumFromWizard(
 
 async function openSoundPage(
   page: import("@playwright/test").Page,
-  name: "Style" | "References" | "Demos",
+  name: "Sound bible" | "References" | "Demos",
 ) {
-  // One "Sound" album tab; Style, References and Demos are its sub-pages.
+  // One "Sound" album tab; Sound bible, References and Demos are its sub-pages.
   await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Sound", exact: true }).click();
   await page.waitForURL("**/style");
-  if (name !== "Style") {
+  if (name !== "Sound bible") {
     await page.getByRole("navigation", { name: "Sound" }).getByRole("link", { name, exact: true }).click();
   }
 }
@@ -204,7 +204,7 @@ test.describe("Album Management", () => {
       concept: "A concept album about hotel hallways, missed calls, and one long overnight drive.",
     });
 
-    await openSoundPage(page, "Style");
+    await openSoundPage(page, "Sound bible");
     await page
       .getByLabel("Lead voice brief")
       .fill("Close-mic alto with hushed verses and a brighter chorus lift.");
@@ -217,13 +217,13 @@ test.describe("Album Management", () => {
     await page
       .getByLabel("Reference strategy")
       .fill("Use references to keep the opener intimate and the choruses wider without going glossy.");
-    // The style bible autosaves; "Save now" is its quiet manual save.
+    // The Sound bible autosaves; "Save now" is its quiet manual save.
     await page.getByRole("button", { name: "Save now", exact: true }).click();
 
-    await expect(page.getByText("Style bible saved.")).toBeVisible();
+    await expect(page.getByText("Sound bible saved.")).toBeVisible();
 
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Overview", exact: true }).click();
-    await expect(page.getByRole("main").getByText("Style bible", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("main").getByText("Sound bible", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Close-mic alto with hushed verses").first()).toBeVisible();
   });
 

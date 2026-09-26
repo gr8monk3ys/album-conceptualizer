@@ -20,7 +20,7 @@ export function AlbumPageNotFound() {
         {missing ? `This album has no page called “${missing.page}”` : "This album has no such page"}
       </h1>
       <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
-        Its pages are the tabs above: Overview, Studio, Bible, Coherence, Sound and Export. The album itself is still here.
+        Its pages are the tabs above: Overview, Studio, Story bible, Coherence, Sound and Export. The album itself is still here.
       </p>
       <div className="mt-4">
         <ButtonLink tone="primary" href={missing ? `/app/albums/${missing.albumId}` : "/app/library"}>

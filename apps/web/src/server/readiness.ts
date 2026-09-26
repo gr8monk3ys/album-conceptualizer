@@ -2,7 +2,7 @@ import { trackHasWrittenHarmony } from "@/lib/chords";
 import { trackHasLyrics } from "@/lib/lyrics";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 
-/** Style bible fields set before the Style bible counts as set. */
+/** Sound bible fields set before the Sound bible counts as set. */
 export const STYLE_BIBLE_LOCKED_FIELDS = 3;
 
 /** One thing a handoff carries, as it stands, and where it gets fixed. */
@@ -11,13 +11,13 @@ export type ReadinessItem = {
   /** A plain fact: "3 of 7 tracks written", "Starter chords on 7 tracks". */
   label: string;
   done: boolean;
-  /** Where it's fixed: the first track that needs it, or the Style bible. */
+  /** Where it's fixed: the first track that needs it, or the Sound bible. */
   href: string;
 };
 
 export type AlbumReadiness = {
   items: ReadinessItem[];
-  /** True when nothing is left: every track written, with chords of its own, style bible set. */
+  /** True when nothing is left: every track written, with chords of its own, Sound bible set. */
   ready: boolean;
   writtenTracks: number;
   totalTracks: number;
@@ -55,7 +55,7 @@ function readTracks(data: unknown): Track[] {
 
 /**
  * What a handoff or a publish would carry right now: how many tracks are written, whether the
- * chords are the artist's own, how much of the Style bible is set. It informs; it never blocks.
+ * chords are the artist's own, how much of the Sound bible is set. It informs; it never blocks.
  * Placeholder lyrics and the starter loop count as not done (`@/lib/lyrics`, `@/lib/chords`).
  */
 export function getAlbumReadiness(albumId: string, data: unknown): AlbumReadiness {
@@ -90,7 +90,7 @@ export function getAlbumReadiness(albumId: string, data: unknown): AlbumReadines
     },
     {
       key: "style",
-      label: `Style bible ${style.filledCount} of ${style.totalCount} fields`,
+      label: `Sound bible ${style.filledCount} of ${style.totalCount} fields`,
       done: style.filledCount >= STYLE_BIBLE_LOCKED_FIELDS,
       href: `${base}/style`,
     },

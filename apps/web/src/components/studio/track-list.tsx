@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 
 import { carriedThemes, type StudioSong } from "@/components/studio/studio-model";
 import { TRACK_KEYSHORTCUTS } from "@/components/studio/studio-shortcuts";
+import { TRACKS_TOGGLE_ID, tracksSummary } from "@/components/studio/tracks-disclosure";
 import { ThemeHeadName } from "@/components/theme-mark";
 import { Button, TableScroller } from "@/components/ui";
 import { lyricProgress } from "@/lib/lyrics";
@@ -72,6 +73,8 @@ export const STUDIO_GRID_COLUMNS = [
   "@5xl:grid-cols-[30.5rem_minmax(0,1fr)] @7xl:grid-cols-[38.5rem_minmax(0,1fr)]",
 ] as const;
 
+const BODY_ID = "studio-track-list";
+
 const HEAD = "type-catalog sticky top-0 z-20 bg-ground px-1 pb-1.5 pt-2 align-bottom text-xs font-medium text-ink-3";
 
 type Cut = { above: number; below: number };
@@ -83,6 +86,10 @@ type Cut = { above: number; below: number };
  * so the whole album can be tagged from here. In one column (phones, enlarged text) every
  * track is in the page flow; beside the editor the list sticks and scrolls on its own, and
  * says how many rows are out of view.
+ *
+ * In one column the list folds into a disclosure ("Tracks · 04 of 10 · Track 4", `open` /
+ * `onOpenChange`, remembered by the Studio for the session), so the current track's editor
+ * follows straight after it instead of screens further down. Beside the editor it is always open.
  */
 export function TrackList({
   songs,
@@ -92,6 +99,8 @@ export function TrackList({
   onToggleTheme,
   onAddTrack,
   onAddThemes,
+  open,
+  onOpenChange,
 }: {
   songs: StudioSong[];
   centralThemes: string[];
@@ -100,6 +109,9 @@ export function TrackList({
   onToggleTheme: (index: number, theme: string) => void;
   onAddTrack: () => void;
   onAddThemes: () => void;
+  /** In one column: whether the folded list is open. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [cut, setCut] = useState<Cut>({ above: 0, below: 0 });
@@ -113,6 +125,9 @@ export function TrackList({
   const abbreviations = themeAbbreviations(themes);
   const activeId = songs[activeIndex]?.id;
   const roveRow = Math.min(rove.row, Math.max(0, songs.length - 1));
+  const activeSafe = songIndexSafe(activeIndex, songs.length);
+  // Only a list with tracks folds; an empty one says so in the open.
+  const folds = songs.length > 0;
   const roveCol = Math.min(rove.col, Math.max(0, themes.length - 1));
 
   // Keep the current track in view inside the list without moving the page.
@@ -202,14 +217,40 @@ export function TrackList({
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="studio-tracks-title" className="text-lg font-semibold text-ink">
-          Tracks
+        {/* Folded, the heading takes the row: a shrink-to-fit heading let the button's max-width
+            resolve against its own content and wrapped "Track 1" onto a second line. */}
+        <h2 id="studio-tracks-title" className={cn("min-w-0 text-lg font-semibold text-ink", folds && "flex-1 @2xl:flex-none")}>
+          {folds ? (
+            // One column only: the heading is the disclosure's button, naming where you are.
+            <button
+              id={TRACKS_TOGGLE_ID}
+              type="button"
+              aria-expanded={open}
+              aria-controls={BODY_ID}
+              onClick={() => onOpenChange(!open)}
+              className="-ml-2 inline-flex min-h-11 max-w-full items-center gap-2 rounded px-2 text-left transition-colors hover:bg-hover @2xl:hidden"
+            >
+              <ChevronRight
+                aria-hidden="true"
+                className={cn(
+                  "h-4 w-4 flex-none text-ink-2 transition-transform motion-reduce:transition-none",
+                  open && "rotate-90",
+                )}
+              />
+              <span className="type-figure min-w-0 break-words">{tracksSummary(songs[activeSafe], songs.length)}</span>
+            </button>
+          ) : null}
+          <span className={cn(folds && "hidden @2xl:inline")}>Tracks</span>
         </h2>
-        <Button tone="ghost" onClick={onAddTrack}>
+        {/* Folded, the list's own actions fold with it; the editor offers Add track too. */}
+        <Button tone="ghost" onClick={onAddTrack} className={cn(folds && !open && "@max-2xl:hidden")}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           Add track
         </Button>
       </div>
+
+      {/* `contents` beside the editor, so the scroller still fills the sticky column. */}
+      <div id={BODY_ID} className={cn("flex min-w-0 flex-col @2xl:contents", folds && !open && "@max-2xl:hidden")}>
 
       {songs.length ? (
         // A focusable, labelled region (so it scrolls from the keyboard) that scrolls sideways
@@ -433,6 +474,7 @@ export function TrackList({
           {hiddenThemes === 1 ? "is" : "are"} in Album details.
         </p>
       ) : null}
+      </div>
     </section>
   );
 }

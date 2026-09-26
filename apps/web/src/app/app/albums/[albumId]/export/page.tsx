@@ -57,7 +57,7 @@ export default async function AlbumExportPage({
         title="Before you hand off"
         description={
           readiness.ready
-            ? "Every track is written with chords of its own, and the Style bible is set."
+            ? "Every track is written with chords of its own, and the Sound bible is set."
             : "What a handoff carries right now. Each item opens where it's finished; nothing here stops a download."
         }
       >

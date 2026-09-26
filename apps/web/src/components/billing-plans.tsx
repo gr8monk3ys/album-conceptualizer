@@ -179,7 +179,7 @@ export function BillingPlans({
       <Section
         id="plans"
         title="Compare plans"
-        description="Every plan includes the Studio, the Album Bible, the Coherence report and every export format."
+        description="Every plan includes the Studio, the Story bible, the Coherence report and every export format."
       >
         {/* Rem-sized container query: with enlarged text the three plans stack instead of squeezing. */}
         <div className="@container">
@@ -189,13 +189,17 @@ export function BillingPlans({
               const credits = monthlyCredits[plan.key];
               // Plain facts: what the plan keeps and what arrives. What an album costs is said
               // once, under the plans, rather than as a per-plan "about N albums" headline.
+              // The album limit (how many you keep at once) and the credits (what you can do each
+              // month) are two different things, so each fact says which one it is about.
               const facts = [
-                plan.key === "free" ? `Keep up to ${freeProjectLimit} albums` : "Keep as many albums as you like",
+                plan.key === "free"
+                  ? `Keep up to ${freeProjectLimit} albums at a time`
+                  : "Keep as many albums at a time as you like",
                 `${credits} credits each month`,
-                // Offers you can't take aren't sold: without AI the plan is counted in albums.
+                // Offers you can't take aren't sold: without AI the credits are counted in albums.
                 aiAvailable
-                  ? `Enough for ${plural(times(credits, CREDIT_COSTS.agentRun), "AI draft", "AI drafts")}, or any mix of creating, remixing and exporting`
-                  : `Enough to create ${plural(times(credits, CREDIT_COSTS.albumCreate), "album", "albums")}, or any mix of creating, remixing and exporting`,
+                  ? `Credits for about ${plural(times(credits, CREDIT_COSTS.agentRun), "AI draft", "AI drafts")} a month, or any mix of creating, remixing and exporting`
+                  : `Credits for about ${plural(times(credits, CREDIT_COSTS.albumCreate), "album creation", "album creations")} a month, or any mix of creating, remixing and exporting`,
               ];
               return (
                 <li
@@ -254,7 +258,7 @@ export function BillingPlans({
           Taking one album from start to handoff (creating it,{aiAvailable ? " two AI drafts" : ""}
           {aiAvailable ? " and" : ""} a zip export) uses{" "}
           <span className="type-figure text-ink">{albumPass}</span> credits. Writing, saving, the
-          Album Bible and the Coherence report never cost credits.
+          Story bible and the Coherence report never cost credits.
         </p>
         {aiAvailable ? null : (
           <p className="mt-2 max-w-[65ch] text-sm leading-relaxed text-ink-2">
@@ -267,7 +271,7 @@ export function BillingPlans({
       <Section
         id="credits"
         title="What a month of credits covers"
-        description="Writing, saving, the Album Bible and the Coherence report never cost credits. These actions do; each plan column shows how many times its monthly credits cover one."
+        description="Writing, saving, the Story bible and the Coherence report never cost credits. These actions do; each plan column shows how many times its monthly credits cover one."
       >
         <TableScroller label="Credit costs by plan">
           <table className="w-full border-collapse text-sm">

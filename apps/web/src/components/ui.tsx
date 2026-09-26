@@ -135,7 +135,11 @@ export function PageHeader({
         <h1
           className={cn(
             "break-words hyphens-auto text-ink",
-            size === "page" ? "text-2xl font-semibold leading-tight" : "type-display text-display-md",
+            // The page title also steps down in a narrow header (9% of it, never under 1rem):
+            // 1.5rem at normal size, about 23px at 320px with 200% text, so words stay whole.
+            size === "page"
+              ? "text-[length:max(1rem,min(1.5rem,9cqi))] font-semibold leading-tight"
+              : "type-display text-display-md",
           )}
         >
           {title}
@@ -377,7 +381,7 @@ export function StatusMessage({
  * A status line whose live region is always mounted, so a message is announced when it
  * arrives: many screen readers stay silent for a region that appears with its text already in
  * it. Render it unconditionally and pass `message` (null when there is nothing to say). Errors
- * are inserted as an alert inside it, which is announced at once.
+ * go into a second always-mounted region, role="alert", which is announced at once.
  */
 export function LiveStatus({
   message,
@@ -390,14 +394,17 @@ export function LiveStatus({
 }) {
   const color = tone === "ok" ? "text-ok" : tone === "danger" ? "text-danger" : "text-ink-2";
   return (
-    // While empty it is taken out of the flow (`empty:absolute`, zero size), so an idle region
-    // adds no gap to the flex or grid it sits in; it stays in the page, so it is still listening.
-    <div aria-live="polite" className={cn("empty:absolute", message ? className : undefined)}>
-      {message ? (
-        <p role={tone === "danger" ? "alert" : undefined} className={cn("text-sm", color)}>
-          {message}
-        </p>
-      ) : null}
+    // Two regions, both always mounted: news goes into the polite one, errors into the alert
+    // one (an alert inside a polite region can be read twice). While idle the pair is taken
+    // out of the flow (zero size), so it adds no gap to the flex or grid it sits in; it stays
+    // in the page, so it is still listening.
+    <div className={message ? className : "absolute"}>
+      <div aria-live="polite" className="empty:absolute">
+        {message && tone !== "danger" ? <p className={cn("text-sm", color)}>{message}</p> : null}
+      </div>
+      <div role="alert" className="empty:absolute">
+        {message && tone === "danger" ? <p className={cn("text-sm", color)}>{message}</p> : null}
+      </div>
     </div>
   );
 }

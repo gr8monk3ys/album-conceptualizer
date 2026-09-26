@@ -96,13 +96,15 @@
    * overflows a 320px viewport, and capped so it stays a title rather than a poster.
    * The page title (`display-md`) and the release title (`display-release`) also step down
    * in a narrow container (their header is a size container): at most 12% (13%) of its
-   * width, never under 1.5rem, which still grows with the reader's text size. At normal
+   * width, never under 1rem, which still grows with the reader's text size. At normal
    * text size the container never binds, so 320px and up read exactly as before; at 320px
-   * with 200% text the floor drops from 56px (72px) to 48px, so a title keeps whole words.
+   * with 200% text a title sets near 31px (33px) in the 256px column, so a nine-letter word
+   * ("Lighthouse") stays whole (the old 1.5rem floor held it at 48px and broke it).
+   * `display-lg` (sign-in, error and not-found screens) steps down the same way.
    */
-  --text-display-md: clamp(max(1.5rem, min(1.75rem, 12cqi)), min(1.2rem + 2.4vw, 12cqi), 2.75rem);
+  --text-display-md: clamp(max(1rem, min(1.75rem, 12cqi)), min(1.2rem + 2.4vw, 12cqi), 2.75rem);
   --text-display-md--line-height: 1.02;
-  --text-display-lg: clamp(1.625rem, 0.9rem + 4.4vw, 3rem);
+  --text-display-lg: clamp(max(1rem, min(1.625rem, 12cqi)), min(0.9rem + 4.4vw, 12cqi), 3rem);
   --text-display-lg--line-height: 1.02;
   /* The landing headline and a shared album's title. Inside a narrow container (the landing's
      hero column) it stays under 11% of the container, so a phrase like "concept album" keeps
@@ -212,4 +214,14 @@
 .type-figure {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
+}
+
+/* Forced colors: Chromium doesn't force an SVG's `color`, so a Lucide icon given an ink,
+   accent or state colour kept it on the system's Canvas (a saffron nav icon at 1.6:1 on white,
+   a role check near invisible). Unlayered, so it outranks those utilities: every icon takes
+   the forced colour of the text around it (CanvasText, LinkText, ButtonText, GrayText). */
+@media (forced-colors: active) {
+  svg.lucide {
+    color: inherit;
+  }
 }

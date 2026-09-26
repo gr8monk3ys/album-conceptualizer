@@ -27,7 +27,7 @@ import { albumMotifIndex, type MotifEntry } from "@/lib/motifs";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-/** "Album Bible · <album title>" in the browser tab and history. */
+/** "Story bible · <album title>" in the browser tab and history. */
 export async function generateMetadata({
   params,
 }: {
@@ -38,13 +38,20 @@ export async function generateMetadata({
   // A missing album renders the not-found screen, so its tab says so too (WCAG 2.4.2).
   if (!albumTitle) return { title: "Page not found" };
   return {
-    title: albumPageTitle("Album Bible", albumTitle),
-    description: "Themes, motifs, characters and story beats across the album, and what still needs tagging.",
+    title: albumPageTitle("Story bible", albumTitle),
+    description: "What the album is about: its concept, themes, story beats, characters and motifs.",
   };
 }
 
 /** The map's text version is listed in full up to this many connections, then folded away. */
 const CONNECTIONS_SHOWN = 10;
+/**
+ * A text link that sits flush with the rows around it (no button padding), so it lines up
+ * with the list below it at every width: the cross-link to the Sound bible, and the way on to
+ * the Coherence report.
+ */
+const FLUSH_LINK =
+  "inline-flex min-h-11 min-w-0 items-center gap-1 self-start text-sm font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3";
 const DISCLOSURE =
   "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:bg-hover";
 
@@ -276,11 +283,8 @@ function IssueRow({ albumId, issue }: { albumId: string; issue: BibleIssue }) {
         <p className="mt-0.5 max-w-[65ch] text-sm leading-relaxed text-ink-2">{issue.detail}</p>
       </div>
       {issue.fix ? (
-        <Link
-          href={coherenceFixHref(albumId, issue.fix)}
-          className="inline-flex min-h-11 min-w-0 items-center gap-1 self-start text-sm font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
-        >
-          {issue.fix.focus === "style" ? "Open the Style bible" : "Fix in Studio"}
+        <Link href={coherenceFixHref(albumId, issue.fix)} className={FLUSH_LINK}>
+          {issue.fix.focus === "style" ? "Open the Sound bible" : "Fix in Studio"}
           <span className="sr-only">: {issue.title}</span>
         </Link>
       ) : null}
@@ -352,8 +356,8 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
   const styleSummary = summarizeStyleBible(bible.styleBible);
   const graph = buildMotifCharacterGraph(bible, { maxCharacters: 10, maxMotifs: 10, minEdgeWeight: 1 });
   const motifs = albumMotifIndex(album.data);
-  // Track-by-track gaps are the Coherence report's job and Style bible gaps show under
-  // "Style bible"; this page checks only how the album's threads hang together.
+  // Track-by-track gaps are the Coherence report's job and Sound bible gaps show under
+  // "Sound bible"; this page checks only how the album's threads hang together.
   const structure = bible.issues.filter((issue) => issue.scope === "structure");
   const warnings = structure.filter((issue) => issue.level === "warn");
   const notes = structure.filter((issue) => issue.level === "info");
@@ -365,7 +369,20 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
     <div className="flex flex-col gap-10">
       <AlbumPageViewTracker albumId={album.id} event="album_bible_viewed" path={`${base}/bible`} />
 
-      <Section id="bible-concept" title="Concept">
+      {/* The page names itself (the tab says "Story bible") and points to its twin: this is
+          what the album is about; the Sound bible is how it sounds. */}
+      <Section
+        id="bible-concept"
+        title="Story bible — what this album is about"
+        actions={
+          <Link href={`${base}/style`} className={FLUSH_LINK}>
+            How it sounds
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">:</span> Sound bible
+          </Link>
+        }
+      >
+        <h3 className="mb-2 text-sm font-semibold text-ink">Concept</h3>
         {bible.conceptSummary ? (
           <p className="max-w-[65ch] text-base leading-relaxed text-ink-2">{bible.conceptSummary}</p>
         ) : (
@@ -401,15 +418,16 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
           writtenTracks,
           totalTracks: spine.length,
         })}
-        actions={
-          <ButtonLink href={`${base}/coherence`} tone="ghost">
-            Open the Coherence report
-          </ButtonLink>
-        }
       >
-        <p className="mb-4 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+        {/* The way on to the Coherence report sits flush left with the finding rows below,
+            not as a padded button in the heading's corner. */}
+        <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
           Lyrics, chords, story notes and tags on each track are checked in the Coherence report.
         </p>
+        <Link href={`${base}/coherence`} className={cn(FLUSH_LINK, "mb-2")}>
+          Open the Coherence report
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
         {warnings.length ? (
           <ul className="divide-y divide-line border-y border-line">
             {warnings.map((issue) => (
@@ -523,9 +541,14 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
 
       <Section
         id="bible-style"
-        title="Style bible"
-        description={`${styleSummary.filledCount} of ${styleSummary.totalCount} parts of the Style bible are set.`}
-        actions={<ButtonLink href={`${base}/style`} tone="ghost">Open the Style bible</ButtonLink>}
+        title="Sound bible"
+        description={`${styleSummary.filledCount} of ${styleSummary.totalCount} parts of the Sound bible are set. It lives under the Sound tab.`}
+        actions={
+          <Link href={`${base}/style`} className={FLUSH_LINK}>
+            Open the Sound bible
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        }
       >
         <dl className="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-[10rem_minmax(0,1fr)]">
           <dt className="text-sm font-semibold text-ink">Lead voice</dt>

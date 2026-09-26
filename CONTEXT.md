@@ -27,7 +27,7 @@ A Song's place in the album's arc, such as "Inciting incident" or "Resolution" (
 _Avoid_: narrative position, narrative role, story position (that is the story order)
 
 **Motifs**:
-The album's recurring images, sounds or phrases: the album-level motifs (`recurring_motifs`) plus the motif tags on each Song. The Album Bible, the Coherence report and the handoff packs all read this one merged list (`lib/motifs.ts`), so a motif named only for the album still counts.
+The album's recurring images, sounds or phrases: the album-level motifs (`recurring_motifs`) plus the motif tags on each Song. The Story bible, the Coherence report and the handoff packs all read this one merged list (`lib/motifs.ts`), so a motif named only for the album still counts.
 _Avoid_: recurring motifs as a separate list, callbacks (a callback is a motif coming back on a second Song)
 
 **Written**:
@@ -36,13 +36,13 @@ A Section's lyrics are written once anything is left after removing "[…]" plac
 **Section**:
 A part of a Song (verse, chorus, bridge…) carrying lyrics, chords and its narrative function.
 
-**Album Bible**:
-The album's reference for consistency: concept, themes, motifs, characters and style, derived from the Album snapshot.
-_Avoid_: story bible, lore doc
+**Story bible**:
+What the album is about, in one place: concept, themes, story beats, characters and Motifs, derived from the Album snapshot. It has its own album tab ("Story bible", at `/bible`) and its header links to its twin ("How it sounds → Sound bible"). Together with the Sound bible they are "the bibles"; the Story bible page ends with a short Sound bible summary. In code it is still `AlbumBible` / `buildAlbumBible`.
+_Avoid_: Album Bible, "Bible" on its own (there are two), lore doc
 
-**Style bible**:
-The voice and sonic guidance inside the Album snapshot (lead voice, palette, arrangement rules, things to avoid). The one name on every surface: labels, headings, buttons, Help and the Sound page.
-_Avoid_: style guide, "Voice / style bible", "Voice and style"
+**Sound bible**:
+How the album sounds: the lead voice, sonic palette, arrangement rules, mix priorities and things to avoid, kept in the Album snapshot (field `style_bible`). It opens from the "Sound" album tab (at `/style`), beside References and Demos, and its header links back ("What it's about → Story bible"). The one name on every surface: labels, headings, buttons, page titles, Help, handoff packs.
+_Avoid_: Style bible, style guide, "Voice / style bible", "Voice and style"
 
 **Coherence report**:
 The computed assessment of how well an Album's Songs hold together against its concept, themes and Motifs. Every dimension is capped by the share of Songs with written lyrics, and an Album with any unwritten Song is labelled "Unfinished" (with the count) whatever its score.

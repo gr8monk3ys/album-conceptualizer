@@ -8,12 +8,12 @@ import { ReadOnlySpine } from "@/components/read-only-spine";
 import { ButtonLink, Chip, PageHeader, Section } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { lyricExcerptsByTrack, writtenSummaryItems } from "@/lib/discover";
+import { scoreStory } from "@/lib/score-story";
 import { getSpineRows, getSpineThemes } from "@/server/album-songs";
 import {
   analyzeAlbumCoherence,
   dimensionsWeakestFirst,
   MIN_WRITTEN_TRACKS_FOR_SCORE,
-  verdictText,
 } from "@/server/coherence";
 import { getCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
@@ -97,6 +97,7 @@ export default async function DiscoverAlbumPage({
   const storyNotes = readStoryNotes(album.data);
   const excerpts = lyricExcerptsByTrack(album.data);
   const coherence = analyzeAlbumCoherence(album.data);
+  const story = scoreStory(coherence);
   const written = writtenSummaryItems({
     tracks: rows.length,
     withLyrics: rows.filter((row) => row.lyricSections > 0).length,
@@ -111,7 +112,13 @@ export default async function DiscoverAlbumPage({
   return (
     <div className="flex flex-col gap-10">
       <PageHeader
-        title={album.title}
+        // The display-md size, but with a 1rem floor (as the release title has) against the
+        // header's size container: at 320px with 200% text a word like "Lighthouse" stays whole.
+        title={
+          <span className="block text-[length:clamp(max(1rem,min(1.75rem,12cqi)),min(1.2rem_+_2.4vw,12cqi),2.75rem)] leading-[1.02]">
+            {album.title}
+          </span>
+        }
         catalog={
           <span className="flex flex-wrap gap-x-2 gap-y-0.5">
             <CatalogItems
@@ -227,24 +234,39 @@ export default async function DiscoverAlbumPage({
               description="The Coherence report, scored out of 100 from what the artist has written so far, weakest dimension first."
             >
               {coherence.insufficient ? (
-                <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
-                  Not enough written to score yet: a score needs lyrics on at least{" "}
-                  {MIN_WRITTEN_TRACKS_FOR_SCORE} tracks.
-                </p>
+                <>
+                  <p className="type-figure text-sm font-semibold text-ink">{story.headline}</p>
+                  <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+                    Not enough written to score yet: a score needs lyrics on at least{" "}
+                    {MIN_WRITTEN_TRACKS_FOR_SCORE} tracks.
+                  </p>
+                </>
               ) : (
                 <>
-                  {/* The verdict comes first: a score on a half-written album is capped, and the
-                      label ("Unfinished · 3 of 8 tracks written") says why before the number. */}
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2 border-b border-line-strong pb-2">
-                    <p className="min-w-0 text-sm font-semibold text-ink">
-                      Overall
-                      <Chip tone={coherence.verdict.tone} className="type-figure ml-2 align-middle">
-                        {verdictText(coherence.verdict)}
-                      </Chip>
+                  {/* The One Score Story, as the artist reads it on the Coherence report: the
+                      progress first while tracks are unwritten, then the written tracks' score
+                      and the whole album's, in that order (lib/score-story). */}
+                  <div className="border-b border-line-strong pb-2">
+                    <p className="type-figure text-sm font-semibold text-ink">
+                      {story.progress ? (
+                        <>
+                          {story.progress}
+                          <span className="font-normal text-ink-2"> · {story.verdict}</span>
+                        </>
+                      ) : (
+                        <Chip tone={story.tone}>{story.verdict}</Chip>
+                      )}
                     </p>
-                    <p className="type-figure text-sm text-ink-2">
-                      <span className="text-lg font-semibold text-ink">{coherence.score}</span> / 100
-                    </p>
+                    <dl className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
+                      {story.scores.map((figure) => (
+                        <div key={figure.label ?? "overall"} className="flex min-w-0 items-baseline gap-2">
+                          <dt className="text-sm text-ink-2">{figure.label ?? "Overall"}</dt>
+                          <dd className="type-figure text-sm text-ink-2">
+                            <span className="text-lg font-semibold text-ink">{figure.value}</span>/100
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
                   </div>
                   {/* The same order as the owner's Coherence report ("By dimension"): weakest
                       first, so a visitor and the artist read the dimensions alike. */}

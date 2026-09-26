@@ -11,7 +11,7 @@ import { FREE_PROJECT_LIMIT, planMonthlyCredits } from "@/server/plan";
 export const metadata: Metadata = {
   title: { absolute: "Album Conceptualizer" },
   description:
-    "Plan a concept album that holds together: a narrative arc, an Album Bible, lyrics and chords for every track, and a clean handoff to your DAW.",
+    "Plan a concept album that holds together: a narrative arc, a Story bible, lyrics and chords for every track, and a clean handoff to your DAW.",
 };
 
 const MOVES = [
@@ -21,7 +21,7 @@ const MOVES = [
   },
   {
     title: "Write inside the sequence",
-    body: "Draft sections, lyrics and chords track by track with the whole record in view. The Album Bible and the Coherence report show which tracks carry the themes and which ones drift.",
+    body: "Draft sections, lyrics and chords track by track with the whole record in view. The Story bible and the Coherence report show which tracks carry the themes and which ones drift.",
   },
   {
     title: "Hand off to your DAW or generator",

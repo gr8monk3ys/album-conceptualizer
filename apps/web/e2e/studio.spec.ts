@@ -120,7 +120,7 @@ test.describe("Studio", () => {
     const line = `Sirens practise on a Tuesday ${randomSuffix()}`;
     await page.getByLabel("Lyrics draft").fill(line);
     // Straight to another tab, well inside the autosave delay.
-    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Bible", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Story bible", exact: true }).click();
     await page.waitForURL("**/bible");
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
     await page.waitForURL("**/studio");

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { AlbumDangerZone } from "@/components/album-danger-zone";
 import { ArrivalStatus } from "@/components/arrival-status";
@@ -12,7 +13,7 @@ import { ShareAlbumButton } from "@/components/share-album-button";
 import { ButtonLink, Section, buttonClass } from "@/components/ui";
 import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
-import { analyzeAlbumCoherence, verdictText, weakestDimension } from "@/server/coherence";
+import { analyzeAlbumCoherence, weakestDimension } from "@/server/coherence";
 import { getPrisma } from "@/server/db";
 import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
@@ -23,6 +24,7 @@ import { analyzeAlbumRoughDemos, summarizeRoughDemoReviews } from "@/server/roug
 import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { scoreStory } from "@/lib/score-story";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +68,7 @@ function StatusRow({
 }: {
   href: string;
   label: string;
-  figure: string;
+  figure: ReactNode;
   detail: string;
   /** Visible words before the arrow, when the row needs to say where it goes. */
   trailing?: string;
@@ -151,6 +153,7 @@ export default async function AlbumOverviewPage({
   const base = `/app/albums/${album.id}`;
   const step = nextAlbumStep(album.id, album.data);
   const coherence = analyzeAlbumCoherence(album.data);
+  const coherenceStory = scoreStory(coherence);
   // By each dimension's own value, so the weak spot shows even while the cap holds them level.
   const weakest = weakestDimension(coherence);
   const styleBible = getAlbumStyleBible(album.data);
@@ -214,21 +217,22 @@ export default async function AlbumOverviewPage({
           <StatusRow
             href={`${base}/coherence`}
             label="Coherence"
-            // While tracks are unwritten it leads with the progress and what the written tracks
-            // score; the whole album's capped score comes second (as the report does).
+            // The One Score Story (lib/score-story): the progress headline, then the written
+            // tracks' score and the whole album's in that order, as the report tells it.
             figure={
-              coherence.insufficient
-                ? verdictText(coherence.verdict)
-                : coherence.writtenScore !== null
-                  ? `${verdictText(coherence.verdict)} · written tracks ${coherence.writtenScore}/100`
-                  : `${coherence.score}/100 · ${verdictText(coherence.verdict)}`
+              <>
+                <span className="block">{coherenceStory.headline}</span>
+                {coherenceStory.scoreLine ? (
+                  <span className="block text-ink-2">{coherenceStory.scoreLine}</span>
+                ) : null}
+              </>
             }
             // Which tracks are written is the spine's to show; this row says what the spine can't.
             detail={
               coherence.insufficient
                 ? coherence.summary
                 : emptyTracks > 0
-                  ? `The whole album scores ${coherence.score}/100 until the rest are written. Weakest on the written tracks: ${weakest.label}. ${findings} in all.`
+                  ? `Weakest on the written tracks: ${weakest.label}. ${findings} in all.`
                   : coherence.issues.length
                     ? `Weakest area: ${weakest.label}. ${findings} to work through.`
                     : "No open findings. The tracks hold together on this draft."
@@ -237,7 +241,7 @@ export default async function AlbumOverviewPage({
           />
           <StatusRow
             href={`${base}/style`}
-            label="Style bible"
+            label="Sound bible"
             figure={`${styleSummary.filledCount} of ${styleSummary.totalCount} set`}
             detail={styleBible.lead_voice || "Define the vocal identity, palette and mix limits before export."}
           />

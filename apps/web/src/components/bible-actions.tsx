@@ -232,13 +232,13 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
         <a href={`/api/albums/${albumId}/bible/markdown`} className={buttonClass("ghost")} download>
           <Download className="h-4 w-4" aria-hidden="true" />
           <span>
-            <span className="sr-only">Download the Bible as </span>Markdown
+            <span className="sr-only">Download the Story bible as </span>Markdown
           </span>
         </a>
         <a href={`/api/albums/${albumId}/bible/pdf`} className={buttonClass("ghost")} download>
           <Download className="h-4 w-4" aria-hidden="true" />
           <span>
-            <span className="sr-only">Download the Bible as </span>PDF
+            <span className="sr-only">Download the Story bible as </span>PDF
           </span>
         </a>
       </div>

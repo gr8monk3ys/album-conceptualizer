@@ -4,7 +4,7 @@ import { buildAlbumBible } from "@/server/bible";
 import { buildBibleMarkdown } from "@/server/bible-markdown";
 import { buildHandoffPackMarkdown, STYLE_BIBLE_EMPTY_LINE } from "@/server/handoff-pack";
 
-/** What the setup writes: placeholder lyrics, the starter loop, no Style bible. */
+/** What the setup writes: placeholder lyrics, the starter loop, no Sound bible. */
 function freshAlbum(count = 3, extra: Record<string, unknown> = {}) {
   return {
     title: "City Lights",
@@ -63,15 +63,15 @@ describe("handoff packs", () => {
     });
   }
 
-  it("says the empty Style bible in one plain line", () => {
+  it("says the empty Sound bible in one plain line", () => {
     const pack = buildHandoffPackMarkdown({ albumData: freshAlbum(), references: [], target: "suno" });
-    const style = pack.split("## Style bible")[1]?.split("\n## ")[0] ?? "";
+    const style = pack.split("## Sound bible")[1]?.split("\n## ")[0] ?? "";
     expect(style.trim()).toBe(STYLE_BIBLE_EMPTY_LINE);
     expect(pack).not.toContain("**Lead voice:**");
     expect(pack).not.toContain("Avoid / negative prompt");
   });
 
-  it("prints only the Style bible fields that are set", () => {
+  it("prints only the Sound bible fields that are set", () => {
     const pack = buildHandoffPackMarkdown({
       albumData: freshAlbum(2, {
         style_bible: { lead_voice: "Close-mic alto", sonic_palette: ["chorused guitars"], avoid_list: ["trap hats"] },
@@ -94,7 +94,7 @@ describe("handoff packs", () => {
     expect(pack).toContain("- **Chords of their own:** 0 of 3 tracks (the rest are the starter loop or empty)");
     expect(pack).toContain("chords: C - G - Am - F (starter loop)");
     expect(pack).toContain("- **Still open:** no lyrics yet; starter chords or none");
-    expect(pack).toContain("- **Coherence:** Not scored yet");
+    expect(pack).toMatch(/- \*\*Coherence:\*\* \d+ of \d+ tracks? written · Not scored yet/);
   });
 
   it("uses Story note and Role for a track's narrative fields", () => {
@@ -145,8 +145,8 @@ describe("handoff packs", () => {
     });
     expect(pack).toContain("**Generated:** 23 September 2026");
     expect(pack).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
-    expect(pack).toContain("## Style bible");
-    expect(pack).not.toMatch(/Voice \/ style bible/);
+    expect(pack).toContain("## Sound bible");
+    expect(pack).not.toMatch(/Voice \/ Sound bible/);
   });
 
   it("explains an unreadable album plainly", () => {
@@ -157,12 +157,12 @@ describe("handoff packs", () => {
 });
 
 describe("the Bible as Markdown", () => {
-  it("never prints a placeholder and says an empty Style bible in one line", () => {
+  it("never prints a placeholder and says an empty Sound bible in one line", () => {
     const md = buildBibleMarkdown(buildAlbumBible(freshAlbum()), new Date("2026-09-23T10:00:00Z"));
     expect(md).not.toMatch(PLACEHOLDERS);
     expect(md).toContain("**Generated:** 23 September 2026");
-    const style = md.split("## Style bible")[1]?.split("\n## ")[0] ?? "";
-    expect(style.trim()).toBe("Not set yet — add it in the Style bible.");
+    const style = md.split("## Sound bible")[1]?.split("\n## ")[0] ?? "";
+    expect(style.trim()).toBe("Not set yet — add it in the Sound bible.");
     expect(md).not.toMatch(/Narrative summary|role:/i);
   });
 

@@ -8,7 +8,7 @@ import type { LeaveGuard } from "@/lib/use-autosave";
 import { cn } from "@/lib/utils";
 
 const SOUND_PAGES = [
-  { segment: "style", label: "Style" },
+  { segment: "style", label: "Sound bible" },
   { segment: "references", label: "References" },
   { segment: "demos", label: "Demos" },
 ] as const;
@@ -16,7 +16,7 @@ const SOUND_PAGES = [
 export type SoundPage = (typeof SOUND_PAGES)[number]["segment"];
 
 /**
- * The second level under the album's Sound tab: the style bible, reference tracks and rough
+ * The second level under the album's Sound tab: the Sound bible, reference tracks and rough
  * demos are three views of one question, what the record sounds like.
  */
 export function SoundNav({ albumId, current }: { albumId: string; current: SoundPage }) {

@@ -9,7 +9,7 @@ const METRICS: Array<{
   hint: string;
 }> = [
   { key: "projectsCreated", label: "Created", hint: "New albums" },
-  { key: "activatedAlbums", label: "Worked on", hint: "Opened in the Studio, Bible or Coherence report" },
+  { key: "activatedAlbums", label: "Worked on", hint: "Opened in the Studio, Story bible or Coherence report" },
   { key: "exportedAlbums", label: "Exported", hint: "Downloaded at least once" },
   { key: "publishedAlbums", label: "Published", hint: "Shared on Discover" },
 ];

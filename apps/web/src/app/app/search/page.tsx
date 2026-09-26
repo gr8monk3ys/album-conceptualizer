@@ -42,8 +42,12 @@ function tagLabel(match: TagMatch) {
 
 const TAG_RESULT_LIMIT = 30;
 
+// In a narrow list (a phone at 200% text) the track number sits above the text instead of
+// beside it and the chevron goes, so the words get the whole width and never break inside
+// themselves (the list is a size container).
 const rowLink =
-  "group flex min-h-11 items-center gap-4 px-1 py-3 transition-colors hover:bg-hover";
+  "group flex min-h-11 items-center gap-4 px-1 py-3 transition-colors hover:bg-hover @max-[20rem]:flex-col @max-[20rem]:items-start @max-[20rem]:gap-1";
+const rowChevron = "h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink @max-[20rem]:hidden";
 
 export default async function SearchPage({
   searchParams,
@@ -211,7 +215,7 @@ export default async function SearchPage({
 
           {songs.length ? (
             <Section id="results-songs" title={`Songs (${songs.length})`}>
-              <ul aria-label="Matching songs" className="border-t border-line">
+              <ul aria-label="Matching songs" className="@container border-t border-line">
                 {songs.map((song) => (
                   <li key={song.id} className="border-b border-line">
                     <Link
@@ -221,7 +225,7 @@ export default async function SearchPage({
                       <span className="type-figure w-8 shrink-0 text-lg font-semibold text-ink-3">
                         {String(song.trackNumber).padStart(2, "0")}
                       </span>
-                      <span className="min-w-0 flex-1">
+                      <span className="min-w-0 flex-1 @max-[20rem]:w-full">
                         <span className="block break-words text-sm font-semibold text-ink">{song.title}</span>
                         <span className="type-catalog mt-1 block break-words text-xs text-ink-2">
                           {song.album.title} · Track {song.trackNumber}
@@ -232,7 +236,7 @@ export default async function SearchPage({
                           </span>
                         ) : null}
                       </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+                      <ChevronRight className={rowChevron} aria-hidden="true" />
                     </Link>
                   </li>
                 ))}
@@ -242,7 +246,7 @@ export default async function SearchPage({
 
           {tagMatches.length ? (
             <Section id="results-tags" title={`Themes and motifs (${tagMatches.length})`}>
-              <ul aria-label="Matching themes and motifs" className="border-t border-line">
+              <ul aria-label="Matching themes and motifs" className="@container border-t border-line">
                 {tagMatches.map((match) => (
                   <li
                     key={`${match.albumId}-${match.track?.number ?? "album"}-${match.kind}-${match.tag}`}
@@ -252,7 +256,7 @@ export default async function SearchPage({
                       <span className="type-figure w-8 shrink-0 text-lg font-semibold text-ink-3">
                         {match.track ? String(match.track.number).padStart(2, "0") : null}
                       </span>
-                      <span className="min-w-0 flex-1">
+                      <span className="min-w-0 flex-1 @max-[20rem]:w-full">
                         <span className="block break-words text-sm font-semibold text-ink">
                           {match.track ? match.track.title : match.albumTitle}
                         </span>
@@ -266,7 +270,7 @@ export default async function SearchPage({
                           {match.tag}
                         </span>
                       </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+                      <ChevronRight className={rowChevron} aria-hidden="true" />
                     </Link>
                   </li>
                 ))}
@@ -276,7 +280,7 @@ export default async function SearchPage({
 
           {sections.length ? (
             <Section id="results-lyrics" title={`Lyrics (${sections.length})`}>
-              <ul aria-label="Matching lyrics" className="border-t border-line">
+              <ul aria-label="Matching lyrics" className="@container border-t border-line">
                 {sections.map((section) => (
                   <li key={section.id} className="border-b border-line">
                     <Link
@@ -286,7 +290,7 @@ export default async function SearchPage({
                       <span className="type-figure w-8 shrink-0 text-lg font-semibold text-ink-3">
                         {String(section.song.trackNumber).padStart(2, "0")}
                       </span>
-                      <span className="min-w-0 flex-1">
+                      <span className="min-w-0 flex-1 @max-[20rem]:w-full">
                         <span className="block break-words text-sm font-semibold text-ink">
                           {section.song.title}
                           <span className="font-normal text-ink-2"> · {sectionName(section.sectionType)}</span>
@@ -300,7 +304,7 @@ export default async function SearchPage({
                           </span>
                         ) : null}
                       </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+                      <ChevronRight className={rowChevron} aria-hidden="true" />
                     </Link>
                   </li>
                 ))}

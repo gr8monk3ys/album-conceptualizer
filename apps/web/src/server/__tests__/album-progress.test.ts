@@ -55,6 +55,16 @@ describe("albumProgress", () => {
   });
 
   it("reads an unreadable snapshot as nothing written, not scored", () => {
-    expect(albumProgress(null)).toEqual({ tracks: 0, lyricsWritten: 0, verdict: "Not scored yet" });
+    expect(albumProgress(null)).toMatchObject({ tracks: 0, lyricsWritten: 0, verdict: "Not scored yet" });
+    expect(albumProgress(null).story.scores).toEqual([]);
+  });
+
+  it("tells the same score story as the Coherence report, progress first", () => {
+    const data = album(3, 8);
+    const report = analyzeAlbumCoherence(data);
+    const { story } = albumProgress(data);
+    expect(story.headline).toBe("3 of 8 tracks written · Unfinished");
+    expect(story.scoreLine).toBe(`Written tracks ${report.writtenScore}/100 · Whole album ${report.score}/100`);
+    expect(albumProgress(album(5, 5)).story.scores).toHaveLength(1);
   });
 });

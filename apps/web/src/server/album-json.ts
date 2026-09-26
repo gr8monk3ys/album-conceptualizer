@@ -112,7 +112,7 @@ export const AlbumJsonSchema = z
     visual_inspiration: z.array(z.string()).optional().default([]),
     // Rough demo intake
     rough_demos: z.array(RoughDemoSchema).optional().default([]),
-    // Voice / style bible
+    // Voice / Sound bible
     style_bible: StyleBibleSchema.optional(),
   })
   .passthrough();

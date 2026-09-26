@@ -100,7 +100,7 @@ export default async function ChallengesPage() {
       <PageHeader
         title="Challenges"
         size="page"
-        description="One short writing prompt a day, the same for everyone. Write against it in one of your albums, then note what you drafted and where. The credits come once that album shows lyrics written today (UTC). A new prompt arrives at 00:00 UTC."
+        description="One short writing prompt a day, the same for everyone. Write against it in one of your albums, then note what you drafted and where. The credits come once that album shows lyrics written today."
       />
 
       {/* Rem-sized container query: with enlarged text the side column folds under the prompt. */}
@@ -166,7 +166,7 @@ export default async function ChallengesPage() {
                   </div>
                 ))}
               </dl>
-              <p className="mt-3 max-w-[65ch] text-sm text-ink-3">Writing, saving, the Album Bible and the Coherence report never cost credits.</p>
+              <p className="mt-3 max-w-[65ch] text-sm text-ink-3">Writing, saving, the Story bible and the Coherence report never cost credits.</p>
             </Section>
           </div>
         </div>

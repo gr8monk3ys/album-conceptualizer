@@ -14,7 +14,7 @@ export type CoherenceTrackFocus = "song" | "lyrics" | "story" | "role" | "song-t
  * Where an issue is fixed. Every fix lives in the Studio: a track itself (`song`), the first
  * unwritten lyrics (`lyrics`), its Story note (`story`), its Role (`role`), its theme tags
  * (`song-themes`) or motif tags (`motifs`); the album details (`album`) or the album's motifs
- * (`album-motifs`); or the Style bible (`style`).
+ * (`album-motifs`); or the Sound bible (`style`).
  */
 export type CoherenceFix = {
   focus: CoherenceTrackFocus | "album" | "album-motifs" | "style";
@@ -262,11 +262,6 @@ export function coherenceVerdict(input: {
   }
   const band = COHERENCE_BANDS.find((entry) => input.score >= entry.min) ?? COHERENCE_BANDS[3];
   return { label: band.label, tone: band.tone };
-}
-
-/** "Unfinished · 3 of 7 tracks written", "Solid": the verdict as one line. */
-export function verdictText(verdict: CoherenceVerdict) {
-  return verdict.detail ? `${verdict.label} · ${verdict.detail}` : verdict.label;
 }
 
 /** "3 of 6 tracks", "All 6 tracks", "The track": the subject of a sentence about tracks. */

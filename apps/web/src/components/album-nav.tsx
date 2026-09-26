@@ -10,14 +10,16 @@ import { edgeFadeClass } from "@/lib/edge-fade";
 import { cn } from "@/lib/utils";
 
 /**
- * Six tabs. A tab stays current on the screens it groups: Overview also covers the inbox
- * and version history (both opened from the Overview); Sound covers style, references and
- * demos, which have their own second-level navigation.
+ * Six tabs, each named after what it opens ("Story bible" opens the Story bible, "Sound" the
+ * Sound bible). A tab stays current on the screens it groups: Overview also covers the inbox
+ * (opened from the Overview); Sound covers the Sound bible, references and demos, which have
+ * their own second-level navigation. Version history is no tab's page: it opens from the
+ * release header's catalog line, which marks itself current there, so no tab claims it.
  */
 const TABS = [
-  { segment: "", label: "Overview", covers: ["", "inbox", "versions"] },
+  { segment: "", label: "Overview", covers: ["", "inbox"] },
   { segment: "studio", label: "Studio", covers: ["studio"] },
-  { segment: "bible", label: "Bible", covers: ["bible"] },
+  { segment: "bible", label: "Story bible", covers: ["bible"] },
   { segment: "coherence", label: "Coherence", covers: ["coherence"] },
   { segment: "style", label: "Sound", covers: ["style", "references", "demos"] },
   { segment: "export", label: "Export", covers: ["export"] },
@@ -52,14 +54,14 @@ function centerTab(scroller: HTMLElement, tab: HTMLElement) {
 
 /**
  * One way around an album, the same on every album screen. Six tabs in one row on a hairline
- * when the album column has room (32rem, so enlarged text needs more); with less room they
- * wrap into ruled rows, each tab as wide as its own name (the rows share out the spare room),
- * so every tab is visible and whole on a phone, even "Coherence" at 320px with 200% text.
- * Wrapped, nothing scrolls or fades: the strip clips nothing, so no first letter or focus ring
- * is masked. A name wider than the whole column (a very narrow window at a large text size)
- * wraps inside its tab rather than widening the strip. Only the one row can overflow (an
- * unusually wide font): then the strip scrolls inside itself, centres the current tab and
- * fades the edge with more tabs, and only while it actually overflows.
+ * when the album column has room (36rem, so enlarged text needs more); with less room they
+ * form an even grid of ruled cells, three columns (3 + 3) while a column fits the longest
+ * name, two (2 x 3) when narrower, and one only at extreme text sizes, so every tab is visible,
+ * whole and lined up with the row above on a phone. Wrapped, nothing scrolls or fades: the
+ * strip clips nothing, so no first letter or focus ring is masked. Names break between words
+ * ("Story bible") and inside a word only if that word is wider than the whole column. Only
+ * the one row can overflow (an unusually wide font): then the strip scrolls inside itself,
+ * centres the current tab and fades the edge with more tabs, and only while it overflows.
  */
 export function AlbumNav({ albumId }: { albumId: string }) {
   const segment = useAlbumSegment(albumId);
@@ -85,22 +87,25 @@ export function AlbumNav({ albumId }: { albumId: string }) {
         // One row scrolls inside itself (min-w-0 keeps the strip from ever widening the page);
         // wrapped rows never overflow, so they neither scroll nor fade (the fade measures an
         // actual overflow, so it stays off there).
-        className={cn("-mx-1 min-w-0 max-w-[calc(100%+0.5rem)] @lg:overflow-x-auto", edgeFadeClass(fade, "x"))}
+        className={cn("-mx-1 min-w-0 max-w-[calc(100%+0.5rem)] @xl:overflow-x-auto", edgeFadeClass(fade, "x"))}
       >
-        <ul className="flex flex-wrap px-1 @lg:min-w-max @lg:flex-nowrap @lg:gap-1 @lg:border-b @lg:border-line">
+        {/* Wrapped, an even grid: equal columns (minmax(0,1fr)), so the second row's tabs sit
+            under the first row's. The thresholds are rem, like the name they must fit:
+            "Coherence" in semibold measures 4.44rem, plus 1rem of padding, so three columns
+            need 16.3rem (17rem here) and two 10.9rem (11rem). */}
+        <ul className="grid grid-cols-1 px-1 @min-[11rem]:grid-cols-2 @min-[17rem]:grid-cols-3 @xl:flex @xl:min-w-max @xl:gap-1 @xl:border-b @xl:border-line">
           {TABS.map((tab) => {
             const active = (tab.covers as readonly string[]).includes(segment);
             return (
-              // Wrapped, each tab carries its own hairline, so every row is ruled; a tab grows
-              // to share its row's spare room but never shrinks below its name.
-              <li key={tab.label} className="min-w-0 flex-auto border-b border-line @lg:flex-none @lg:border-b-0">
+              // Wrapped, each cell carries its own hairline, so every row is ruled.
+              <li key={tab.label} className="min-w-0 border-b border-line @xl:flex-none @xl:border-b-0">
                 <Link
                   ref={active ? activeRef : undefined}
                   href={tab.segment ? `${base}/${tab.segment}` : base}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     // The ring sits inside the tab so the scrolling strip doesn't clip it.
-                    "-mb-px flex min-h-11 items-center border-b-2 px-3 text-sm transition-colors focus-visible:-outline-offset-2 @lg:inline-flex",
+                    "-mb-px flex h-full min-h-11 items-center border-b-2 px-2 py-1 text-sm transition-colors focus-visible:-outline-offset-2 @xl:inline-flex @xl:px-3",
                     active
                       ? // Forced colors draw even transparent borders in the text colour, so
                         // there the current tab's underline turns Highlight and the idle tabs
@@ -109,10 +114,9 @@ export function AlbumNav({ albumId }: { albumId: string }) {
                       : "border-transparent text-ink-2 hover:border-line-strong hover:text-ink forced-colors:border-b-0",
                   )}
                 >
-                  {/* min-w-0 lets the name itself shrink (a flex item otherwise keeps its
-                      min-content width, which `break-words` doesn't lower); it only breaks
-                      inside a word when that word is wider than the whole column. */}
-                  <span className="min-w-0 wrap-anywhere">{tab.label}</span>
+                  {/* Breaks between words; inside a word only as a last resort, when that
+                      word is wider than the whole column (break-words, not wrap-anywhere). */}
+                  <span className="min-w-0 break-words">{tab.label}</span>
                 </Link>
               </li>
             );

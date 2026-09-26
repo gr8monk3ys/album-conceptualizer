@@ -90,7 +90,7 @@ export async function getAlbumOnboardingSummary(input: {
       // Kept as "bible_reviewed": tagging themes is what makes the Bible worth reviewing.
       key: "bible_reviewed",
       label: "Tag themes on a track",
-      description: "Mark which of the album's themes a track carries so the Bible can map them.",
+      description: "Mark which of the album's themes a track carries so the Story bible can map them.",
       href: coherenceFixHref(input.albumId, { focus: "song-themes", trackNumber: untagged?.trackNumber }),
       complete: songs.some((song) => song.hasThemes),
     },
@@ -104,10 +104,10 @@ export async function getAlbumOnboardingSummary(input: {
     },
     {
       key: "style_bible_locked",
-      label: "Set the Style bible",
-      description: "Set at least three of the Style bible's fields, such as the lead voice, sonic palette and mix priorities.",
+      label: "Set the Sound bible",
+      description: "Set at least three of the Sound bible's fields, such as the lead voice, sonic palette and mix priorities.",
       href: `${base}/style`,
-      // Read from the album itself: a Style bible saved and later cleared is not done.
+      // Read from the album itself: a Sound bible saved and later cleared is not done.
       complete: hasStyleBibleLocked(input.data),
     },
     {

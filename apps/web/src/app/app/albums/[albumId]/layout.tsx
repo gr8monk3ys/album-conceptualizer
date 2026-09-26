@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CatalogItems, albumStatusLabel } from "@/components/album-card";
+import { AlbumCatalogLink } from "@/components/album-catalog-link";
 import { AlbumBody, AlbumNav, AlbumNextAction } from "@/components/album-nav";
 import { AlbumSpine } from "@/components/album-spine";
 import { RelativeTime } from "@/components/relative-time";
@@ -52,16 +53,19 @@ export default async function AlbumLayout({
           200% text) instead of breaking inside words (--text-display-release). */}
       <header className="@container flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div className="flex min-w-0 max-w-full flex-col gap-3 group-has-[#studio-editor]/album:flex-row group-has-[#studio-editor]/album:flex-wrap group-has-[#studio-editor]/album:items-baseline group-has-[#studio-editor]/album:gap-x-4 group-has-[#studio-editor]/album:gap-y-1">
-          {/* 18.75em is 24ch of the display cut, set in em so the measure is the same before
+          {/* On the Studio the compact size is capped by the header's width like the full
+              one (13cqi, never under 1rem): a flat text-3xl set 60px at 320px with 200% text
+              and broke "Lighthouse" inside the word.
+              18.75em is 24ch of the display cut, set in em so the measure is the same before
               and after Archivo loads (the fallback's "0" is narrower). The page's h1, except
               under an address the album has no page for, where the not-found heading is. */}
           <ReleaseTitle
             albumId={album.id}
-            className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto group-has-[#studio-editor]/album:min-w-0 group-has-[#studio-editor]/album:text-3xl"
+            className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto group-has-[#studio-editor]/album:min-w-0 group-has-[#studio-editor]/album:text-[length:max(1rem,min(1.875rem,13cqi))] group-has-[#studio-editor]/album:leading-[1.2]"
           >
             {album.title}
           </ReleaseTitle>
-          {/* Each separator stays with the item after it, so a wrapped line never ends on a dot. */}
+          {/* Each separator ends the item before it, so a wrapped line never starts with a dot. */}
           <p className="type-catalog flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">
             <CatalogItems
               items={[
@@ -89,10 +93,11 @@ export default async function AlbumLayout({
                 <span key="edited">
                   Edited <RelativeTime date={album.updatedAt.toISOString()} />
                 </span>,
-                // Versions open from here on every album tab, not only from the Overview.
-                <Link key="versions" href={`/app/albums/${album.id}/versions`} className={CATALOG_LINK}>
+                // Versions open from here on every album tab, not only from the Overview; on
+                // the Version history page this link is the current location (no tab is).
+                <AlbumCatalogLink key="versions" href={`/app/albums/${album.id}/versions`} className={CATALOG_LINK}>
                   Version history
-                </Link>,
+                </AlbumCatalogLink>,
               ]}
             />
           </p>

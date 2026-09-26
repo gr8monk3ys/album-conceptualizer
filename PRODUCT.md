@@ -18,7 +18,7 @@ The usage scene is a laptop at a desk or studio, in long focused writing session
 
 ## Product Purpose
 
-Help creators finish a coherent concept album. The workspace turns one idea into an album blueprint: tracklist, narrative arc, Album Bible (themes, motifs, characters, style), lyrics and chord drafts per Section, and a coherence report, then hands it off to production as MIDI, ChordPro, MusicXML, JSON or a Handoff pack. Success means an album that feels intentional across every track, gets into a DAW and actually gets finished.
+Help creators finish a coherent concept album. The workspace turns one idea into an album blueprint: tracklist, narrative arc, Story bible (themes, motifs, characters) and Sound bible (how it should sound), lyrics and chord drafts per Section, and a coherence report, then hands it off to production as MIDI, ChordPro, MusicXML, JSON or a Handoff pack. Success means an album that feels intentional across every track, gets into a DAW and actually gets finished.
 
 ## Positioning
 
@@ -26,7 +26,7 @@ The album is the unit, not the song. Audio generators produce isolated moments a
 
 ## Operating Context
 
-- Flow: create (a guided wizard, optional AI ideation) → refine in the Studio (songs, sections, lyrics, chords) → Album Bible and style bible → coherence report → export or Handoff pack → optionally publish to Discover, where others can Remix.
+- Flow: create (a guided wizard, optional AI ideation) → refine in the Studio (songs, sections, lyrics, chords) → Story bible and Sound bible → coherence report → export or Handoff pack → optionally publish to Discover, where others can Remix.
 - Tools next to it: a DAW, audio generators (Suno and similar) fed by Handoff packs, voice memos (rough demos).
 - Metered by Credits and gated by Plan (free / pro / team) through Stripe. Daily challenges earn credits.
 
@@ -41,7 +41,7 @@ The album is the unit, not the song. Audio generators produce isolated moments a
 
 - Name: **Album Conceptualizer**.
 - Voice: confident, creative, structured. Direct and craft-oriented, never hype.
-- Words to use: coherent, concept album, album bible, blueprint, finishable, narrative arc, motifs, export-ready, remix.
+- Words to use: coherent, concept album, Story bible, blueprint, finishable, narrative arc, motifs, export-ready, remix.
 - Words to avoid: instant hit, one-click song, fully generated masterpiece, autopilot music, magic.
 
 ## Evidence on Hand

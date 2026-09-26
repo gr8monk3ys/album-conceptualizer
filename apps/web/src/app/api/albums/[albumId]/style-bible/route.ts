@@ -22,7 +22,7 @@ export const GET = apiHandler(async (_request: Request, { params }: Context) => 
 
 export const PATCH = apiHandler(async (request: Request, { params }: Context) => {
   const { userId, workspaceId } = await requireWorkspace();
-  const payload = await parseJsonBody(request, StyleBibleSchema, "Invalid style bible payload.");
+  const payload = await parseJsonBody(request, StyleBibleSchema, "Invalid Sound bible payload.");
   const { albumId } = await params;
   const existing = await requireAlbum(workspaceId, albumId, { id: true, data: true });
 

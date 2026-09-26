@@ -67,12 +67,14 @@ export default async function AppHomePage() {
         description={
           latest
             ? "Pick up where you left off. The next step comes from what each track still needs."
-            : "Start with a one-paragraph idea. You will shape it into a tracklist, a narrative arc and an Album Bible, then write it track by track."
+            : "Start with a one-paragraph idea. You will shape it into a tracklist, a narrative arc and a Story bible, then write it track by track."
         }
       />
 
       {latest && step ? (
-        <section aria-labelledby="continue-title" className="border-t border-line pt-6">
+        // A size container, so the album title below steps down in a narrow column (320px at
+        // 200% text) instead of breaking inside a word.
+        <section aria-labelledby="continue-title" className="@container border-t border-line pt-6">
           <h2 id="continue-title" className="text-lg font-semibold text-ink">
             Continue
           </h2>
@@ -80,7 +82,7 @@ export default async function AppHomePage() {
             <div className="min-w-0 max-w-[68ch]">
               <Link
                 href={`/app/albums/${latest.id}`}
-                className="type-display inline-block min-h-11 max-w-full break-words py-2 text-2xl text-ink hyphens-auto underline-offset-4 hover:underline md:text-4xl"
+                className="type-display inline-block min-h-11 max-w-full break-words py-2 text-[length:max(1rem,min(1.5rem,11cqi))] leading-tight text-ink hyphens-auto underline-offset-4 hover:underline md:text-[length:max(1rem,min(2.25rem,11cqi))]"
               >
                 {latest.title}
               </Link>

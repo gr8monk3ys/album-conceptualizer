@@ -27,7 +27,7 @@ const HANDOFF_PACKS = [
     title: "Suno brief",
     use: "For generating tracks in Suno without losing the album's voice.",
     contents: [
-      "A prompt line for every track, built from its tempo, key, themes and your Style bible",
+      "A prompt line for every track, built from its tempo, key, themes and your Sound bible",
       "Negative prompt guidance from your avoid list",
       "Your references listed beside each prompt, never in it: Suno rejects artist names",
       "The section map and production notes for each track",
@@ -53,7 +53,7 @@ const HANDOFF_PACKS = [
     contents: [
       "A session objective per track: arrangement guardrails, mix focus and primary references",
       "The section map with bar counts and chords",
-      "Production notes plus the recording and mix priorities from your Style bible",
+      "Production notes plus the recording and mix priorities from your Sound bible",
     ],
   },
 ] as const;
@@ -208,7 +208,7 @@ export function AlbumExport({
       <Section
         id="handoff"
         title="Hand off the album"
-        description="Pick where the record goes next. Each pack is a plain-text brief (.md) built from your Album Bible, Coherence report, references and Style bible, so every track carries the same world."
+        description="Pick where the record goes next. Each pack is a plain-text brief (.md) built from your Story bible, Coherence report, references and Sound bible, so every track carries the same world."
       >
         <ul className="@container divide-y divide-line border-y border-line">
           {HANDOFF_PACKS.map((pack) => (
@@ -244,7 +244,7 @@ export function AlbumExport({
         </ul>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <p className="max-w-[65ch] text-sm text-ink-3">
-            Every pack also carries the album blueprint, the Style bible, your references, rough
+            Every pack also carries the album blueprint, the Sound bible, your references, rough
             demo reviews and the top Coherence fixes. Fields you haven&apos;t set are left out. Handoff packs don&apos;t use credits.
           </p>
           <LiveStatus message={handoffStatus?.text ?? null} tone={handoffStatus?.tone} />

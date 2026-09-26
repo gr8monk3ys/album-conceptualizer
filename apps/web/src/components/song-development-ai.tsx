@@ -177,10 +177,13 @@ export function SongDevelopmentAi({
                 ? "AI draft ready."
                 : ""}
           </p>
-          <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-danger">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-danger">
+            {/* Only the words are the alert; the retry control beside them isn't read out as part of it. */}
+            <span role="alert" className="min-w-0 max-w-[65ch] empty:hidden">
+              {failure && !isBusy ? failure.text : null}
+            </span>
             {failure && !isBusy ? (
               <>
-                <span className="min-w-0 max-w-[65ch]">{failure.text}</span>
                 {failure.retry === "start" ? (
                   <ConfirmSpend cost={COST} remaining={creditsRemaining} actionLabel="Retry the AI draft" onConfirm={start}>
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />

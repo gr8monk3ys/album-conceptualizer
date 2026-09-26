@@ -8,7 +8,7 @@ export type BibleIssue = {
   /**
    * `structure`: how themes, characters and story order hang together across the album, which
    * only the Bible checks. `coverage`: per-track gaps the Coherence report also lists.
-   * `style`: Style bible fields, shown in the Bible's Style bible section.
+   * `style`: Sound bible fields, shown in the Bible's Sound bible section.
    */
   scope: "structure" | "coverage" | "style";
   title: string;

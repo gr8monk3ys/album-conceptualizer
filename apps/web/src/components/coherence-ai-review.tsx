@@ -155,7 +155,7 @@ export function CoherenceAiReview({
       title="Written review"
       description={
         aiAvailable ? (
-          `An AI draft of a review: it reads the Album Bible and every track, then writes up where the record holds together and where it drifts. Each AI draft costs ${PRICE} and takes about 30 to 90 seconds.`
+          `An AI draft of a review: it reads the Story bible and every track, then writes up where the record holds together and where it drifts. Each AI draft costs ${PRICE} and takes about 30 to 90 seconds.`
         ) : unavailable.show ? (
           // Section puts its description in a paragraph; the line is a span inside it.
           <span id={unavailable.noticeId}>{AI_UNAVAILABLE_MESSAGE}</span>
@@ -193,7 +193,7 @@ export function CoherenceAiReview({
             error
               ? error.text
               : isPolling && !output
-                ? "The AI draft is reading your Bible and tracks. Keep this page open."
+                ? "The AI draft is reading your Story bible and tracks. Keep this page open."
                 : null
           }
         />

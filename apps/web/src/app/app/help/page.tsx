@@ -44,9 +44,12 @@ const STEPS: Array<{ title: string; body: ReactNode }> = [
     title: "Check how it holds together",
     body: (
       <>
-        The Album Bible gathers the concept, themes, motifs and characters in one place. The
-        Coherence report reads every track against them: which tracks carry the themes, which
-        drift, and what to fix next, with a link straight to the field that needs it.
+        The album keeps two bibles. The Story bible (its own tab) gathers what the album is
+        about: the concept, themes, story beats, characters and motifs. The Sound bible (under
+        the Sound tab, with References and Demos) sets how it sounds: the lead voice, palette,
+        arrangement rules and mix priorities. The Coherence report reads every track against
+        them: which tracks carry the themes, which drift, and what to fix next, with a link
+        straight to the field that needs it.
       </>
     ),
   },
@@ -190,7 +193,7 @@ export default function HelpPage() {
       <Section
         id="credits"
         title="Credits and plans"
-        description="Credits pay for the few actions that do heavy work on the server. Writing, the Album Bible, the Coherence report, versions and comments are free to use as much as you like."
+        description="Credits pay for the few actions that do heavy work on the server. Writing, the Story and Sound bibles, the Coherence report, versions and comments are free to use as much as you like."
       >
         <div className="flex flex-col gap-8">
           <TableScroller label="What each action costs" className="max-w-2xl">

@@ -108,8 +108,8 @@ export function challengeWritingReason(
     case "no-lyrics":
       return `Note saved, no credits yet: ${where} has no written lyrics. Write them in the Studio, then check again.`;
     case "not-saved-today":
-      return `Note saved, no credits yet: ${where} hasn't been written in today (UTC). Write in the Studio today, then check again.`;
+      return `Note saved, no credits yet: ${where} hasn't been written in today. Write in the Studio today, then check again.`;
     case "unchanged":
-      return `Note saved, no credits yet: the lyrics on ${where} are the same as before today (UTC). Write something new in the Studio, then check again.`;
+      return `Note saved, no credits yet: the lyrics on ${where} are the same as before today. Write something new in the Studio, then check again.`;
   }
 }

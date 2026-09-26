@@ -4,7 +4,7 @@ export type CreditUse = { key: string; label: string; detail?: string; cost: num
 
 /**
  * What credits buy, in the product's own units. "One album, start to handoff" is a worked
- * example (its parts are listed), not a limit: the Studio, the Album Bible and the Coherence
+ * example (its parts are listed), not a limit: the Studio, the Story bible and the Coherence
  * report never cost credits.
  *
  * The worked example and the cost table. When AI can't run on this server, AI drafts aren't

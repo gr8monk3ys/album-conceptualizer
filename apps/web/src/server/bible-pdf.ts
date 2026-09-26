@@ -5,7 +5,7 @@ import { buildMotifCharacterGraph } from "@/server/bible-relationships";
 import { safeFilename } from "@/server/headers";
 
 /**
- * The printed Album Bible's palette. This is print output on white paper, not the app's UI, so it
+ * The printed Story bible's palette. This is print output on white paper, not the app's UI, so it
  * doesn't use the design tokens (they are for a dark screen); these are the only colours the PDF
  * uses. Near-black inks step down in weight for hierarchy; the one colour marks warnings.
  */
@@ -68,7 +68,7 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
     size: "LETTER",
     margin: 54,
     info: {
-      Title: `${bible.title} — Album Bible`,
+      Title: `${bible.title} — Story bible`,
       Author: bible.artist ?? undefined,
     },
   });
@@ -115,7 +115,7 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
   if (bible.recurringMotifs.length) writeBullets(doc, bible.recurringMotifs);
   else writeParagraph(doc, "No album-level motifs set.", { color: PRINT.muted });
 
-  writeHeading(doc, "Style bible", { size: 14 });
+  writeHeading(doc, "Sound bible", { size: 14 });
   writeParagraph(
     doc,
     bible.styleBible.lead_voice?.trim() || "No lead voice brief set.",

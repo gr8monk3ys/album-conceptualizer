@@ -170,7 +170,7 @@ export function DailyChallengeCard({
             (<RelativeTime date={completion.time} />)
           </>
         ) : null}
-        . A new prompt arrives at 00:00 UTC.
+        .
       </>
     ) : null;
 
@@ -186,6 +186,9 @@ export function DailyChallengeCard({
           </time>
           <span aria-hidden="true"> · </span>
           <span className="type-figure">{challenge.credits}</span> credits
+          {/* The one place the card names the clock: "today" everywhere below means this day. */}
+          <span aria-hidden="true"> · </span>
+          New prompt at <span className="type-figure">00:00</span> UTC
         </p>
         <p className="mt-3 max-w-[65ch] text-sm leading-relaxed text-ink">{challenge.description}</p>
 
@@ -208,7 +211,7 @@ export function DailyChallengeCard({
                 <Field
                   htmlFor="challenge-album"
                   label="Written in"
-                  hint="Credits are paid when this album (or the track you choose) has lyrics written today, UTC."
+                  hint="Credits are paid when this album (or the track you choose) has lyrics written today."
                   className="min-w-0 flex-1 basis-56"
                 >
                   <select

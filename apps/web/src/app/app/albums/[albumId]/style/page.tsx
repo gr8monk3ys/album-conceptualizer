@@ -12,7 +12,7 @@ import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-/** "Style · <album title>" in the browser tab and history. */
+/** "Sound bible · <album title>" in the browser tab and history. */
 export async function generateMetadata({
   params,
 }: {
@@ -22,8 +22,8 @@ export async function generateMetadata({
   const albumTitle = await workspaceAlbumTitle(albumId);
   if (!albumTitle) return { title: "Page not found" };
   return {
-    title: albumPageTitle("Style", albumTitle),
-    description: "The Style bible: how this album should sound, from the lead voice to the mix.",
+    title: albumPageTitle("Sound bible", albumTitle),
+    description: "The Sound bible: how this album should sound, from the lead voice to the mix.",
   };
 }
 

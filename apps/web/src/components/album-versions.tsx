@@ -93,8 +93,18 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
 
   return (
     <div className="flex flex-col gap-10">
+      {/* The page's own heading: Version history is no album tab's page, so the location is
+          named here (and marked current on the catalog line's link). */}
+      <div className="flex min-w-0 flex-col gap-1">
+        <h2 className="break-words text-xl font-semibold text-ink">Version history</h2>
+        <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
+          Save the album as it is now, and go back to an earlier version whenever you need to.
+        </p>
+      </div>
+
       <Section
         id="versions-save"
+        headingLevel={3}
         title="Save a version"
         description="Keep the album as it is right now before a big lyric or chord rewrite, so you can come back to it."
       >
@@ -145,7 +155,8 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
 
       <Section
         id="versions-history"
-        title="Version history"
+        headingLevel={3}
+        title="Saved versions"
         description={
           versions.length
             ? "Newest first. Restoring saves the current draft as a version first, so a restore can be undone."
@@ -160,7 +171,9 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
               return (
                 <li key={version.id} className="py-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
+                    {/* A 12rem basis: with less room Restore drops below the name instead of
+                        squeezing it until words break inside themselves. */}
+                    <div className="min-w-0 grow basis-48">
                       <p className="break-words text-sm font-semibold text-ink">
                         <VersionTitle message={version.message} />
                       </p>
