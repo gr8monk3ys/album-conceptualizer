@@ -208,11 +208,12 @@ export function AlbumNav({ albumId }: { albumId: string }) {
 }
 
 /**
- * The album frame's first stop: a link past the release header, the tabs and the sequence to
- * the page itself, named after it ("Skip to the Coherence report"). Below a 42rem release
- * header (a phone, enlarged text), where the frame fills a screen or more before the page, it
- * is a visible ink link a touch can take; wider it is the focus-only skip chip, like the app's.
- * The Studio has its own ("Skip to the lyrics"), so there is none here.
+ * A visible way past the release header, the tabs and the sequence to the page itself, named
+ * after it ("Skip to the Coherence report"), for a touch to take below a 42rem release header
+ * (a phone, enlarged text), where the frame fills a screen or more before the page. From
+ * 42rem there is none: the app's own skip link, the first stop in the document, already goes
+ * there by the same name (`AppSkipLink`), so a keyboard never meets a second one after the
+ * sidebar. The Studio has its own ("Skip to the lyrics"), so there is none here.
  */
 export function AlbumSkipLink({ albumId }: { albumId: string }) {
   const label = albumSkipLabel(useAlbumSegment(albumId));
@@ -222,11 +223,10 @@ export function AlbumSkipLink({ albumId }: { albumId: string }) {
       href={`#${ALBUM_PAGE_ID}`}
       className={cn(
         "inline-flex min-h-11 items-center gap-2 self-start rounded text-sm text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
-        "@min-[42rem]/release:sr-only @min-[42rem]/release:z-50 @min-[42rem]/release:bg-accent @min-[42rem]/release:font-semibold @min-[42rem]/release:text-accent-ink @min-[42rem]/release:no-underline",
-        "@min-[42rem]/release:focus:not-sr-only @min-[42rem]/release:focus:fixed @min-[42rem]/release:focus:left-4 @min-[42rem]/release:focus:top-4 @min-[42rem]/release:focus:px-4 @min-[42rem]/release:focus:py-3",
+        "@min-[42rem]/release:hidden",
       )}
     >
-      <ArrowDown className="h-4 w-4 shrink-0 text-ink-3 @min-[42rem]/release:hidden" aria-hidden="true" />
+      <ArrowDown className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
       {label}
     </a>
   );
@@ -341,7 +341,9 @@ export function AlbumNextAction(props: { albumId: string; step: HeaderStep }) {
 const SPINE_COLUMNS: Record<number, string> = {
   2: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @6xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]",
   3: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @5xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]",
-  4: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @5xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]",
+  // 29rem: four whole theme names need exactly 28rem, and a scrollbar in the side column
+  // (a long sequence) would otherwise push them back to 3rem heads.
+  4: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @5xl:grid-cols-[minmax(0,29rem)_minmax(0,1fr)]",
   5: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @5xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] @6xl:grid-cols-[minmax(0,31rem)_minmax(0,1fr)]",
   6: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @5xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] @6xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]",
 };

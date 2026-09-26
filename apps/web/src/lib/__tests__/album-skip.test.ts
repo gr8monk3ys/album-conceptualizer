@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { albumStatusLabel } from "@/components/album-card";
-import { albumCatalogStatus, albumSkipLabel } from "@/lib/album-skip";
+import { albumCatalogStatus, albumSkipLabel, appSkipTarget } from "@/lib/album-skip";
 
 describe("albumSkipLabel", () => {
   it("names the page the album frame's skip link lands on", () => {
@@ -20,6 +20,16 @@ describe("albumSkipLabel", () => {
 
   it("says the page under an address the album has no page for", () => {
     expect(albumSkipLabel("mix")).toBe("Skip to the page");
+  });
+});
+
+describe("appSkipTarget", () => {
+  it("is one link per page, named for where it lands", () => {
+    expect(appSkipTarget("/app")).toEqual({ label: "Skip to content", targetId: "app-main-content", studio: false });
+    expect(appSkipTarget("/app/albums/a1")).toEqual({ label: "Skip to the Overview", targetId: "album-page", studio: false });
+    expect(appSkipTarget("/app/albums/a1/coherence")).toMatchObject({ label: "Skip to the Coherence report", targetId: "album-page" });
+    expect(appSkipTarget("/app/albums/a1/studio")).toEqual({ label: "Skip to the lyrics", targetId: "studio-editor", studio: true });
+    expect(appSkipTarget("/app/discover/a1")).toMatchObject({ label: "Skip to content" });
   });
 });
 

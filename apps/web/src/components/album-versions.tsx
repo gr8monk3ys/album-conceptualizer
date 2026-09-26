@@ -17,7 +17,7 @@ type VersionListItem = {
   createdBy?: { name: string | null; email: string | null } | null;
 };
 
-type Status = { tone: "ok" | "danger"; text: string } | null;
+type Status = { tone: "ok" | "danger" | "neutral"; text: string } | null;
 
 async function errorFrom(response: Response, fallback: string) {
   const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
@@ -82,7 +82,11 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
 
   async function save() {
     const trimmed = message.trim();
-    if (!trimmed) return;
+    // An unnamed press says why in the status line, as Post comment does; focus stays.
+    if (!trimmed) {
+      setSaveStatus({ tone: "neutral", text: "Name the version first, then save it." });
+      return;
+    }
     setIsSaving(true);
     setSaveStatus(null);
     try {
@@ -160,7 +164,11 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
               <input
                 id="version-message"
                 value={message}
-                onChange={(event) => setMessage(event.target.value)}
+                onChange={(event) => {
+                  setMessage(event.target.value);
+                  // The "name it first" answer has done its job once there is a name.
+                  if (saveStatus?.tone === "neutral" && event.target.value.trim()) setSaveStatus(null);
+                }}
                 aria-describedby="version-message-hint"
                 className={inputClass}
                 maxLength={200}
@@ -175,14 +183,15 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                 tone="primary"
                 busy={isSaving}
                 aria-disabled={!named || isSaving || undefined}
-                aria-describedby={named || saveStatus?.tone === "ok" ? undefined : "version-save-reason"}
+                aria-describedby={named || saveStatus ? undefined : "version-save-reason"}
               >
                 {isSaving ? "Saving…" : "Save version"}
               </Button>
               {/* An unavailable button says why, where the eye already is. */}
               {/* Not beside "Saved “…” as a version.": the field clears after a save, and the reason is
                   only news once someone starts naming the next one. */}
-              {named || saveStatus?.tone === "ok" ? null : (
+              {/* Replaced by the status line's own answer once an unnamed save was pressed. */}
+              {named || saveStatus ? null : (
                 <p id="version-save-reason" className="min-w-0 text-sm text-ink-3">
                   Name the version to save it.
                 </p>
@@ -242,7 +251,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                       >
                         Restore
                         <span className="sr-only">
-                          {` the version "${version.message || "Untitled version"}"`}
+                          {` the version “${version.message || "Untitled version"}”`}
                         </span>
                       </Button>
                     )}

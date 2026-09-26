@@ -168,6 +168,68 @@ describe.skipIf(!hasDatabase)("challenge completion pays for written lyrics (dat
     expect(second.body).toMatchObject({ credited: true, creditsEarned: challenge.credits });
   });
 
+  async function open(body: Record<string, unknown>) {
+    const { POST } = await import("@/app/api/challenges/open/route");
+    const response = await POST(
+      new Request("http://localhost/api/challenges/open", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeKey: challenge.key, ...body }),
+      }),
+      undefined as never,
+    );
+    return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+  }
+
+  it("pays a claim from the Studio for lyrics written after the band opened the challenge", async () => {
+    const album = await oldAlbum("Salt on the glass");
+    // Written in today before the challenge was opened: without a baseline it couldn't be told apart.
+    await prisma.album.update({ where: { id: album.id }, data: { data: albumData("Low tide") } });
+    const before = await balance();
+
+    const opened = await open({ albumId: album.id });
+    expect(opened.body).toMatchObject({ active: true, done: false });
+    // The words already there when the band opened don't pay…
+    const early = await complete({ albumId: album.id, trackNumber: 1, notes: undefined, from: "studio" });
+    expect(early.body).toMatchObject({ credited: false, creditsEarned: 0 });
+    expect(early.body.reason).toBe(
+      "No credits yet: the lyrics on track 01 of Lighthouse Static are the same as before today. Write something new, then claim again.",
+    );
+    // …what is written after it does.
+    await prisma.album.update({ where: { id: album.id }, data: { data: albumData("Low tide, high water") } });
+    const paid = await complete({ albumId: album.id, trackNumber: 1, notes: undefined, from: "studio" });
+    expect(paid.body).toMatchObject({ credited: true, creditsEarned: challenge.credits });
+    expect(await balance()).toBe(before + challenge.credits);
+    expect((await open({ albumId: album.id })).body).toMatchObject({ active: true, done: true });
+  });
+
+  it("keeps the day's first baseline when the band opens again", async () => {
+    const album = await oldAlbum("Salt on the glass");
+    await recordLyricsBaselines(prisma, caller.workspaceId, new Date());
+    await prisma.album.update({ where: { id: album.id }, data: { data: albumData("Salt on the glass, again") } });
+    await open({ albumId: album.id });
+    const paid = await complete({ albumId: album.id, notes: undefined, from: "studio" });
+    expect(paid.body).toMatchObject({ credited: true });
+  });
+
+  it("keeps a note saved earlier when a claim comes without one", async () => {
+    const album = await prisma.album.create({
+      data: { workspaceId: caller.workspaceId, title: "Lighthouse Static", data: albumData("[Verse]") },
+      select: { id: true },
+    });
+    await complete({ albumId: album.id, trackNumber: 1 });
+    await prisma.album.update({ where: { id: album.id }, data: { data: albumData("Salt on the glass") } });
+    const paid = await complete({ albumId: album.id, trackNumber: 1, notes: undefined, from: "page" });
+    expect(paid.body).toMatchObject({ credited: true });
+    const saved = await prisma.challengeCompletion.findFirst({ where: { workspaceId: caller.workspaceId } });
+    expect(saved?.notes).toBe("Drafted the opening verse today.");
+  });
+
+  it("says when the band's challenge is another day's, and 404s another workspace's album", async () => {
+    expect((await open({ challengeKey: "not-today", albumId: "x" })).body).toMatchObject({ active: false });
+    expect((await open({ albumId: "not-my-album" })).status).toBe(404);
+  });
+
   it("refuses a track that isn't on the album", async () => {
     const album = await prisma.album.create({
       data: { workspaceId: caller.workspaceId, title: "Lighthouse Static", data: albumData("Salt on the glass") },

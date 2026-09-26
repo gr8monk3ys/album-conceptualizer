@@ -8,7 +8,7 @@ import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { albumProgress, albumProgressById } from "@/server/album-progress";
 import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum, listAlbums } from "@/server/albums";
-import { getDailyChallenge } from "@/server/challenges";
+import { challengeStudioHref, getDailyChallenge } from "@/server/challenges";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
@@ -46,6 +46,13 @@ export default async function AppHomePage() {
   );
   const others = otherAlbums.map((album) => ({ ...toAlbumListItem(album), progress: otherProgress.get(album.id) }));
   const { challenge } = getDailyChallenge();
+  // The challenge is written in the Studio: with an obvious track to write in (the one the
+  // latest album's next step names), it opens there with the prompt pinned above the lyrics;
+  // otherwise the Challenges page asks where to write it.
+  const challengeTrack = latest && step?.trackNumber ? { album: latest, trackNumber: step.trackNumber } : null;
+  const challengeHref = challengeTrack
+    ? challengeStudioHref(challengeTrack.album.id, challenge.key, challengeTrack.trackNumber)
+    : "/app/challenges";
 
   const total = latestProgress?.tracks ?? 0;
   const story = latestProgress?.story ?? null;
@@ -152,12 +159,16 @@ export default async function AppHomePage() {
         title="Today’s writing challenge"
         description={`${challenge.title}: ${challenge.description}`}
         actions={
-          <ButtonLink tone="secondary" href="/app/challenges">
+          <ButtonLink tone="secondary" href={challengeHref}>
             Take the challenge · earn {challenge.credits} credits
           </ButtonLink>
         }
       >
-        <p className="text-sm text-ink-3">A short prompt to write against. One completion a day.</p>
+        <p className="max-w-[65ch] break-words text-sm text-ink-3">
+          {challengeTrack
+            ? `Opens track ${String(challengeTrack.trackNumber).padStart(2, "0")} of ${challengeTrack.album.title} in the Studio, with the prompt above the lyrics. The credits are yours once you write lyrics there today.`
+            : "A short prompt to write against, in the Studio. The credits are yours once you write lyrics today."}
+        </p>
       </Section>
     </div>
   );

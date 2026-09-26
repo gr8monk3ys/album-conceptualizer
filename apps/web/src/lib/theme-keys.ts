@@ -226,3 +226,141 @@ export function themeHeadLines(theme: string, widthRem: number): ThemeHead {
   const chosen = best as { lines: string[] } | null;
   return chosen ? { lines: chosen.lines, truncated: false } : { lines: [name], truncated: true };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Wide heads: each theme column as wide as its whole name, where the sheet has the room.
+
+/** A name's padding inside its slot (`px-0.5` either side), in rem. */
+export const THEME_NAME_PADDING_REM = 0.25;
+/** The widest a theme column grows to show its name whole: about 13 condensed capitals. */
+export const WIDE_THEME_SLOT_MAX_REM = 7;
+
+/**
+ * Everything in a spine row but the themes, in rem, as the sheet sets it: the number column
+ * (1.5rem), the title at its 8rem minimum, and the Lyrics and Role columns, which are as wide
+ * as their heads ("LYRICS", "ROLE"); each of the three keeps a 0.25rem gap. The heads are
+ * measured in the catalog cut like the theme names, so enlarged text scales it all together.
+ */
+export const SPINE_OTHER_COLUMNS_REM =
+  1.5 + 8 + catalogWidthRem("Lyrics") + catalogWidthRem("Role") + 3 * 0.25;
+
+function ceilTo(value: number, step: number) {
+  // The epsilon keeps a value that is already on a step (7.0000000001) from rounding up past it.
+  return Math.ceil(value / step - 1e-9) * step;
+}
+
+/**
+ * The narrowest column that sets `theme` in whole words, in rem: the name on one line, or on
+ * two at a space or hyphen it already has, whichever is narrower, plus the padding and the fit
+ * margin. At least the 3rem slot and at most `WIDE_THEME_SLOT_MAX_REM`; a single word wider
+ * than that is hyphenated there, or truncates with the legend, as in the 3rem slot.
+ */
+export function wideThemeSlotRem(theme: string, minSlotRem: number = THEME_NAME_SLOT_REM): number {
+  const name = theme.trim();
+  let text = catalogWidthRem(name);
+  for (let i = 1; i < name.length; i += 1) {
+    const atSpace = name[i] === " ";
+    const afterHyphen = /[-‐–—/]/.test(name[i - 1]) && name[i] !== " ";
+    if (!atSpace && !afterHyphen) continue;
+    const first = atSpace ? name.slice(0, i).trimEnd() : name.slice(0, i);
+    const second = atSpace ? name.slice(i + 1).trimStart() : name.slice(i);
+    if (!first || !second) continue;
+    text = Math.min(text, Math.max(catalogWidthRem(first), catalogWidthRem(second)));
+  }
+  const slot = ceilTo(text + FIT_MARGIN_REM + THEME_NAME_PADDING_REM, 0.05);
+  return Math.min(WIDE_THEME_SLOT_MAX_REM, Math.max(minSlotRem, Number(slot.toFixed(2))));
+}
+
+/**
+ * The widest each wide layout lets a column grow, narrowest first: a sheet with a little more
+ * room than the 3rem slots widens every column to 4rem at most (so "MEMORY" and "WEATHER" read
+ * whole while "ESTRANGEMENT" still hyphenates), then 5rem, then each name's own width.
+ */
+export const WIDE_THEME_SLOT_CAPS_REM = [4, 5, WIDE_THEME_SLOT_MAX_REM] as const;
+
+export type WideThemeHeads = {
+  /** Each theme's column width in this layout, in rem, in the album's theme order. */
+  slotRem: number[];
+  /** The container width from which the sheet takes this layout, in rem. */
+  fromRem: number;
+  /** A name still truncates at this width, so the legend stays up. */
+  truncated: boolean;
+};
+
+/**
+ * The wider layouts of a theme matrix's heads, narrowest first; empty when every name is
+ * already whole in the 3rem slot. In each, a column is as wide as its own name needs
+ * (`wideThemeSlotRem`) up to that layout's cap (`WIDE_THEME_SLOT_CAPS_REM`), so a long theme
+ * doesn't widen the short ones; a layout starts where the sheet holds those columns beside
+ * everything else at its minimum (`SPINE_OTHER_COLUMNS_REM`), so the room comes out of the
+ * title column, down to its 8rem, and nothing else. Below the first, the 3rem slots (a long
+ * word hyphenated) and then the keys take over. A layout that would change nothing is left out.
+ * Another matrix (the Studio's track list) passes its own other columns and named slot.
+ */
+export function wideThemeHeads(
+  themes: readonly string[],
+  {
+    otherColumnsRem = SPINE_OTHER_COLUMNS_REM,
+    minSlotRem = THEME_NAME_SLOT_REM,
+  }: {
+    /** Everything in a row but the themes, at its minimum; the spine's by default. */
+    otherColumnsRem?: number;
+    /** The named slot the table uses below its wide layouts (the spine's 3rem by default). */
+    minSlotRem?: number;
+  } = {},
+): WideThemeHeads[] {
+  const needs = themes.map((theme) => wideThemeSlotRem(theme, minSlotRem));
+  const layouts: WideThemeHeads[] = [];
+  let previous = needs.map(() => minSlotRem);
+  for (const cap of WIDE_THEME_SLOT_CAPS_REM) {
+    const slotRem = needs.map((need) => Math.min(cap, need));
+    if (slotRem.every((slot, index) => slot === previous[index])) continue;
+    const total = slotRem.reduce((sum, slot) => sum + slot, 0);
+    layouts.push({
+      slotRem,
+      fromRem: Number(ceilTo(otherColumnsRem + total, 0.05).toFixed(2)),
+      truncated: themes.some(
+        (theme, index) => themeHeadLines(theme, slotRem[index] - THEME_NAME_PADDING_REM).truncated,
+      ),
+    });
+    previous = slotRem;
+  }
+  return layouts;
+}
+
+/** The class a theme's head carries in the wide layout at `layout`, so its rules can show it. */
+export function wideThemeHeadClass(layout: number) {
+  return `theme-head-w${layout}`;
+}
+
+/** The class a theme's column carries at `index`, so the wide layout can size it. */
+export function wideThemeSlotClass(index: number) {
+  return `theme-slot-${index}`;
+}
+
+/**
+ * The style rules for one sheet's wide layouts, scoped to the element with
+ * `data-theme-heads="<scope>"`: past each layout's `fromRem` of its container, the narrower head
+ * (`.theme-head-narrow`, or the previous layout's) gives way to that layout's
+ * (`wideThemeHeadClass`), each column takes its width (`wideThemeSlotClass`), and the legend goes
+ * once no name truncates. Container widths are data here (one set per album), so they can't be
+ * literal Tailwind classes; the rules sit outside Tailwind's layers, so they win over the 3rem
+ * classes they replace. `scope` is a plain id.
+ */
+export function wideThemeHeadsCss(scope: string, layouts: readonly WideThemeHeads[]): string {
+  if (!layouts.length) return "";
+  const at = `[data-theme-heads="${scope.replace(/[^\w-]/g, "")}"]`;
+  const rules = [layouts.map((_, index) => `${at} .${wideThemeHeadClass(index)}`).join(",") + "{display:none}"];
+  layouts.forEach((layout, index) => {
+    const hide = index === 0 ? `${at} .theme-head-narrow` : `${at} .${wideThemeHeadClass(index - 1)}`;
+    rules.push(
+      `@container (min-width:${layout.fromRem}rem){`,
+      `${hide}{display:none}`,
+      `${at} .${wideThemeHeadClass(index)}{display:block}`,
+      ...layout.slotRem.map((slot, column) => `${at} .${wideThemeSlotClass(column)}{width:${slot}rem}`),
+      layout.truncated ? "" : `${at} .theme-legend{display:none}`,
+      "}",
+    );
+  });
+  return rules.join("");
+}

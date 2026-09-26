@@ -368,6 +368,23 @@ export function moveUndoLabel(fromTitle: string, nowTitle: string, from: number,
 }
 
 /**
+ * What moving a section says: "Moved Chorus 1 to section 1 of 2." A section is named by its
+ * label, bare like every name the app gives (titles, the artist's words, are the ones in
+ * quotes); when the move changes the label ("Verse 2" above "Verse 1" becomes "Verse 1"), the
+ * new one follows: "Moved Verse 2 to section 1 of 3, now Verse 1."
+ */
+export function sectionMoveAnnouncement(before: string, after: string, to: number, total: number): string {
+  const place = `section ${to + 1} of ${total}`;
+  return before === after ? `Moved ${before} to ${place}.` : `Moved ${before} to ${place}, now ${after}.`;
+}
+
+/** The save bar's line beside a section move's Undo: "Moved Chorus 1 from section 2 to 1." */
+export function sectionMoveUndoLabel(before: string, after: string, from: number, to: number): string {
+  const name = before === after ? before : `${before} (now ${after})`;
+  return `Moved ${name} from section ${from + 1} to ${to + 1}.`;
+}
+
+/**
  * What a move says to a screen reader, from the place it left to the place it took: "Moved
  * “Signal” to track 5 of 10." A default name follows its number, so quoting it as a title read
  * oddly ("Moved “Track 3” (now “Track 2”) to track 2"): such a track is named by its place, and

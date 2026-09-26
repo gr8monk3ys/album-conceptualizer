@@ -63,11 +63,15 @@ describe.skipIf(!hasDatabase)("album create carries wizard references (database)
   }
 
   it("saves each wizard reference to the References collection, for the whole album", async () => {
-    const albumId = await create(["Blonde, Frank Ocean", "OK Computer", "ok computer"]);
+    const albumId = await create(["Blonde — Frank Ocean", "OK Computer", "ok computer"]);
     const references = await listAlbumReferences(caller.workspaceId, albumId);
-    expect(references.map((reference) => reference.title).sort()).toEqual(["Blonde, Frank Ocean", "OK Computer"]);
+    // Each line is read as title and artist, so the References page has both.
+    expect(references.map(({ title, artist }) => ({ title, artist })).sort((a, b) => a.title.localeCompare(b.title))).toEqual([
+      { title: "Blonde", artist: "Frank Ocean" },
+      { title: "OK Computer", artist: null },
+    ]);
     for (const reference of references) {
-      expect(reference).toMatchObject({ songId: null, songTrackNumber: null, songTitle: null, artist: null });
+      expect(reference).toMatchObject({ songId: null, songTrackNumber: null, songTitle: null });
     }
   });
 

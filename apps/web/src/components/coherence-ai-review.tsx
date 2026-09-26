@@ -3,12 +3,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import { useAiUnavailableNotice } from "@/components/ai-unavailable";
 import { ConfirmSpend } from "@/components/confirm-spend";
-import { Button, LiveStatus, Section } from "@/components/ui";
+import { LiveStatus, Section } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useAgentJob } from "@/hooks/use-agent-job";
-import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 type StartJobResponse = { job_id: string };
@@ -54,16 +52,15 @@ function plain(message: string | null, fallback: string) {
 /**
  * A written review, drafted by AI, on top of the rule-based checks on this page. It spends
  * credits as an "AI draft", so the price is on the button and it asks once before spending.
- * When AI can't run here, the button stays disabled (still priced) and the screen's one plain
- * line says why.
+ * Rendered only where AI can run (`getAgentAvailability()`): when it can't, the Coherence
+ * report leaves the section out, and Help and Billing say so once (a feature that can't run
+ * takes no space in the writing path).
  */
 export function CoherenceAiReview({
   albumId,
-  aiAvailable,
   creditsRemaining,
 }: {
   albumId: string;
-  aiAvailable: boolean;
   /** The workspace balance, so the spend confirm can say what's left after. */
   creditsRemaining?: number;
 }) {
@@ -72,7 +69,6 @@ export function CoherenceAiReview({
   const [isStarting, setIsStarting] = useState(false);
 
   const { job, error: pollError, elapsedMs, isPolling } = useAgentJob({ jobId });
-  const unavailable = useAiUnavailableNotice(!aiAvailable);
 
   async function start() {
     setIsStarting(true);
@@ -131,7 +127,7 @@ export function CoherenceAiReview({
 
   // The retry goes away once the new AI draft starts. If it had focus, focus moves to the
   // section's own AI draft button after the commit, never to the page body.
-  const showRetry = Boolean(error?.retryable && aiAvailable);
+  const showRetry = Boolean(error?.retryable);
   const actionsRef = useRef<HTMLSpanElement>(null);
   const retryShown = useRef(false);
   useLayoutEffect(() => {
@@ -153,34 +149,20 @@ export function CoherenceAiReview({
     <Section
       id="coherence-written-review"
       title="Written review"
-      description={
-        aiAvailable ? (
-          `An AI draft of a review: it reads the Story bible and every track, then writes up where the record holds together and where it drifts. Each AI draft costs ${PRICE} and takes about 30 to 90 seconds.`
-        ) : unavailable.show ? (
-          // Section puts its description in a paragraph; the line is a span inside it.
-          <span id={unavailable.noticeId}>{AI_UNAVAILABLE_MESSAGE}</span>
-        ) : undefined
-      }
+      description={`An AI draft of a review: it reads the Story bible and every track, then writes up where the record holds together and where it drifts. Each AI draft costs ${PRICE} and takes about 30 to 90 seconds.`}
       actions={
-        aiAvailable ? (
-          <span ref={actionsRef} className="contents">
-            <ConfirmSpend
-              cost={COST}
-              remaining={creditsRemaining}
-              actionLabel={output ? "Start a new AI draft" : "Start AI draft"}
-              onConfirm={start}
-              busy={isBusy}
-            >
-              {isBusy ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
-              {buttonLabel}
-            </ConfirmSpend>
-          </span>
-        ) : (
-          // Disabled and unpriced: nothing can be spent here, and the plain line says why.
-          <Button disabled aria-describedby={unavailable.describedBy}>
-            AI draft
-          </Button>
-        )
+        <span ref={actionsRef} className="contents">
+          <ConfirmSpend
+            cost={COST}
+            remaining={creditsRemaining}
+            actionLabel={output ? "Start a new AI draft" : "Start AI draft"}
+            onConfirm={start}
+            busy={isBusy}
+          >
+            {isBusy ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
+            {buttonLabel}
+          </ConfirmSpend>
+        </span>
       }
     >
       {/* One live region for the review, mounted from the start so each change is announced;
@@ -217,7 +199,7 @@ export function CoherenceAiReview({
         </div>
       ) : null}
 
-      {aiAvailable && !jobId && !error && !isStarting ? (
+      {!jobId && !error && !isStarting ? (
         <p className="text-sm text-ink-3">No written review yet for this version of the album.</p>
       ) : null}
     </Section>

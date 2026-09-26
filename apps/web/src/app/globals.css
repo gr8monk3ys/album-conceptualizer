@@ -185,6 +185,12 @@
   :focus:not(:focus-visible) {
     outline-style: none;
   }
+  /* A landing, not a control: a line that takes focus on arrival so reading starts there
+     (tabindex -1, never a Tab stop: the welcome line, an arrival line) shows no ring. The ring
+     marks what can be operated; the next Tab goes on from the line as usual. */
+  [data-focus-landing]:focus {
+    outline-style: none;
+  }
 
   input,
   textarea,

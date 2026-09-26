@@ -1,7 +1,10 @@
 // The records an artist names in the create wizard ("References" on its Direction step) become
 // entries in the album's one References collection, scoped to the whole album (no song target),
 // so they show up on the References page and in the Overview count instead of living only in the
-// snapshot's `reference_albums` list. The artist adds the details (artist, role, tags) later.
+// snapshot's `reference_albums` list. Each line is read as title and artist, as the wizard's
+// preview shows it (`parseReferenceLine`); the artist adds the rest (role, tags) later.
+
+import { parseReferenceLine } from "@/lib/reference-line";
 
 /** Matches the References form's own limits (server/references ReferenceBodySchema). */
 const MAX_TITLE_LENGTH = 200;
@@ -14,14 +17,16 @@ export type WizardReferenceRow = {
   songTrackNumber: null;
   songTitle: null;
   title: string;
+  artist: string | null;
   moodTags: string[];
   arrangementTags: string[];
 };
 
 /**
- * The album-scoped reference rows to create for an album's wizard references: trimmed, with
- * blanks and case-insensitive duplicates dropped, titles capped at the form's length, in the
- * order the artist typed them. Empty when the wizard named none.
+ * The album-scoped reference rows to create for an album's wizard references: each line read as
+ * title and artist (`parseReferenceLine`), with blanks and case-insensitive duplicates dropped,
+ * both capped at the form's length, in the order the artist typed them. Empty when the wizard
+ * named none.
  */
 export function wizardReferenceRows(
   albumId: string,
@@ -31,9 +36,11 @@ export function wizardReferenceRows(
   const rows: WizardReferenceRow[] = [];
   for (const raw of referenceAlbums ?? []) {
     if (typeof raw !== "string") continue;
-    const title = raw.trim().replace(/\s+/g, " ").slice(0, MAX_TITLE_LENGTH).trim();
-    if (!title) continue;
-    const key = title.toLocaleLowerCase();
+    const line = parseReferenceLine(raw);
+    if (!line) continue;
+    const title = line.title.slice(0, MAX_TITLE_LENGTH).trim();
+    const artist = line.artist?.slice(0, MAX_TITLE_LENGTH).trim() || null;
+    const key = `${title}\u0000${artist ?? ""}`.toLocaleLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     rows.push({
@@ -42,6 +49,7 @@ export function wizardReferenceRows(
       songTrackNumber: null,
       songTitle: null,
       title,
+      artist,
       moodTags: [],
       arrangementTags: [],
     });

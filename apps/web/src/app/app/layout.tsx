@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { AppSkipLink } from "@/components/app-skip-link";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { getCredits } from "@/server/credits";
@@ -21,12 +22,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      <a
-        href="#app-main-content"
-        className="sr-only z-50 rounded bg-accent text-sm font-semibold text-accent-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:inline-flex focus:min-h-11 focus:items-center focus:px-4 focus:py-3"
-      >
-        Skip to content
-      </a>
+      {/* The page's one skip link, named for where it lands ("Skip to the Overview"). */}
+      <AppSkipLink />
       <Sidebar
         className="hidden md:flex"
         workspaceName={workspace.name}

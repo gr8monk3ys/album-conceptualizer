@@ -14,6 +14,7 @@ import { ButtonLink, Section, buttonClass } from "@/components/ui";
 import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
 import { analyzeAlbumCoherence, weakestDimension } from "@/server/coherence";
+import { openNoteCounts } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
@@ -127,7 +128,7 @@ export default async function AlbumOverviewPage({
   if (!album) notFound();
 
   const prisma = getPrisma();
-  const [shareLink, onboarding, references, openComments, openTasks] = await Promise.all([
+  const [shareLink, onboarding, references, openNotes] = await Promise.all([
     prisma.albumShareLink.findUnique({
       where: { albumId: album.id },
       select: { token: true, revokedAt: true },
@@ -139,9 +140,10 @@ export default async function AlbumOverviewPage({
       isPublic: album.isPublic,
     }),
     listAlbumReferences(workspace.id, album.id),
-    prisma.albumSectionComment.count({ where: { albumId: album.id, deletedAt: null, resolvedAt: null } }),
-    prisma.albumTask.count({ where: { albumId: album.id, deletedAt: null, status: { not: "done" } } }),
+    // Each note counted once: a comment that became a task counts as the task (server/comment-tasks.ts).
+    openNoteCounts(prisma, album.id),
   ]);
+  const { comments: openComments, tasks: openTasks } = openNotes;
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const initialShareLink =
     shareLink && !shareLink.revokedAt ? `${appUrl}/share/${shareLink.token}` : null;
@@ -169,17 +171,22 @@ export default async function AlbumOverviewPage({
           left by Version history for this page (`@/lib/arrival-handoff`), and takes focus. */}
       <ArrivalStatus className="max-w-[65ch]" handoff takeFocus />
       {welcoming ? (
-        // Arriving from the create wizard, focus lands here (its button is gone), so the first
-        // thing heard is that the album is saved and what comes next.
+        // Arriving from the create wizard, focus lands on the line (its button is gone), so the
+        // first thing heard is that the album is saved and what comes next. A landing, not a
+        // control: no ring on it (`data-focus-landing`), and the next Tab reaches the step.
         <div
           id="album-welcome"
-          tabIndex={-1}
           role="group"
           aria-label="Album saved"
           className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded border border-line bg-raised px-4 py-3"
         >
-          <FocusOnArrival targetId="album-welcome" />
-          <p className="min-w-0 max-w-[65ch] break-words text-sm text-ink">
+          <FocusOnArrival targetId="album-welcome-line" />
+          <p
+            id="album-welcome-line"
+            tabIndex={-1}
+            data-focus-landing=""
+            className="min-w-0 max-w-[65ch] break-words text-sm text-ink"
+          >
             <span className="font-semibold">{album.title}</span> is saved. Next:{" "}
             {step.action.charAt(0).toLowerCase() + step.action.slice(1)}.
           </p>
@@ -264,7 +271,12 @@ export default async function AlbumOverviewPage({
           <StatusRow
             href={`${base}/inbox`}
             label="Comments and tasks"
-            figure={`${plural(openComments, "open comment")} · ${plural(openTasks, "open task")}`}
+            // Only what is waiting, in the order the page lists it: "1 open task".
+            figure={
+              [openComments ? plural(openComments, "open comment") : null, openTasks ? plural(openTasks, "open task") : null]
+                .filter(Boolean)
+                .join(" · ") || "Nothing open"
+            }
             detail={
               openComments || openTasks
                 ? "Resolve notes left on sections and close the tasks that are done."

@@ -13,6 +13,7 @@ import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { getAlbumSongOptions } from "@/server/album-songs";
 import { findSharedAlbum } from "@/server/share-links";
+import { softHyphens } from "@/lib/soft-hyphens";
 
 export const dynamic = "force-dynamic";
 
@@ -99,13 +100,13 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
 
   return (
     <div className="min-h-screen bg-ground text-ink">
-      <div className="mx-auto flex max-w-[1000px] flex-col px-4 pb-16 pt-4 sm:px-6 md:pt-6">
+      <div className="mx-auto flex max-w-[1200px] flex-col px-4 pb-16 pt-4 sm:px-6 md:pt-6">
         <SiteHeader showSignIn={!signedIn} />
 
         <main className="mt-10 flex flex-col gap-10 md:mt-14">
           <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-5">
             <div className="min-w-0 max-w-[40rem]">
-              <h1 className="type-display text-display-xl break-words hyphens-auto text-ink">{album.title}</h1>
+              <h1 className="type-display text-display-xl break-words hyphens-auto text-ink">{softHyphens(album.title)}</h1>
               <p className="type-catalog mt-3 flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">
                 <CatalogItems
                   items={[

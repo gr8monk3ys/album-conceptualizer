@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ComponentProps } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDown,
   ArrowRight,
@@ -36,6 +36,7 @@ import {
   AlbumDetails,
   albumFocusTarget,
 } from "@/components/studio/album-details";
+import { CHALLENGE_PROMPT_ID, ChallengeBand } from "@/components/studio/challenge-band";
 import { previewBlockedMessage } from "@/components/studio/input-checks";
 import { DeleteConfirm, deleteSectionQuestion, deleteTrackQuestion } from "@/components/studio/delete-confirm";
 import { MoreMenu } from "@/components/studio/more-menu";
@@ -97,6 +98,8 @@ import {
   sameTypeTargets,
   sectionChordSummary,
   sectionLabels,
+  sectionMoveAnnouncement,
+  sectionMoveUndoLabel,
   sectionTypeLabel,
   saveStatusParts,
   studioDocumentTitle,
@@ -131,7 +134,9 @@ import { invalidChords } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
 import { useLeaveGuard } from "@/lib/use-autosave";
 import { cn } from "@/lib/utils";
+import { browserFocusEnv, holdFocus } from "@/lib/focus-hold";
 import { prefersReducedMotion } from "@/lib/motion";
+import { CHALLENGE_PARAM, challengeByKey } from "@/server/challenges";
 
 type SelectionInput = {
   song?: string;
@@ -174,6 +179,11 @@ type UndoEntry =
    * is the line beside Undo.
    */
   | { kind: "move"; songId: string; from: number; fromTitle: string; renamed: TrackRename[]; label: string; key: number }
+  /**
+   * A section moved (one place or several in a row): Undo puts it back at `from`, where the run
+   * started, and `fromLabel` is what it was called there ("Verse 2").
+   */
+  | { kind: "section-move"; songId: string; sectionId: string; from: number; fromLabel: string; label: string; key: number }
   | {
       kind: "chords";
       songId: string;
@@ -187,9 +197,14 @@ type UndoEntry =
       key: number;
     };
 
-/** The save bar's line beside Undo: what the undoable change did. */
+/**
+ * The save bar's line beside Undo: what the undoable change did. A track is named by its title,
+ * in quotes (the artist's words); a section by its label, bare ("Deleted Verse 2.").
+ */
 function undoText(entry: UndoEntry) {
-  return entry.kind === "chords" || entry.kind === "move" ? entry.label : `Deleted “${entry.label}”.`;
+  if (entry.kind === "track") return `Deleted “${entry.label}”.`;
+  if (entry.kind === "section") return `Deleted ${entry.label}.`;
+  return entry.label;
 }
 
 /** "Remixed into your workspace · 45 credits left". */
@@ -437,6 +452,8 @@ function useAlbumStudioRender({
   const [detailsOpen, setDetailsOpen] = useState(() => initialTarget?.opens === "details");
   // "Save version…" in the save bar opens its name field inline, in the bar.
   const [versionOpen, setVersionOpen] = useState(false);
+  // Save version pressed with no note: the bar says what it needs.
+  const [versionNeedsName, setVersionNeedsName] = useState(false);
   // The save bar sticks only while it and the header leave most of the window for writing.
   const [barSticks, setBarSticks] = useState(true);
   // A link to one section (`sid`, e.g. from Comments and tasks) opens its comments.
@@ -450,6 +467,18 @@ function useAlbumStudioRender({
   // The arrival line is written into the save bar's live region after the page has mounted (a
   // region that is already filled when it appears is never announced), so it is said once.
   const [arrivalLive, setArrivalLive] = useState(false);
+  // When the arrival left focus nowhere (Remix's confirm is gone), the line takes it, as the
+  // restore and create arrivals' lines do (ArrivalStatus `takeFocus`); then focus is what reads
+  // it, and the live region stays out of it, so it is heard once.
+  const [arrivalTakesFocus, setArrivalTakesFocus] = useState(false);
+  const arrivalLineRef = useRef<HTMLSpanElement | null>(null);
+
+  // Today's challenge, pinned above the lyrics while `?challenge=<key>` is in the address (the
+  // Challenges page's "Take the challenge"). It stays through track changes (the address sync
+  // below keeps the parameter); Hide drops it, for this key.
+  const challengeKey = useSearchParams().get(CHALLENGE_PARAM);
+  const [hiddenChallenge, setHiddenChallenge] = useState<string | null>(null);
+  const pinnedChallenge = challengeKey && challengeKey !== hiddenChallenge ? challengeByKey(challengeKey) : null;
 
   const albumRef = useRef(album);
   const revisionRef = useRef(0);
@@ -475,6 +504,8 @@ function useAlbumStudioRender({
   const [ownAddresses] = useState(() => new OwnAddresses());
   // The layout refresh after a save that changed the album's frame, pending until it commits.
   const [refreshing, startRefresh] = useTransition();
+  // Where the page was scrolled as a layout refresh commits (read in a layout effect below).
+  const refreshCommitRef = useRef(false);
   const selectionKey = [initialSelection?.song, initialSelection?.section, initialSelection?.sid, initialSelection?.focus].join("|");
   const [appliedSelectionKey, setAppliedSelectionKey] = useState(selectionKey);
   if (appliedSelectionKey !== selectionKey) {
@@ -563,9 +594,16 @@ function useAlbumStudioRender({
     };
   }, []);
 
-  // Moves focus once the target exists: a deep-linked field, a restored row, Undo.
+  // Moves focus once the target exists: a deep-linked field, a restored row, Undo. Once there,
+  // it is held for a moment (`holdFocus`: only while focus is lost, never taken from where the
+  // writer moved it), because a layout refresh that lands after it (every outline change saves
+  // and refreshes) can drop focus to the page body: seen once after Undo of a track move.
+  const focusHoldRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => focusHoldRef.current?.(), []);
   useEffect(() => {
     if (!pendingFocus) return;
+    focusHoldRef.current?.();
+    focusHoldRef.current = null;
     const frame = requestAnimationFrame(() => {
       let el = document.getElementById(pendingFocus.id);
       // A track's row inside the folded list (one column) can't take focus: its summary can.
@@ -574,6 +612,8 @@ function useAlbumStudioRender({
       }
       if (el) {
         el.focus({ preventScroll: true });
+        const heldId = el.id;
+        focusHoldRef.current = holdFocus(() => document.getElementById(heldId), browserFocusEnv());
         // "none" keeps the page still unless the target is out of sight (e.g. Undo in the
         // save bar on a short screen, where the bar scrolls away with the page).
         const rect = el.getBoundingClientRect();
@@ -621,6 +661,37 @@ function useAlbumStudioRender({
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   }, [arrival]);
 
+  // A layout refresh keeps the page where it was. Next.js scrolls a refreshed page to its top
+  // when the address's query differs from the one the page was rendered for, and the Studio
+  // keeps `?song=…&sid=…` in step with the screen, so every refresh after an outline change
+  // (add, move, delete, Undo) jumped to the top and left the focused field off screen. This
+  // layout effect runs in the refresh's commit before the router's own (a parent's), so it
+  // reads the position before the jump; the next frame, before anything is painted, puts it
+  // back if the router moved it.
+  useLayoutEffect(() => {
+    if (refreshing) {
+      refreshCommitRef.current = true;
+      return;
+    }
+    if (!refreshCommitRef.current) return;
+    refreshCommitRef.current = false;
+    const before = window.scrollY;
+    const frame = requestAnimationFrame(() => {
+      if (Math.abs(window.scrollY - before) > 1) window.scrollTo({ top: before, behavior: "instant" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [refreshing]);
+
+  // A hidden challenge leaves the address too, so a reload doesn't pin it again. In place, and
+  // never while a layout refresh is on its way (see the address sync below).
+  useEffect(() => {
+    if (!hiddenChallenge || refreshing) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get(CHALLENGE_PARAM) !== hiddenChallenge) return;
+    url.searchParams.delete(CHALLENGE_PARAM);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [hiddenChallenge, refreshing]);
+
   // The address follows the track and section on screen (?song=N&sid=…), so a reload, Back or a
   // copied link opens what the writer was looking at, even after a move renumbers the track.
   // History is replaced in place, not navigated: nothing re-renders from the server. Never while
@@ -666,9 +737,20 @@ function useAlbumStudioRender({
 
   useEffect(() => {
     if (!arrival) return;
-    const timer = window.setTimeout(() => setArrivalLive(true), 500);
+    const timer = window.setTimeout(() => {
+      // Decided before the line moves, so its words go to exactly one place.
+      const active = document.activeElement;
+      setArrivalTakesFocus(!active || active === document.body);
+      setArrivalLive(true);
+    }, 500);
     return () => window.clearTimeout(timer);
   }, [arrival]);
+
+  useLayoutEffect(() => {
+    if (!arrivalLive || !arrivalTakesFocus) return;
+    const active = document.activeElement;
+    if (!active || active === document.body) arrivalLineRef.current?.focus({ preventScroll: true });
+  }, [arrivalLive, arrivalTakesFocus]);
 
   // Leaving the Studio never drops words. An in-app link click saves first (waiting for any
   // save in flight) and then navigates; only if that save fails does the viewer choose.
@@ -720,6 +802,7 @@ function useAlbumStudioRender({
       return song?.id ? `track-row-${song.id}` : ADD_TRACK_ID;
     }
     if (entry.kind === "move") return `track-row-${entry.songId}`;
+    if (entry.kind === "section-move") return `section-row-${entry.sectionId}`;
     const owner = songs.find((song) => song.id === entry.songId);
     const list = owner?.sections ?? [];
     const section = entry.kind === "chords" ? list[entry.sourceIndex] : list[Math.min(entry.index, list.length - 1)];
@@ -733,6 +816,11 @@ function useAlbumStudioRender({
   }, [savedFlash]);
 
   // ------------------------------------------------------------------ saving
+
+  /** Refresh the album's frame (release header, credits meter) from the server, in place. */
+  function refreshFrame() {
+    startRefresh(() => router.refresh());
+  }
 
   /** Save before leaving: wait for a save in flight, then save anything still unsaved. */
   async function saveBeforeLeave(): Promise<boolean> {
@@ -821,7 +909,7 @@ function useAlbumStudioRender({
       const frameKey = albumFrameKey(snapshot);
       if (frameKey !== frameKeyRef.current) {
         frameKeyRef.current = frameKey;
-        startRefresh(() => router.refresh());
+        refreshFrame();
       }
       return true;
     } catch (err) {
@@ -1115,6 +1203,20 @@ function useAlbumStudioRender({
         setNavAnnouncement(`Moved back to track ${to + 1} of ${songs.length}.`);
       }
       setPendingFocus({ id: `track-row-${songId}`, scroll: "nearest" });
+    } else if (undo.kind === "section-move") {
+      // Back to where the run of moves started, in one step.
+      const { songId, sectionId, from } = undo;
+      const owner = songs.findIndex((s) => s.id === songId);
+      const list = songs[owner]?.sections ?? [];
+      const at = list.findIndex((s) => s.id === sectionId);
+      const to = clampIndex(from, list.length);
+      const back = moveItem(list, at, to);
+      if (owner >= 0 && back) {
+        updateSections(songId, (current) => moveItem(current, at, to) ?? current);
+        setSelection({ song: owner, section: to });
+        setNavAnnouncement(`Moved ${sectionLabels(back)[to] ?? "the section"} back to section ${to + 1} of ${list.length}.`);
+      }
+      setPendingFocus({ id: `section-row-${sectionId}`, scroll: "nearest" });
     } else if (undo.kind === "section") {
       const { songId, section, index } = undo;
       const owner = songs.findIndex((s) => s.id === songId);
@@ -1162,13 +1264,40 @@ function useAlbumStudioRender({
     setPendingFocus({ id: "studio-undo", scroll: "none" });
   }
 
+  /**
+   * Moves the current section one place, named by its label ("Moved Chorus 1 to section 1 of
+   * 2."), and shows the move with Undo like a track's; moves of one section in a row share one
+   * Undo, which puts it back where the run started.
+   */
   function moveSection(index: number, dir: -1 | 1) {
     const target = index + dir;
     const section = sections[index];
-    if (!section || !moveItem(sections, index, target)) return;
-    updateSections(activeSong?.id, (list) => moveItem(list, index, target) ?? list);
+    const moved = moveItem(sections, index, target);
+    const songId = activeSong?.id;
+    if (!section || !moved || !songId) return;
+    updateSections(songId, (list) => moveItem(list, index, target) ?? list);
     setSelection({ song: songIndex, section: target });
-    setNavAnnouncement(`${sectionTypeLabel(section.section_type)} moved to section ${target + 1} of ${sections.length}.`);
+    const before = labels[index] ?? "Section";
+    const after = sectionLabels(moved)[target] ?? before;
+    setNavAnnouncement(sectionMoveAnnouncement(before, after, target, sections.length));
+    if (!section.id) return;
+    const prior = undo?.kind === "section-move" && undo.sectionId === section.id ? undo : null;
+    const from = prior ? prior.from : index;
+    const fromLabel = prior ? prior.fromLabel : before;
+    if (from === target) {
+      // Back where the run started: nothing is left to undo.
+      setUndo(null);
+      return;
+    }
+    setUndo({
+      kind: "section-move",
+      songId,
+      sectionId: section.id,
+      from,
+      fromLabel,
+      label: sectionMoveUndoLabel(fromLabel, after, from, target),
+      key: Date.now(),
+    });
   }
 
   /**
@@ -1277,7 +1406,11 @@ function useAlbumStudioRender({
 
   /** Saves a named version from the save bar's inline field, then closes it (focus to its trigger). */
   async function saveVersion() {
-    if (!versionMessage.trim()) return;
+    if (!versionMessage.trim()) {
+      // Unavailable without a note, but never silent: said beside the button, like Post comment.
+      setVersionNeedsName(true);
+      return;
+    }
     const ok = await save("version");
     if (ok) closeVersion();
   }
@@ -1289,6 +1422,7 @@ function useAlbumStudioRender({
 
   function closeVersion() {
     setVersionOpen(false);
+    setVersionNeedsName(false);
     setPendingFocus({ id: VERSION_TOGGLE_ID, scroll: "none" });
   }
 
@@ -1400,7 +1534,7 @@ function useAlbumStudioRender({
       if (focusedId() === RETRY_IDS.section) document.getElementById(SECTION_MENU_ID)?.focus({ preventScroll: true });
       void downloadMp3(chords, subtitle);
     };
-    const failed = "Couldn't render the MP3: the server couldn't turn these chords into audio. Previews still play in your browser.";
+    const failed = "Couldn't make an MP3 of these chords. Preview still plays them here.";
     setPreviewing(true);
     setPreviewNote({ scope: "section", tone: "neutral", text: "Rendering MP3…" });
     try {
@@ -1490,7 +1624,8 @@ function useAlbumStudioRender({
   const status = saveStatusParts({ saving, error: saveError, flash: savedFlash, dirty, lastSavedAt });
   const settled = status.quiet === "saved-at" || status.quiet === "no-changes";
   const arrivalShown = Boolean(arrivalNote && settled);
-  const arrivalSpoken = arrivalShown && arrivalLive && !status.live;
+  const arrivalFocused = arrivalShown && arrivalLive && arrivalTakesFocus;
+  const arrivalSpoken = arrivalShown && arrivalLive && !status.live && !arrivalFocused;
   const liveStatus = status.live || (arrivalSpoken ? arrivalNote : "");
   const quietStatus =
     status.quiet === "saving" ? (
@@ -1500,7 +1635,11 @@ function useAlbumStudioRender({
     ) : arrivalShown ? (
       // Until the first edit, the arrival line stands where "Saved · …" would; before the
       // page has mounted it sits here, then moves into the live region to be announced.
-      arrivalSpoken ? null : <span className="text-ink">{arrivalNote}</span>
+      arrivalSpoken ? null : (
+        <span ref={arrivalLineRef} tabIndex={arrivalFocused ? -1 : undefined} className="text-ink">
+          {arrivalNote}
+        </span>
+      )
     ) : settled && unreadable.count ? (
       // Saved, but not everything will export: say so, and go to the first field that has one.
       <>
@@ -1534,9 +1673,9 @@ function useAlbumStudioRender({
   // the save status, with Undo or Retry laid over them while offered (so the bar never reflows),
   // keyboard hints (only with a fine pointer and room for them), then the actions: Help,
   // "Save version…" (its name field opens inline, below) and a ghost "Save now", as one group
-  // with short visible names below 48em, and on a small screen "Write next" (the screen's one
-  // primary there; from 48em it sits in the editor) on a second row of its own, so a phone's
-  // bar is at most two rows.
+  // with short visible names below 48em. One row at every width: "Write next", the screen's one
+  // primary, follows the writing in the editor, never in the bar, so what sticks on a phone
+  // is the header and this row, and the lyrics come a row sooner.
   // Autosave does the saving; the saffron on this screen belongs to the next step of the
   // writing. The bar sticks only where it leaves most of the window for writing (see the
   // measurement above); otherwise it scrolls with the page.
@@ -1601,9 +1740,9 @@ function useAlbumStudioRender({
             // save's reason (already spoken by the status above, so hidden from it here), or
             // what Undo would put back, in full: never clamped, so a track's name is never cut.
             // It has the status's and the hints' width, one line on a laptop (below 22em, the
-            // whole first row's, the actions hidden under it meanwhile, not Write next on the
-            // row below); where a narrow bar needs a third line the overlay grows down over the
-            // page rather than cutting it (still without moving anything).
+            // whole row's, the actions hidden under it meanwhile); where a narrow bar needs a
+            // third line the overlay grows down over the page rather than cutting it (still
+            // without moving anything).
             <div
               {...undoWindow.groupProps}
               className="absolute inset-x-0 top-0 flex min-h-full min-w-0 items-center gap-x-2 bg-ground text-sm max-[22em]:min-h-11"
@@ -1694,16 +1833,6 @@ function useAlbumStudioRender({
             </span>
           </Button>
         </div>
-        {upNext ? (
-          // Small screens only (em, so enlarged text counts as small), where the editor can be
-          // a long way down the page: the one "Write next" there, and the screen's primary, on
-          // the bar's second row, full width. From 48em it sits in the editor instead (below);
-          // never both at once.
-          <Button tone="primary" onClick={writeNext} className="basis-full min-[48em]:hidden">
-            <span className="min-w-0 break-words">Write next: {writeNextLabel}</span>
-            <ArrowRight className="h-4 w-4 flex-none" aria-hidden="true" />
-          </Button>
-        ) : null}
       </div>
       {/* A named snapshot, kept in version history: an occasional act, so it opens here, in
           the bar, only when asked for. Escape closes it and focus returns to its trigger. */}
@@ -1728,7 +1857,10 @@ function useAlbumStudioRender({
           <input
             id="version-message"
             value={versionMessage}
-            onChange={(e) => setVersionMessage(e.target.value)}
+            onChange={(e) => {
+              setVersionMessage(e.target.value);
+              if (e.target.value.trim()) setVersionNeedsName(false);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
@@ -1753,6 +1885,9 @@ function useAlbumStudioRender({
           <Button tone="ghost" onClick={closeVersion}>
             Cancel
           </Button>
+          <p role="status" className="min-w-0 max-w-[65ch] text-sm text-ink-2 empty:absolute">
+            {versionNeedsName ? "Name the version first, then save it." : ""}
+          </p>
         </div>
       </div>
     </div>
@@ -1792,6 +1927,15 @@ function useAlbumStudioRender({
   const onToggleTrackTheme = useStableEvent(toggleTrackTheme);
   const onToggleActiveTheme = (theme: string) => toggleTrackTheme(songIndex, theme);
   const onAddTrack = useStableEvent(addTrack);
+  // The pinned challenge: its claim saves first (waiting for a save in flight), a paid claim
+  // refreshes the frame's credits meter, and Hide returns focus to the lyrics.
+  const saveBeforeClaim = useStableEvent(saveBeforeLeave);
+  const onChallengeClaimed = useStableEvent(refreshFrame);
+  const hideChallenge = useStableEvent(() => {
+    if (!challengeKey) return;
+    setHiddenChallenge(challengeKey);
+    setPendingFocus({ id: "section-lyrics", scroll: "none" });
+  });
   const onAddThemes = useStableEvent(() => openAlbumField(ALBUM_THEMES_INPUT_ID));
   const onStoryChange = useStableEvent(updateSongField) as typeof updateSongField;
   const onAlbumDetailsChange = useStableEvent((patch: Partial<StudioAlbum>) => edit((prev) => ({ ...prev, ...patch })));
@@ -2070,6 +2214,9 @@ function useAlbumStudioRender({
               <Plus className="h-4 w-4 flex-none" aria-hidden="true" />
               <span className="@max-xl:sr-only">Add section</span>
             </Button>
+            {/* "Delete Verse 1 and its written lyrics?" asks here, with the section it is about
+                (the list), not over the lyrics: the Writing Path Rule. */}
+            {deleteConfirm("section")}
           </div>
 
           {activeSection ? (
@@ -2122,7 +2269,7 @@ function useAlbumStudioRender({
                       {
                         key: "mp3",
                         label: "Download MP3",
-                        hint: "Needs audio rendering on the server, so it may not work on every install. Previews always play in your browser.",
+                        hint: "An audio file of these chords to keep. If it can’t be made, Preview still plays them here.",
                         icon: <Download className="h-4 w-4" aria-hidden="true" />,
                         disabled: previewing,
                         onSelect: downloadSectionMp3,
@@ -2156,12 +2303,25 @@ function useAlbumStudioRender({
                 </div>
               </div>
               {previewStatus("section")}
-              {deleteConfirm("section")}
               </div>
+
+              {pinnedChallenge ? (
+                <ChallengeBand
+                  challenge={pinnedChallenge}
+                  albumId={albumId}
+                  trackNumber={activeSong.track_number}
+                  trackWritten={progress.written > 0}
+                  beforeClaim={saveBeforeClaim}
+                  onClaimed={onChallengeClaimed}
+                  onHide={hideChallenge}
+                />
+              ) : null}
 
               <Field label="Lyrics draft" htmlFor="section-lyrics">
                 <textarea
                   id="section-lyrics"
+                  // The pinned prompt is part of what the lyrics are for, so it is read with them.
+                  aria-describedby={pinnedChallenge ? CHALLENGE_PROMPT_ID : undefined}
                   value={activeSection.lyrics ?? ""}
                   onChange={(e) => updateSectionField("lyrics", e.target.value)}
                   rows={10}
@@ -2215,11 +2375,13 @@ function useAlbumStudioRender({
                 </div>
               ) : null}
               {upNext ? (
-                // From 48em only: below it, the save bar carries the one "Write next".
-                <div className="max-[48em]:hidden">
-                  <Button tone="primary" onClick={writeNext}>
-                    Write next: {writeNextLabel}
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                // The one "Write next", at every width: after the writing it follows, in the
+                // page's flow. On a phone it once rode in the sticky save bar, where its full-width
+                // row held a sixth of the screen above the lyrics all the time.
+                <div>
+                  <Button tone="primary" onClick={writeNext} className="max-w-full">
+                    <span className="min-w-0 break-words">Write next: {writeNextLabel}</span>
+                    <ArrowRight className="h-4 w-4 flex-none" aria-hidden="true" />
                   </Button>
                 </div>
               ) : null}
@@ -2246,9 +2408,15 @@ function useAlbumStudioRender({
                     <p className="min-w-0 max-w-[65ch] text-sm leading-relaxed text-ink-2">
                       Comments and section links turn on after the first save.
                     </p>
-                    <Button id="save-for-comments" tone="ghost" onClick={() => void saveToTurnOnComments()} busy={saving}>
-                      <Save className="h-4 w-4" aria-hidden="true" />
-                      Save to turn on comments
+                    <Button
+                      id="save-for-comments"
+                      tone="ghost"
+                      className="max-w-full justify-start text-left"
+                      onClick={() => void saveToTurnOnComments()}
+                      busy={saving}
+                    >
+                      <Save className="h-4 w-4 flex-none" aria-hidden="true" />
+                      <span className="min-w-0 break-words">Save to turn on comments</span>
                     </Button>
                   </div>
                 </section>
@@ -2263,7 +2431,9 @@ function useAlbumStudioRender({
             <EmptyState
               title="This track has no sections yet"
               action={
-                <Button tone="secondary" onClick={addSection}>
+                // The screen's one primary: with no sections there is no Write next here, and
+                // adding the first section is the next step of the work.
+                <Button tone="primary" onClick={addSection}>
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Add section
                 </Button>
@@ -2288,14 +2458,18 @@ function useAlbumStudioRender({
         open={storyOpen}
         onOpenChange={setStoryOpen}
       />
-      <SongDevelopmentAiMemo
-        key={`ai-${activeSong.id}`}
-        albumId={albumId}
-        songTitle={songTitle}
-        trackNumber={activeSong.track_number}
-        aiAvailable={aiAvailable}
-        creditsRemaining={creditsRemaining}
-      />
+      {/* AI drafting takes no room here when this server can't run it: Help and Billing say
+          so, once. When it can, the panel is as it always was. */}
+      {aiAvailable ? (
+        <SongDevelopmentAiMemo
+          key={`ai-${activeSong.id}`}
+          albumId={albumId}
+          songTitle={songTitle}
+          trackNumber={activeSong.track_number}
+          aiAvailable={aiAvailable}
+          creditsRemaining={creditsRemaining}
+        />
+      ) : null}
     </div>
   ) : null;
 
@@ -2305,7 +2479,8 @@ function useAlbumStudioRender({
           straight to the current section's lyrics. In one column (a phone, enlarged text: the
           same 42rem at which the track list folds) the lyrics are screens down, so it is a
           visible link, an ink link like any other, that a touch can take; with the columns
-          side by side it is visible on focus only, like the app's skip link. */}
+          side by side it is hidden, and the app's skip link (the page's first stop) does its
+          work by clicking it. */}
       {songs.length ? (
         <a
           href={`#${EDITOR_ID}`}
@@ -2315,11 +2490,12 @@ function useAlbumStudioRender({
           }}
           className={cn(
             "inline-flex min-h-11 items-center gap-2 self-start rounded text-sm text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
-            "@min-[42rem]/studio-top:sr-only @min-[42rem]/studio-top:z-50 @min-[42rem]/studio-top:bg-accent @min-[42rem]/studio-top:font-semibold @min-[42rem]/studio-top:text-accent-ink @min-[42rem]/studio-top:no-underline",
-            "@min-[42rem]/studio-top:focus:not-sr-only @min-[42rem]/studio-top:focus:fixed @min-[42rem]/studio-top:focus:left-4 @min-[42rem]/studio-top:focus:top-4 @min-[42rem]/studio-top:focus:px-4 @min-[42rem]/studio-top:focus:py-3",
+            // From 42rem the app's own skip link (the page's first stop, named "Skip to the
+            // lyrics") is the only one: it clicks this link, which stays in the DOM for it.
+            "@min-[42rem]/studio-top:hidden",
           )}
         >
-          <ArrowDown className="h-4 w-4 shrink-0 text-ink-3 @min-[42rem]/studio-top:hidden" aria-hidden="true" />
+          <ArrowDown className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
           Skip to the lyrics
         </a>
       ) : null}
@@ -2344,7 +2520,9 @@ function useAlbumStudioRender({
       <div className="@container/studio min-w-0">
       <div
         className={cn(
-          "grid min-w-0 grid-cols-1 items-start gap-x-8 gap-y-8",
+          // In one column (a phone) the folded Sequence and the editor sit 1.5rem apart, not 2:
+          // the lyrics come that much sooner.
+          "grid min-w-0 grid-cols-1 items-start gap-x-8 gap-y-6 @2xl:gap-y-8",
           STUDIO_GRID_BASE,
           STUDIO_GRID_COLUMNS[themeColumns],
         )}
@@ -2363,7 +2541,8 @@ function useAlbumStudioRender({
             <EmptyState
               title="Start the record with its first track"
               action={
-                <Button id={ADD_TRACK_ID} tone="secondary" onClick={addTrack}>
+                // The one primary on an album with no tracks: its first track is the next step.
+                <Button id={ADD_TRACK_ID} tone="primary" onClick={addTrack}>
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Add track
                 </Button>

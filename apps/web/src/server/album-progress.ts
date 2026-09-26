@@ -2,6 +2,7 @@ import { getSpineRows } from "@/server/album-songs";
 import { scoreStory, type ScoreStory } from "@/lib/score-story";
 import { analyzeAlbumCoherence, type CoherenceVerdict } from "@/server/coherence";
 import { getPrisma } from "@/server/db";
+import { remixSource } from "@/server/remix-source";
 
 /**
  * How far an album has come, for a catalog row: tracks with lyrics written out of all tracks
@@ -16,7 +17,17 @@ export type AlbumProgress = {
   verdict: CoherenceVerdict["label"];
   /** "3 of 8 tracks written · Unfinished", then "Written tracks 65/100 · Whole album 25/100". */
   story: ScoreStory;
+  /**
+   * Where a remix came from, read from the same snapshot, so a catalog row can say "Remix of
+   * Lighthouse Frequencies by Casey" as the release header does. Null for an original.
+   */
+  remixOf: { title: string; artist: string | null } | null;
 };
+
+function remixOf(data: unknown): AlbumProgress["remixOf"] {
+  const source = remixSource(data);
+  return source ? { title: source.title, artist: source.artist } : null;
+}
 
 export function albumProgress(data: unknown): AlbumProgress {
   const rows = getSpineRows(data);
@@ -26,6 +37,7 @@ export function albumProgress(data: unknown): AlbumProgress {
     lyricsWritten: rows.filter((row) => row.lyricSections > 0).length,
     verdict: coherence.verdict.label,
     story: scoreStory(coherence),
+    remixOf: remixOf(data),
   };
 }
 

@@ -67,4 +67,10 @@ describe("albumProgress", () => {
     expect(story.scoreLine).toBe(`Written tracks ${report.writtenScore}/100 · Whole album ${report.score}/100`);
     expect(albumProgress(album(5, 5)).story.scores).toHaveLength(1);
   });
+
+  it("says where a remix came from, for the row's catalog line", () => {
+    expect(albumProgress(album(3, 8)).remixOf).toBeNull();
+    const remix = { ...album(3, 8), remixed_from: { album_id: "a1", title: "Lighthouse Frequencies", artist: "Casey" } };
+    expect(albumProgress(remix).remixOf).toEqual({ title: "Lighthouse Frequencies", artist: "Casey" });
+  });
 });

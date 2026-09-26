@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * Whether a track carries one of the album's central themes: a filled square when it does, a
- * small dot when it doesn't. The one mark for every read-only theme matrix (the spine and the
- * landing example), so the two never drift apart. The Studio track list is editable and
- * draws its own toggles (the theme's key letter, filled when pressed).
+ * small dot when it doesn't. The one mark for every theme matrix (the spine, the landing
+ * example, and the Studio track list, whose toggles show it pressed or not), so they never
+ * drift apart; Discover's list draws the same square and dot at strip size.
  *
  * `label` is the mark's spoken equivalent. Leave it out where the row already says what it
  * carries in one phrase (the spine does), so a screen reader isn't read one cell per theme.
@@ -32,9 +32,9 @@ export function ThemeMark({ carries, label }: { carries: boolean; label?: string
  * A theme's name heading its column, whole: on one line when it fits the slot, otherwise on
  * two (broken at a space, or hyphenated at a syllable in a word of eight letters or more), from
  * `themeHeadLines`. A shorter word is never split; a name that doesn't fit whole truncates, and
- * the table shows its legend for it. Each line
- * still truncates as a safety net. Visual only: the table names its themes in full for
- * screen readers, so this is hidden from them.
+ * the table shows its legend for it. Where the table has the room, it widens the slot to the
+ * name instead (`wideThemeHeads`). Each line still truncates as a safety net. Visual only: the
+ * table names its themes in full for screen readers, so this is hidden from them.
  *
  * `widthRem` is the room inside the slot (its width less padding), in rem.
  */

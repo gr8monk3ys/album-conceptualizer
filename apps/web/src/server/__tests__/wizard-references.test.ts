@@ -5,14 +5,15 @@ import { MAX_WIZARD_REFERENCES, wizardReferenceRows } from "@/server/wizard-refe
 
 describe("wizardReferenceRows", () => {
   it("turns each wizard reference into a whole-album reference, in the order typed", () => {
-    const rows = wizardReferenceRows("album-1", ["Blonde, Frank Ocean", "  OK Computer  "]);
+    const rows = wizardReferenceRows("album-1", ["Blonde — Frank Ocean", "  OK Computer  "]);
     expect(rows).toEqual([
       {
         albumId: "album-1",
         songId: null,
         songTrackNumber: null,
         songTitle: null,
-        title: "Blonde, Frank Ocean",
+        title: "Blonde",
+        artist: "Frank Ocean",
         moodTags: [],
         arrangementTags: [],
       },
@@ -22,10 +23,25 @@ describe("wizardReferenceRows", () => {
         songTrackNumber: null,
         songTitle: null,
         title: "OK Computer",
+        artist: null,
         moodTags: [],
         arrangementTags: [],
       },
     ]);
+  });
+
+  it("reads each line as title and artist, as the wizard's preview shows it", () => {
+    const rows = wizardReferenceRows("a", ["Blonde, Frank Ocean", "Hey, Soul Sister, Train", "Stand by Me by Ben E. King"]);
+    expect(rows.map(({ title, artist }) => ({ title, artist }))).toEqual([
+      { title: "Blonde", artist: "Frank Ocean" },
+      { title: "Hey, Soul Sister", artist: "Train" },
+      { title: "Stand by Me", artist: "Ben E. King" },
+    ]);
+  });
+
+  it("keeps the same title by two artists, and drops a repeat of both", () => {
+    const rows = wizardReferenceRows("a", ["Hurt — Nine Inch Nails", "Hurt — Johnny Cash", "hurt - johnny cash"]);
+    expect(rows.map((row) => row.artist)).toEqual(["Nine Inch Nails", "Johnny Cash"]);
   });
 
   it("creates nothing for an album set up without references", () => {

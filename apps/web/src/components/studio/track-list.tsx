@@ -5,12 +5,12 @@ import { ChevronRight, Plus } from "lucide-react";
 
 import { carriedThemes, type StudioSong } from "@/components/studio/studio-model";
 import { TRACK_KEYSHORTCUTS } from "@/components/studio/studio-shortcuts";
-import { TRACKS_TOGGLE_ID, tracksSummary } from "@/components/studio/tracks-disclosure";
+import { TRACKS_TOGGLE_ID, tracksSummaryParts } from "@/components/studio/tracks-disclosure";
 import { sameKeys } from "@/components/studio/use-stable-event";
-import { ThemeHeadName } from "@/components/theme-mark";
+import { ThemeHeadName, ThemeMark } from "@/components/theme-mark";
 import { Button, TableScroller } from "@/components/ui";
 import { lyricProgress } from "@/lib/lyrics";
-import { carriedThemesPhrase, themeAbbreviations } from "@/lib/theme-keys";
+import { carriedThemesPhrase, themeAbbreviations, themeHeadLines } from "@/lib/theme-keys";
 import { cn } from "@/lib/utils";
 
 /** The album's central themes shown as columns; more than this reads as noise. */
@@ -26,26 +26,24 @@ export function lyricFraction({ written, total }: { written: number; total: numb
 }
 
 /**
- * The Studio's theme toggle face: the theme's key letter in a small square, filled Bone Ink
- * with the letter in the ground colour when the track carries the theme, the bare letter in
- * Ash Ink when it doesn't. The spine keeps ThemeMark's square and dot; the Studio matrix is
- * where tagging happens, so each toggle shows which theme it is without a tooltip. Forced
- * colors draw it in system colours (CanvasText fill, Canvas letter; GrayText when off).
+ * The room a theme's name has over its toggle column: a 3.5rem slot (`w-14`) less its padding.
+ * It holds a six-letter name such as "memory" on one line ("memory" sets 3.02rem), and a longer
+ * one hyphenated over two ("ISO-/LATION"); only a name two lines can't hold truncates, and then
+ * the legend under the table names every theme.
  */
-function ThemeToggleFace({ carries, letter }: { carries: boolean; letter: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "type-catalog grid h-6 min-w-6 place-items-center rounded-sm px-0.5 text-xs leading-none forced-color-adjust-none",
-        carries
-          ? "bg-ink font-semibold text-ground forced-colors:bg-[CanvasText] forced-colors:text-[Canvas]"
-          : "text-ink-3 forced-colors:text-[GrayText]",
-      )}
-    >
-      {letter}
-    </span>
-  );
+export const THEME_NAME_ROOM_REM = 3.25;
+
+/**
+ * How the theme columns are headed for `count` themes: by name in 3.5rem slots wherever the
+ * list has room for them (up to four themes from a 64rem Studio, the width a 1440px laptop
+ * gives it; five or six from 80rem), otherwise by the theme's short key in 2.75rem slots, with
+ * the legend spelling the keys out. The toggle in each cell is 44px either way. Literal
+ * strings so Tailwind sees them.
+ */
+export function themeColumnClasses(count: number) {
+  return count <= 4
+    ? { slot: "w-14", key: "hidden", name: "block", keyLegend: "hidden" }
+    : { slot: "w-11 @7xl:w-14", key: "block @7xl:hidden", name: "hidden @7xl:block", keyLegend: "@7xl:hidden" };
 }
 
 function lyricSentence({ written, total }: { written: number; total: number }) {
@@ -60,18 +58,20 @@ export function pad2(value: number) {
 /**
  * The Studio's two columns, keyed to the room the Studio actually has (container queries in
  * rem, so enlarged text folds the layout to one column instead of squeezing it): the track
- * list beside the editor from 42rem, one 44px toggle column per central theme from 64rem,
- * and the Role column from 80rem. Literal strings so Tailwind sees them; index = theme count.
+ * list beside the editor from 42rem, one toggle column per central theme from 64rem (14rem
+ * for number, title and lyrics, plus a 3.5rem named slot a theme, or 2.75rem keyed for five
+ * or six: `themeColumnClasses`), and the Role column (8rem more) from 80rem, where every
+ * theme is named. Literal strings so Tailwind sees them; index = theme count.
  */
 export const STUDIO_GRID_BASE = "@2xl:grid-cols-[17rem_minmax(0,1fr)]";
 export const STUDIO_GRID_COLUMNS = [
   "@7xl:grid-cols-[25rem_minmax(0,1fr)]",
-  "@7xl:grid-cols-[25rem_minmax(0,1fr)]",
-  "@5xl:grid-cols-[19.5rem_minmax(0,1fr)] @7xl:grid-cols-[27.5rem_minmax(0,1fr)]",
-  "@5xl:grid-cols-[22.25rem_minmax(0,1fr)] @7xl:grid-cols-[30.25rem_minmax(0,1fr)]",
-  "@5xl:grid-cols-[25rem_minmax(0,1fr)] @7xl:grid-cols-[33rem_minmax(0,1fr)]",
-  "@5xl:grid-cols-[27.75rem_minmax(0,1fr)] @7xl:grid-cols-[35.75rem_minmax(0,1fr)]",
-  "@5xl:grid-cols-[30.5rem_minmax(0,1fr)] @7xl:grid-cols-[38.5rem_minmax(0,1fr)]",
+  "@5xl:grid-cols-[17.5rem_minmax(0,1fr)] @7xl:grid-cols-[25.5rem_minmax(0,1fr)]",
+  "@5xl:grid-cols-[21rem_minmax(0,1fr)] @7xl:grid-cols-[29rem_minmax(0,1fr)]",
+  "@5xl:grid-cols-[24.5rem_minmax(0,1fr)] @7xl:grid-cols-[32.5rem_minmax(0,1fr)]",
+  "@5xl:grid-cols-[28rem_minmax(0,1fr)] @7xl:grid-cols-[36rem_minmax(0,1fr)]",
+  "@5xl:grid-cols-[27.75rem_minmax(0,1fr)] @7xl:grid-cols-[39.5rem_minmax(0,1fr)]",
+  "@5xl:grid-cols-[30.5rem_minmax(0,1fr)] @7xl:grid-cols-[43rem_minmax(0,1fr)]",
 ] as const;
 
 const BODY_ID = "studio-track-list";
@@ -164,14 +164,21 @@ function TrackListView({
   const [focusedTheme, setFocusedTheme] = useState<number | null>(null);
   const themes = centralThemes.filter((t) => t.trim()).slice(0, MAX_THEME_COLUMNS);
   const hiddenThemes = centralThemes.filter((t) => t.trim()).length - themes.length;
-  // Each toggle shows its theme's short key (the first letters of the name over its column).
+  // The heads' short keys, where five or six themes leave no room for names.
   const abbreviations = themeAbbreviations(themes);
+  const columns = themeColumnClasses(themes.length);
+  // A name two lines can't hold truncates in its head: then the legend names every theme.
+  const namesTruncate = themes.some((theme) => themeHeadLines(theme, THEME_NAME_ROOM_REM).truncated);
+  // The legend spells out the heads' keys while they show keys, and every name while one of
+  // them truncates; with every head a whole name there is nothing left to spell out.
+  const showLegend = themes.length > 0 && (namesTruncate || themes.length > 4);
   const activeId = songs[activeIndex]?.id;
   const roveRow = Math.min(rove.row, Math.max(0, songs.length - 1));
   const activeSafe = songIndexSafe(activeIndex, songs.length);
   // Only a list with tracks folds; an empty one says so in the open.
   const folds = songs.length > 0;
   const roveCol = Math.min(rove.col, Math.max(0, themes.length - 1));
+  const summary = tracksSummaryParts(songs[activeSafe], songs.length);
 
   // Keep the current track in view inside the list without moving the page.
   useEffect(() => {
@@ -308,7 +315,10 @@ function TrackListView({
                   open && "rotate-90",
                 )}
               />
-              <span className="type-figure min-w-0 break-words">{tracksSummary(songs[activeSafe], songs.length)}</span>
+              <span className="type-figure min-w-0 break-words">
+                {summary.where}
+                <span className="@max-[12rem]/studio:hidden">{summary.title}</span>
+              </span>
             </button>
           ) : null}
           <span className={cn(folds && "hidden @2xl:inline")}>Sequence</span>
@@ -333,7 +343,7 @@ function TrackListView({
         >
           <table
             className="w-full border-collapse text-left"
-            aria-describedby={themes.length ? "theme-legend" : undefined}
+            aria-describedby={showLegend ? "theme-legend" : undefined}
           >
             <caption className="sr-only">
               Tracks in order, with lyrics written, the central themes each carries and its role.
@@ -352,14 +362,36 @@ function TrackListView({
                 <th scope="col" className={cn(HEAD, "w-px text-right")}>
                   Lyrics
                 </th>
-                {themes.map((theme) => (
-                  // The theme's whole name over its 44px column, on two lines when one won't
-                  // hold it (`ThemeHeadName`: 2.75rem less padding); only a name two lines can't
-                  // hold truncates. The full name is the header's accessible name, its tooltip,
-                  // and in the legend below, where the theme under keyboard focus is picked out.
-                  <th key={theme} scope="col" className={cn(HEAD, "hidden w-11 px-0 text-center @5xl:table-cell")}>
+                {themes.map((theme, col) => (
+                  // Names, not codes: the theme's whole name over its column, on two lines when
+                  // one won't hold it (`ThemeHeadName`, `THEME_NAME_ROOM_REM`); its short key only
+                  // where five or six themes leave no room (`themeColumnClasses`). The full name
+                  // is the header's accessible name and its tooltip. The head of the theme under
+                  // keyboard focus is picked out, so its name is on screen for keyboard users
+                  // too (a tooltip only follows the pointer).
+                  <th
+                    key={theme}
+                    scope="col"
+                    className={cn(
+                      HEAD,
+                      "hidden px-0 text-center @5xl:table-cell",
+                      columns.slot,
+                      focusedTheme === col && "text-ink",
+                    )}
+                  >
                     <span className="sr-only">{theme}</span>
-                    <ThemeHeadName theme={theme} widthRem={2.5} className="mx-auto block w-11 px-0.5" />
+                    <span aria-hidden="true" title={theme} className={cn("type-catalog text-center", columns.key)}>
+                      {abbreviations[col]}
+                    </span>
+                    <ThemeHeadName
+                      theme={theme}
+                      widthRem={THEME_NAME_ROOM_REM}
+                      className={cn(
+                        "mx-auto w-14 px-0.5",
+                        columns.name,
+                        focusedTheme === col && "text-ink underline decoration-line-strong underline-offset-4",
+                      )}
+                    />
                   </th>
                 ))}
                 <th scope="col" className={cn(HEAD, "hidden w-32 pl-3 @7xl:table-cell")}>
@@ -414,7 +446,10 @@ function TrackListView({
                             "after:border-2 after:border-transparent forced-colors:after:border-[color:Highlight]",
                         )}
                       >
-                        <span className="line-clamp-2 break-words text-sm font-semibold text-ink hyphens-auto" title={title}>
+                        {/* `wrap-anywhere`, not break-words: in a table only it lets a word longer
+                            than the column ("Supercalifragilistic…") break, instead of widening the
+                            table past its scroller; ordinary titles still wrap between words. */}
+                        <span className="line-clamp-2 text-sm font-semibold text-ink wrap-anywhere hyphens-auto" title={title}>
                           {title}
                         </span>
                         {position ? (
@@ -441,7 +476,7 @@ function TrackListView({
                       const carries = carriedKeys.has(theme.trim().toLowerCase());
                       const tabbable = index === roveRow && col === roveCol;
                       return (
-                        <td key={theme} className="hidden p-0 text-center align-middle @5xl:table-cell">
+                        <td key={theme} className={cn("hidden p-0 text-center align-middle @5xl:table-cell", columns.slot)}>
                           <button
                             id={`theme-toggle-${index}-${col}`}
                             type="button"
@@ -465,7 +500,9 @@ function TrackListView({
                               carries ? "border-transparent" : "border-transparent forced-colors:border-[color:Canvas]",
                             )}
                           >
-                            <ThemeToggleFace carries={carries} letter={abbreviations[col] ?? ""} />
+                            {/* The spine's marks: a filled square when the track carries the theme,
+                                a quiet dot when it doesn't, under the theme's named head. */}
+                            <ThemeMark carries={carries} />
                           </button>
                         </td>
                       );
@@ -499,11 +536,17 @@ function TrackListView({
         <p className="mt-2 max-w-[65ch] text-sm text-ink-2">No tracks yet.</p>
       )}
 
-      {themes.length ? (
+      {showLegend ? (
         // The theme columns spelled out in full, left to right, tied to the table as its
-        // description. While a theme toggle has focus, its theme is picked out here, so the
-        // full name is on screen for keyboard users too (a tooltip only follows the pointer).
-        <p id="theme-legend" className="mt-2 hidden max-w-[65ch] flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2 @5xl:flex">
+        // description: while the heads show keys, or while a name had to truncate. While a
+        // theme toggle has focus, its theme is picked out here too.
+        <p
+          id="theme-legend"
+          className={cn(
+            "mt-2 hidden max-w-[65ch] flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2 @5xl:flex",
+            !namesTruncate && "@7xl:hidden",
+          )}
+        >
           <span className="sr-only">Album themes, in column order: </span>
           {themes.map((theme, col) => (
             <span
@@ -513,9 +556,9 @@ function TrackListView({
                 focusedTheme === col && "font-semibold text-ink underline decoration-line-strong underline-offset-4",
               )}
             >
-              <span aria-hidden="true" className="type-catalog text-ink-3">
-                {abbreviations[col]}
-              </span>{" "}
+              <span aria-hidden="true" className={cn("type-catalog text-ink-3", columns.keyLegend)}>
+                {abbreviations[col]}{" "}
+              </span>
               {theme}
               {col < themes.length - 1 ? <span className="sr-only">,</span> : null}
             </span>

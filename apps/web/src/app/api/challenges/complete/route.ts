@@ -11,7 +11,7 @@ import {
   recordLyricsBaseline,
   startOfUtcDay,
 } from "@/server/challenge-verification";
-import { getDailyChallenge, getUtcDay, isKnownChallenge } from "@/server/challenges";
+import { challengeClaimReason, getDailyChallenge, getUtcDay, isKnownChallenge } from "@/server/challenges";
 import { getCredits, grantCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
 
@@ -24,10 +24,14 @@ const BodySchema = z.object({
   // tracks. Required, because the credits are paid for writing the album shows.
   albumId: z.string().max(64).optional(),
   trackNumber: z.number().int().min(1).max(999).optional(),
+  // Where the claim was made, for the wording of "no credits yet": the Studio's challenge band
+  // (the writing is on screen) or the Challenges page. Only a claim without a note uses it.
+  from: z.enum(["studio", "page"]).optional(),
 });
 
 /**
- * Saves today's challenge entry. Credits are granted only when the linked track (or album)
+ * Saves today's challenge entry (from the Studio's challenge band, or the Challenges page for
+ * writing already done; a note is optional). Credits are granted only when the linked track (or album)
  * has written lyrics that are new today (UTC, `checkChallengeWriting`: measured against the
  * album's lyrics baseline for the day, recorded here when it is missing); otherwise the note is
  * saved with 0 credits and the response says why, and the artist can send it again once they
@@ -91,8 +95,9 @@ export const POST = apiHandler(async (request: Request) => {
     firstVersion,
   });
   const earned = check.verified ? challenge.credits : 0;
+  // A claim without a note (the Studio's band, the Challenges page) keeps any note saved earlier.
   const entry = {
-    notes: payload.notes ?? null,
+    ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
     albumId: album.id,
     trackNumber,
     creditsEarned: earned,
@@ -137,7 +142,9 @@ export const POST = apiHandler(async (request: Request) => {
       credited: false,
       creditsEarned: 0,
       balance: remaining,
-      reason: challengeWritingReason(check.reason, { albumTitle: album.title, trackNumber }),
+      reason: payload.notes
+        ? challengeWritingReason(check.reason, { albumTitle: album.title, trackNumber })
+        : challengeClaimReason(check.reason, { albumTitle: album.title, trackNumber }, payload.from ?? "page"),
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {

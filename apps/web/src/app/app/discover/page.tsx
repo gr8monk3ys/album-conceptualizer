@@ -20,6 +20,7 @@ import {
   genreOptions,
   isNarrowedView,
   parseDiscoverView,
+  themeTrackMarks,
   widenViewHref,
   type DiscoverView,
 } from "@/lib/discover";
@@ -134,10 +135,14 @@ export default async function DiscoverPage({
   ]);
 
   const rankable = found.map((album) => {
-    const trackLyrics = getSpineRows(album.data).map((row) => row.lyricSections > 0);
+    const rows = getSpineRows(album.data);
+    const trackLyrics = rows.map((row) => row.lyricSections > 0);
+    const themes = getSpineThemes(album.data);
     return {
       album,
       trackLyrics,
+      themes,
+      themeTracks: themeTrackMarks(themes, rows),
       tracks: trackLyrics.length,
       withLyrics: trackLyrics.filter(Boolean).length,
       likes: album._count.likes,
@@ -263,7 +268,7 @@ export default async function DiscoverPage({
       {albums.length ? (
         <>
           <ul aria-label="Published albums" className="border-t border-line">
-            {albums.map(({ album, trackLyrics }) => (
+            {albums.map(({ album, trackLyrics, themes, themeTracks }) => (
               <li key={album.id} className="border-b border-line">
                 <DiscoverAlbumCard
                   album={{
@@ -273,7 +278,8 @@ export default async function DiscoverPage({
                     conceptSummary: album.conceptSummary?.trim() || null,
                     primaryGenre: album.primaryGenre,
                     trackLyrics,
-                    themes: getSpineThemes(album.data),
+                    themes,
+                    themeTracks,
                     isOwn: album.workspaceId === workspace.id,
                     publishedAt: album.publishedAt?.toISOString() ?? null,
                     likes: album._count.likes,

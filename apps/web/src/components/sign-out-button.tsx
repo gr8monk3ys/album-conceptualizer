@@ -60,7 +60,16 @@ export async function signOutToFrontPage(
   }
 }
 
-export function SignOutButton() {
+/** Sign out: a row of the account block by default, or styled by the caller (Settings). */
+export function SignOutButton({ className }: { className?: string } = {}) {
+  if (className) {
+    return (
+      <button type="button" onClick={() => void signOutToFrontPage()} className={className}>
+        <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
+        Sign out
+      </button>
+    );
+  }
   return (
     <button
       type="button"

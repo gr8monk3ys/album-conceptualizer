@@ -116,7 +116,7 @@ describe("analyzeAlbumCoherence on a template scaffold", () => {
   it("flags the report as insufficient instead of praising it", () => {
     expect(report.insufficient).toBe(true);
     expect(report.summary).toBe(
-      "Not enough material yet — write lyrics for two tracks to get a score.",
+      "A first score comes once two tracks have lyrics.",
     );
     expect(report.summary).not.toMatch(/\/100/);
   });

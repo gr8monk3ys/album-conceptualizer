@@ -1,11 +1,13 @@
+import Link from "next/link";
+
 import { DailyChallengeCard } from "@/components/daily-challenge-card";
 import { PageHeader, Section } from "@/components/ui";
-import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { trackHasLyrics } from "@/lib/lyrics";
+import { asList } from "@/lib/snapshot-values";
 import { getAlbumSongOptions } from "@/server/album-songs";
 import { recordLyricsBaselines } from "@/server/challenge-verification";
 import { getDailyChallenge } from "@/server/challenges";
 import { getPrisma } from "@/server/db";
-import { getAgentAvailability } from "@/server/engine";
 import { requireUser } from "@/server/identity";
 import { effectivePlan, planMonthlyCredits } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
@@ -17,13 +19,6 @@ export const metadata = {
 };
 
 const PLAN_NAME = { free: "Free", pro: "Pro", team: "Team" } as const;
-
-const CREDIT_USES: Array<{ label: string; cost: number; ai?: boolean }> = [
-  { label: "Create an album", cost: CREDIT_COSTS.albumCreate },
-  { label: "Remix an album from Discover", cost: CREDIT_COSTS.albumFork },
-  { label: "Download the zip export", cost: CREDIT_COSTS.exportZip },
-  { label: "An AI draft (ideas, a track or a written review)", cost: CREDIT_COSTS.agentRun, ai: true },
-];
 
 function addDaysUtc(day: string, delta: number) {
   const [y, m, d] = day.split("-").map((v) => Number(v));
@@ -42,6 +37,17 @@ function computeStreak(today: string, completedDays: Set<string>) {
   return streak;
 }
 
+/** The track numbers that already have written lyrics, so the prompt suggests a fresh one. */
+function writtenTracks(data: unknown): Set<number> {
+  const songs = asList((data as { songs?: unknown } | null)?.songs);
+  const written = new Set<number>();
+  for (const song of songs) {
+    const raw = song as { track_number?: unknown; sections?: unknown } | null;
+    if (typeof raw?.track_number === "number" && trackHasLyrics(raw.sections)) written.add(raw.track_number);
+  }
+  return written;
+}
+
 export default async function ChallengesPage() {
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
@@ -55,7 +61,7 @@ export default async function ChallengesPage() {
   // the entry's credits are paid for what is written after (see challenge-verification).
   await recordLyricsBaselines(prisma, workspace.id, now);
 
-  const [completion, albums, aiAvailable] = await Promise.all([
+  const [completion, albums] = await Promise.all([
     prisma.challengeCompletion.findFirst({
       where: {
         workspaceId: workspace.id,
@@ -71,15 +77,13 @@ export default async function ChallengesPage() {
         createdAt: true,
       },
     }),
-    // For the "Written in" choice, and to link a finished entry back to its album.
+    // For the "Write it in" choice, and to link a finished entry back to its album.
     prisma.album.findMany({
       where: { workspaceId: workspace.id },
       orderBy: { updatedAt: "desc" },
       take: 50,
       select: { id: true, title: true, data: true },
     }),
-    // AI drafts aren't offered as a way to spend credits when the server can't run them.
-    getAgentAvailability(),
   ]);
   const completionLink = completion?.albumId
     ? { albumId: completion.albumId, trackNumber: completion.trackNumber }
@@ -106,7 +110,7 @@ export default async function ChallengesPage() {
       <PageHeader
         title="Challenges"
         size="page"
-        description="One short writing prompt a day, the same for everyone. Write against it in one of your albums, then note what you drafted and where. The credits come once that album shows lyrics written today."
+        description="One short writing prompt a day, the same for everyone. Take it into one of your tracks: the Studio keeps the prompt above the lyrics, and the credits come once the track shows lyrics written today."
       />
 
       {/* Rem-sized container query: with enlarged text the side column folds under the prompt. */}
@@ -125,14 +129,18 @@ export default async function ChallengesPage() {
                   }
                 : null
             }
-            albums={albums.map((album) => ({
-              id: album.id,
-              title: album.title,
-              tracks: getAlbumSongOptions(album.data).map((song) => ({
-                number: song.trackNumber,
-                title: song.title,
-              })),
-            }))}
+            albums={albums.map((album) => {
+              const written = writtenTracks(album.data);
+              return {
+                id: album.id,
+                title: album.title,
+                tracks: getAlbumSongOptions(album.data).map((song) => ({
+                  number: song.trackNumber,
+                  title: song.title,
+                  written: written.has(song.trackNumber),
+                })),
+              };
+            })}
           />
 
           <div className="flex min-w-0 flex-col gap-8">
@@ -153,26 +161,14 @@ export default async function ChallengesPage() {
 
             <Section
               title="What credits are for"
-              description={`Some actions spend credits. Each calendar month your ${PLAN_NAME[plan]} plan tops your balance up to ${planMonthlyCredits(plan)}; credits earned here are kept on top of that.`}
+              description={`Some actions spend credits. Each calendar month your ${PLAN_NAME[plan]} plan tops your balance up to ${planMonthlyCredits(plan)}; credits earned here are kept on top of that. Writing, saving, the Story bible and the Coherence report never cost credits.`}
             >
-              <dl className="border-t border-line">
-                {CREDIT_USES.map((use) => (
-                  <div
-                    key={use.label}
-                    className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-line py-2"
-                  >
-                    <dt className="min-w-0 text-sm text-ink-2">{use.label}</dt>
-                    {use.ai && !aiAvailable ? (
-                      <dd className="text-sm text-ink-3">Not available on this server right now</dd>
-                    ) : (
-                      <dd className="type-figure text-sm font-semibold text-ink">
-                        {use.cost} credits
-                      </dd>
-                    )}
-                  </div>
-                ))}
-              </dl>
-              <p className="mt-3 max-w-[65ch] text-sm text-ink-3">Writing, saving, the Story bible and the Coherence report never cost credits.</p>
+              <Link
+                href="/app/settings/billing#credits-title"
+                className="inline-flex min-h-11 items-center text-sm text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
+              >
+                What each action costs, on every plan
+              </Link>
             </Section>
           </div>
         </div>

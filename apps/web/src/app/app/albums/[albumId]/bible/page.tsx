@@ -27,6 +27,7 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { albumMotifIndex, type MotifEntry } from "@/lib/motifs";
 import { themeHeadLines } from "@/lib/theme-keys";
 import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
+import { writtenSoFar } from "@/lib/written-so-far";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -463,7 +464,11 @@ function IssueRow({ albumId, issue }: { albumId: string; issue: BibleIssue }) {
   return (
     <li className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:gap-6">
       <div className="min-w-0 flex-1">
-        <p className="break-words text-sm font-semibold text-ink">{issue.title}</p>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="min-w-0 break-words text-sm font-semibold text-ink">{issue.title}</span>
+          {/* Work still to come, while the album is early: neutral, never a warning. */}
+          {issue.progress ? <Chip>To do</Chip> : null}
+        </p>
         <p className="mt-0.5 max-w-[65ch] text-sm leading-relaxed text-ink-2">{issue.detail}</p>
       </div>
       {issue.fix ? (
@@ -556,6 +561,10 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
   const base = `/app/albums/${album.id}`;
   const spine = getSpineRows(album.data);
   const writtenTracks = spine.filter((row) => row.lyricSections > 0).length;
+  // While tracks are unwritten the section opens on what is written, and its threads are next
+  // steps ("Threads to pick up"); once every track is written, what doesn't hold is loose.
+  const early = writtenTracks < spine.length;
+  const soFar = early ? writtenSoFar(spine, bible.centralThemes) : null;
 
   return (
     <div className="flex flex-col gap-10">
@@ -604,12 +613,12 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
 
       <Section
         id="bible-issues"
-        title="Loose threads"
-        description={looseThreadsSummary({
+        title={early ? "Threads to pick up" : "Loose threads"}
+        description={`${soFar ? `${soFar} ` : ""}${looseThreadsSummary({
           warnings: warnings.length,
           writtenTracks,
           totalTracks: spine.length,
-        })}
+        })}`}
       >
         {/* The way on to the Coherence report sits flush left with the finding rows below,
             not as a padded button in the heading's corner. */}

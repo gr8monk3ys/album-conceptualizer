@@ -8,6 +8,7 @@ import { ReadOnlySpine } from "@/components/read-only-spine";
 import { ButtonLink, Chip, PageHeader, Section } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { lyricExcerptsByTrack, writtenSummaryItems } from "@/lib/discover";
+import { softHyphens } from "@/lib/soft-hyphens";
 import { dimensionFigure, scoreStory, wholeAlbumCapLine } from "@/lib/score-story";
 import { getSpineRows, getSpineThemes } from "@/server/album-songs";
 import {
@@ -118,7 +119,7 @@ export default async function DiscoverAlbumPage({
         // header's size container: at 320px with 200% text a word like "Lighthouse" stays whole.
         title={
           <span className="block text-[length:clamp(max(1rem,min(1.75rem,12cqi)),min(1.2rem_+_2.4vw,12cqi),2.75rem)] leading-[1.02]">
-            {album.title}
+            {softHyphens(album.title)}
           </span>
         }
         catalog={

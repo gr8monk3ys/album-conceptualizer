@@ -10,6 +10,7 @@ import {
   requireAlbum,
   requireWorkspace,
 } from "@/server/api";
+import { reopenCommentForNewTask } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 import { albumItemUrl, notifyWorkspaceMembers } from "@/server/notify";
 
@@ -123,6 +124,9 @@ export const POST = apiHandler(async (request: Request, { params }: Context) => 
           select: { id: true },
         });
         if (existing) throw new ApiError(409, "This comment already has a task. Find it in Comments and tasks.");
+        // The comment and its task are one note (server/comment-tasks.ts): an open task means
+        // an open comment, so a task made from a resolved comment reopens it.
+        await reopenCommentForNewTask(tx, sourceCommentId);
         return tx.albumTask.create({ data, select: TASK_SELECT });
       })
     : await prisma.albumTask.create({ data, select: TASK_SELECT });

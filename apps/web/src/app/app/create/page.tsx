@@ -15,8 +15,8 @@ export const metadata = {
 export default async function CreatePage() {
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
-  // The optional AI brainstorm is only clickable when this server can run it; the balance lets
-  // every spend on this page say what will be left.
+  // The optional AI brainstorm is offered only when this server can run it (otherwise the
+  // wizard leaves it out); the balance lets every spend on this page say what will be left.
   const [aiAvailable, credits] = await Promise.all([
     getAgentAvailability(),
     getCredits({ workspaceId: workspace.id, plan: effectivePlan(workspace.subscription) }),

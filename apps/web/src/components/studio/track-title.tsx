@@ -13,37 +13,53 @@ export function singleLineTitle(value: string): string {
   return value.replace(/[\r\n]+/g, " ");
 }
 
+/** Whether the browser sizes the field to its text itself (`field-sizing: content`). */
+function sizesItself() {
+  return typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("field-sizing", "content");
+}
+
+/** One write, one read, one write: the field's height set to what its text needs. */
+function fitHeight(el: HTMLTextAreaElement) {
+  el.style.height = "auto";
+  const borders = el.offsetHeight - el.clientHeight;
+  el.style.height = `${el.scrollHeight + borders}px`;
+}
+
 /**
  * The textarea's height follows its text, so a long title wraps under the number like the
- * heading it replaces instead of scrolling sideways inside a one-line box. Measured again when
- * the title changes, when the field's width changes (a rotated phone, the columns folding) and
- * once the display font has loaded (it sets wider than the fallback).
+ * heading it replaces instead of scrolling sideways inside a one-line box. Where the browser
+ * can (`field-sizing: content`, on the field's class) it does this itself and nothing here
+ * runs. Elsewhere the field is fitted once per value (a single write-then-read), and watched
+ * once, for as long as it is mounted, for a change of width (a rotated phone, the columns
+ * folding; read from the observer's entry, not from the layout) and for the display font
+ * loading (it sets wider than the fallback). Typing used to tear the observer down and set up
+ * another on every key, each forcing its own layout.
  */
 function useFitHeight(ref: RefObject<HTMLTextAreaElement | null>, value: string) {
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
-    const fit = () => {
-      el.style.height = "auto";
-      const borders = el.offsetHeight - el.clientHeight;
-      el.style.height = `${el.scrollHeight + borders}px`;
-    };
-    fit();
-    let width = el.clientWidth;
-    const observer = new ResizeObserver(() => {
-      if (el.clientWidth === width) return;
-      width = el.clientWidth;
-      fit();
+    if (!el || sizesItself()) return;
+    let width: number | null = null;
+    const observer = new ResizeObserver((entries) => {
+      const next = entries[entries.length - 1]?.contentRect.width ?? null;
+      // The first report is the width it mounted at, already fitted.
+      if (width !== null && next !== width) fitHeight(el);
+      width = next;
     });
     observer.observe(el);
     let live = true;
     void document.fonts?.ready.then(() => {
-      if (live) fit();
+      if (live) fitHeight(el);
     });
     return () => {
       live = false;
       observer.disconnect();
     };
+  }, [ref]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && !sizesItself()) fitHeight(el);
   }, [ref, value]);
 }
 
@@ -122,7 +138,7 @@ export function TrackTitle({
             // The Headline size, capped by the row's width (`cqi`) with a 1rem floor, like the
             // release title: in a narrow row the title steps down instead of breaking inside a
             // word ("Warni/ng"). Wherever the row has room it is the full 1.5rem.
-            "block min-h-11 w-full min-w-0 resize-none overflow-hidden rounded-sm border-0 border-b bg-transparent px-1 py-1.5 text-[length:max(1rem,min(1.5rem,13cqi))] font-semibold leading-8 text-ink transition-colors placeholder:font-normal placeholder:text-ink-3",
+            "block min-h-11 w-full min-w-0 resize-none overflow-hidden rounded-sm [field-sizing:content] border-0 border-b bg-transparent px-1 py-1.5 text-[length:max(1rem,min(1.5rem,13cqi))] font-semibold leading-8 text-ink transition-colors placeholder:font-normal placeholder:text-ink-3",
             empty ? "border-danger/60" : "border-line-control hover:border-ink-3",
           )}
         />

@@ -108,4 +108,34 @@ test.describe("Agent workflows and credits", () => {
     await expect(page.getByRole("link", { name: /Lighthouse Static · 01 Foghorn/ })).toBeVisible();
     await expect(page.getByText(notes)).toBeVisible();
   });
+
+  test("the challenge opens in the Studio above the lyrics, and pays there for them", async ({ page }) => {
+    await devLogin(page);
+    await createAlbum(page);
+    const { challenge } = getDailyChallenge();
+    const before = await remainingCredits(page);
+
+    await page.goto("/app/challenges");
+    await page.getByRole("link", { name: "Take the challenge" }).click();
+    await page.waitForURL(/\/studio\?/);
+    // The prompt stays pinned while the writer moves around the Studio: its parameter stays.
+    await expect(page).toHaveURL(new RegExp(`challenge=${challenge.key}`));
+    const band = page.getByRole("group", { name: `Today’s challenge: ${challenge.title}.` });
+    await expect(band).toContainText(challenge.description);
+    // The prompt is part of what the lyrics field says it is for.
+    await expect(page.getByLabel("Lyrics draft")).toHaveAttribute("aria-describedby", /studio-challenge-prompt/);
+
+    // An album made today counts from nothing, so its written verse pays at once.
+    await band.getByRole("button", { name: `Claim ${challenge.credits} credits` }).click();
+    await expect(band).toContainText(`Done for today: ${challenge.credits} credits added to your workspace.`);
+    await expect(band.getByRole("button", { name: "Hide today’s challenge" })).toBeFocused();
+    await band.getByRole("button", { name: "Hide today’s challenge" }).click();
+    await expect(band).toHaveCount(0);
+    await expect(page).not.toHaveURL(/challenge=/);
+    await expect(page.getByLabel("Lyrics draft")).toBeFocused();
+
+    expect(await remainingCredits(page)).toBe(before + challenge.credits);
+    await page.goto("/app/challenges");
+    await expect(page.getByRole("link", { name: /Lighthouse Static · 01 Foghorn/ })).toBeVisible();
+  });
 });

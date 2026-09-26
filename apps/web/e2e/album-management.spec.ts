@@ -148,7 +148,9 @@ test.describe("Album Management", () => {
     await page.getByRole("main").getByRole("link", { name: "View report" }).click();
     await page.waitForURL("**/coherence");
     const report = page.getByRole("region", { name: "Coherence report" });
-    await expect(report.getByText("Not enough material yet")).toBeVisible();
+    // It opens on what is done (the setup's sequence), then names what a first score needs, once.
+    await expect(report.getByText(/^The sequence is set: /)).toBeVisible();
+    await expect(report.getByText("For a first score:")).toBeVisible();
     await expect(page.getByRole("region", { name: "Next actions" })).toBeVisible();
 
     const lyricsFix = report.getByRole("link", { name: /Lyrics on 2 more tracks/ });

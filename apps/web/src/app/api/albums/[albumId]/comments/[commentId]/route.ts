@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { ApiError, apiHandler, parseJsonBody, requireWorkspace } from "@/server/api";
+import { syncTaskWithComment } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 
 export const runtime = "nodejs";
@@ -48,26 +49,33 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
     data = { body: payload.body };
   }
 
-  const updated = await getPrisma().albumSectionComment.update({
-    where: { id: comment.id },
-    data,
-    select: {
-      id: true,
-      sectionId: true,
-      songTrackNumber: true,
-      sectionType: true,
-      sectionOrder: true,
-      body: true,
-      createdAt: true,
-      updatedAt: true,
-      deletedAt: true,
-      resolvedAt: true,
-      author: { select: { id: true, name: true, image: true } },
-      resolvedBy: { select: { id: true, name: true, image: true } },
-    },
+  // One note, two views (server/comment-tasks.ts): resolving a comment that became a task marks
+  // the task done, and reopening it reopens the task, in the same transaction.
+  const { updated, taskChanged } = await getPrisma().$transaction(async (tx) => {
+    const saved = await tx.albumSectionComment.update({
+      where: { id: comment.id },
+      data,
+      select: {
+        id: true,
+        sectionId: true,
+        songTrackNumber: true,
+        sectionType: true,
+        sectionOrder: true,
+        body: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+        resolvedAt: true,
+        author: { select: { id: true, name: true, image: true } },
+        resolvedBy: { select: { id: true, name: true, image: true } },
+      },
+    });
+    const changed =
+      payload.action === "edit" ? 0 : await syncTaskWithComment(tx, comment.id, payload.action === "resolve");
+    return { updated: saved, taskChanged: changed > 0 };
   });
 
-  return NextResponse.json({ comment: updated });
+  return NextResponse.json({ comment: updated, taskChanged });
 });
 
 export const DELETE = apiHandler(async (_request: Request, { params }: Context) => {

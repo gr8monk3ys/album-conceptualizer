@@ -1,12 +1,97 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type Ref } from "react";
 
 import { Button } from "@/components/ui";
 import { useReturnFocus } from "@/components/use-return-focus";
 
 function credits(n: number) {
   return `${n} ${n === 1 ? "credit" : "credits"}`;
+}
+
+/**
+ * What the open confirm asks, and whether the balance covers the spend. `question` is the
+ * action as a question without its cost ("Create the album"); without one the question is
+ * built from the confirm button's verb ("Remix for 5 credits?"), as it always has been.
+ */
+export function spendPrompt({
+  cost,
+  remaining,
+  actionLabel,
+  question,
+}: {
+  cost: number;
+  remaining?: number;
+  actionLabel: string;
+  question?: string;
+}): { text: string; affordable: boolean } {
+  const ask = question ?? actionLabel;
+  if (typeof remaining !== "number") return { text: `${ask} for ${credits(cost)}?`, affordable: true };
+  const after = remaining - cost;
+  if (after >= 0) return { text: `${ask} for ${credits(cost)}? You'll have ${after} left.`, affordable: true };
+  return {
+    text: question
+      ? `${question}? It costs ${credits(cost)} and you have ${credits(remaining)}.`
+      : `${actionLabel} costs ${credits(cost)} and you have ${credits(remaining)}.`,
+    affordable: false,
+  };
+}
+
+/**
+ * The open confirm: the question, the spend and Cancel. Focus moves to the spend button when
+ * it opens, so that button is never natively disabled (a disabled button can't hold focus,
+ * which would drop to the page): when the balance doesn't cover the spend it is marked
+ * unavailable (aria-disabled, ignoring presses) and the question says why.
+ */
+export function SpendConfirm({
+  groupId,
+  promptId,
+  prompt,
+  actionLabel,
+  working,
+  confirmRef,
+  onConfirm,
+  onCancel,
+}: {
+  groupId: string;
+  promptId: string;
+  prompt: { text: string; affordable: boolean };
+  actionLabel: string;
+  working: boolean;
+  confirmRef?: Ref<HTMLButtonElement>;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      id={groupId}
+      role="group"
+      aria-labelledby={promptId}
+      className="flex flex-wrap items-center gap-x-3 gap-y-2"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onCancel();
+        }
+      }}
+    >
+      <p id={promptId} className="text-sm text-ink">
+        {prompt.text}
+      </p>
+      <Button
+        ref={confirmRef}
+        tone="primary"
+        aria-disabled={prompt.affordable ? undefined : true}
+        busy={working}
+        onClick={prompt.affordable ? onConfirm : undefined}
+      >
+        {working ? "Working…" : actionLabel}
+      </Button>
+      <Button tone="ghost" onClick={onCancel} disabled={working}>
+        Cancel
+      </Button>
+    </div>
+  );
 }
 
 /**
@@ -25,11 +110,13 @@ export function ConfirmSpend({
   cost,
   remaining,
   actionLabel,
+  question,
   onConfirm,
   busy = false,
   disabled = false,
   tone = "secondary",
   className,
+  describedBy,
   children,
 }: {
   cost: number;
@@ -37,12 +124,22 @@ export function ConfirmSpend({
   remaining?: number;
   /** The verb on the confirm button, e.g. "Remix" or "Download zip". */
   actionLabel: string;
+  /**
+   * The question the confirm asks, without the cost, when the button's verb doesn't read as
+   * one: "Create the album" asks "Create the album for 5 credits?" over "Save and continue".
+   */
+  question?: string;
   onConfirm: () => void | Promise<void>;
   busy?: boolean;
   disabled?: boolean;
   /** The trigger's tone; the confirm button is always the primary. */
   tone?: "primary" | "secondary" | "ghost";
   className?: string;
+  /**
+   * The id of a line that explains the trigger (why it is unavailable, what it costs), so the
+   * trigger is described by it.
+   */
+  describedBy?: string;
   /** The trigger's label. */
   children: ReactNode;
 }) {
@@ -56,9 +153,7 @@ export function ConfirmSpend({
   const confirmRef = useRef<HTMLButtonElement | null>(null);
   const mounted = useRef(false);
   const returnFocus = useReturnFocus();
-  const known = typeof remaining === "number";
-  const after = known ? remaining - cost : null;
-  const affordable = after === null || after >= 0;
+  const prompt = spendPrompt({ cost, remaining, actionLabel, question });
   const working = busy || pending;
 
   useEffect(() => {
@@ -102,6 +197,7 @@ export function ConfirmSpend({
         busy={busy}
         aria-expanded={false}
         aria-controls={groupId}
+        aria-describedby={describedBy}
         onClick={() => setOpen(true)}
       >
         {children}
@@ -110,31 +206,15 @@ export function ConfirmSpend({
   }
 
   return (
-    <div
-      id={groupId}
-      role="group"
-      aria-labelledby={promptId}
-      className="flex flex-wrap items-center gap-x-3 gap-y-2"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.stopPropagation();
-          close();
-        }
-      }}
-    >
-      <p id={promptId} className="text-sm text-ink">
-        {after === null
-          ? `${actionLabel} for ${credits(cost)}?`
-          : affordable
-            ? `${actionLabel} for ${credits(cost)}? You'll have ${after} left.`
-            : `${actionLabel} costs ${credits(cost)} and you have ${credits(remaining ?? 0)}.`}
-      </p>
-      <Button ref={confirmRef} tone="primary" disabled={!affordable} busy={working} onClick={confirm}>
-        {working ? "Working…" : actionLabel}
-      </Button>
-      <Button tone="ghost" onClick={close} disabled={working}>
-        Cancel
-      </Button>
-    </div>
+    <SpendConfirm
+      groupId={groupId}
+      promptId={promptId}
+      prompt={prompt}
+      actionLabel={actionLabel}
+      working={working}
+      confirmRef={confirmRef}
+      onConfirm={confirm}
+      onCancel={close}
+    />
   );
 }

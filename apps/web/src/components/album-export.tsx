@@ -8,6 +8,7 @@ import { ConfirmSpend } from "@/components/confirm-spend";
 import { LiveStatus, Panel, Section, buttonClass } from "@/components/ui";
 import { andList } from "@/lib/and-list";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { SOFT_HYPHEN, softHyphens } from "@/lib/soft-hyphens";
 
 export type ExportFormat = "midi" | "chordpro" | "musicxml" | "json" | "text";
 
@@ -17,7 +18,7 @@ const ALL_FORMATS: Array<{ key: ExportFormat; title: string; desc: string }> = [
   { key: "midi", title: "MIDI", desc: "Chord progressions and basic timing, ready to drop into a DAW." },
   { key: "chordpro", title: "ChordPro", desc: "Lyrics with chords for OnSong or SongBook." },
   { key: "musicxml", title: "MusicXML", desc: "Notation for MuseScore, Finale or Sibelius." },
-  { key: "json", title: "JSON", desc: "The full album, for backups or moving it elsewhere." },
+  { key: "json", title: "JSON", desc: "The whole album as data. On its own it's free, under Keep a backup." },
   { key: "text", title: "Text", desc: "The sequence as plain text." },
 ];
 
@@ -122,7 +123,7 @@ export function zipNextStep(formats: ReadonlySet<ExportFormat>): string {
   if (formats.has("midi")) return "open the MIDI files in your DAW (one per track, at each track's tempo)";
   if (formats.has("musicxml")) return "open the MusicXML files in MuseScore, Finale or Sibelius";
   if (formats.has("chordpro")) return "open the ChordPro charts in OnSong or SongBook";
-  if (formats.has("json")) return "keep the JSON as a backup, or import it elsewhere";
+  if (formats.has("json")) return "keep the JSON with your backups";
   return "the sequence is in the text file";
 }
 
@@ -159,6 +160,8 @@ export function AlbumExport({
   const [isZipping, setIsZipping] = useState(false);
   const [handoffStatus, setHandoffStatus] = useState<Status>(null);
   const [handoffBusy, setHandoffBusy] = useState<string | null>(null);
+  const [backupStatus, setBackupStatus] = useState<Status>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
 
   const router = useRouter();
   const cost = CREDIT_COSTS.exportZip;
@@ -214,6 +217,22 @@ export function AlbumExport({
     setHandoffStatus(result.ok ? { tone: "ok", text: handoffDownloaded(pack) } : { tone: "danger", text: result.message });
   }
 
+  /** The free backup: the album as saved, one JSON file, without the export service. */
+  async function downloadBackup(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    if (backupBusy) return;
+    setBackupBusy(true);
+    setBackupStatus({ tone: "neutral", text: "Preparing the backup…" });
+    const result = await download(event.currentTarget.href, "album_backup.json", "The backup couldn't be built.");
+    setBackupBusy(false);
+    setBackupStatus(
+      result.ok
+        ? { tone: "ok", text: "Backup downloaded — keep it with your files; it holds the album as it's saved now." }
+        : { tone: "danger", text: result.message },
+    );
+  }
+
   return (
     <div className="flex flex-col gap-10">
       {/* The zip first: it is this tab's one primary, so the tab opens with it in view. What
@@ -239,7 +258,9 @@ export function AlbumExport({
                 disabled={selected.size === 0 || !canAfford}
                 onConfirm={downloadZip}
               >
-                {isZipping ? "Preparing zip…" : `Download zip · ${credits(cost)}`}
+                {/* A disabled priced action drops its price: nothing can be spent, and the
+                    line under it (or the contents line, with no format picked) says why. */}
+                {isZipping ? "Preparing zip…" : selected.size === 0 || !canAfford ? "Download zip" : `Download zip · ${credits(cost)}`}
               </ConfirmSpend>
               {selected.size > 0 && canAfford ? (
                 <p id="export-zip-cost" className="min-w-0 text-sm text-ink-3">
@@ -257,7 +278,7 @@ export function AlbumExport({
                 <Link href="/app/settings/billing" className="underline underline-offset-4 hover:text-ink">
                   change your plan
                 </Link>
-                . Handoff packs below are free.
+                . Handoff packs and the backup below are free.
               </p>
             ) : null}
             {/* Always mounted, so "Preparing…" and the result are both announced. */}
@@ -288,7 +309,9 @@ export function AlbumExport({
                           aria-describedby={`${inputId}-desc`}
                           className="h-5 w-5 shrink-0 cursor-pointer accent-ink"
                         />
-                        {fmt.title}
+                        {/* Its own flex item, so a word too wide for a narrow panel (320px at
+                            200% text) breaks, with a hyphen, instead of running out of the label. */}
+                        <span className="min-w-0 break-words">{fmt.key === "musicxml" ? `Music${SOFT_HYPHEN}XML` : fmt.title}</span>
                       </label>
                       <p
                         id={`${inputId}-desc`}
@@ -317,7 +340,7 @@ export function AlbumExport({
                     aria-describedby="include-production-notes-desc"
                     className="h-5 w-5 shrink-0 cursor-pointer accent-ink"
                   />
-                  Include production notes
+                  <span className="min-w-0 break-words">{softHyphens("Include production notes")}</span>
                 </label>
                 <p
                   id="include-production-notes-desc"
@@ -374,6 +397,26 @@ export function AlbumExport({
             demo reviews and the top Coherence fixes. Fields you haven&apos;t set are left out. Handoff packs don&apos;t use credits.
           </p>
           <LiveStatus message={handoffStatus?.text ?? null} tone={handoffStatus?.tone} />
+        </div>
+      </Section>
+
+      {/* The artist's own work is never behind credits: the album as one JSON file, free. */}
+      <Section
+        id="backup"
+        title="Keep a backup"
+        description="The whole album as one JSON file: every track, section, lyric and chord, the Story and Sound bibles and your demo notes, as saved now. Backups don't use credits."
+      >
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <a
+            href={`/api/albums/${albumId}/backup`}
+            download
+            aria-busy={backupBusy || undefined}
+            onClick={(event) => void downloadBackup(event)}
+            className={buttonClass("secondary", "text-center")}
+          >
+            Download backup (.json)
+          </a>
+          <LiveStatus message={backupStatus?.text ?? null} tone={backupStatus?.tone} className="max-w-[65ch]" />
         </div>
       </Section>
 

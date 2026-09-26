@@ -5,6 +5,7 @@ import { CompleteTaskButton, ResolveCommentButton } from "@/components/inbox-act
 import { RelativeTime } from "@/components/relative-time";
 import { ButtonLink, Chip, EmptyState, Section } from "@/components/ui";
 import { AlbumJsonSchema } from "@/server/album-json";
+import { openTaskWhere, untrackedCommentWhere } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
@@ -40,6 +41,18 @@ function excerpt(text: string, max = 220) {
   return `${t.slice(0, max)}…`;
 }
 
+/**
+ * Both lists share one row: the note on the left, and from a 36rem row the actions in one
+ * fixed column of two equal slots (Open in Studio, then the row's own action), so Resolve and
+ * Mark done line up down the page whichever list they are in, and a task with no section to
+ * open keeps its Mark done in the second slot.
+ */
+const ROW = "flex flex-col gap-3 py-4 @xl:grid @xl:grid-cols-[minmax(0,1fr)_auto] @xl:items-start @xl:gap-6";
+const ACTIONS =
+  "flex min-w-0 flex-wrap items-start gap-2 @xl:grid @xl:grid-cols-[repeat(2,minmax(0,9.5rem))] @xl:gap-2";
+const SLOT_OPEN = "px-3 @xl:w-full";
+const SLOT_ACTION = "@xl:col-start-2";
+
 function formatSectionType(value: string | null) {
   if (!value) return null;
   const words = value.replace(/[_-]+/g, " ").trim();
@@ -73,7 +86,8 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
 
   const [comments, tasks, otherMembers] = await Promise.all([
     prisma.albumSectionComment.findMany({
-      where: { albumId: album.id, deletedAt: null, resolvedAt: null },
+      // A comment an open task tracks is listed once, as that task (server/comment-tasks.ts).
+      where: untrackedCommentWhere(album.id),
       orderBy: { createdAt: "asc" },
       take: 200,
       select: {
@@ -88,7 +102,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
       },
     }),
     prisma.albumTask.findMany({
-      where: { albumId: album.id, deletedAt: null, status: { not: "done" } },
+      where: openTaskWhere(album.id),
       orderBy: [{ status: "asc" }, { createdAt: "asc" }],
       take: 200,
       select: {
@@ -105,11 +119,13 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
         createdAt: true,
         createdBy: { select: { id: true, name: true, email: true, image: true } },
         assignedTo: { select: { id: true, name: true, email: true, image: true } },
+        sourceComment: { select: { deletedAt: true, author: { select: { name: true, email: true } } } },
       },
     }),
     prisma.workspaceMember.count({ where: { workspaceId: workspace.id, userId: { not: userId } } }),
   ]);
   // The owner may predate member rows; count them as a collaborator if they aren't the viewer.
+  const trackedComments = tasks.filter((task) => task.sourceComment && !task.sourceComment.deletedAt).length;
   const workingAlone = otherMembers === 0 && workspace.ownerId === userId;
 
   const studioUrl = `/app/albums/${album.id}/studio`;
@@ -144,10 +160,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                 const place = placeFor(places, songs, comment);
                 const phrase = place ? sectionPlacePhrase(place) : "the album";
                 return (
-                  <li
-                    key={comment.id}
-                    className="flex flex-col gap-3 py-4 @xl:flex-row @xl:items-start @xl:justify-between @xl:gap-6"
-                  >
+                  <li key={comment.id} className={ROW}>
                     <div className="min-w-0">
                       <p className="text-sm text-ink-2">
                         <PlaceLine place={place} />
@@ -159,11 +172,11 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                         {author} · <RelativeTime date={comment.createdAt.toISOString()} />
                       </p>
                     </div>
-                    <div className="flex min-w-0 flex-wrap items-start gap-2">
+                    <div className={ACTIONS}>
                       <ButtonLink
                         href={sectionUrl(comment.songTrackNumber, comment.sectionId)}
                         tone="ghost"
-                        className="px-3"
+                        className={SLOT_OPEN}
                         aria-label={`Open in Studio: ${place ? sectionPlaceLine(place) : "the album"}`}
                       >
                         Open in Studio
@@ -172,6 +185,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                         albumId={album.id}
                         commentId={comment.id}
                         itemLabel={`comment on ${phrase}`}
+                        className={SLOT_ACTION}
                       />
                     </div>
                   </li>
@@ -187,7 +201,9 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                 </ButtonLink>
               }
             >
-              Comments left on a section in the Studio wait here until someone resolves them.
+              {trackedComments
+                ? `Comments that became tasks are listed once, under Open tasks. New comments left on a section in the Studio wait here until someone resolves them.`
+                : "Comments left on a section in the Studio wait here until someone resolves them."}
             </EmptyState>
           )}
         </Section>
@@ -210,6 +226,12 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                     ? sectionUrl(task.songTrackNumber, task.sectionId)
                     : null;
                 const creator = task.createdBy.name || task.createdBy.email || "A collaborator";
+                // A task made from a comment is that comment, listed once: it says whose note it
+                // was, and Mark done resolves the comment too.
+                const commentAuthor =
+                  task.sourceComment && !task.sourceComment.deletedAt
+                    ? task.sourceComment.author.name || task.sourceComment.author.email || "a collaborator"
+                    : null;
                 const detail = taskDetail(task.title, task.body);
                 const assignee = task.assignedTo?.name || task.assignedTo?.email || null;
                 const status = TASK_STATUS[task.status] ?? {
@@ -217,10 +239,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                   tone: "neutral" as const,
                 };
                 return (
-                  <li
-                    key={task.id}
-                    className="flex flex-col gap-3 py-4 @xl:flex-row @xl:items-start @xl:justify-between @xl:gap-6"
-                  >
+                  <li key={task.id} className={ROW}>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="min-w-0 break-words text-sm font-semibold text-ink">
@@ -244,7 +263,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                         </p>
                       ) : null}
                       <p className="mt-1 text-xs text-ink-3">
-                        {creator}
+                        {commentAuthor ? `From ${commentAuthor}’s comment` : creator}
                         {assignee ? ` → ${assignee}` : ""} ·{" "}
                         <RelativeTime date={task.createdAt.toISOString()} />
                         {task.dueAt ? (
@@ -255,18 +274,24 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                         ) : null}
                       </p>
                     </div>
-                    <div className="flex min-w-0 flex-wrap items-start gap-2">
+                    <div className={ACTIONS}>
                       {url ? (
                         <ButtonLink
                           href={url}
                           tone="ghost"
-                          className="px-3"
+                          className={SLOT_OPEN}
                           aria-label={`Open in Studio: ${task.title}`}
                         >
                           Open in Studio
                         </ButtonLink>
                       ) : null}
-                      <CompleteTaskButton albumId={album.id} taskId={task.id} itemLabel={task.title} />
+                      <CompleteTaskButton
+                        albumId={album.id}
+                        taskId={task.id}
+                        itemLabel={task.title}
+                        fromComment={Boolean(task.sourceComment && !task.sourceComment.deletedAt)}
+                        className={SLOT_ACTION}
+                      />
                     </div>
                   </li>
                 );

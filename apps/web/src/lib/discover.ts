@@ -37,6 +37,54 @@ export function lyricStripPhrase({ tracks, withLyrics }: { tracks: number; withL
 }
 
 /**
+ * Where each album theme runs through the sequence: for each theme (in the album's order), one
+ * entry per track in sequence, true where the track carries it. `rows` are the spine's rows
+ * (`getSpineRows`), whose theme keys are already lower-cased.
+ */
+export function themeTrackMarks(themes: readonly string[], rows: ReadonlyArray<{ themeKeys: readonly string[] }>): boolean[][] {
+  return themes.map((theme) => {
+    const key = theme.trim().toLowerCase();
+    return rows.map((row) => row.themeKeys.includes(key));
+  });
+}
+
+/** One theme's thread in words, for screen readers: "on 5 of 8 tracks", "on every track". */
+export function themeThreadPhrase(marks: readonly boolean[]): string {
+  const tracks = marks.length;
+  const carried = marks.filter(Boolean).length;
+  if (!carried) return "on no track yet";
+  if (carried === tracks) return tracks === 1 ? "on its 1 track" : "on every track";
+  return `on ${carried} of ${tracks} ${tracks === 1 ? "track" : "tracks"}`;
+}
+
+/** The pitch of a theme strip's marks, and the sizes of its square and dot, in SVG units. */
+export const THEME_STRIP_PITCH = 8;
+const STRIP_SQUARE = 4;
+const STRIP_DOT = 2;
+
+/**
+ * A theme's thread drawn as two SVG paths, so a row of the Discover list costs two elements a
+ * theme however long the album is: `on` holds a square for each track that carries the theme,
+ * `off` a small dot for each that doesn't (the spine's ThemeMark, at strip size), one
+ * `THEME_STRIP_PITCH` apart, in sequence; `width` is the strip's width in the same units.
+ */
+export function themeStripPaths(marks: readonly boolean[]): { on: string; off: string; width: number } {
+  const on: string[] = [];
+  const off: string[] = [];
+  marks.forEach((carries, index) => {
+    const x = index * THEME_STRIP_PITCH;
+    if (carries) {
+      const inset = (THEME_STRIP_PITCH - STRIP_SQUARE) / 2;
+      on.push(`M${x + inset} ${inset}h${STRIP_SQUARE}v${STRIP_SQUARE}h-${STRIP_SQUARE}z`);
+    } else {
+      const inset = (THEME_STRIP_PITCH - STRIP_DOT) / 2;
+      off.push(`M${x + inset} ${inset}h${STRIP_DOT}v${STRIP_DOT}h-${STRIP_DOT}z`);
+    }
+  });
+  return { on: on.join(""), off: off.join(""), width: marks.length * THEME_STRIP_PITCH };
+}
+
+/**
  * The Like toggle's accessible name: "Like Salt Year" / "Liked Salt Year" in a list, where each
  * row's toggle must be told apart, or plain "Like" / "Liked" where the page names the album.
  */

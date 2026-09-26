@@ -20,6 +20,7 @@ import {
   type CoherenceReport,
   type CoherenceVerdict,
 } from "@/server/coherence";
+import { getSpineRows, getSpineThemes } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
 import { getCredits } from "@/server/credits";
 import { getAgentAvailability } from "@/server/engine";
@@ -29,6 +30,8 @@ import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { dimensionFigure, scoreStory, wholeAlbumCapLine } from "@/lib/score-story";
 import { sharedLever } from "@/lib/shared-lever";
+import { trackCode } from "@/lib/track-number";
+import { albumSoFar } from "@/lib/written-so-far";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +97,8 @@ const TRACK_LINK =
   "type-figure inline-grid min-h-11 min-w-11 place-items-center rounded-sm text-sm font-semibold text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:bg-hover hover:text-ink";
 
 /**
- * Track numbers as links in a catalog line: "1 · 4 · 7". Like every catalog line
+ * Track numbers as links in a catalog line: "01 · 04 · 07", two figures like the spine and the
+ * Story bible (a screen reader hears "Track 1"). Like every catalog line
  * (`CatalogItems`), each separator ends the item before it, so a wrapped line never starts
  * with a dot (it may end on one, which reads as "more follows"). The number and its dot are one
  * unbreakable flex item, the flex equivalent of CatalogItems' word joiner; and the last two
@@ -105,9 +109,11 @@ function TrackLinks({ albumId, issue, tracks }: { albumId: string; issue: Cohere
   const item = (trackNumber: number, index: number) => (
     <span key={trackNumber} className="inline-flex items-center whitespace-nowrap">
       <Link href={coherenceTrackHref(albumId, issue, trackNumber)} className={TRACK_LINK}>
-        <span className="sr-only">Track </span>
-        {trackNumber}
-        {suffix ? <span className="sr-only">{suffix}</span> : null}
+        <span className="sr-only">
+          Track {trackNumber}
+          {suffix}
+        </span>
+        <span aria-hidden="true">{trackCode(trackNumber)}</span>
       </Link>
       {/* Each number is a 44px target, so a comma would float in the gap; a catalog dot sits
           in it naturally. Screen readers hear "Track 1, Track 4" from the links. */}
@@ -169,7 +175,7 @@ function Finding({
             <TrackLinks albumId={albumId} issue={issue} tracks={tracks} />
           </p>
         ) : tracks.length === 1 ? (
-          <p className="type-figure mt-1 text-xs text-ink-3">On track {tracks[0]}</p>
+          <p className="type-figure mt-1 text-xs text-ink-3">On track {trackCode(tracks[0])}</p>
         ) : null}
         {suggested.length ? (
           <p className="mt-2 flex flex-wrap items-center gap-y-1">
@@ -319,6 +325,9 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
   const unwrittenCount = stats.songCount - stats.songsWithLyrics;
   const weakest = weakestDimension(report);
   const topIssue = report.issues[0];
+  // Before there is a score, the report opens on what is done ("Track 01, Last Ferry, is
+  // written… and carries isolation and tide"), then names what the first score needs, once.
+  const soFar = scored ? null : albumSoFar(getSpineRows(album.data), getSpineThemes(album.data, 12));
 
   return (
     <div className="flex flex-col gap-10">
@@ -392,10 +401,8 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
         ) : (
           <div className="flex flex-col gap-3">
             <p className="type-figure text-sm text-ink-2">{story.headline}</p>
-            <p className="max-w-[65ch] text-base font-semibold text-ink">{report.summary}</p>
-            <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
-              Placeholder lines and the starter chord loop don&apos;t count. Still missing:
-            </p>
+            {soFar ? <p className="max-w-[65ch] text-base font-semibold text-ink">{soFar}</p> : null}
+            <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">For a first score:</p>
             <ul className="max-w-[65ch] divide-y divide-line border-y border-line">
               {report.missing.map((piece) => (
                 <li key={piece.id}>
@@ -478,7 +485,7 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
         title="By dimension"
         description={
           !scored
-            ? "Scores appear once enough lyrics are written. Until then, here is what each dimension still needs."
+            ? "What each dimension looks at, and what it has so far."
             : partlyWritten
               ? "What the written tracks score on each dimension, out of 100, weakest first."
               : "Each dimension scored out of 100, weakest first."
@@ -510,7 +517,10 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
                       <span className="text-xs font-normal text-ink-3">/100</span>
                     </>
                   ) : (
-                    <span className="text-sm font-normal text-ink-3">Not yet</span>
+                    // Not scored yet, as the headline already says: a quiet dash, not five more "Not yet"s.
+                    <span aria-hidden="true" className="text-sm font-normal text-ink-3">
+                      —
+                    </span>
                   )}
                 </span>
                 {/* One plain sentence naming what lifts the score, when the row has its own
@@ -529,7 +539,9 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
         </ul>
       </Section>
 
-      <CoherenceAiReview albumId={album.id} aiAvailable={aiAvailable} creditsRemaining={credits.remaining} />
+      {/* AI drafting that can't run on this server takes no space here: Help and Billing say
+          so once, where it's priced. */}
+      {aiAvailable ? <CoherenceAiReview albumId={album.id} creditsRemaining={credits.remaining} /> : null}
     </div>
   );
 }

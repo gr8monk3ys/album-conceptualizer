@@ -9,6 +9,7 @@ import { AlbumFrame, AlbumNav, AlbumNextAction, AlbumSkipLink } from "@/componen
 import { RelativeTime } from "@/components/relative-time";
 import { ReleaseTitle } from "@/components/release-title";
 import { albumCatalogStatus } from "@/lib/album-skip";
+import { softHyphens } from "@/lib/soft-hyphens";
 import { getSpineRows, getSpineThemes, nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
 import { requireUser } from "@/server/identity";
@@ -59,10 +60,10 @@ export default async function AlbumLayout({
           16px past its line, and a 12px gap let it cover the top of the next-step button. */}
       <header className="@container/release flex flex-wrap items-end justify-between gap-x-8 gap-y-5 @min-[42rem]/release:gap-y-4">
         <div className="flex min-w-0 max-w-full flex-col gap-2 @min-[42rem]/release:gap-3 group-data-[page=studio]/album:flex-row group-data-[page=studio]/album:flex-wrap group-data-[page=studio]/album:items-baseline group-data-[page=studio]/album:gap-x-4 group-data-[page=studio]/album:gap-y-1">
-          {/* The first stop in the album frame: past the title, catalog line, tabs and
-              sequence, to the page itself. A visible ink link in a narrow header (a phone,
-              enlarged text), where those take a screen or more; focus-only from 42rem. Not
-              on the Studio, whose own "Skip to the lyrics" is its first stop. */}
+          {/* A visible way past the title, catalog line, tabs and sequence to the page
+              itself, in a narrow header (a phone, enlarged text) where those take a screen or
+              more. From 42rem there is none: the app's skip link, the document's first stop,
+              goes there by the same name. Not on the Studio ("Skip to the lyrics"). */}
           <AlbumSkipLink albumId={album.id} />
           {/* On the Studio the compact size is capped by the header's width like the full
               one (13cqi, never under 1rem): a flat text-3xl set 60px at 320px with 200% text
@@ -77,7 +78,8 @@ export default async function AlbumLayout({
             albumId={album.id}
             className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto group-data-[page=studio]/album:min-w-0 group-data-[page=studio]/album:text-[length:max(1rem,min(1.875rem,13cqi))] group-data-[page=studio]/album:leading-[1.2] @max-[12rem]/release:text-[length:12cqi]"
           >
-            {album.title}
+            {/* A long word that must break shows a hyphen where it does (`@/lib/soft-hyphens`). */}
+            {softHyphens(album.title)}
           </ReleaseTitle>
           {/* Each separator ends the item before it, so a wrapped line never starts with a dot. */}
           <p className="type-catalog flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">

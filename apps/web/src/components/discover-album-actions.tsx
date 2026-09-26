@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Heart, Shuffle } from "lucide-react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
@@ -108,6 +108,7 @@ export function RemixButton({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const reasonId = useId();
   const cost = CREDIT_COSTS.albumFork;
   const cannotAfford = creditsRemaining < cost;
 
@@ -146,6 +147,7 @@ export function RemixButton({
         disabled={cannotAfford}
         tone={tone}
         className="max-w-full"
+        describedBy={cannotAfford ? reasonId : undefined}
       >
         <Shuffle className="h-4 w-4 shrink-0" aria-hidden="true" />
         {/* One run of text, so the label has no flex gap in it ("Remix · 5 credits", not
@@ -158,7 +160,9 @@ export function RemixButton({
         </span>
       </ConfirmSpend>
       {cannotAfford ? (
-        <p className="max-w-[65ch] text-xs text-ink-2">
+        // Ember: a balance that can't cover the spend is a problem, as on Export (Warn For
+        // Problems). The disabled Remix is described by it.
+        <p id={reasonId} className="max-w-[65ch] text-xs text-warn">
           A remix costs {cost} credits and you have {creditsRemaining}.{" "}
           <Link href="/app/challenges" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-ink">
             Earn more

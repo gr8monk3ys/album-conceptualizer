@@ -138,7 +138,7 @@ test.describe("Studio", () => {
     await page.getByRole("button", { name: "Save and continue", exact: true }).click();
     await page.waitForURL("**/app/albums/**");
     // The wizard's button is gone; focus lands on the line that says the album is saved.
-    await expect(page.getByRole("group", { name: "Album saved" })).toBeFocused();
+    await expect(page.getByRole("group", { name: "Album saved" }).getByText(/is saved\. Next:/)).toBeFocused();
 
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
     await page.waitForURL(/\/studio(\?|$)/);
@@ -274,6 +274,51 @@ test.describe("Studio", () => {
     await page.waitForTimeout(500);
     await expect(page).not.toHaveTitle(/^Studio/);
   });
+  // An outline change saves and refreshes the album's frame; the router used to scroll the
+  // refreshed page to its top, leaving the new section's lyrics (focused) below the fold.
+  test("adding a section keeps the page where its lyrics are, after the refresh", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await devLogin(page);
+    const created = await page.request.post("/api/albums", {
+      data: {
+        album: {
+          title: `Outline ${randomSuffix()}`,
+          concept_summary: "A keeper loses the light and the town forgets the sea.",
+          central_themes: ["memory", "tide"],
+          songs: [1, 2, 3, 4].map((n) => ({
+            title: `Track ${n}`,
+            track_number: n,
+            sections: [{ section_type: "verse", order: 0, lyrics: "" }],
+          })),
+        },
+      },
+    });
+    const { id } = (await created.json()) as { id: string };
+    await page.goto(`/app/albums/${id}/studio?song=3`);
+    await page.waitForLoadState("networkidle");
+
+    const refreshed = page.waitForResponse(
+      (response) => response.url().includes(`/app/albums/${id}/studio`) && Boolean(response.request().headers()["rsc"]),
+    );
+    const add = page.getByRole("button", { name: "Add section" });
+    await add.scrollIntoViewIfNeeded();
+    await add.click();
+    await expect(page.getByLabel("Lyrics draft")).toBeFocused();
+    await refreshed;
+    await page.waitForLoadState("networkidle");
+    // A few frames for the refreshed tree to commit.
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    const focused = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      return { id: el.id, top: rect.top, bottom: rect.bottom, height: window.innerHeight, scrollY: window.scrollY };
+    });
+    expect(focused.id).toBe("section-lyrics");
+    expect(focused.scrollY).toBeGreaterThan(0);
+    expect(focused.top).toBeLessThan(focused.height);
+    expect(focused.bottom).toBeGreaterThan(0);
+  });
+
   test("after a restore, focus lands on the line that says what was restored, said once", async ({ page }) => {
     await devLogin(page);
     await createAlbumAndOpenStudio(page, `Restore Focus ${randomSuffix()}`);
@@ -281,7 +326,7 @@ test.describe("Studio", () => {
     await page.goto(`${albumUrl}/versions`);
     await page.getByLabel("What's in this version").fill("First pass");
     await page.getByRole("button", { name: "Save version", exact: true }).click();
-    await page.getByRole("button", { name: /^Restore the version "First pass"/ }).click();
+    await page.getByRole("button", { name: /^Restore the version “First pass”/ }).click();
     await page.getByRole("button", { name: "Restore this version" }).click();
     await page.waitForURL(/\/app\/albums\/[^/?]+(\?|$)/);
     const line = page.getByText(/^Restored “First pass”/);

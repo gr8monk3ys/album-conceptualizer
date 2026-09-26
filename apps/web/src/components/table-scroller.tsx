@@ -114,12 +114,18 @@ export function TableScroller({
   className,
   ref,
   onFocus,
+  onBlur,
   style,
   ...props
 }: ComponentProps<"div"> & { label: string }) {
   const own = useRef<HTMLDivElement | null>(null);
   const fade = useEdgeFade(own, "x");
   const stickyStart = useStickyStart(own);
+  // True while focus is on an item too wide to sit clear of both fades at once (a track head
+  // in a 256px Theme map at 320px with 200% text: 112px of sticky column and two 48px fades
+  // leave 48px for a 96px cell). The fade then steps aside until focus leaves the region, so
+  // nothing that has focus is ever dimmed.
+  const [crowded, setCrowded] = useState(false);
   const setRef = useCallback(
     (node: HTMLDivElement | null) => {
       own.current = node;
@@ -138,6 +144,8 @@ export function TableScroller({
       if (scroller.scrollWidth <= scroller.clientWidth + EDGE_SLACK_PX) return;
       const box = scroller.getBoundingClientRect();
       const item = focusExtent(target);
+      const sticky = stickyStartCover(target, box.left + scroller.clientLeft);
+      setCrowded(item.right - item.left + 2 * fadeWidth() > scroller.clientWidth - sticky);
       const left = fadeClearScrollLeft({
         scrollLeft: scroller.scrollLeft,
         viewport: scroller.clientWidth,
@@ -145,7 +153,7 @@ export function TableScroller({
         start: item.left - box.left - scroller.clientLeft,
         width: item.right - item.left,
         margin: fadeWidth(),
-        stickyStart: stickyStartCover(target, box.left + scroller.clientLeft),
+        stickyStart: sticky,
       });
       if (left !== scroller.scrollLeft) scroller.scrollLeft = left;
     },
@@ -160,9 +168,14 @@ export function TableScroller({
       tabIndex={0}
       data-edge-fade={fade === "none" ? undefined : fade}
       onFocus={keepFocusClear}
+      onBlur={(event) => {
+        onBlur?.(event);
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCrowded(false);
+      }}
       style={stickyStart > 0 ? ({ ...style, "--sticky-start": `${stickyStart}px` } as CSSProperties) : style}
       className={cn(
         "relative min-w-0 scroll-px-6 overflow-x-auto focus-visible:[mask-image:none]",
+        crowded && "focus-within:[mask-image:none]",
         edgeFadeClass(fade, "x"),
         className,
       )}

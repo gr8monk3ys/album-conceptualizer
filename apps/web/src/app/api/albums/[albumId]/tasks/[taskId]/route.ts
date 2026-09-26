@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { ApiError, apiHandler, parseJsonBody, requireWorkspace } from "@/server/api";
+import { syncCommentWithTask } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 import { albumItemUrl, notifyWorkspaceMembers } from "@/server/notify";
 
@@ -36,6 +37,8 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
       id: true,
       albumId: true,
       assignedToUserId: true,
+      status: true,
+      sourceCommentId: true,
       sectionId: true,
       songTrackNumber: true,
       album: { select: { title: true } },
@@ -54,32 +57,44 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
     if (!member) throw new ApiError(400, "Invalid assignee.");
   }
 
-  const updated = await prisma.albumTask.update({
-    where: { id: existing.id },
-    data: {
-      title: payload.title,
-      body: payload.body,
-      status: payload.status,
-      priority: payload.priority,
-      dueAt: payload.dueAt === undefined ? undefined : payload.dueAt ? new Date(payload.dueAt) : null,
-      assignedToUserId,
-    },
-    select: {
-      id: true,
-      title: true,
-      body: true,
-      status: true,
-      priority: true,
-      dueAt: true,
-      sectionId: true,
-      songTrackNumber: true,
-      sectionType: true,
-      sectionOrder: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: { select: { id: true, name: true, email: true, image: true } },
-      assignedTo: { select: { id: true, name: true, email: true, image: true } },
-    },
+  // One note, two views (server/comment-tasks.ts): marking a task made from a comment done
+  // resolves the comment, and reopening it reopens the comment, in the same transaction.
+  const updated = await prisma.$transaction(async (tx) => {
+    const task = await tx.albumTask.update({
+      where: { id: existing.id },
+      data: {
+        title: payload.title,
+        body: payload.body,
+        status: payload.status,
+        priority: payload.priority,
+        dueAt: payload.dueAt === undefined ? undefined : payload.dueAt ? new Date(payload.dueAt) : null,
+        assignedToUserId,
+      },
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        status: true,
+        priority: true,
+        dueAt: true,
+        sectionId: true,
+        songTrackNumber: true,
+        sectionType: true,
+        sectionOrder: true,
+        createdAt: true,
+        updatedAt: true,
+        createdBy: { select: { id: true, name: true, email: true, image: true } },
+        assignedTo: { select: { id: true, name: true, email: true, image: true } },
+      },
+    });
+    if (payload.status) {
+      await syncCommentWithTask(
+        tx,
+        { sourceCommentId: existing.sourceCommentId, from: existing.status, to: payload.status },
+        userId,
+      );
+    }
+    return task;
   });
 
   if (assignedToUserId && assignedToUserId !== existing.assignedToUserId) {

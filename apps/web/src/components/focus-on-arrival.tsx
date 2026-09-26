@@ -12,7 +12,15 @@ export function FocusOnArrival({ targetId }: { targetId: string }) {
   useLayoutEffect(() => {
     const active = document.activeElement;
     if (active && active !== document.body) return;
-    document.getElementById(targetId)?.focus({ preventScroll: false });
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    // A new page starts at its top, so the release title above the line is on screen: the
+    // client navigation keeps the scroll the wizard was at. Only when the line itself would
+    // then be below the fold (a phone) does the page scroll, just far enough to show it.
+    target.focus({ preventScroll: true });
+    const bottom = target.getBoundingClientRect().bottom + window.scrollY;
+    if (bottom <= window.innerHeight) window.scrollTo({ top: 0 });
+    else target.scrollIntoView({ block: "nearest" });
   }, [targetId]);
   return null;
 }

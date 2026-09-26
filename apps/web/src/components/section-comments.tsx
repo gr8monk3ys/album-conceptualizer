@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Check, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ClipboardCheck, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
 
 import { RelativeTime } from "@/components/relative-time";
 import { DeleteConfirm } from "@/components/studio/delete-confirm";
@@ -31,6 +31,12 @@ type SectionComment = {
   resolvedAt: string | null;
   author: CommentAuthor;
   resolvedBy: CommentAuthor | null;
+  /**
+   * How the comment stands with the task made from it (server/comment-tasks.ts): "open" while
+   * that task is open (the comment is tracked as the task, with no Resolve of its own), "done"
+   * once it is done (which resolved the comment), null without a task.
+   */
+  task?: "open" | "done" | null;
 };
 
 type SectionCommentsUiState = {
@@ -88,8 +94,9 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
     error: null,
   });
   const { loading, submitting, body, status, error } = ui;
-  // The comment each action is running on, the comments that already have a task, and the
-  // comment whose inline "Delete …?" question is open.
+  // The comment each action is running on, the comments given a task since the thread last
+  // loaded (the server says which had one before), and the comment whose inline "Delete …?"
+  // question is open.
   const [pending, setPending] = useState<Record<string, PendingAction>>({});
   const [tasked, setTasked] = useState<ReadonlySet<string>>(() => new Set());
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
@@ -120,34 +127,11 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
       const payload = (await response.json().catch(() => null)) as { comments?: SectionComment[] } | null;
       const loaded = Array.isArray(payload?.comments) ? payload.comments : [];
       setComments(loaded);
-      if (loaded.some((comment) => !comment.deletedAt)) void loadTasked(loaded);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't load comments.";
       setUi((prev) => ({ ...prev, error: message }));
     } finally {
       setUi((prev) => ({ ...prev, loading: false }));
-    }
-  }
-
-  /**
-   * Which of these comments already became a task (a task keeps its source comment), so
-   * "Create task" can't make a second one after a reload. Best effort: without it, the button
-   * still guards against a second press in this session.
-   */
-  async function loadTasked(loaded: SectionComment[]) {
-    try {
-      const response = await fetch(`/api/albums/${albumId}/tasks`);
-      if (!response.ok) return;
-      const payload = (await response.json().catch(() => null)) as {
-        tasks?: Array<{ sourceComment?: { id: string } | null }>;
-      } | null;
-      const ids = new Set(loaded.map((comment) => comment.id));
-      const withTask = (payload?.tasks ?? [])
-        .map((task) => task.sourceComment?.id)
-        .filter((id): id is string => Boolean(id && ids.has(id)));
-      if (withTask.length) setTasked((prev) => new Set([...prev, ...withTask]));
-    } catch {
-      // Keep what is known; the session guard still holds.
     }
   }
 
@@ -204,6 +188,7 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
     }
   }
 
+  /** PATCHes the comment; true when its task changed with it (done, or open again). */
   async function patch(commentId: string, payload: unknown, failure: string) {
     const response = await fetch(`/api/albums/${albumId}/comments/${commentId}`, {
       method: "PATCH",
@@ -211,6 +196,8 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
       body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error(await readApiError(response, failure));
+    const data = (await response.json().catch(() => null)) as { taskChanged?: unknown } | null;
+    return data?.taskChanged === true;
   }
 
   // Resolve and Reopen swap for each other, so focus goes to the one that replaced the button
@@ -220,9 +207,12 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
     setPendingFor(commentId, "resolve");
     setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
-      await patch(commentId, { action: "resolve" }, "Couldn't resolve the comment. Try again.");
+      const taskDone = await patch(commentId, { action: "resolve" }, "Couldn't resolve the comment. Try again.");
       await refresh();
-      setUi((prev) => ({ ...prev, status: `Resolved the comment on ${phrase}.` }));
+      setUi((prev) => ({
+        ...prev,
+        status: taskDone ? `Resolved the comment on ${phrase} and marked its task done.` : `Resolved the comment on ${phrase}.`,
+      }));
       returnFocus(() => document.getElementById(actionId(commentId, "reopen")));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't resolve the comment.";
@@ -237,10 +227,18 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
     setPendingFor(commentId, "reopen");
     setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
-      await patch(commentId, { action: "unresolve" }, "Couldn't reopen the comment. Try again.");
+      const taskReopened = await patch(commentId, { action: "unresolve" }, "Couldn't reopen the comment. Try again.");
       await refresh();
-      setUi((prev) => ({ ...prev, status: `Reopened the comment on ${phrase}.` }));
-      returnFocus(() => document.getElementById(actionId(commentId, "resolve")));
+      setUi((prev) => ({
+        ...prev,
+        status: taskReopened ? `Reopened the comment on ${phrase} and its task.` : `Reopened the comment on ${phrase}.`,
+      }));
+      // A reopened comment with a task is tracked as the task again: focus goes to that link.
+      returnFocus(
+        () =>
+          document.getElementById(actionId(commentId, "resolve")) ??
+          document.getElementById(actionId(commentId, "task-done")),
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't reopen the comment.";
       setUi((prev) => ({ ...prev, error: message }));
@@ -281,9 +279,9 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
     returnFocus(() => document.getElementById(actionId(commentId, "delete")));
   }
 
-  /** One task per comment: busy while it's created, then "Task created" in the button's place. */
+  /** One task per comment: busy while it's created, then "Tracked as a task" in the button's place. */
   async function makeTask(comment: SectionComment) {
-    if (inFlight.current.has(comment.id) || tasked.has(comment.id)) return;
+    if (inFlight.current.has(comment.id) || tasked.has(comment.id) || comment.task) return;
     setPendingFor(comment.id, "task");
     setUi((prev) => ({ ...prev, error: null, status: null }));
     try {
@@ -391,7 +389,9 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
               // Each comment's buttons name the comment they act on, so the names stay unique.
               const about = `${comment.author.name || "Collaborator"}’s comment “${excerpt(comment.body)}”`;
               const busy = pending[comment.id];
-              const hasTask = tasked.has(comment.id);
+              // What the server said, or "open" for a task made since the thread loaded.
+              const task = comment.task ?? (tasked.has(comment.id) ? "open" : null);
+              const tracked = task === "open" && !isResolved;
               // Labelled actions under the comment (they wrap at 320px with 200% text), each
               // named after the comment it acts on so the names stay unique.
               return (
@@ -407,7 +407,7 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
                       {isResolved ? (
                         <Chip tone="ok">
                           <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                          Resolved
+                          {task === "done" ? "Resolved · task done" : "Resolved"}
                         </Chip>
                       ) : null}
                       {isDeleted ? <Chip>Deleted</Chip> : null}
@@ -428,53 +428,56 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
                     />
                   ) : (
                     <div className="-ml-3 mt-1 flex flex-wrap items-center">
-                      {hasTask ? (
+                      {/* One note, two views: while its task is open the comment is tracked as
+                          that task, a link to it, and is resolved by marking the task done; a
+                          resolved note is no one's to-do, so it offers only Reopen. */}
+                      {tracked ? (
                         <Link
                           id={actionId(comment.id, "task-done")}
-                          href={`/app/albums/${albumId}/inbox`}
-                          aria-label={`Task created from ${about}: open Comments and tasks`}
+                          href={`/app/albums/${albumId}/inbox#inbox-tasks`}
+                          aria-label={`Tracked as a task: ${about}. Open Comments and tasks`}
                           className="inline-flex min-h-11 items-center gap-2 rounded px-3 text-sm text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:bg-hover hover:text-ink hover:decoration-ink"
                         >
-                          <Check className="h-4 w-4 text-ok" aria-hidden="true" />
-                          Task created
+                          <ClipboardCheck className="h-4 w-4 text-ink-3" aria-hidden="true" />
+                          Tracked as a task
                         </Link>
-                      ) : (
-                        <Button
-                          id={actionId(comment.id, "task")}
-                          tone="ghost"
-                          className="px-3"
-                          busy={busy === "task"}
-                          aria-label={`${busy === "task" ? "Creating task" : "Create task"} from ${about}`}
-                          onClick={() => void makeTask(comment)}
-                        >
-                          <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
-                          {busy === "task" ? "Creating task…" : "Create task"}
-                        </Button>
-                      )}
-                      {isResolved ? (
+                      ) : isResolved ? (
                         <Button
                           id={actionId(comment.id, "reopen")}
                           tone="ghost"
                           className="px-3"
                           busy={busy === "reopen"}
-                          aria-label={`Reopen ${about}`}
+                          aria-label={`Reopen ${about}${task === "done" ? " and its task" : ""}`}
                           onClick={() => void unresolve(comment.id)}
                         >
                           <RotateCcw className="h-4 w-4" aria-hidden="true" />
                           {busy === "reopen" ? "Reopening…" : "Reopen"}
                         </Button>
                       ) : (
-                        <Button
-                          id={actionId(comment.id, "resolve")}
-                          tone="ghost"
-                          className="px-3"
-                          busy={busy === "resolve"}
-                          aria-label={`Resolve ${about}`}
-                          onClick={() => void resolve(comment.id)}
-                        >
-                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                          {busy === "resolve" ? "Resolving…" : "Resolve"}
-                        </Button>
+                        <>
+                          <Button
+                            id={actionId(comment.id, "task")}
+                            tone="ghost"
+                            className="px-3"
+                            busy={busy === "task"}
+                            aria-label={`${busy === "task" ? "Creating task" : "Create task"} from ${about}`}
+                            onClick={() => void makeTask(comment)}
+                          >
+                            <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                            {busy === "task" ? "Creating task…" : "Create task"}
+                          </Button>
+                          <Button
+                            id={actionId(comment.id, "resolve")}
+                            tone="ghost"
+                            className="px-3"
+                            busy={busy === "resolve"}
+                            aria-label={`Resolve ${about}`}
+                            onClick={() => void resolve(comment.id)}
+                          >
+                            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                            {busy === "resolve" ? "Resolving…" : "Resolve"}
+                          </Button>
+                        </>
                       )}
                       <Button
                         id={actionId(comment.id, "delete")}

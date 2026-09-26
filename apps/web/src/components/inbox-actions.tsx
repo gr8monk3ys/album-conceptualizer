@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 
 import { Button, LiveStatus } from "@/components/ui";
 import { browserFocusEnv, holdFocus } from "@/lib/focus-hold";
+import { cn } from "@/lib/utils";
 
 /** The server's human-written `error` field, or the fallback. Never a raw body or status. */
 async function readError(response: Response, fallback: string) {
@@ -91,6 +92,7 @@ function InboxAction({
   done,
   itemLabel,
   failure,
+  className,
 }: {
   url: string;
   body: Record<string, unknown>;
@@ -100,6 +102,8 @@ function InboxAction({
   done: (itemLabel: string) => string;
   itemLabel: string;
   failure: string;
+  /** Where the action sits in its row's action column (the inbox's second slot). */
+  className?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -141,11 +145,11 @@ function InboxAction({
   }
 
   return (
-    <div className="flex flex-col items-start gap-1">
+    <div className={cn("flex min-w-0 flex-col items-start gap-1 @xl:items-stretch", className)}>
       <Button
         ref={buttonRef}
         tone="secondary"
-        className="px-3"
+        className="px-3 @xl:w-full"
         busy={busy}
         data-inbox-action={url}
         aria-label={`${label}: ${itemLabel}`}
@@ -164,10 +168,12 @@ export function ResolveCommentButton({
   albumId,
   commentId,
   itemLabel = "comment",
+  className,
 }: {
   albumId: string;
   commentId: string;
   itemLabel?: string;
+  className?: string;
 }) {
   return (
     <InboxAction
@@ -178,6 +184,7 @@ export function ResolveCommentButton({
       done={(item) => `Resolved the ${item}.`}
       itemLabel={itemLabel}
       failure="Couldn't resolve this comment."
+      className={className}
     />
   );
 }
@@ -186,10 +193,15 @@ export function CompleteTaskButton({
   albumId,
   taskId,
   itemLabel = "task",
+  fromComment = false,
+  className,
 }: {
   albumId: string;
   taskId: string;
   itemLabel?: string;
+  /** The task was made from a comment: marking it done resolves that comment too. */
+  fromComment?: boolean;
+  className?: string;
 }) {
   return (
     <InboxAction
@@ -197,9 +209,10 @@ export function CompleteTaskButton({
       body={{ status: "done" }}
       label="Mark done"
       busyLabel="Marking done…"
-      done={(item) => `Marked “${item}” done.`}
+      done={(item) => (fromComment ? `Marked “${item}” done and resolved its comment.` : `Marked “${item}” done.`)}
       itemLabel={itemLabel}
       failure="Couldn't mark this task done."
+      className={className}
     />
   );
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { MAX_ALBUM_SONGS } from "@/server/album-json";
 import { apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
+import { commentTaskState } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 import { albumItemUrl, findMentionedMembers, notifyWorkspaceMembers } from "@/server/notify";
 
@@ -48,10 +49,14 @@ export const GET = apiHandler(async (request: Request, { params }: Context) => {
     },
     orderBy: { createdAt: "asc" },
     take: 100,
-    select: COMMENT_SELECT,
+    select: { ...COMMENT_SELECT, tasks: { where: { deletedAt: null }, select: { status: true } } },
   });
 
-  return NextResponse.json({ comments });
+  // Each comment says how it stands with its task ("open", "done" or null), so the Studio's
+  // thread shows a tracked comment as the task it became (server/comment-tasks.ts).
+  return NextResponse.json({
+    comments: comments.map(({ tasks, ...comment }) => ({ ...comment, task: commentTaskState(tasks) })),
+  });
 });
 
 export const POST = apiHandler(async (request: Request, { params }: Context) => {

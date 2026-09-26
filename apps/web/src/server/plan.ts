@@ -46,7 +46,7 @@ export async function enforceProjectLimit(
   if (count >= FREE_PROJECT_LIMIT) {
     throw new ApiError(
       402,
-      `The free plan includes ${FREE_PROJECT_LIMIT} projects. Upgrade to create more.`,
+      `The Free plan keeps up to ${FREE_PROJECT_LIMIT} albums at a time. Delete one to make room, or upgrade to keep more.`,
     );
   }
 }

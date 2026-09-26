@@ -69,7 +69,7 @@ export function ArrivalStatus({
     <div className={shown ? className : "absolute"}>
       <LiveStatus message={focused ? null : (shown?.text ?? null)} tone={tone} />
       {focused ? (
-        <p ref={lineRef} tabIndex={-1} className={cn("text-sm", color)}>
+        <p ref={lineRef} tabIndex={-1} data-focus-landing="" className={cn("text-sm", color)}>
           {focused}
         </p>
       ) : null}

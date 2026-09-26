@@ -34,6 +34,8 @@ vi.mock("@/server/db", () => {
         const held = commentLock;
         const tx = {
           albumTask,
+          // A resolved source comment reopens with its new task (server/comment-tasks.ts).
+          albumSectionComment: { updateMany: async () => ({ count: 0 }) },
           $queryRaw: async (_sql: TemplateStringsArray, commentId: string) => {
             commentLock = held.then(() => new Promise<void>((resolve) => (release = resolve)));
             await held;

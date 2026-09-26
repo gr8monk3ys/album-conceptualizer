@@ -70,10 +70,10 @@ function AlbumDetailsView({ album, onChange, open, onOpenChange, className }: Al
           aria-expanded={open}
           aria-controls="album-details-body"
           onClick={() => onOpenChange(!open)}
-          className="-mx-2 inline-flex min-h-11 items-center gap-2 rounded border border-transparent px-2 transition-colors hover:bg-hover"
+          className="-mx-2 inline-flex min-h-11 max-w-full items-center gap-2 rounded border border-transparent px-2 text-left transition-colors hover:bg-hover"
         >
-          Album details (all tracks)
-          <ChevronDown className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true" />
+          <span className="min-w-0 break-words">Album details (all tracks)</span>
+          <ChevronDown className={cn("h-4 w-4 flex-none transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true" />
         </button>
       </h2>
       <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">

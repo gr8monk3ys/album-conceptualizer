@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { PageHeader, Section, TableScroller } from "@/components/ui";
+import { andList } from "@/lib/and-list";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { getAgentAvailability } from "@/server/engine";
 import { FREE_PROJECT_LIMIT, planMonthlyCredits } from "@/server/plan";
@@ -79,23 +80,6 @@ const STEPS: Array<{ title: string; body: ReactNode }> = [
   },
 ];
 
-const COSTS: Array<{ action: string; cost: number; ai?: boolean }> = [
-  { action: "Create an album", cost: CREDIT_COSTS.albumCreate },
-  { action: "Remix an album from Discover or a share link", cost: CREDIT_COSTS.albumFork },
-  { action: "Download an export zip", cost: CREDIT_COSTS.exportZip },
-  {
-    action: "Get an AI draft (brainstorming ideas, developing a song or reviewing coherence)",
-    cost: CREDIT_COSTS.agentRun,
-    ai: true,
-  },
-];
-
-const PLANS = [
-  { name: "Free", credits: planMonthlyCredits("free"), note: `Up to ${plural(FREE_PROJECT_LIMIT, "album")}.` },
-  { name: "Pro", credits: planMonthlyCredits("pro"), note: "As many albums as you like." },
-  { name: "Team", credits: planMonthlyCredits("team"), note: "As many albums as you like." },
-];
-
 function Keys({ keys }: { keys: string[] }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
@@ -162,6 +146,13 @@ const CONTENTS = [
 export default async function HelpPage() {
   // The same check Billing and Challenges use: false when AI drafts can't run on this server.
   const aiAvailable = await getAgentAvailability();
+  // What spends credits, in words; the full table, per plan, is on Plan and billing.
+  const spends = [
+    `creating an album (${plural(CREDIT_COSTS.albumCreate, "credit")})`,
+    `remixing one (${plural(CREDIT_COSTS.albumFork, "credit")})`,
+    `downloading the export zip (${plural(CREDIT_COSTS.exportZip, "credit")})`,
+    ...(aiAvailable ? [`an AI draft (${plural(CREDIT_COSTS.agentRun, "credit")})`] : []),
+  ];
   return (
     <div className="flex flex-col gap-10">
       <PageHeader
@@ -212,73 +203,19 @@ export default async function HelpPage() {
         title="Credits and plans"
         description="Credits pay for the few actions that do heavy work on the server. Writing, the Story and Sound bibles, the Coherence report, versions and comments are free to use as much as you like."
       >
+        {/* The costs table lives on Plan and billing, once; Help says what credits are for
+            and links there. */}
         <div className="flex flex-col gap-8">
-          <TableScroller label="What each action costs" className="max-w-2xl">
-            <table className="w-full border-collapse text-sm">
-              <caption className="sr-only">What each action costs, in credits</caption>
-              <thead>
-                <tr className="border-b border-line">
-                  <th scope="col" className="type-catalog pb-2 pr-4 text-left text-xs text-ink-3">
-                    Action
-                  </th>
-                  <th scope="col" className="type-catalog pb-2 text-right text-xs text-ink-3">
-                    Credits
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {COSTS.map((row) => (
-                  <tr key={row.action} className="border-b border-line">
-                    <td className="py-3 pr-4 text-ink">{row.action}</td>
-                    {row.ai && !aiAvailable ? (
-                      <td className="py-3 text-right text-ink-3">Not available on this server right now</td>
-                    ) : (
-                      <td className="type-figure py-3 text-right font-semibold text-ink">{row.cost}</td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroller>
-          {/* Offers you can't take aren't sold: the same line Billing shows. */}
-          {aiAvailable ? null : (
-            <p className="-mt-4 max-w-[65ch] text-sm leading-relaxed text-ink-2">
-              AI drafts aren&apos;t available on this server right now, so no plan includes them: its
-              credits go to creating, remixing and exporting. Everything else works without them.
-            </p>
-          )}
-
-          <TableScroller label="Monthly credits on each plan" className="max-w-2xl">
-            <table className="w-full border-collapse text-sm">
-              <caption className="sr-only">Monthly credits on each plan</caption>
-              <thead>
-                <tr className="border-b border-line">
-                  <th scope="col" className="type-catalog pb-2 pr-4 text-left text-xs text-ink-3">
-                    Plan
-                  </th>
-                  <th scope="col" className="type-catalog pb-2 pr-4 text-right text-xs text-ink-3">
-                    Credits a month
-                  </th>
-                  <th scope="col" className="type-catalog pb-2 text-left text-xs text-ink-3">
-                    Albums
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {PLANS.map((plan) => (
-                  <tr key={plan.name} className="border-b border-line">
-                    <th scope="row" className="py-3 pr-4 text-left font-semibold text-ink">
-                      {plan.name}
-                    </th>
-                    <td className="type-figure py-3 pr-4 text-right text-ink">{plan.credits}</td>
-                    <td className="py-3 text-ink-2">{plan.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroller>
-
           <div className="flex max-w-[65ch] flex-col gap-3 text-sm leading-relaxed text-ink-2">
+            <p>
+              A few actions use credits: {andList(spends)}. The Free plan keeps up to{" "}
+              {plural(FREE_PROJECT_LIMIT, "album")} at a time with {planMonthlyCredits("free")} credits a
+              month; Pro and Team keep as many as you like.
+            </p>
+            {/* Offers you can't take aren't sold, said once here and once in Billing's table. */}
+            {aiAvailable ? null : (
+              <p>AI drafts can&apos;t run on this server right now; everything else works without them.</p>
+            )}
             <p>
               At the start of each month your balance is topped up to your plan&apos;s amount.
               Credits you earned above it, from{" "}
@@ -293,8 +230,8 @@ export default async function HelpPage() {
             </p>
             {/* A link on its own line, not in running text: a full 44px target. */}
             <p>
-              <Link href="/app/settings/billing" className={`${inlineLink} inline-flex min-h-11 items-center`}>
-                Compare plans and manage billing
+              <Link href="/app/settings/billing#credits-title" className={`${inlineLink} inline-flex min-h-11 items-center`}>
+                What each action costs, on every plan
               </Link>
             </p>
           </div>

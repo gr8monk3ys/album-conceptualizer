@@ -1289,8 +1289,8 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
   const verdict = coherenceVerdict({ insufficient, score, songCount, songsWithLyrics });
   const summary = insufficient
     ? requiredWrittenTracks === 1
-      ? "Not enough material yet — write lyrics for this track to get a score."
-      : "Not enough material yet — write lyrics for two tracks to get a score."
+      ? "A first score comes once this track has lyrics."
+      : "A first score comes once two tracks have lyrics."
     : songsMissingLyrics
       ? `${songsWithLyrics} of ${songCount} tracks written. The written ${songsWithLyrics === 1 ? "track scores" : "tracks score"} ${writtenScore ?? score}; the whole album scores ${score}/100 until the rest are written, since no dimension counts above ${scoreCap} yet. On the written ${songsWithLyrics === 1 ? "one" : "ones"}, ${weakest.label} is weakest.`
       : topIssue

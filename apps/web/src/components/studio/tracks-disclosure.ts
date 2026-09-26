@@ -62,8 +62,23 @@ const NBSP = " ";
  * A screen reader hears the no-break spaces as spaces.
  */
 export function tracksSummary(current: { track_number: number; title?: string | null } | undefined, count: number) {
-  if (!current || !count) return "Sequence";
+  const { where, title } = tracksSummaryParts(current, count);
+  return title ? `${where}${title}` : where;
+}
+
+/**
+ * The summary in its two parts: where you are ("Sequence · 04 of 10"), and the track's title
+ * with the separator that joins it (" · Track 4", empty without a track). In a column under
+ * 12rem (320px with 200% text) the toggle shows only the first: a long word in a title
+ * ("Congregation") would have to break mid-word there, and the title heads the editor just
+ * below it anyway.
+ */
+export function tracksSummaryParts(
+  current: { track_number: number; title?: string | null } | undefined,
+  count: number,
+): { where: string; title: string } {
+  if (!current || !count) return { where: "Sequence", title: "" };
   const pad = (n: number) => String(n).padStart(2, "0");
   const place = [pad(current.track_number), "of", pad(count)].join(NBSP);
-  return ["Sequence", place, current.title?.trim() || "Untitled"].join(`${NBSP}· `);
+  return { where: ["Sequence", place].join(`${NBSP}· `), title: `${NBSP}· ${current.title?.trim() || "Untitled"}` };
 }

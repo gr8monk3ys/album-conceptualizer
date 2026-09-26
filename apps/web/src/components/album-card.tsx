@@ -5,6 +5,7 @@ import { isValidElement, type ReactNode } from "react";
 import { RelativeTime } from "@/components/relative-time";
 import type { ScoreStory } from "@/lib/score-story";
 import { Chip } from "@/components/ui";
+import { softHyphens } from "@/lib/soft-hyphens";
 import { cn } from "@/lib/utils";
 
 export type AlbumListItem = {
@@ -26,6 +27,8 @@ export type AlbumListItem = {
     lyricsWritten: number;
     verdict: string;
     story: Pick<ScoreStory, "headline" | "scoreLine">;
+    /** Set on a remix: the catalog line says "Remix of <title> by <artist>", as the release header does. */
+    remixOf?: { title: string; artist: string | null } | null;
   };
 };
 
@@ -160,13 +163,21 @@ export function AlbumCard({
           {/* Sized by the row (a size container) so an ordinary long word fits whole at 320px
               with 200% text; breaking inside a word is only the last resort. */}
           <p className="type-display break-words text-display-card text-ink hyphens-auto md:text-display-card-lg">
-            {album.title}
+            {/* Break points in long words, so a title that must break shows a hyphen
+                (`hyphens-auto` gave none in Chromium without a dictionary). */}
+            {softHyphens(album.title)}
           </p>
           <p className="type-catalog mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
             <CatalogItems
               items={[
                 album.artist || "No artist yet",
                 <span key="tracks" className="type-figure">{tracks}</span>,
+                album.progress?.remixOf ? (
+                  <span key="remix">
+                    Remix of {album.progress.remixOf.title}
+                    {album.progress.remixOf.artist ? ` by ${album.progress.remixOf.artist}` : ""}
+                  </span>
+                ) : null,
                 <span key="edited">
                   Edited <RelativeTime date={album.updatedAt} />
                 </span>,

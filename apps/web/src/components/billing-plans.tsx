@@ -6,7 +6,6 @@ import { Check } from "lucide-react";
 
 import { CatalogItems } from "@/components/album-card";
 import { Button, Chip, LiveStatus, PageHeader, Section, TableScroller } from "@/components/ui";
-import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { creditUses } from "@/lib/credit-uses";
 import { cn } from "@/lib/utils";
 
@@ -191,15 +190,15 @@ export function BillingPlans({
               // once, under the plans, rather than as a per-plan "about N albums" headline.
               // The album limit (how many you keep at once) and the credits (what you can do each
               // month) are two different things, so each fact says which one it is about.
+              // Two facts, each about one thing: how many albums the plan keeps, and the credits
+              // that arrive for the work that costs them. A count of "album creations" beside
+              // "keep up to 5" read as a contradiction; what the credits cover, action by action,
+              // is the table under "What a month of credits covers".
               const facts = [
                 plan.key === "free"
-                  ? `Keep up to ${freeProjectLimit} albums at a time`
+                  ? `Keep up to ${freeProjectLimit} albums at a time; delete one to make room for the next`
                   : "Keep as many albums at a time as you like",
-                `${credits} credits each month`,
-                // Offers you can't take aren't sold: without AI the credits are counted in albums.
-                aiAvailable
-                  ? `Credits for about ${plural(times(credits, CREDIT_COSTS.agentRun), "AI draft", "AI drafts")} a month, or any mix of creating, remixing and exporting`
-                  : `Credits for about ${plural(times(credits, CREDIT_COSTS.albumCreate), "album creation", "album creations")} a month, or any mix of creating, remixing and exporting`,
+                `${credits} credits each month, for creating, remixing and exporting${aiAvailable ? " and AI drafts" : ""}`,
               ];
               return (
                 <li
@@ -263,12 +262,6 @@ export function BillingPlans({
           <span className="type-figure text-ink">{albumPass}</span> credits. Writing, saving, the
           Story bible and the Coherence report never cost credits.
         </p>
-        {aiAvailable ? null : (
-          <p className="mt-2 max-w-[65ch] text-sm leading-relaxed text-ink-2">
-            AI drafts aren&apos;t available on this server right now, so no plan includes them: its
-            credits go to creating, remixing and exporting. Everything else works without them.
-          </p>
-        )}
       </Section>
 
       <Section

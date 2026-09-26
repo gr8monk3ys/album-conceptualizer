@@ -22,6 +22,7 @@ import {
   type QuickStartFormState,
 } from "@/lib/create-draft";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { REFERENCE_LINE_SEPARATOR, parseReferenceLine, type ReferenceLine } from "@/lib/reference-line";
 import { rangeValueAt, sliderPointerStart, swipeIntent } from "@/lib/swipe-intent";
 import { SETUP_TEMPO } from "@/lib/tempo";
 import { clearDraft, useDraftState } from "@/lib/use-autosave";
@@ -122,6 +123,24 @@ function splitLines(raw: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * A field label with the one mark the wizard uses for a field it can do without: "Optional"
+ * after the name, quieter, as the brainstorm's heading has it ("Need a starting point?
+ * Optional"). Required fields carry no mark; they say what's missing when you try to go on.
+ */
+function OptionalLabel({ children }: { children: string }) {
+  return (
+    <>
+      {children} <span className="font-normal text-ink-3">Optional</span>
+    </>
+  );
+}
+
+/** The wizard's references, one per line, each read as title and artist (lib/reference-line). */
+function parseReferences(raw: string): ReferenceLine[] {
+  return raw.split(/\r?\n/g).flatMap((line) => parseReferenceLine(line) ?? []);
+}
+
 function pad(value: number) {
   return String(value).padStart(2, "0");
 }
@@ -146,7 +165,9 @@ function buildAlbumJson(input: QuickStartFormState, ids: DraftAlbumIds) {
   // A blank line keeps its place: that track is untitled and opens as "Track N".
   const trackNames = trackTitlesByPosition(input.trackNamesRaw, input.trackCount);
   const centralThemes = splitListInput(input.centralThemesRaw);
-  // One per line, like track titles: "Blonde, Frank Ocean" is one reference, not two.
+  // One per line, like track titles: "Blonde — Frank Ocean" is one reference, not two. Each is
+  // saved as the artist typed it; the album's References read it as title and artist
+  // (server/wizard-references), as the preview shows.
   const referenceAlbums = splitLines(input.referenceAlbumsRaw);
 
   const songs = Array.from({ length: input.trackCount }, (_, index) => {
@@ -265,7 +286,7 @@ function WizardProgress({
                 aria-current={active ? "step" : undefined}
                 title={reachable ? undefined : "Finish the earlier steps first"}
                 className={cn(
-                  "-mb-px flex min-h-11 w-full min-w-0 flex-col items-start justify-center border-b-2 px-1 pb-2 pt-1 text-left transition-colors disabled:cursor-not-allowed",
+                  "-mb-px flex h-full min-h-11 w-full min-w-0 flex-col items-start justify-start border-b-2 px-1 pb-2 pt-1 text-left transition-colors disabled:cursor-not-allowed",
                   active
                     ? "border-accent text-ink"
                     : "border-transparent text-ink-2 hover:text-ink disabled:text-ink-3 disabled:hover:text-ink-3",
@@ -277,16 +298,19 @@ function WizardProgress({
                   </span>
                   <span className="sr-only @[18rem]:not-sr-only">{item.title}</span>
                 </span>
+                {/* In the narrow tabs (numbers, not names) a status is one short mark, so it never
+                    wraps ("To / do"): "Now", a check for Done, nothing for To do; the words stay
+                    for screen readers. */}
                 <span className="flex items-center gap-1 text-xs text-ink-3">
                   {done ? (
                     <>
                       <Check className="h-3.5 w-3.5 text-ok" aria-hidden="true" />
-                      Done
+                      <span className="sr-only @[18rem]:not-sr-only">Done</span>
                     </>
                   ) : active ? (
                     "Now"
                   ) : (
-                    "To do"
+                    <span className="sr-only @[18rem]:not-sr-only">To do</span>
                   )}
                 </span>
               </button>
@@ -331,7 +355,11 @@ function QuickStartStepFields({
           />
         </Field>
 
-        <Field label="Artist" htmlFor="quickstart-artist" hint="Optional. You, your band or a project name.">
+        <Field
+          label={<OptionalLabel>Artist</OptionalLabel>}
+          htmlFor="quickstart-artist"
+          hint="You, your band or a project name."
+        >
           <input
             id="quickstart-artist"
             value={form.artist}
@@ -417,16 +445,16 @@ function QuickStartStepFields({
         </Field>
 
         <Field
-          label="References"
+          label={<OptionalLabel>References</OptionalLabel>}
           htmlFor="quickstart-references"
-          hint="Optional. Records or songs this album should sit next to, one per line. They're saved to the album's References, where you can add details."
+          hint="Records or songs this album should sit next to, one per line: the title, a dash, then the artist. They're saved to the album's References, where you can add details."
         >
           <textarea
             id="quickstart-references"
             value={form.referenceAlbumsRaw}
             onChange={(event) => setField("referenceAlbumsRaw", event.target.value)}
             className={cn(textareaClass, "resize-y")}
-            placeholder={"e.g. Blonde, Frank Ocean\nOK Computer, Radiohead"}
+            placeholder={`e.g. Blonde${REFERENCE_LINE_SEPARATOR}Frank Ocean\nOK Computer${REFERENCE_LINE_SEPARATOR}Radiohead`}
             aria-describedby="quickstart-references-hint"
           />
         </Field>
@@ -483,7 +511,7 @@ function QuickStartStepFields({
       </div>
 
       <Field
-        label="Track titles (optional)"
+        label={<OptionalLabel>Track titles</OptionalLabel>}
         htmlFor="quickstart-track-names"
         hint="One per line, in running order. Leave a line empty to skip a track: a track without a title is called by its number, like Track 3."
       >
@@ -582,6 +610,7 @@ function BlueprintPreview({
   trackNames: string[];
 }) {
   const themes = splitListInput(form.centralThemesRaw);
+  const references = parseReferences(form.referenceAlbumsRaw);
   const arc = NARRATIVE_OPTIONS.find((option) => option.key === form.narrativeStructure)?.label;
   const title = form.title.trim();
   // The spine shows the album's first six themes, as the album will.
@@ -669,6 +698,33 @@ function BlueprintPreview({
         Every track opens with an empty verse and chorus over a starter chord loop, there only so
         you can hear it right away; it doesn&apos;t count as written.
       </p>
+
+      {/* Each reference as it will be saved, title and artist apart, so a line that splits in
+          the wrong place ("Hello" by "Goodbye") shows here before it reaches the References. */}
+      {references.length ? (
+        <div className="mt-6">
+          {/* Headed, not labelled: a list named "References" would share the field's name. */}
+          <h3 className="mb-2 text-sm font-semibold text-ink">References</h3>
+          <ul data-testid="blueprint-references" className="border-t border-line">
+            {references.map((reference, index) => (
+              <li
+                key={index}
+                className="flex flex-wrap items-baseline gap-x-2 border-b border-line py-2 text-sm"
+              >
+                <span className="min-w-0 break-words text-ink">{reference.title}</span>
+                {reference.artist ? (
+                  <span className="min-w-0 break-words text-ink-2">
+                    <span className="sr-only">by </span>
+                    {reference.artist}
+                  </span>
+                ) : (
+                  <span className="text-ink-3">No artist yet</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -679,6 +735,16 @@ function firstInvalidField(step: number, form: QuickStartFormState): string | nu
   if (!form.title.trim()) return "quickstart-title";
   if (!form.conceptSummary.trim()) return "quickstart-concept";
   return null;
+}
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** The sticky header's height (the page's own scroll padding), so "in view" means below it. */
+function headerOffset() {
+  const padding = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop);
+  return Number.isFinite(padding) ? padding : 0;
 }
 
 /** Focus a field after React has rendered its error, so the error is read with it. */
@@ -720,6 +786,8 @@ export function QuickStartComposer({
   // Set synchronously, so a second click before the re-render can't send a second create.
   const savingRef = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  // The steps and the step's heading, brought into view together when the step changes.
+  const stepTopRef = useRef<HTMLDivElement>(null);
   const hasMovedRef = useRef(false);
 
   function setForm(update: (prev: QuickStartFormState) => QuickStartFormState) {
@@ -744,10 +812,16 @@ export function QuickStartComposer({
   const lastStep = WIZARD_STEPS.length - 1;
 
   // Moving between steps puts focus on the new step's heading, so keyboard and screen reader
-  // users land at the top of the fields they now have to fill.
+  // users land at the top of the fields they now have to fill, and brings the steps and that
+  // heading into view: Continue sits under the fields, so the page was left scrolled down with
+  // the new step's top out of sight (focus alone scrolls only as far as the heading itself).
   useEffect(() => {
     if (!hasMovedRef.current) return;
-    headingRef.current?.focus();
+    headingRef.current?.focus({ preventScroll: true });
+    const top = stepTopRef.current;
+    if (top && top.getBoundingClientRect().top < headerOffset()) {
+      top.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    }
   }, [step]);
 
   function setField<K extends keyof QuickStartFormState>(key: K, value: QuickStartFormState[K]) {
@@ -900,26 +974,28 @@ export function QuickStartComposer({
             ) : null}
           </div>
 
-          <WizardProgress step={step} form={form} visited={visited} onStepSelect={goTo} />
+          <div ref={stepTopRef}>
+            <WizardProgress step={step} form={form} visited={visited} onStepSelect={goTo} />
 
-          {/* A size container: the step title stays under 16% of the panel, so at 320px with
-              200% text "Foundation" fits whole inside it; it never sets smaller than it does
-              at 100% text (20px), and from 320px at normal text size nothing changes. */}
-          <div className="mt-5 @container">
-            <h2
-              ref={headingRef}
-              tabIndex={-1}
-              className="text-[length:max(min(1.25rem,20px),min(1.25rem,16cqi))] font-semibold leading-snug text-ink wrap-break-word"
-            >
-              {currentStep.title}
-            </h2>
-            <p className="mt-1 text-sm text-ink-2">
-              <span className="type-figure">
-                Step {step + 1} of {WIZARD_STEPS.length}
-              </span>
-              {" · "}
-              {currentStep.detail}
-            </p>
+            {/* A size container: the step title stays under 16% of the panel, so at 320px with
+                200% text "Foundation" fits whole inside it; it never sets smaller than it does
+                at 100% text (20px), and from 320px at normal text size nothing changes. */}
+            <div className="mt-5 @container">
+              <h2
+                ref={headingRef}
+                tabIndex={-1}
+                className="text-[length:max(min(1.25rem,20px),min(1.25rem,16cqi))] font-semibold leading-snug text-ink wrap-break-word"
+              >
+                {currentStep.title}
+              </h2>
+              <p className="mt-1 text-sm text-ink-2">
+                <span className="type-figure">
+                  Step {step + 1} of {WIZARD_STEPS.length}
+                </span>
+                {" · "}
+                {currentStep.detail}
+              </p>
+            </div>
           </div>
 
           <div className="mt-5 flex flex-col gap-5">
@@ -929,18 +1005,22 @@ export function QuickStartComposer({
               setField={setField}
               showErrors={showErrors}
             />
-            {/* Stays mounted across steps so a finished brainstorm (and its undo) isn't lost. */}
-            <div hidden={step !== 0}>
-              <IdeationAi
-                concept={form.conceptSummary}
-                references={form.referenceAlbumsRaw}
-                themes={form.centralThemesRaw}
-                trackCount={form.trackCount}
-                aiAvailable={aiAvailable}
-                creditsRemaining={creditsRemaining}
-                onApply={applyBrainstorm}
-              />
-            </div>
+            {/* Stays mounted across steps so a finished brainstorm (and its undo) isn't lost. Left
+                out where AI drafts can't run on this server: an offer that can't be taken takes
+                no room in the writing path (Help and Billing say so once). */}
+            {aiAvailable ? (
+              <div hidden={step !== 0}>
+                <IdeationAi
+                  concept={form.conceptSummary}
+                  references={form.referenceAlbumsRaw}
+                  themes={form.centralThemesRaw}
+                  trackCount={form.trackCount}
+                  aiAvailable={aiAvailable}
+                  creditsRemaining={creditsRemaining}
+                  onApply={applyBrainstorm}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-6 flex flex-col gap-3 border-t border-line pt-4">
@@ -970,6 +1050,7 @@ export function QuickStartComposer({
                     cost={cost}
                     remaining={creditsRemaining}
                     actionLabel="Save and continue"
+                    question="Create the album"
                     onConfirm={saveAlbum}
                     busy={isSaving}
                     tone="primary"

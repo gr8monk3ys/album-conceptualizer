@@ -5,11 +5,16 @@ import type { SpineRow } from "@/server/album-songs";
 import { ThemeHeadName, ThemeMark } from "@/components/theme-mark";
 import { TableScroller } from "@/components/ui";
 import {
+  THEME_NAME_PADDING_REM,
   THEME_NAME_SLOT_REM,
   carriedThemesPhrase,
   themeAbbreviations,
   themeHeadClasses,
   themeHeadLines,
+  wideThemeHeadClass,
+  wideThemeHeads,
+  wideThemeHeadsCss,
+  wideThemeSlotClass,
   type ThemeHeadClasses,
 } from "@/lib/theme-keys";
 import { cn } from "@/lib/utils";
@@ -40,14 +45,14 @@ function pad(trackNumber: number) {
  */
 const TITLE_MIN = "min-w-[min(8rem,calc(100cqw-3.25rem-4px))]";
 
-export type SpineHeads = ThemeHeadClasses & {
-  /** The room a theme's name has inside its slot (the slot less its padding), in rem. */
+type SpineHeads = ThemeHeadClasses & {
+  /** The room a theme's name has inside its 3rem slot (the slot less its padding), in rem. */
   nameRem: number;
 };
 
-/** The album spine's theme heads: 3rem slots (less 0.25rem padding), `themeHeadClasses`. */
-function albumSpineHeads(count: number): SpineHeads {
-  return { ...themeHeadClasses(count), nameRem: THEME_NAME_SLOT_REM - 0.25 };
+/** The 3rem theme heads, from 15rem plus 3rem a theme (`themeHeadClasses`). */
+function spineHeads(count: number): SpineHeads {
+  return { ...themeHeadClasses(count), nameRem: THEME_NAME_SLOT_REM - THEME_NAME_PADDING_REM };
 }
 
 /**
@@ -56,12 +61,15 @@ function albumSpineHeads(count: number): SpineHeads {
  * theme's head, and whether the track has a role in the arc. `rowHref` says where a title
  * links (stretched over the whole 44px row), or null for plain text.
  *
- * Names, not codes: wherever the container (an `@container` ancestor) has room, each theme
- * column is headed by the theme's whole name in catalog caps, on two lines when one won't hold
- * it (`ThemeHeadName`); `heads` picks the width at which names replace keys. Only a name that
- * not even two lines hold truncates, and then the legend under the table names every theme in
- * full, as it does whenever the narrowest layouts show short keys instead. The table names the
- * legend as its description.
+ * Names, not codes: the theme heads take the room the container (an `@container` ancestor)
+ * gives them. Where the sheet holds every theme's whole name beside a title of at least 8rem,
+ * each theme column is as wide as its own name, up to 7rem (`wideThemeHeads`, so "ISOLATION"
+ * and "MEMORY" read whole on a laptop's Overview), with steps at 4rem and 5rem a column on the
+ * way there; the room comes out of the title, the one column that stretches (the others are as
+ * narrow as their heads). With less, from 15rem plus 3rem a theme, the names sit in 3rem
+ * slots, on two lines when one won't hold them (`ThemeHeadName`, a long word hyphenated). Only
+ * in the narrowest layouts do short keys head the columns. Whenever keys show, or a name truncates, the legend under the table names every
+ * theme in full; the table names the legend as its description.
  *
  * Built to survive enlarged text: the table sizes itself to its content (never `table-fixed`),
  * the title keeps at least 8rem (less only where the region can't show 8rem beside the number,
@@ -74,7 +82,6 @@ function albumSpineHeads(count: number): SpineHeads {
 export function SpineSheet({
   rows,
   themes,
-  heads,
   rowHref,
   caption,
   legendId,
@@ -82,7 +89,6 @@ export function SpineSheet({
   rows: SpineRow[];
   /** The album's central themes, at most six, in the order the artist set them. */
   themes: string[];
-  heads: SpineHeads;
   rowHref: (trackNumber: number) => string | null;
   caption: string;
   legendId: string;
@@ -90,11 +96,18 @@ export function SpineSheet({
   const themeKeys = themes.map((theme) => theme.toLowerCase());
   const abbreviations = themeAbbreviations(themes);
   const showLegend = rows.length > 0 && themes.length > 0;
-  // A name two lines can't hold truncates in its head, so the legend stays up to name it.
+  const heads = spineHeads(themes.length);
+  // A name two lines can't hold truncates in its 3rem head, so the legend stays up to name it
+  // (the wide layout, which holds it whole, puts the legend away again).
   const namesTruncate = themes.some((theme) => themeHeadLines(theme, heads.nameRem).truncated);
+  const wide = wideThemeHeads(themes);
+  const slotClass = (index: number) => cn(heads.slot, wide.length && wideThemeSlotClass(index));
 
   return (
-    <>
+    // The wide layouts' widths are the album's own (one per theme), so their rules are written
+    // for this sheet alone, scoped by `data-theme-heads`.
+    <div data-theme-heads={wide.length ? legendId : undefined} className="contents">
+      {wide.length ? <style>{wideThemeHeadsCss(legendId, wide)}</style> : null}
       {/* The region's ring is drawn inset: the side column that holds the spine scrolls on its
           own and is exactly the region's width, so a ring outside it lost its sides. */}
       <TableScroller label="Tracks in sequence" className="focus-visible:-outline-offset-2">
@@ -106,14 +119,17 @@ export function SpineSheet({
                 <span aria-hidden="true">#</span>
                 <span className="sr-only">Track number</span>
               </th>
-              <th scope="col" className="type-catalog pb-2 pr-2 text-left text-xs font-semibold text-ink-3">
+              <th scope="col" className="type-catalog pb-2 pr-1 text-left text-xs font-semibold text-ink-3">
                 Title
               </th>
-              <th scope="col" className="type-catalog w-8 px-0.5 pb-2 text-center text-xs font-semibold text-ink-3">
+              {/* Every column but the title is as narrow as its head (`w-px`), so the title
+                  takes whatever room the sheet has left. Lyrics keeps a 0.25rem gap on its right,
+                  so its head never runs into the first theme's name. */}
+              <th scope="col" className="type-catalog w-px pb-2 pr-1 text-center text-xs font-semibold text-ink-3">
                 Lyrics
               </th>
               {themes.length ? (
-                <th scope="col" className="pb-2 font-semibold">
+                <th scope="col" className="w-px pb-2 font-semibold">
                   {/* The head's accessible name carries every theme in full, whatever the
                       visible head can fit. */}
                   <span className="sr-only">Album themes: {themes.join(", ")}</span>
@@ -122,17 +138,29 @@ export function SpineSheet({
                       not. */}
                   <span aria-hidden="true" className="flex items-end justify-center">
                     {themes.map((theme, index) => (
-                      <span key={theme} className={cn("block w-4 min-w-0 shrink-0 text-center", heads.slot)}>
+                      <span key={theme} className={cn("block w-4 min-w-0 shrink-0 text-center", slotClass(index))}>
                         <abbr title={theme} className={cn("type-catalog block text-xs text-ink-3 no-underline", heads.keys)}>
                           {abbreviations[index]}
                         </abbr>
-                        <ThemeHeadName theme={theme} widthRem={heads.nameRem} className={cn("px-0.5", heads.names)} />
+                        <ThemeHeadName
+                          theme={theme}
+                          widthRem={heads.nameRem}
+                          className={cn("theme-head-narrow px-0.5", heads.names)}
+                        />
+                        {wide.map((layout, step) => (
+                          <ThemeHeadName
+                            key={step}
+                            theme={theme}
+                            widthRem={layout.slotRem[index] - THEME_NAME_PADDING_REM}
+                            className={cn(wideThemeHeadClass(step), "px-0.5")}
+                          />
+                        ))}
                       </span>
                     ))}
                   </span>
                 </th>
               ) : null}
-              <th scope="col" className="type-catalog w-8 pb-2 pl-1 text-center text-xs font-semibold text-ink-3">
+              <th scope="col" className="type-catalog w-px pb-2 pl-1 text-center text-xs font-semibold text-ink-3">
                 Role
               </th>
             </tr>
@@ -159,7 +187,7 @@ export function SpineSheet({
                   >
                     {pad(row.trackNumber)}
                   </td>
-                  <td className="py-1.5 pr-2 align-middle">
+                  <td className="py-1.5 pr-1 align-middle">
                     {href ? (
                       // The link covers the whole row, so any cell is a 44px target. The title
                       // keeps a readable width however large the text gets (TITLE_MIN).
@@ -178,7 +206,7 @@ export function SpineSheet({
                   </td>
                   <td
                     className={cn(
-                      "type-figure px-0.5 text-center align-middle text-sm",
+                      "type-figure pr-1 text-center align-middle text-sm",
                       complete ? "text-ink" : row.lyricSections ? "text-ink-2" : "text-ink-3",
                     )}
                   >
@@ -189,7 +217,7 @@ export function SpineSheet({
                     <td className="align-middle">
                       <span aria-hidden="true" className="flex justify-center">
                         {themes.map((theme, index) => (
-                          <span key={theme} className={cn("grid w-4 shrink-0 place-items-center", heads.slot)}>
+                          <span key={theme} className={cn("grid w-4 shrink-0 place-items-center", slotClass(index))}>
                             <ThemeMark carries={row.themeKeys.includes(themeKeys[index])} />
                           </span>
                         ))}
@@ -226,7 +254,7 @@ export function SpineSheet({
           id={legendId}
           aria-hidden="true"
           className={cn(
-            "mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-relaxed text-ink-3",
+            "theme-legend mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-relaxed text-ink-3",
             namesTruncate ? null : heads.legend,
           )}
         >
@@ -240,7 +268,7 @@ export function SpineSheet({
           ))}
         </p>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -248,7 +276,8 @@ export function SpineSheet({
  * The album's sequence as a track sheet (`SpineSheet`) beside or above every album screen:
  * every row opens that track in the Studio. The side column widens with the theme count so
  * the heads show names (15rem plus 3rem a theme, `themeHeadClasses`: up to four themes on a
- * laptop, all six in the Sequence disclosure); only the narrowest column falls back to keys.
+ * laptop, all six in the Sequence disclosure), whole where the column has the room
+ * (`wideThemeHeads`); only the narrowest column falls back to keys.
  *
  * `showThemes={false}` leaves the theme columns out (number, title, lyrics and role stay): the
  * Story bible's Theme map already sets the tracks against the themes, and one screen shows
@@ -279,7 +308,6 @@ export function AlbumSpine({
     <SpineSheet
       rows={rows}
       themes={shownThemes}
-      heads={albumSpineHeads(shownThemes.length)}
       rowHref={(trackNumber) => `${base}/studio?song=${trackNumber}`}
       caption={
         showThemes
