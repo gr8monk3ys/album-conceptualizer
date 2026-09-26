@@ -29,6 +29,8 @@ export function FadeScroll({ className, onFocus, ...props }: ComponentProps<"div
     const column = ref.current;
     const target = event.target;
     if (!column || target === column || !(target instanceof HTMLElement)) return;
+    // Only keyboard focus: a clicked link must not jump out from under the pointer.
+    if (!target.matches(":focus-visible")) return;
     if (column.scrollHeight <= column.clientHeight + 1) return;
     const box = column.getBoundingClientRect();
     const item = target.getBoundingClientRect();

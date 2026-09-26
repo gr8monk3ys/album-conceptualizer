@@ -163,9 +163,12 @@ function showsPrimary(content: Element) {
     `.${PRIMARY_ACTION_MARKER}, a.bg-accent, button.bg-accent`,
   );
   // An unavailable primary (Save version before it is named) doesn't hold the saffron: the
-  // header's next step keeps it, so the screen never ends up with none.
+  // header's next step keeps it, so the screen never ends up with none. A busy one (aria-disabled
+  // only while its own work runs) still does, so the saffron doesn't jump to the header and back.
   return Array.from(candidates).some(
-    (el) => el.getClientRects().length > 0 && !el.matches('[aria-disabled="true"], :disabled'),
+    (el) =>
+      el.getClientRects().length > 0 &&
+      !el.matches(':disabled, [aria-disabled="true"]:not([aria-busy="true"])'),
   );
 }
 

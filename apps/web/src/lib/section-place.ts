@@ -58,7 +58,9 @@ export function sectionPlaces(songs: readonly PlaceSong[]): Map<string, SectionP
 
 /**
  * The place for a comment or task: found by its section id when the section still exists,
- * otherwise from what it recorded (the track by its number, the section by its type).
+ * otherwise from what it recorded (the track by its number, the section by its type). A section
+ * that is gone may have left with its track, or the tracks may have moved since, so the track
+ * that holds that number now is not named.
  */
 export function placeFor(
   places: Map<string, SectionPlace>,
@@ -71,7 +73,7 @@ export function placeFor(
   const song = songs.find((entry) => entry.track_number === item.songTrackNumber);
   return {
     trackNumber: item.songTrackNumber,
-    songTitle: song?.title ?? null,
+    songTitle: item.sectionId ? null : (song?.title ?? null),
     sectionLabel: sectionTypeLabel(item.sectionType),
   };
 }

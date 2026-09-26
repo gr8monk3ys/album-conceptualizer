@@ -40,8 +40,11 @@ export class KeepaliveBudget {
    * takes whatever room is left.
    */
   take(bytes: number, kind: SaveKind): boolean {
-    if (bytes > this.limit) return false;
-    const reserve = kind === "routine" ? this.limit : 0;
+    if (bytes > this.total) return false;
+    // A routine save up to the limit leaves room for a last-chance save beside it. A bigger one
+    // (an album of 32–64 KB) still goes with keepalive when the budget is free, and the
+    // last-chance save may use the whole budget: large albums keep a reload-proof save too.
+    const reserve = kind === "routine" && bytes <= this.limit ? this.limit : 0;
     if (this.used + bytes + reserve > this.total) return false;
     this.used += bytes;
     return true;

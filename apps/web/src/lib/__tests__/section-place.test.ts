@@ -40,10 +40,15 @@ describe("section places", () => {
   });
 
   it("falls back to what the comment recorded when its section is gone, and to the album with no track", () => {
+    // The track now at 01 may not be the one the comment was on: its number, not its title.
     expect(placeFor(places, songs, { sectionId: "gone", songTrackNumber: 1, sectionType: "bridge" })).toEqual({
       trackNumber: 1,
-      songTitle: "Low Tide Leaving",
+      songTitle: null,
       sectionLabel: "Bridge",
+    });
+    expect(placeFor(places, songs, { sectionId: null, songTrackNumber: 1, sectionType: null })).toMatchObject({
+      trackNumber: 1,
+      songTitle: "Low Tide Leaving",
     });
     expect(placeFor(places, songs, { sectionId: null, songTrackNumber: null, sectionType: null })).toBeNull();
   });

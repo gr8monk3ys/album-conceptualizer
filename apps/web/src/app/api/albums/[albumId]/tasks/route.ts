@@ -93,38 +93,39 @@ export const POST = apiHandler(async (request: Request, { params }: Context) => 
   }
 
   const sourceCommentId = payload.sourceCommentId || null;
-  if (sourceCommentId) {
-    const comment = await prisma.albumSectionComment.findFirst({
-      where: { id: sourceCommentId, albumId: album.id },
-      select: { id: true },
-    });
-    if (!comment) throw new ApiError(400, "That comment isn't on this album.");
-    // One task per comment: a second press (or a second tab) finds the one already made.
-    const existing = await prisma.albumTask.findFirst({
-      where: { albumId: album.id, sourceCommentId, deletedAt: null },
-      select: { id: true },
-    });
-    if (existing) throw new ApiError(409, "This comment already has a task. Find it in Comments and tasks.");
-  }
+  const data = {
+    albumId: album.id,
+    title: payload.title,
+    body: payload.body || null,
+    status: payload.status ?? "open",
+    priority: payload.priority ?? 2,
+    dueAt: payload.dueAt ? new Date(payload.dueAt) : null,
+    createdByUserId: userId,
+    assignedToUserId,
+    sourceCommentId,
+    sectionId: payload.sectionId || null,
+    songTrackNumber: payload.songTrackNumber ?? null,
+    sectionType: payload.sectionType || null,
+    sectionOrder: payload.sectionOrder ?? null,
+  };
 
-  const created = await prisma.albumTask.create({
-    data: {
-      albumId: album.id,
-      title: payload.title,
-      body: payload.body || null,
-      status: payload.status ?? "open",
-      priority: payload.priority ?? 2,
-      dueAt: payload.dueAt ? new Date(payload.dueAt) : null,
-      createdByUserId: userId,
-      assignedToUserId,
-      sourceCommentId,
-      sectionId: payload.sectionId || null,
-      songTrackNumber: payload.songTrackNumber ?? null,
-      sectionType: payload.sectionType || null,
-      sectionOrder: payload.sectionOrder ?? null,
-    },
-    select: TASK_SELECT,
-  });
+  const created = sourceCommentId
+    ? await prisma.$transaction(async (tx) => {
+        // Lock the comment, so two presses (or two tabs) can't both find no task and each make
+        // one. The table is qualified as in schema.prisma's @@schema.
+        const rows = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "album_conceptualizer"."AlbumSectionComment"
+          WHERE "id" = ${sourceCommentId} AND "albumId" = ${album.id} FOR UPDATE`;
+        if (!rows.length) throw new ApiError(400, "That comment isn't on this album.");
+        // One task per comment: a second press finds the one already made.
+        const existing = await tx.albumTask.findFirst({
+          where: { albumId: album.id, sourceCommentId, deletedAt: null },
+          select: { id: true },
+        });
+        if (existing) throw new ApiError(409, "This comment already has a task. Find it in Comments and tasks.");
+        return tx.albumTask.create({ data, select: TASK_SELECT });
+      })
+    : await prisma.albumTask.create({ data, select: TASK_SELECT });
 
   // The assignee hears about it first; the workspace owner otherwise.
   await notifyWorkspaceMembers(prisma, {

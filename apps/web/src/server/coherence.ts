@@ -232,20 +232,13 @@ type SongSnapshot = {
  * key stays `sequence`): "Sequence" is the spine's name, the album's songs in running order,
  * and one word never names two things (the One Term Rule).
  */
-export const CATEGORY_LABELS: Record<CoherenceDimension, string> = {
+const CATEGORY_LABELS: Record<CoherenceDimension, string> = {
   narrative: "Narrative",
   lyrics: "Lyrics",
   harmony: "Harmony",
   sequence: "Flow",
   motifs: "Motifs",
 };
-
-/**
- * The tempo the setup writes on every track (components/quickstart-composer.tsx). While every
- * tempo is still this one, or unset, the tracks sharing a tempo is the product's default, not
- * the artist's choice, so the report asks for tempos instead of warning about repetition.
- */
-export { SETUP_TEMPO };
 
 /** The section pattern the setup writes on every track: a verse, then a chorus. */
 const SETUP_SECTION_PATTERN = "verse > chorus";

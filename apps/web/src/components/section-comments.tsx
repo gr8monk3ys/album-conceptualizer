@@ -241,8 +241,9 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
 
   /** Delete, once the inline question is answered: the thread keeps a "deleted" marker, focused. */
   async function remove(commentId: string) {
+    // Something else on this comment is still running: close the question, focus back on Delete.
+    if (inFlight.current.has(commentId)) return cancelDelete(commentId);
     setConfirmingDelete(null);
-    if (inFlight.current.has(commentId)) return;
     setPendingFor(commentId, "delete");
     // The question closes on its Delete; focus waits on the (busy) Delete it came from.
     returnFocus(() => document.getElementById(actionId(commentId, "delete")));
@@ -291,11 +292,19 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
           sectionOrder: section.sectionOrder,
         }),
       });
-      if (!response.ok) {
+      // 409: this comment already has a task (another tab, or a press that got lost on the way
+      // back). That is the outcome asked for, so it shows as made, not as a failure.
+      const already = response.status === 409;
+      if (!response.ok && !already) {
         throw new Error(await readApiError(response, "Couldn't create the task. Try again."));
       }
       setTasked((prev) => new Set([...prev, comment.id]));
-      setUi((prev) => ({ ...prev, status: "Task created. Find it in Comments and tasks on the Overview." }));
+      setUi((prev) => ({
+        ...prev,
+        status: already
+          ? "This comment already has a task. Find it in Comments and tasks on the Overview."
+          : "Task created. Find it in Comments and tasks on the Overview.",
+      }));
       returnFocus(() => document.getElementById(actionId(comment.id, "task-done")));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't create the task.";
@@ -462,8 +471,13 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
                         tone="ghost"
                         className="px-3 text-danger hover:bg-danger-soft hover:text-danger"
                         busy={busy === "delete"}
+                        // Unavailable while another action on this comment runs, so the question
+                        // can't open over it (its buttons would replace the one under focus).
+                        aria-disabled={busy ? true : undefined}
                         aria-label={`Delete ${about}`}
-                        onClick={() => setConfirmingDelete(comment.id)}
+                        onClick={() => {
+                          if (!inFlight.current.has(comment.id)) setConfirmingDelete(comment.id);
+                        }}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                         {busy === "delete" ? "Deleting…" : "Delete"}

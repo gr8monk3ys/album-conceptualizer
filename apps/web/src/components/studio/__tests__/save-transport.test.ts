@@ -63,10 +63,21 @@ describe("KeepaliveBudget", () => {
     expect(budget.inFlight).toBe(2 * KEEPALIVE_BODY_LIMIT);
   });
 
-  it("keeps a body over the limit off keepalive", () => {
+  it("gives a large album (32–64 KB) keepalive while the budget is free", () => {
+    // A 40 KB album: its immediate save (a delete) and, failing that, its last-chance save
+    // must still survive a reload, so both may use the free budget.
     const budget = new KeepaliveBudget();
-    expect(budget.take(KEEPALIVE_BODY_LIMIT + 1, "routine")).toBe(false);
-    expect(budget.take(KEEPALIVE_BODY_LIMIT + 1, "last-chance")).toBe(false);
+    expect(budget.take(40_000, "routine")).toBe(true);
+    budget.give(40_000);
+    expect(budget.take(40_000, "last-chance")).toBe(true);
+    // With one 40 KB request in flight, another can't join it.
+    expect(budget.take(40_000, "last-chance")).toBe(false);
+  });
+
+  it("keeps a body larger than the whole budget off keepalive", () => {
+    const budget = new KeepaliveBudget();
+    expect(budget.take(KEEPALIVE_BUDGET + 1, "routine")).toBe(false);
+    expect(budget.take(KEEPALIVE_BUDGET + 1, "last-chance")).toBe(false);
     expect(budget.inFlight).toBe(0);
   });
 
@@ -156,9 +167,18 @@ describe("sendAlbumPatch", () => {
     expect(budget.inFlight).toBe(0);
   });
 
-  it("sends a body over the keepalive limit without keepalive", async () => {
+  it("sends a large album's last-chance save with keepalive when the budget is free", async () => {
     const browser = fakeBrowser();
     const patch = sendAlbumPatch("a1", bodyOf(50), "last-chance", { budget: new KeepaliveBudget(), fetcher: browser.fetcher });
+    expect(patch.keepalive()).toBe(true);
+    expect(browser.sent.map((request) => request.keepalive)).toEqual([true]);
+    browser.finish();
+    expect((await patch.response).status).toBe(200);
+  });
+
+  it("sends a body over the whole budget without keepalive", async () => {
+    const browser = fakeBrowser();
+    const patch = sendAlbumPatch("a1", bodyOf(70), "last-chance", { budget: new KeepaliveBudget(), fetcher: browser.fetcher });
     expect(patch.keepalive()).toBe(false);
     expect(browser.sent.map((request) => request.keepalive)).toEqual([false]);
     browser.finish();
