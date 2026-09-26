@@ -96,7 +96,8 @@ export default async function NotificationsPage() {
                     aria-hidden="true"
                     className={cn(
                       "mt-[1.1rem] h-2 w-2 shrink-0 rounded-full",
-                      isUnread ? "bg-ink" : "bg-transparent",
+                      // In forced colours a background is dropped; a system colour is kept.
+                      isUnread ? "bg-ink forced-colors:bg-[CanvasText]" : "bg-transparent",
                     )}
                   />
                   <div className="min-w-0">

@@ -596,7 +596,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
         id="bible-themes"
         title="Theme map"
         description={`Where each of the album's themes enters, leaves and drops out across the ${
-          bible.timeline.mode === "chronological" ? "story order" : "tracklist"
+          bible.timeline.mode === "chronological" ? "story order" : "sequence"
         }. Select a track number to edit its themes.`}
       >
         <ThemeMatrix albumId={album.id} bible={bible} />
@@ -646,8 +646,8 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
         title="Story beats"
         description={
           bible.timeline.mode === "chronological"
-            ? "Tracks in story order, which differs from the tracklist."
-            : "Tracks in tracklist order."
+            ? "Tracks in story order, which differs from the sequence."
+            : "Tracks in the order of the sequence."
         }
       >
         <StoryBeats albumId={album.id} tracks={bible.timeline.tracks} />

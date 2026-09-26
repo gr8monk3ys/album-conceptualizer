@@ -137,7 +137,7 @@ export function buildBibleMarkdown(bible: AlbumBible, generatedAt: Date = new Da
   lines.push("");
 
   lines.push("## Story beats");
-  lines.push(bible.timeline.mode === "chronological" ? "In story order." : "In tracklist order.");
+  lines.push(bible.timeline.mode === "chronological" ? "In story order." : "In the order of the sequence.");
   lines.push("");
 
   for (const track of bible.timeline.tracks) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { STUDIO_SHORTCUT_HINTS } from "@/components/studio/shortcuts-disclosure";
 import { ownsArrowKeys, studioShortcut, type ShortcutEvent } from "@/components/studio/studio-shortcuts";
 
 const key = (k: string, mods: Partial<ShortcutEvent> = {}): ShortcutEvent => ({
@@ -94,5 +95,40 @@ describe("studioShortcut", () => {
     expect(
       studioShortcut(key("PageDown", { ctrlKey: true, altKey: true, shiftKey: true, isComposing: true }), textarea),
     ).toBeNull();
+  });
+});
+
+describe("the save bar's Shortcuts list", () => {
+  // Each listed chord, pressed from the lyrics field, does what the list says it does.
+  const expected: Record<string, [ShortcutEvent, ReturnType<typeof studioShortcut>][]> = {
+    "Save now": [
+      [key("s", { ctrlKey: true }), { kind: "save" }],
+      [key("s", { metaKey: true }), { kind: "save" }],
+    ],
+    "Previous or next track": [
+      [key("PageUp", { altKey: true }), { kind: "step", what: "track", dir: -1 }],
+      [key("PageDown", { altKey: true }), { kind: "step", what: "track", dir: 1 }],
+    ],
+    "Previous or next section": [
+      [key("PageUp", { altKey: true, shiftKey: true }), { kind: "step", what: "section", dir: -1 }],
+      [key("PageDown", { altKey: true, shiftKey: true }), { kind: "step", what: "section", dir: 1 }],
+    ],
+    "Move the track up or down one place": [
+      [key("PageUp", { ctrlKey: true, altKey: true, shiftKey: true }), { kind: "move", dir: -1 }],
+      [key("PageDown", { ctrlKey: true, altKey: true, shiftKey: true }), { kind: "move", dir: 1 }],
+    ],
+  };
+
+  it("lists every chord the Studio answers, and each does what it says", () => {
+    expect(STUDIO_SHORTCUT_HINTS.map((hint) => hint.does)).toEqual(Object.keys(expected));
+    for (const cases of Object.values(expected)) {
+      for (const [event, shortcut] of cases) expect(studioShortcut(event, textarea)).toEqual(shortcut);
+    }
+  });
+
+  it("says ↑ and ↓ stand in for PgUp and PgDn only outside text fields", () => {
+    expect(studioShortcut(key("ArrowUp", { altKey: true }), button)).toEqual({ kind: "step", what: "track", dir: -1 });
+    expect(studioShortcut(key("ArrowUp", { altKey: true }), textarea)).toBeNull();
+    expect(studioShortcut(key("ArrowDown", { ctrlKey: true, altKey: true, shiftKey: true }), button)).toEqual({ kind: "move", dir: 1 });
   });
 });

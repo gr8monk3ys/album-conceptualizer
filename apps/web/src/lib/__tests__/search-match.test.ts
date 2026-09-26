@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findTagMatches, searchSnippet } from "@/lib/search-match";
+import { findTagMatches, searchPageTitle, searchSnippet } from "@/lib/search-match";
 
 const album = {
   id: "a1",
@@ -66,5 +66,22 @@ describe("searchSnippet", () => {
     expect(searchSnippet("short line", "zzz")).toBe("short line");
     expect(searchSnippet("x".repeat(200), "zzz")).toHaveLength(141);
     expect(searchSnippet("   \n ", "a")).toBe("");
+  });
+});
+
+describe("searchPageTitle", () => {
+  it("names the query, most specific first", () => {
+    expect(searchPageTitle("tide")).toBe("“tide” · Search");
+    expect(searchPageTitle("  low \n tide ")).toBe("“low tide” · Search");
+  });
+
+  it("is just Search with no query", () => {
+    expect(searchPageTitle("")).toBe("Search");
+    expect(searchPageTitle("   ")).toBe("Search");
+  });
+
+  it("shortens a very long query", () => {
+    const title = searchPageTitle("a".repeat(100));
+    expect(title).toBe(`“${"a".repeat(60)}…” · Search`);
   });
 });

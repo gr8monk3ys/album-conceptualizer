@@ -629,7 +629,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       category: "sequence",
       title: "No tracks yet",
       detail: "This album has no tracks yet.",
-      suggestion: "Add a tracklist of at least 4 tracks to shape the arc before exporting.",
+      suggestion: "Add at least 4 tracks to the sequence to shape the arc before exporting.",
       fix: { focus: "song" },
     });
   }
@@ -840,7 +840,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       category: "sequence",
       title: "Duplicate track titles",
       detail: `Some titles repeat: ${duplicatedTitles.slice(0, 4).join(", ")}${duplicatedTitles.length > 4 ? "…" : ""}.`,
-      suggestion: "Rename duplicates so the tracklist feels intentional and memorable.",
+      suggestion: "Rename duplicates so the sequence feels intentional and memorable.",
       fix: { focus: "song" },
     });
   }
@@ -1257,7 +1257,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
   const missing: CoherenceMissingPiece[] = [];
   if (insufficient) {
     if (!songCount) {
-      missing.push({ id: "tracks", label: "A tracklist: add the first tracks", fix: { focus: "song" } });
+      missing.push({ id: "tracks", label: "A sequence: add the first tracks", fix: { focus: "song" } });
     } else {
       const needed = requiredWrittenTracks - songsWithLyrics;
       missing.push({

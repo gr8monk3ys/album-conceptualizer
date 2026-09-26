@@ -83,10 +83,35 @@ function pick<T extends object, K extends keyof T>(source: T, fields: ReadonlyAr
   return out;
 }
 
+const TITLE_LIMIT = 200;
+
+function titleKey(title: string) {
+  return title.trim().toLowerCase();
+}
+
+/**
+ * The remix's title. It keeps the original's title as it is: the catalog line already says
+ * "Remix of <title> by <artist>", so a "(Remix)" suffix only has to be renamed away. Only when
+ * the workspace it lands in already has an album of that name (the owner remixing their own
+ * album, or a second remix of the same one) is it told apart: "<title> (Remix)", then
+ * "<title> (Remix 2)", and so on, compared trimmed and in any casing.
+ */
+export function remixTitle(sourceTitle: string, takenTitles: Iterable<string> = []): string {
+  const base = sourceTitle.trim().slice(0, TITLE_LIMIT) || "Untitled album";
+  const taken = new Set(Array.from(takenTitles, titleKey));
+  if (!taken.has(titleKey(base))) return base;
+  for (let n = 1; ; n += 1) {
+    const suffix = n === 1 ? " (Remix)" : ` (Remix ${n})`;
+    const candidate = `${base.slice(0, TITLE_LIMIT - suffix.length).trimEnd()}${suffix}`;
+    if (!taken.has(titleKey(candidate))) return candidate;
+  }
+}
+
 export function forkAlbumJson(
   album: AlbumJson,
   opts?: {
-    titleSuffix?: string;
+    /** The remix's title (see `remixTitle`); the original's title when left out. */
+    title?: string;
     /**
      * Who is making the remix. Their copy is credited to them (or to no one, when their name
      * isn't known); the original artist is kept in `remixed_from`, never in `artist`.
@@ -97,13 +122,12 @@ export function forkAlbumJson(
   },
 ): AlbumJson {
   const now = new Date().toISOString();
-  const titleSuffix = opts?.titleSuffix ?? "";
   const remixer = opts?.remixerName?.trim().slice(0, 200) || null;
 
   return {
     ...pick(album, ALBUM_FIELDS),
     id: newId(),
-    title: `${album.title}${titleSuffix}`.trim().slice(0, 200),
+    title: (opts?.title ?? album.title).trim().slice(0, TITLE_LIMIT),
     artist: remixer,
     // Provenance: which album this remix started from, so the original artist's authorship
     // stays visible on the remix (the release header links "Remix of <title> by <artist>" to
@@ -158,8 +182,19 @@ export async function forkIntoWorkspace(input: {
       where: { id: input.userId },
       select: { name: true },
     });
+    // Only albums whose title could clash: the source's title with or without a suffix.
+    const sameName = await tx.album.findMany({
+      where: {
+        workspaceId: input.workspaceId,
+        title: { startsWith: parsed.data.title.trim(), mode: "insensitive" },
+      },
+      select: { title: true },
+    });
     const forked = forkAlbumJson(parsed.data, {
-      titleSuffix: " (Remix)",
+      title: remixTitle(
+        parsed.data.title,
+        sameName.map((album) => album.title),
+      ),
       remixerName: remixer?.name ?? null,
       sourceAlbumId: input.sourceAlbumId,
     });

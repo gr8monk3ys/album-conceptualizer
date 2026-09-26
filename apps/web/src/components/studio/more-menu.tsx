@@ -25,10 +25,12 @@ export type MoreMenuItem = {
 const COMPACT_TRIGGER = {
   "@max-2xl/studio": "min-w-11 @max-2xl/studio:px-2.5",
   "@max-xl": "min-w-11 @max-xl:px-2.5",
+  always: "min-w-11 px-2.5",
 } as const;
 const COMPACT_WORD = {
   "@max-2xl/studio": "@max-2xl/studio:sr-only",
   "@max-xl": "@max-xl:sr-only",
+  always: "sr-only",
 } as const;
 
 /**
@@ -53,9 +55,10 @@ export function MoreMenu({
   /**
    * Where the button shows only its icon: the variant prefix of a narrow layout (e.g.
    * "@max-2xl/studio"), which hides the word "More" there (still read as the button's name)
-   * and squares the button to 44px.
+   * and squares the button to 44px; or "always", for a menu that is quieter than its
+   * neighbour's (a section's, under the track's), which also names itself on hover.
    */
-  compactClassName?: "@max-2xl/studio" | "@max-xl";
+  compactClassName?: keyof typeof COMPACT_TRIGGER;
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -163,6 +166,7 @@ export function MoreMenu({
         aria-controls={open ? menuId : undefined}
         onClick={() => (open ? hide(false) : show("first"))}
         onKeyDown={onTriggerKeyDown}
+        title={compactClassName === "always" ? `More ${label}` : undefined}
         className={buttonClass("ghost", cn("px-3", compactClassName && COMPACT_TRIGGER[compactClassName]))}
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
@@ -194,10 +198,12 @@ export function MoreMenu({
                 hide(true);
                 item.onSelect();
               }}
+              // Like every button, a 1px border, transparent (forced colors draw it); the
+              // destructive item's top edge is the hairline that sets it apart.
               className={cn(
-                "flex min-h-11 w-full items-start gap-2 rounded-sm px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                "flex min-h-11 w-full items-start gap-2 rounded-sm border px-3 py-2.5 text-left text-sm font-medium transition-colors",
                 item.danger ? "text-danger hover:bg-danger-soft" : "text-ink hover:bg-hover",
-                item.danger && index > 0 && "mt-1 border-t border-line",
+                item.danger && index > 0 ? "mt-1 border-transparent border-t-line" : "border-transparent",
                 item.disabled && "cursor-not-allowed opacity-50 hover:bg-transparent",
               )}
             >

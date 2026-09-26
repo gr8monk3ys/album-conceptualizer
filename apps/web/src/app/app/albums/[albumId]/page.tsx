@@ -25,7 +25,6 @@ import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { scoreStory } from "@/lib/score-story";
-import { beforeRestoringDate } from "@/lib/version-labels";
 import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
 import { cn } from "@/lib/utils";
 
@@ -113,14 +112,6 @@ function StatusRow({
   );
 }
 
-/** How the arrival line names the version just restored; a draft a restore kept is named as such. */
-function restoredVersionName(message: string | null | undefined) {
-  const name = message?.trim();
-  if (!name) return "an earlier version";
-  if (beforeRestoringDate(name)) return "the draft an earlier restore kept";
-  return `“${name}”`;
-}
-
 export default async function AlbumOverviewPage({
   params,
   searchParams,
@@ -129,15 +120,14 @@ export default async function AlbumOverviewPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { albumId } = await params;
-  const { welcome, restored } = await searchParams;
+  const { welcome } = await searchParams;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
 
   const prisma = getPrisma();
-  const restoredId = typeof restored === "string" && restored ? restored : null;
-  const [shareLink, onboarding, references, openComments, openTasks, restoredVersion] = await Promise.all([
+  const [shareLink, onboarding, references, openComments, openTasks] = await Promise.all([
     prisma.albumShareLink.findUnique({
       where: { albumId: album.id },
       select: { token: true, revokedAt: true },
@@ -151,10 +141,6 @@ export default async function AlbumOverviewPage({
     listAlbumReferences(workspace.id, album.id),
     prisma.albumSectionComment.count({ where: { albumId: album.id, deletedAt: null, resolvedAt: null } }),
     prisma.albumTask.count({ where: { albumId: album.id, deletedAt: null, status: { not: "done" } } }),
-    // Arriving from a restore: name the version so the landing says what just happened.
-    restoredId
-      ? prisma.albumVersion.findFirst({ where: { id: restoredId, albumId: album.id }, select: { message: true } })
-      : Promise.resolve(null),
   ]);
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const initialShareLink =
@@ -179,17 +165,9 @@ export default async function AlbumOverviewPage({
 
   return (
     <div className="flex flex-col gap-10">
-      {/* Arriving from a restore: one line says what happened, announced as it appears. */}
-      <ArrivalStatus
-        className="max-w-[65ch]"
-        param="restored"
-        takeFocus
-        message={
-          restoredVersion
-            ? `Restored ${restoredVersionName(restoredVersion.message)} · the draft it replaced is saved in Version history.`
-            : null
-        }
-      />
+      {/* Arriving from a restore: one line says what happened ("Restored “First pass” · …"),
+          left by Version history for this page (`@/lib/arrival-handoff`), and takes focus. */}
+      <ArrivalStatus className="max-w-[65ch]" handoff takeFocus />
       {welcoming ? (
         // Arriving from the create wizard, focus lands here (its button is gone), so the first
         // thing heard is that the album is saved and what comes next.

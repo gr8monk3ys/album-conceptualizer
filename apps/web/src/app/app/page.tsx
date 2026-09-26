@@ -58,7 +58,7 @@ export default async function AppHomePage() {
         description={
           latest
             ? "Pick up where you left off. The next step comes from what each track still needs."
-            : "Start with a one-paragraph idea. You will shape it into a tracklist, a narrative arc and a Story bible, then write it track by track."
+            : "Start with a one-paragraph idea. You will shape it into a sequence of tracks, a narrative arc and a Story bible, then write it track by track."
         }
       />
 
@@ -125,7 +125,7 @@ export default async function AppHomePage() {
             </div>
           }
         >
-          The guided setup asks for a title, an artist and a concept, then drafts a tracklist
+          The guided setup asks for a title, an artist and a concept, then drafts a sequence
           you can rewrite. Creating an album uses {CREDIT_COSTS.albumCreate} credits.
         </EmptyState>
       )}

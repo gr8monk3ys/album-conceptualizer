@@ -137,7 +137,7 @@ export function ChipListEditor({
                 onClick={() => remove(value)}
                 aria-label={`Remove ${noun} “${value}”`}
                 title={`Remove ${noun}`}
-                className="grid h-11 w-11 flex-none place-items-center rounded-sm text-ink-3 transition-colors hover:bg-hover hover:text-ink"
+                className="grid h-11 w-11 flex-none place-items-center rounded-sm border border-transparent text-ink-3 transition-colors hover:bg-hover hover:text-ink"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>

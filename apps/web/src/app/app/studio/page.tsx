@@ -39,7 +39,7 @@ export default async function StudioPage() {
           }
         >
           The Studio is where each song gets its sections, lyrics and chord loops. Start an album
-          first; its tracklist shows up here, ready to write.
+          first; its sequence shows up here, ready to write.
         </EmptyState>
       )}
     </div>

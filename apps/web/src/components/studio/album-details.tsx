@@ -70,7 +70,7 @@ function AlbumDetailsView({ album, onChange, open, onOpenChange, className }: Al
           aria-expanded={open}
           aria-controls="album-details-body"
           onClick={() => onOpenChange(!open)}
-          className="-mx-2 inline-flex min-h-11 items-center gap-2 rounded px-2 transition-colors hover:bg-hover"
+          className="-mx-2 inline-flex min-h-11 items-center gap-2 rounded border border-transparent px-2 transition-colors hover:bg-hover"
         >
           Album details (all tracks)
           <ChevronDown className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden="true" />
@@ -78,7 +78,7 @@ function AlbumDetailsView({ album, onChange, open, onOpenChange, className }: Al
       </h2>
       <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
         The concept every track answers to. Themes and motifs set here are offered in each
-        song’s story, and the central themes become the columns of the track list.
+        song’s story, and the central themes become the columns of the Sequence.
       </p>
 
       <div id="album-details-body" hidden={!open} className="mt-4 flex-col gap-4 [&:not([hidden])]:flex">

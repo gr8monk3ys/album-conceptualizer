@@ -9,6 +9,7 @@ import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { taskDetail } from "@/lib/task-detail";
 import { placeFor, sectionPlaceLine, sectionPlacePhrase, sectionPlaces, type SectionPlace } from "@/lib/section-place";
 
 export const dynamic = "force-dynamic";
@@ -209,6 +210,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                     ? sectionUrl(task.songTrackNumber, task.sectionId)
                     : null;
                 const creator = task.createdBy.name || task.createdBy.email || "A collaborator";
+                const detail = taskDetail(task.title, task.body);
                 const assignee = task.assignedTo?.name || task.assignedTo?.email || null;
                 const status = TASK_STATUS[task.status] ?? {
                   label: formatSectionType(task.status) ?? task.status,
@@ -234,9 +236,11 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                       <p className="mt-1 text-sm text-ink-2">
                         <PlaceLine place={placeFor(places, songs, task)} />
                       </p>
-                      {task.body ? (
+                      {/* A task made from a comment has its first line as the title: only what
+                          the comment adds after it is shown here, never the title again. */}
+                      {detail ? (
                         <p className="mt-1 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
-                          {excerpt(task.body)}
+                          {excerpt(detail)}
                         </p>
                       ) : null}
                       <p className="mt-1 text-xs text-ink-3">

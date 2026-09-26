@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { forkAlbumJson } from "@/server/album-fork";
+import { forkAlbumJson, remixTitle } from "@/server/album-fork";
 import { AlbumJsonSchema } from "@/server/album-json";
 
 const source = AlbumJsonSchema.parse({
@@ -11,14 +11,19 @@ const source = AlbumJsonSchema.parse({
 
 describe("forkAlbumJson", () => {
   it("credits the remix to the remixer and keeps the original artist as provenance", () => {
-    const remix = forkAlbumJson(source, { titleSuffix: " (Remix)", remixerName: " Theo " });
+    const remix = forkAlbumJson(source, { remixerName: " Theo " });
     expect(remix.artist).toBe("Theo");
-    expect(remix.title).toBe("Tide Tables (Remix)");
+    // The catalog line says "Remix of Tide Tables by Mara Vale"; the title needs no suffix.
+    expect(remix.title).toBe("Tide Tables");
     expect((remix as { remixed_from?: unknown }).remixed_from).toEqual({
       album_id: null,
       title: "Tide Tables",
       artist: "Mara Vale",
     });
+  });
+
+  it("takes the title it is given", () => {
+    expect(forkAlbumJson(source, { title: "Tide Tables (Remix)" }).title).toBe("Tide Tables (Remix)");
   });
 
   it("records the original album's id, so the remix can link back to it", () => {
@@ -108,5 +113,34 @@ describe("forkAlbumJson", () => {
     expect(remix.concept_summary).toBe("A harbour town counts the tides.");
     expect(remix.central_themes).toEqual(["distance"]);
     expect(AlbumJsonSchema.safeParse(remix).success).toBe(true);
+  });
+});
+
+describe("remixTitle", () => {
+  it("keeps the original's title when the workspace has no album of that name", () => {
+    expect(remixTitle("Tide Tables")).toBe("Tide Tables");
+    expect(remixTitle("  Tide Tables ", ["Tide Tables Live", "Salt Year"])).toBe("Tide Tables");
+  });
+
+  it("tells a remix apart from an album of the same name in the same workspace", () => {
+    expect(remixTitle("Tide Tables", ["Tide Tables"])).toBe("Tide Tables (Remix)");
+    expect(remixTitle("Tide Tables", [" tide tables "])).toBe("Tide Tables (Remix)");
+    expect(remixTitle("Tide Tables", ["Tide Tables", "Tide Tables (Remix)"])).toBe(
+      "Tide Tables (Remix 2)",
+    );
+    expect(
+      remixTitle("Tide Tables", ["Tide Tables", "tide tables (remix)", "Tide Tables (Remix 2)"]),
+    ).toBe("Tide Tables (Remix 3)");
+  });
+
+  it("stays within the title limit", () => {
+    const long = "A".repeat(200);
+    const title = remixTitle(long, [long]);
+    expect(title.length).toBeLessThanOrEqual(200);
+    expect(title.endsWith(" (Remix)")).toBe(true);
+  });
+
+  it("names an untitled source", () => {
+    expect(remixTitle("   ")).toBe("Untitled album");
   });
 });

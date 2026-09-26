@@ -281,8 +281,14 @@ function TrackListView({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* Folded, the heading takes the row: a shrink-to-fit heading let the button's max-width
-            resolve against its own content and wrapped "Track 1" onto a second line. */}
-        <h2 id="studio-tracks-title" className={cn("min-w-0 text-lg font-semibold text-ink", folds && "flex-1 @2xl:flex-none")}>
+            resolve against its own content and wrapped "Track 1" onto a second line. It asks
+            for 12rem of it before Add track may sit beside it (a flex basis, in rem so enlarged
+            text asks for more): with less room, Add track takes the next line instead of
+            squeezing the summary to a letter a line (320px or 390px with 200% text, open). */}
+        <h2
+          id="studio-tracks-title"
+          className={cn("min-w-0 text-lg font-semibold text-ink", folds && "flex-[1_1_12rem] @2xl:flex-none")}
+        >
           {folds ? (
             // One column only: the heading is the disclosure's button, naming where you are.
             <button
@@ -291,7 +297,9 @@ function TrackListView({
               aria-expanded={open}
               aria-controls={BODY_ID}
               onClick={() => onOpenChange(!open)}
-              className="-ml-2 inline-flex min-h-11 max-w-full items-center gap-2 rounded px-2 text-left transition-colors hover:bg-hover @2xl:hidden"
+              // In a column under 12rem (320px with 200% text) the summary steps down to the
+              // body-lead size, so "Sequence ·" still fits one line and its dot stays with it.
+              className="-ml-2 inline-flex min-h-11 max-w-full items-center gap-2 rounded border border-transparent px-2 text-left transition-colors hover:bg-hover @max-[12rem]/studio:text-base @2xl:hidden"
             >
               <ChevronRight
                 aria-hidden="true"
@@ -390,7 +398,8 @@ function TrackListView({
                       {/* The button's box stretches over the whole row, so any cell selects it.
                           The current row's box also carries a transparent frame that forced
                           colors (High Contrast) draw in Highlight, since its fill and saffron
-                          number vanish there. */}
+                          number vanish there. Like every button, it also has a transparent 1px border
+                          that forced colors draw as its edge. */}
                       <button
                         id={`track-row-${song.id}`}
                         type="button"
@@ -400,7 +409,7 @@ function TrackListView({
                         aria-describedby={themes.length ? `track-themes-${index}` : undefined}
                         className={cn(
                           // The ring is drawn inset: the scroller would clip it at the row's edge.
-                          "flex min-h-11 w-full min-w-32 flex-col justify-center text-left focus-visible:-outline-offset-2 after:absolute after:inset-0 after:content-['']",
+                          "flex min-h-11 w-full min-w-32 flex-col justify-center border border-transparent text-left focus-visible:-outline-offset-2 after:absolute after:inset-0 after:content-['']",
                           isActive &&
                             "after:border-2 after:border-transparent forced-colors:after:border-[color:Highlight]",
                         )}

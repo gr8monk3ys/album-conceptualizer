@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { CatalogItems, albumStatusLabel } from "@/components/album-card";
 import { AlbumCatalogLink } from "@/components/album-catalog-link";
 import { AlbumFrameBody } from "@/components/album-frame-body";
-import { AlbumNav, AlbumNextAction, AlbumSkipLink } from "@/components/album-nav";
+import { AlbumFrame, AlbumNav, AlbumNextAction, AlbumSkipLink } from "@/components/album-nav";
 import { RelativeTime } from "@/components/relative-time";
 import { ReleaseTitle } from "@/components/release-title";
 import { albumCatalogStatus } from "@/lib/album-skip";
@@ -43,21 +43,22 @@ export default async function AlbumLayout({
   const remix = remixSource(album.data);
   const remixHref = await remixSourceHref(remix);
 
-  // On the Studio (the page that renders #studio-editor) the release header compresses so the
-  // lyrics reach the first viewport ("Writing comes first"): the title steps down to 1.875rem,
-  // the catalog line sits beside it on its baseline, and the frame's gaps tighten. Pure CSS
-  // (`:has()`), so it applies on the server render and nothing moves after hydration; every
-  // other album screen keeps the full release header. On a phone the frame's gaps tighten
-  // too, so the page starts sooner under the header and tabs.
+  // On the Studio the release header compresses so the lyrics reach the first viewport
+  // ("Writing comes first"): the title steps down to 1.875rem, the catalog line sits beside it
+  // on its baseline, and the frame's gaps tighten. The frame knows its page from the address
+  // (`AlbumFrame` sets data-page, in the server render too), so nothing moves after hydration,
+  // and typing in the Studio doesn't re-style the frame (a `:has(#studio-editor)` did, on every
+  // keystroke). Every other album screen keeps the full release header. On a phone the frame's
+  // gaps tighten too, so the page starts sooner under the header and tabs.
   return (
-    <div className="group/album flex min-w-0 flex-col gap-4 md:gap-6 has-[#studio-editor]:gap-4">
+    <AlbumFrame albumId={album.id} className="group/album flex min-w-0 flex-col gap-4 md:gap-6 data-[page=studio]:gap-4">
       {/* A size container (release), so the release title steps down in a narrow header (a
           phone at 200% text) instead of breaking inside words (--text-display-release), and
           the header tightens and shortens its catalog line below 42rem and 30rem. */}
       {/* 20px between rows below 42rem: the Version history link's stretched 48px target reaches
           16px past its line, and a 12px gap let it cover the top of the next-step button. */}
       <header className="@container/release flex flex-wrap items-end justify-between gap-x-8 gap-y-5 @min-[42rem]/release:gap-y-4">
-        <div className="flex min-w-0 max-w-full flex-col gap-2 @min-[42rem]/release:gap-3 group-has-[#studio-editor]/album:flex-row group-has-[#studio-editor]/album:flex-wrap group-has-[#studio-editor]/album:items-baseline group-has-[#studio-editor]/album:gap-x-4 group-has-[#studio-editor]/album:gap-y-1">
+        <div className="flex min-w-0 max-w-full flex-col gap-2 @min-[42rem]/release:gap-3 group-data-[page=studio]/album:flex-row group-data-[page=studio]/album:flex-wrap group-data-[page=studio]/album:items-baseline group-data-[page=studio]/album:gap-x-4 group-data-[page=studio]/album:gap-y-1">
           {/* The first stop in the album frame: past the title, catalog line, tabs and
               sequence, to the page itself. A visible ink link in a narrow header (a phone,
               enlarged text), where those take a screen or more; focus-only from 42rem. Not
@@ -74,7 +75,7 @@ export default async function AlbumLayout({
               under an address the album has no page for, where the not-found heading is. */}
           <ReleaseTitle
             albumId={album.id}
-            className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto group-has-[#studio-editor]/album:min-w-0 group-has-[#studio-editor]/album:text-[length:max(1rem,min(1.875rem,13cqi))] group-has-[#studio-editor]/album:leading-[1.2] @max-[12rem]/release:text-[length:12cqi]"
+            className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto group-data-[page=studio]/album:min-w-0 group-data-[page=studio]/album:text-[length:max(1rem,min(1.875rem,13cqi))] group-data-[page=studio]/album:leading-[1.2] @max-[12rem]/release:text-[length:12cqi]"
           >
             {album.title}
           </ReleaseTitle>
@@ -131,6 +132,6 @@ export default async function AlbumLayout({
       <AlbumFrameBody albumId={album.id} rows={rows} themes={themes}>
         {children}
       </AlbumFrameBody>
-    </div>
+    </AlbumFrame>
   );
 }

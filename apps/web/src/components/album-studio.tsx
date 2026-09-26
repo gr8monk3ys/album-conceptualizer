@@ -40,6 +40,7 @@ import { previewBlockedMessage } from "@/components/studio/input-checks";
 import { DeleteConfirm, deleteSectionQuestion, deleteTrackQuestion } from "@/components/studio/delete-confirm";
 import { MoreMenu } from "@/components/studio/more-menu";
 import { MoveTrackForm } from "@/components/studio/move-track-form";
+import { ShortcutsDisclosure } from "@/components/studio/shortcuts-disclosure";
 import { OwnAddresses, addressKey } from "@/components/studio/own-addresses";
 import { TRACKS_TOGGLE_ID, useTracksOpen } from "@/components/studio/tracks-disclosure";
 import { ChordField, TempoField } from "@/components/studio/musical-fields";
@@ -82,6 +83,7 @@ import {
   mergeRenames,
   moveItem,
   moveTrackTo,
+  moveAnnouncement,
   moveUndoLabel,
   nextToWrite,
   normalizeKey,
@@ -385,10 +387,6 @@ function pageScrollPadding() {
   return parseFloat(getComputedStyle(root).getPropertyValue("--sticky-offset")) || 0;
 }
 
-function Kbd({ children }: { children: string }) {
-  return <kbd className="type-figure rounded-sm border border-line px-1 font-sans text-xs text-ink-2">{children}</kbd>;
-}
-
 /** "Track 4, " when the next section to write is on another track. */
 function trackPrefix(song: StudioSong | undefined) {
   return song ? `Track ${song.track_number}, ` : "";
@@ -411,7 +409,6 @@ function useAlbumStudioRender({
   const [selection, setSelection] = useState(() => resolveSelection(initialParsed.album, initialSelection));
   const [versionMessage, setVersionMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [savingMode, setSavingMode] = useState<SaveMode>("auto");
   const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(
@@ -445,6 +442,8 @@ function useAlbumStudioRender({
   // A link to one section (`sid`, e.g. from Comments and tasks) opens its comments.
   const [commentsOpenAtStart] = useState(() => Boolean(initialSelection?.sid));
   const [navAnnouncement, setNavAnnouncement] = useState("");
+  // The Undo whose delete was just announced: its first focus leaves out the same words.
+  const [quietUndoKey, setQuietUndoKey] = useState<number | null>(null);
   // Said once on arrival (read from the first render's props, since the URL is cleaned below)
   // and dismissed by the first edit.
   const [arrivalNote, setArrivalNote] = useState(() => arrivalText(arrival, creditsRemaining));
@@ -796,7 +795,6 @@ function useAlbumStudioRender({
 
     savingRef.current = true;
     setSaving(true);
-    setSavingMode(mode);
     setSaveError(null);
     if (mode !== "auto") setSavedFlash(null);
     // Sent with keepalive when it leaves room for a last-chance save, so a reload or a closed
@@ -894,8 +892,14 @@ function useAlbumStudioRender({
     setSelection({ song: clampIndex(index, songs.length), section: 0 });
   }
 
+  /**
+   * Choosing a section (its row or chip): focus stays on it, so the page says what is now in
+   * the editor, as stepping with Alt+Shift+PageUp/PageDown does ("Chorus 1, section 2 of 2").
+   */
   function selectSection(index: number) {
-    setSelection({ song: songIndex, section: clampIndex(index, sections.length) });
+    const next = clampIndex(index, sections.length);
+    setSelection({ song: songIndex, section: next });
+    if (sections[next]) announce(`${labels[next] ?? "Section"}, section ${next + 1} of ${sections.length}`);
   }
 
   /** Keyboard stepping: keeps focus on the equivalent control of the newly selected item. */
@@ -980,6 +984,26 @@ function useAlbumStudioRender({
     setPendingFocus({ id: TRACK_TITLE_ID, scroll: "nearest" });
   }
 
+  /**
+   * Says `text` in the page's polite line, even when it is the same words as the last thing
+   * said there (deleting "Track 3", then the track that became "Track 3"): a trailing no-break
+   * space alternates, so the region's text changes and is read again.
+   */
+  function announce(text: string) {
+    setNavAnnouncement((prev) => (text && prev === text ? `${text}\u00a0` : text));
+  }
+
+  /**
+   * A delete, said once: "Deleted “Track 3”." in the polite line, while focus goes to Undo
+   * (in the sticky save bar). That first focus leaves out Undo's description (the same words),
+   * so it is heard as "Undo, button"; once focus has left it, Undo is described again.
+   */
+  function announceDeleted(entry: UndoEntry) {
+    announce(undoText(entry));
+    setQuietUndoKey(entry.key);
+    setPendingFocus({ id: "studio-undo", scroll: "none" });
+  }
+
   // Deleting never moves the page: the next item is selected in place and focus goes to Undo,
   // which sits in the sticky save bar.
   function deleteTrack(index: number) {
@@ -988,11 +1012,10 @@ function useAlbumStudioRender({
     structuralRef.current = true;
     // Renumbered, and default names ("Track 3") follow their new numbers.
     edit((prev) => ({ ...prev, songs: removeTrack(prev.songs, index) }));
-    setUndo({ kind: "track", song, index, label: song.title || `Track ${song.track_number}`, key: Date.now() });
+    const entry: UndoEntry = { kind: "track", song, index, label: song.title || `Track ${song.track_number}`, key: Date.now() };
+    setUndo(entry);
     setSelection({ song: Math.max(0, Math.min(index, songs.length - 2)), section: 0 });
-    // Focus on Undo says it ("Undo, Deleted “Track 3”."): the nav line drops its old news.
-    setNavAnnouncement("");
-    setPendingFocus({ id: "studio-undo", scroll: "none" });
+    announceDeleted(entry);
   }
 
   /**
@@ -1065,10 +1088,10 @@ function useAlbumStudioRender({
     if (!activeSong?.id || !section) return;
     structuralRef.current = true;
     updateSections(activeSong.id, (list) => list.filter((_, i) => i !== index));
-    setUndo({ kind: "section", songId: activeSong.id, section, index, label: labels[index] ?? "Section", key: Date.now() });
+    const entry: UndoEntry = { kind: "section", songId: activeSong.id, section, index, label: labels[index] ?? "Section", key: Date.now() };
+    setUndo(entry);
     setSelection({ song: songIndex, section: Math.max(0, Math.min(index, sections.length - 2)) });
-    setNavAnnouncement("");
-    setPendingFocus({ id: "studio-undo", scroll: "none" });
+    announceDeleted(entry);
   }
 
   function restoreDeleted() {
@@ -1163,12 +1186,9 @@ function useAlbumStudioRender({
     structuralRef.current = true;
     edit((prev) => ({ ...prev, songs: moveTrackTo(prev.songs, index, to) ?? prev.songs }));
     setSelection({ song: to, section: sectionIndex });
-    // Named as the writer knew it: a default name follows its new number ("Track 1" becomes
-    // "Track 2"), so the line says what it was called and, if that changed, what it is now.
-    const before = song.title.trim() || "Untitled";
-    const after = moved[to]?.title.trim() || "Untitled";
-    const title = before === after ? `“${before}”` : `“${before}” (now “${after}”)`;
-    setNavAnnouncement(`Moved ${title} to track ${to + 1} of ${songs.length}.`);
+    // Named as the writer knew it; a default name follows its new number ("Track 1" becomes
+    // "Track 2"), so such a track is named by its place and its new name follows.
+    setNavAnnouncement(moveAnnouncement(song.title, moved[to]?.title ?? "", index, to, songs.length));
     // Sighted writers see the move too, where a delete is shown, with Undo: a default name
     // changes with its number, so the line says where the track came from.
     const prior = undo?.kind === "move" && undo.songId === songId ? undo : null;
@@ -1463,11 +1483,11 @@ function useAlbumStudioRender({
   const sectionTypeKnown = SECTION_TYPES.some((t) => t.value === sectionType);
   const themeColumns = Math.min(MAX_THEME_COLUMNS, (album.central_themes ?? []).filter((t) => t.trim()).length);
 
-  // Saving has one live region, and it speaks only for events: a save the artist asked for
-  // ("Saving…", then "Saved."), and a save that failed. Autosave's quiet cycle and the ticking
-  // "Saved · 3 minutes ago" sit beside it, readable but never announced.
+  // Saving has one live region, and it speaks only for results: a save the artist asked for,
+  // once it is done ("Saved."), and a save that failed. "Saving…" (a Save now's too), autosave's
+  // quiet cycle and the ticking "Saved · 3 minutes ago" sit beside it, shown but never announced.
   // The remix arrival is the one exception: said once, through the live region, after mount.
-  const status = saveStatusParts({ saving, mode: savingMode, error: saveError, flash: savedFlash, dirty, lastSavedAt });
+  const status = saveStatusParts({ saving, error: saveError, flash: savedFlash, dirty, lastSavedAt });
   const settled = status.quiet === "saved-at" || status.quiet === "no-changes";
   const arrivalShown = Boolean(arrivalNote && settled);
   const arrivalSpoken = arrivalShown && arrivalLive && !status.live;
@@ -1561,23 +1581,18 @@ function useAlbumStudioRender({
               {quietStatus ? <span className="min-w-0 break-words">{quietStatus}</span> : null}
             </p>
           </div>
-          {/* Keyboard hints: only with a fine pointer, and only where the box has room for them
-              beside a status of about 13rem (Help lists every shortcut). While Undo or Retry is offered
-              they give the offer their room: hidden, but still holding their place, so the bar
-              keeps its height and nothing moves. */}
+          {/* The keyboard shortcuts, behind one quiet "Shortcuts" button (a disclosure whose
+              list lies over the page) rather than a standing legend of keys: only with a fine
+              pointer, and only where the box holds it beside a status of about 13rem (Help
+              lists every shortcut too). While Undo or Retry is offered it gives the offer its
+              room: hidden, but still holding its place, so the bar keeps its height and
+              nothing moves. */}
           <div className="contents pointer-coarse:hidden">
-            <p
-              className={cn(
-                "hidden flex-none text-xs text-ink-3 @min-[35rem]:block",
-                anyOffer && "invisible",
-              )}
-            >
-              <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
-              <span className="hidden @min-[46rem]:inline">
-                {" "}
-                · <Kbd>Ctrl Alt Shift PgUp/PgDn</Kbd> move track
-              </span>
-            </p>
+            <ShortcutsDisclosure
+              className="hidden flex-none @min-[23rem]:block"
+              concealed={anyOffer}
+              concealedFocusId={retryOffered ? RETRY_SAVE_ID : "studio-undo"}
+            />
           </div>
           {anyOffer ? (
             // Undo (and Retry after a failed save) are laid over the status and the hints, in
@@ -1624,7 +1639,10 @@ function useAlbumStudioRender({
                   tone="secondary"
                   className="flex-none"
                   onClick={restoreDeleted}
-                  aria-describedby="studio-undo-text"
+                  // Just announced by the polite line ("Deleted “Track 3”."): not said again
+                  // as its description until focus has left it once.
+                  aria-describedby={quietUndoKey === undo.key ? undefined : "studio-undo-text"}
+                  onBlur={() => setQuietUndoKey(null)}
                 >
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   Undo
@@ -2015,8 +2033,10 @@ function useAlbumStudioRender({
                       aria-current={isActive ? "true" : undefined}
                       aria-keyshortcuts={SECTION_KEYSHORTCUTS}
                       className={cn(
-                        "relative flex min-h-11 w-full items-center justify-between gap-2 px-2 py-1.5 text-left transition-colors",
-                        "@max-xl:w-auto @max-xl:max-w-full @max-xl:rounded @max-xl:border @max-xl:px-3",
+                        // A transparent 1px border like every button's, drawn in forced colors;
+                        // as a chip it takes a colour of its own (below).
+                        "relative flex min-h-11 w-full items-center justify-between gap-2 border border-transparent px-2 py-1.5 text-left transition-colors",
+                        "@max-xl:w-auto @max-xl:max-w-full @max-xl:rounded @max-xl:px-3",
                         // The current row's fill and weight vanish in forced colors (High
                         // Contrast), so it also carries a transparent frame drawn there in Highlight.
                         isActive
@@ -2081,21 +2101,23 @@ function useAlbumStudioRender({
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
                   {/* 44px icons where the sections are chips (names kept), so the row fits
-                      beside the section's heading and the lyrics start a row sooner. */}
+                      beside the section's heading and the lyrics start a row sooner. Quieter
+                      than the track's own Preview song (ghost, not outlined) and named by the
+                      section it plays ("Preview Verse 1"), so the two pairs never read alike. */}
                   <Button
                     id="preview-section"
-                    tone="secondary"
+                    tone="ghost"
                     className="min-w-11 @max-xl:px-2.5"
                     onClick={previewSection}
                     busy={previewing}
                   >
                     <Play className="h-4 w-4 flex-none" aria-hidden="true" />
-                    <span className="@max-xl:sr-only">Preview section</span>
+                    <span className="min-w-0 break-words @max-xl:sr-only">Preview {activeLabel}</span>
                   </Button>
                   <MoreMenu
                     label="section actions"
                     triggerId={SECTION_MENU_ID}
-                    compactClassName="@max-xl"
+                    compactClassName="always"
                     items={[
                       {
                         key: "mp3",

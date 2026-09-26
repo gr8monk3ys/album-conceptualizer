@@ -89,3 +89,11 @@ export function searchSnippet(text: string, query: string, maxLength = 140): str
   const suffix = end < normalized.length ? "…" : "";
   return `${prefix}${normalized.slice(start, end).trim()}${suffix}`;
 }
+
+/** "“tide” · Search": the tab names what was searched for, most specific first like every title. */
+export function searchPageTitle(q: string): string {
+  const query = q.replace(/\s+/g, " ").trim();
+  if (!query) return "Search";
+  const shown = query.length > 60 ? `${query.slice(0, 60).trimEnd()}…` : query;
+  return `“${shown}” · Search`;
+}

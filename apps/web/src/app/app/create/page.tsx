@@ -9,7 +9,7 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "New album",
-  description: "Plan a new concept album: the idea, its direction and a first tracklist.",
+  description: "Plan a new concept album: the idea, its direction and a first sequence of tracks.",
 };
 
 export default async function CreatePage() {
@@ -28,7 +28,7 @@ export default async function CreatePage() {
       <PageHeader
         title="New album"
         size="page"
-        description="Three short steps to a blueprint: the idea, its direction, and a first tracklist. Everything stays editable in the Studio afterwards."
+        description="Three short steps to a blueprint: the idea, its direction, and a first sequence of tracks. Everything stays editable in the Studio afterwards."
       />
       <QuickStartComposer aiAvailable={aiAvailable} creditsRemaining={credits.remaining} />
     </div>

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ArrowDown } from "lucide-react";
-import { Suspense, useCallback, useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { ArrowDown, ChevronDown } from "lucide-react";
+import { Suspense, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { ButtonLink, PRIMARY_ACTION_MARKER } from "@/components/ui";
 import { useEdgeFade } from "@/components/use-edge-fade";
@@ -36,6 +36,23 @@ function useAlbumSegment(albumId: string) {
 }
 
 /**
+ * The album frame's outer element (`group/album`), marked with the page it shows
+ * (`data-page="studio"`, "overview", "bible", …) so the frame can set itself for that page
+ * with `data-[page=studio]:` / `group-data-[page=studio]/album:` variants. The page comes from
+ * the address, which the server knows too, so the attribute is in the server render and
+ * nothing moves after hydration. It replaces `:has(#studio-editor)`: a `:has()` whose subject
+ * is an ancestor of the editor made every keystroke re-style the whole frame.
+ */
+export function AlbumFrame({ albumId, className, children }: { albumId: string; className?: string; children: ReactNode }) {
+  const segment = useAlbumSegment(albumId);
+  return (
+    <div className={className} data-page={segment || "overview"}>
+      {children}
+    </div>
+  );
+}
+
+/**
  * Scrolls the strip so the current tab sits in the middle, without `scrollIntoView`: that
  * also moves the document's sequential-focus starting point, so the first Tab would skip
  * the skip link and the header.
@@ -55,20 +72,29 @@ function centerTab(scroller: HTMLElement, tab: HTMLElement) {
  * One way around an album, the same on every album screen. Six tabs in one row on a hairline
  * when the album column has room (36rem, so enlarged text needs more); with less room they
  * form an even grid of ruled cells, three columns (3 + 3) while a column fits the longest
- * name, two (2 x 3) when narrower, and one only at extreme text sizes, so every tab is visible,
- * whole and lined up with the row above on a phone. Wrapped, nothing scrolls or fades: the
- * strip clips nothing, so no first letter or focus ring is masked. Names break between words
- * ("Story bible") and inside a word only if that word is wider than the whole column. Only
- * the one row can overflow (an unusually wide font): then the strip scrolls inside itself,
- * centres the current tab and fades the edge with more tabs, and only while it overflows.
+ * name, so every tab is visible, whole and lined up with the row above on a phone. Where not
+ * even three fit (below 17rem: a phone at 200% text), stacking them would take a screen before
+ * the page starts, so the strip folds into one row that names the current page ("Studio"), a
+ * disclosure (aria-expanded) that opens the six tabs as a ruled list; choosing one, or Escape,
+ * folds it again with focus back on it. Wrapped or folded, nothing scrolls or fades: the strip
+ * clips nothing, so no first letter or focus ring is masked. Names break between words ("Story
+ * bible") and inside a word only if that word is wider than the whole column. Only the one row
+ * can overflow (an unusually wide font): then the strip scrolls inside itself, centres the
+ * current tab and fades the edge with more tabs, and only while it overflows.
  */
 export function AlbumNav({ albumId }: { albumId: string }) {
   const segment = useAlbumSegment(albumId);
   const base = `/app/albums/${albumId}`;
   const scrollerRef = useRef<HTMLElement>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const listId = useId();
+  // Whether the folded strip (below 17rem) shows its tabs. Wider, the tabs always show and the
+  // toggle is hidden, whatever this says.
+  const [open, setOpen] = useState(false);
   // The strip fades at whichever edge has more tabs past it (the same cue as TableScroller).
   const fade = useEdgeFade(scrollerRef, "x");
+  const current = TABS.find((tab) => (tab.covers as readonly string[]).includes(segment));
 
   // Keep the current tab in view when the strip is narrower than its tabs.
   useEffect(() => {
@@ -77,6 +103,14 @@ export function AlbumNav({ albumId }: { albumId: string }) {
     if (!el || !tab || el.scrollWidth <= el.clientWidth + 1) return;
     centerTab(el, tab);
   }, [segment]);
+
+  /** Folds the list again, with focus back on the toggle while it is the one showing. */
+  const fold = () => {
+    if (!open) return;
+    setOpen(false);
+    const toggle = toggleRef.current;
+    if (toggle && toggle.getClientRects().length > 0) toggle.focus();
+  };
 
   return (
     <div className="@container min-w-0">
@@ -87,14 +121,61 @@ export function AlbumNav({ albumId }: { albumId: string }) {
         // wrapped rows never overflow, so they neither scroll nor fade (the fade measures an
         // actual overflow, so it stays off there).
         className={cn("-mx-1 min-w-0 max-w-[calc(100%+0.5rem)] @xl:overflow-x-auto", edgeFadeClass(fade, "x"))}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && open) {
+            event.preventDefault();
+            fold();
+          }
+        }}
       >
+        {/* Folded (below 17rem), one ruled row like the strip itself: the current page's name
+            with its saffron underline (dropped while the list below shows it) and a chevron.
+            The -mb-px lays the underline over the row's hairline, as the tabs' do. */}
+        <div className="mx-1 border-b border-line @min-[17rem]:hidden">
+          <button
+            ref={toggleRef}
+            type="button"
+            aria-expanded={open}
+            aria-controls={listId}
+            onClick={() => setOpen((value) => !value)}
+            className="-mb-px flex min-h-11 w-full min-w-0 items-stretch justify-between gap-2 text-left text-sm focus-visible:-outline-offset-2"
+          >
+            <span
+              className={cn(
+                "flex min-w-0 items-center border-b-2 px-2 py-1",
+                current ? "font-semibold text-ink" : "text-ink-2",
+                current && !open
+                  ? "border-accent forced-colors:border-b-[Highlight]"
+                  : "border-transparent forced-colors:border-b-0",
+              )}
+            >
+              {current ? <span className="sr-only">Current page: </span> : null}
+              <span className="min-w-0 break-words">{current?.label ?? "Album pages"}</span>
+            </span>
+            <ChevronDown
+              aria-hidden="true"
+              className={cn("mr-2 h-4 w-4 shrink-0 self-center text-ink-3 motion-safe:transition-transform", open && "rotate-180")}
+            />
+          </button>
+        </div>
         {/* Wrapped, an even grid: equal columns (minmax(0,1fr)), so the second row's tabs sit
             under the first row's. The thresholds are rem, like the name they must fit:
             "Coherence" in semibold measures 4.44rem, plus 1rem of padding, so three columns
-            need 16.3rem (17rem here) and two 10.9rem (11rem). */}
-        <ul className="grid grid-cols-1 px-1 @min-[11rem]:grid-cols-2 @min-[17rem]:grid-cols-3 @xl:flex @xl:min-w-max @xl:gap-1 @xl:border-b @xl:border-line">
+            need 16.3rem (17rem here). Folded, the list is one column, shown while open. */}
+        <ul
+          id={listId}
+          // Choosing a tab from the folded list folds it again (Next's Link has already started
+          // the navigation by the time the click bubbles here).
+          onClick={(event) => {
+            if ((event.target as Element).closest("a")) fold();
+          }}
+          className={cn(
+            "grid grid-cols-1 px-1 @min-[17rem]:grid-cols-3 @xl:flex @xl:min-w-max @xl:gap-1 @xl:border-b @xl:border-line",
+            !open && "@max-[17rem]:hidden",
+          )}
+        >
           {TABS.map((tab) => {
-            const active = (tab.covers as readonly string[]).includes(segment);
+            const active = tab === current;
             return (
               // Wrapped, each cell carries its own hairline, so every row is ruled.
               <li key={tab.label} className="min-w-0 border-b border-line @xl:flex-none @xl:border-b-0">

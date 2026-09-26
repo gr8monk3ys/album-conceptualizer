@@ -13,7 +13,7 @@ import {
 
 import { useEdgeFade } from "@/components/use-edge-fade";
 import { EDGE_SLACK_PX, edgeFadeClass } from "@/lib/edge-fade";
-import { fadeClearScrollLeft } from "@/lib/scroll-clear";
+import { fadeClearScrollLeft, focusRingReach } from "@/lib/scroll-clear";
 import { cn } from "@/lib/utils";
 
 /** The edge fade's width, 1.5rem (`@/lib/edge-fade`), in px at the current root font size. */
@@ -53,8 +53,10 @@ function stickyStartCover(target: HTMLElement, visibleLeft: number): number {
  */
 function focusExtent(target: HTMLElement): { left: number; right: number } {
   const box = target.getBoundingClientRect();
-  let left = box.left;
-  let right = box.right;
+  // The focus ring is drawn outside the box (unless inset), and is kept clear of the fades too.
+  const ring = focusRingReach(getComputedStyle(target));
+  let left = box.left - ring;
+  let right = box.right + ring;
   const row = target.closest("tr");
   if (row) {
     for (const cell of Array.from(row.querySelectorAll<HTMLElement>(":scope > [data-keep-in-view]"))) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { edgeFade } from "@/lib/edge-fade";
-import { fadeClearScrollLeft } from "@/lib/scroll-clear";
+import { fadeClearScrollLeft, focusRingReach } from "@/lib/scroll-clear";
 
 // A 300px region over a 600px table, with a 24px fade.
 const base = { viewport: 300, content: 600, margin: 24 };
@@ -108,5 +108,31 @@ describe("fadeClearScrollLeft", () => {
         }
       }
     }
+  });
+});
+
+describe("focusRingReach", () => {
+  it("is the outline's width plus its offset for the global ring", () => {
+    expect(focusRingReach({ outlineStyle: "solid", outlineWidth: "2px", outlineOffset: "2px" })).toBe(4);
+  });
+
+  it("is 0 for an inset ring, which stays inside the box", () => {
+    expect(focusRingReach({ outlineStyle: "solid", outlineWidth: "2px", outlineOffset: "-2px" })).toBe(0);
+  });
+
+  it("is 0 without an outline", () => {
+    expect(focusRingReach({ outlineStyle: "none", outlineWidth: "0px", outlineOffset: "2px" })).toBe(0);
+    expect(focusRingReach({ outlineStyle: "", outlineWidth: "", outlineOffset: "" })).toBe(0);
+  });
+
+  it("lets a column keep the ring, not only the item, clear of its fade", () => {
+    // A 390px sidebar column over 700px of rows with a 32px fade; a 44px link ends at 358,
+    // exactly where the end fade begins. Counted with its 4px ring it scrolls 4px further.
+    const column = { scrollLeft: 0, viewport: 390, content: 700, margin: 32 };
+    expect(fadeClearScrollLeft({ ...column, start: 314, width: 44 })).toBe(0);
+    const ring = focusRingReach({ outlineStyle: "solid", outlineWidth: "2px", outlineOffset: "2px" });
+    const top = fadeClearScrollLeft({ ...column, start: 314 - ring, width: 44 + 2 * ring });
+    expect(top).toBe(4);
+    expect(314 - top + 44 + ring).toBeLessThanOrEqual(390 - 32);
   });
 });

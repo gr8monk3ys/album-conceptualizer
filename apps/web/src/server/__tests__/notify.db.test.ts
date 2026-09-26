@@ -114,7 +114,7 @@ describe.skipIf(!hasDatabase)("album owner notifications (database)", () => {
         creditMetadata: { source: "test" },
       });
     const firstId = await remix();
-    await remix();
+    const secondId = await remix();
 
     const notes = await ownerNotifications();
     expect(notes.map((note) => [note.type, note.title])).toEqual([
@@ -122,7 +122,12 @@ describe.skipIf(!hasDatabase)("album owner notifications (database)", () => {
       ["remix", "Theo Lind remixed Salt Year"],
     ]);
 
-    const created = await prisma.album.findUnique({ where: { id: firstId }, select: { artist: true, data: true } });
+    const created = await prisma.album.findUnique({ where: { id: firstId }, select: { title: true, artist: true, data: true } });
+    // The remix keeps the original's title; only a second one in the same workspace is told apart.
+    expect(created?.title).toBe("Salt Year");
+    expect((created?.data as { title?: unknown }).title).toBe("Salt Year");
+    const second = await prisma.album.findUnique({ where: { id: secondId }, select: { title: true } });
+    expect(second?.title).toBe("Salt Year (Remix)");
     expect(created?.artist).toBe("Theo Lind");
     expect((created?.data as { remixed_from?: unknown }).remixed_from).toEqual({
       album_id: albumId,

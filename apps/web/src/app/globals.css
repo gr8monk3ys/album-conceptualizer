@@ -122,6 +122,15 @@
      13% (33px) it fits. From 320px at normal text size nothing changes (36px). */
   --text-display-release: clamp(max(1rem, min(2.25rem, 13cqi)), min(1.35rem + 2.6vw, 13cqi), 3.75rem);
   --text-display-release--line-height: 1.02;
+  /* An album title in a catalog row (AlbumCard): 1.125rem, 1.25rem from md, and never above
+     12% of its row (a size container), with the same 1rem floor. At normal text size the row
+     never binds; at 320px with 200% text the row's text column is 240px, and at 12% (floored at
+     32px) an eleven-letter word ("Frequencies", 7.4em) stays whole where 36px broke it
+     ("Frequenci|es"), so the title breaks between words. */
+  --text-display-card: min(1.125rem, max(1rem, 12cqi));
+  --text-display-card--line-height: 1.02;
+  --text-display-card-lg: min(1.25rem, max(1rem, 12cqi));
+  --text-display-card-lg--line-height: 1.02;
 
   /* Archivo is self-hosted by next/font (app/layout.tsx); latin-ext loads only when needed.
      Until it arrives, text is set in a local face sized to the same cut (font-fallbacks.css),

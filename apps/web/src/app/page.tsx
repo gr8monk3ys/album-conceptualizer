@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 const MOVES = [
   {
     title: "Plan the arc",
-    body: "Start from one idea. Name the album, set its narrative arc and themes, and sketch the tracklist in three short steps. An optional AI brainstorm can suggest a direction; you decide what stays.",
+    body: "Start from one idea. Name the album, set its narrative arc and themes, and sketch the sequence in three short steps. An optional AI brainstorm can suggest a direction; you decide what stays.",
   },
   {
     title: "Write inside the sequence",
@@ -57,7 +57,7 @@ export default function HomePage() {
               {/* Measures on this page are in em (27.5em is 48ch of Archivo), so they hold the
                   same width in the fallback face that shows until Archivo arrives. */}
               <p className="mt-6 max-w-[27.5em] text-base leading-relaxed text-ink-2">
-                Album Conceptualizer turns one idea into an album blueprint: a sequenced tracklist,
+                Album Conceptualizer turns one idea into an album blueprint: a sequence of tracks,
                 a narrative arc, the themes each track carries, and lyric and chord drafts for every
                 section. Then it hands the record to your DAW without losing the thread.
               </p>

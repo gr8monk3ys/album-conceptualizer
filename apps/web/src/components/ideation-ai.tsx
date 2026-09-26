@@ -294,7 +294,7 @@ function BrainstormResult({ output, onApply }: { output: string; onApply: Ideati
         <legend className="text-sm font-medium text-ink">Choose what to take into your blueprint</legend>
         {!parsed.structured ? (
           <p className="mt-1 text-xs leading-relaxed text-ink-3">
-            This result has no clearly labelled themes or tracklist, so it can only be used as a whole.
+            This result has no clearly labelled themes or track titles, so it can only be used as a whole.
           </p>
         ) : null}
         <div className="mt-1 flex flex-col">
@@ -457,7 +457,7 @@ export function IdeationAi({
       </h3>
       {aiAvailable ? (
         <p id="brainstorm-hint" className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-2">
-          An AI draft brainstorms from your concept summary: a direction, themes and a tracklist.
+          An AI draft brainstorms from your concept summary: a direction, themes and track titles.
           It takes 30 to 90 seconds. Nothing changes in your blueprint until you choose what to
           apply.
         </p>

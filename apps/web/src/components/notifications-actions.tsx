@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CheckCheck, MailOpen, RotateCcw } from "lucide-react";
 
 import { Button, LiveStatus } from "@/components/ui";
@@ -16,27 +16,49 @@ async function readApiError(response: Response, fallback: string) {
 
 /**
  * Marks every notification read. Busy while it works, and unavailable (not `disabled`) once
- * nothing is unread, so the button keeps keyboard focus through its own press and the refresh
- * that follows; "All caught up" beside the page title says why it is unavailable.
+ * nothing is unread; "All caught up" beside the page title says why it is unavailable. Once it
+ * has worked there is nothing left for it to do, so focus moves from it to the result line
+ * under it ("All notifications marked read."), which is read once as focus lands (it is not
+ * also a live region), and the next Tab reaches the first notification. A failure keeps focus
+ * on the button, to try again, and is announced as an alert.
  */
 export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<Status>(null);
+  const [done, setDone] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const doneRef = useRef<HTMLParagraphElement | null>(null);
   const returnFocus = useReturnFocus();
   const unavailable = Boolean(disabled) && !loading;
+
+  // The result line moves focus only from the button that was pressed, never from somewhere
+  // the person has gone since.
+  useLayoutEffect(() => {
+    if (!done) return;
+    if (document.activeElement === buttonRef.current) doneRef.current?.focus();
+  }, [done]);
+
+  // A row marked unread afterwards makes "All notifications marked read." untrue.
+  useEffect(() => {
+    const clear = () => setDone(false);
+    window.addEventListener(ROW_CHANGED_EVENT, clear);
+    return () => window.removeEventListener(ROW_CHANGED_EVENT, clear);
+  }, []);
 
   async function markAll() {
     if (unavailable) return;
     setLoading(true);
     setStatus(null);
+    setDone(false);
+    let succeeded = false;
     try {
       const response = await fetch("/api/notifications/read-all", { method: "POST" });
       if (!response.ok) {
         throw new Error(await readApiError(response, "Couldn't mark everything as read. Try again."));
       }
-      setStatus({ tone: "ok", text: "All notifications marked read." });
+      succeeded = true;
+      setDone(true);
       // Any row's earlier "Marked unread." is out of date now: rows clear their own line.
       window.dispatchEvent(new Event(ALL_READ_EVENT));
       router.refresh();
@@ -47,8 +69,8 @@ export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
       });
     } finally {
       setLoading(false);
-      // The refresh re-renders the page around the button; focus stays on it.
-      returnFocus(() => buttonRef.current);
+      // The refresh re-renders the page around this; focus stays where it was put.
+      returnFocus(() => (succeeded ? doneRef.current : buttonRef.current));
     }
   }
 
@@ -64,7 +86,12 @@ export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
         <CheckCheck className="h-4 w-4" aria-hidden="true" />
         {loading ? "Marking…" : "Mark all read"}
       </Button>
-      {/* Always mounted, so the result is announced when it arrives. */}
+      {done ? (
+        <p ref={doneRef} tabIndex={-1} className="max-w-[65ch] text-right text-sm text-ok">
+          All notifications marked read.
+        </p>
+      ) : null}
+      {/* Always mounted, so a failure is announced when it arrives. */}
       <LiveStatus message={status?.text ?? null} tone={status?.tone} className="max-w-[65ch] text-right" />
     </div>
   );
@@ -72,6 +99,8 @@ export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
 
 /** Fired when "Mark all read" succeeds, so rows drop their own now out-of-date lines. */
 const ALL_READ_EVENT = "notifications:all-read";
+/** Fired when one row is marked read or unread, so "All notifications marked read." goes. */
+const ROW_CHANGED_EVENT = "notifications:row-changed";
 
 /**
  * Marks one notification read or unread. The button stays the same element through the
@@ -106,6 +135,7 @@ export function ToggleNotificationReadButton({ id, unread }: { id: string; unrea
         throw new Error(await readApiError(response, "That change didn't save. Try again."));
       }
       setStatus({ tone: "ok", text: unread ? "Marked read." : "Marked unread." });
+      window.dispatchEvent(new Event(ROW_CHANGED_EVENT));
       router.refresh();
     } catch (err) {
       setStatus({

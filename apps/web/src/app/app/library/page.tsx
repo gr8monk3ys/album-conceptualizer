@@ -45,7 +45,7 @@ export default async function LibraryPage() {
             </ButtonLink>
           }
         >
-          An album starts as a one-paragraph concept. The guided setup turns it into a tracklist
+          An album starts as a one-paragraph concept. The guided setup turns it into a sequence
           and a narrative arc you can rewrite track by track, then export to your DAW. Creating an
           album uses {CREDIT_COSTS.albumCreate} credits.
         </EmptyState>

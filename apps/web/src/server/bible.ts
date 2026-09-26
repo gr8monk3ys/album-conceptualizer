@@ -389,7 +389,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       level: "warn",
       scope: "structure",
       title: "Chronological order is only partially set",
-      detail: "Set a story order on every track for a story album, or clear it and rely on the tracklist.",
+      detail: "Set a story order on every track for a story album, or clear it and rely on the sequence.",
       fix: {
         focus: "story",
         trackNumber: tracks.find((t) => typeof t.chronologicalOrder !== "number")?.trackNumber,

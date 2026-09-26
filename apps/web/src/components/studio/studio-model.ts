@@ -368,6 +368,21 @@ export function moveUndoLabel(fromTitle: string, nowTitle: string, from: number,
 }
 
 /**
+ * What a move says to a screen reader, from the place it left to the place it took: "Moved
+ * “Signal” to track 5 of 10." A default name follows its number, so quoting it as a title read
+ * oddly ("Moved “Track 3” (now “Track 2”) to track 2"): such a track is named by its place, and
+ * its new name follows: "Moved track 3 to track 2 of 10, now called “Track 2”."
+ */
+export function moveAnnouncement(fromTitle: string, nowTitle: string, from: number, to: number, count: number): string {
+  const before = fromTitle.trim() || "Untitled";
+  const after = nowTitle.trim() || "Untitled";
+  const place = `track ${to + 1} of ${count}`;
+  return before === after
+    ? `Moved “${before}” to ${place}.`
+    : `Moved track ${from + 1} to ${place}, now called “${after}”.`;
+}
+
+/**
  * The other tracks with the same title as the track at `index` (trimmed, any casing), by
  * track number. Empty titles match nothing.
  */
@@ -657,19 +672,19 @@ export function versionSavedText(note: string | null | undefined): string {
 
 /**
  * What the save bar says, split in two: `live` goes in the one status region and changes
- * only for events (a save the artist asked for, its result, a failure); `quiet` is shown
- * beside it and never announced: autosave's "Saving…", "Unsaved changes", and the ticking
- * "Saved · 3 minutes ago". At most one of them holds text.
+ * only for results (a save the artist asked for, once it is done, and a failure); `quiet` is
+ * shown beside it and never announced: "Saving…" (autosave's and a Save now's alike, so an
+ * asked-for save is said once, as "Saved.", never "Saving…" first), "Unsaved changes", and
+ * the ticking "Saved · 3 minutes ago". At most one of them holds text.
  */
 export function saveStatusParts(state: {
   saving: boolean;
-  mode: SaveMode;
   error: string | null;
   flash: string | null;
   dirty: boolean;
   lastSavedAt: string | null;
 }): { live: string; quiet: "saving" | "unsaved" | "saved-at" | "no-changes" | null } {
-  if (state.saving) return state.mode === "auto" ? { live: "", quiet: "saving" } : { live: "Saving…", quiet: null };
+  if (state.saving) return { live: "", quiet: "saving" };
   if (state.error) return { live: `Couldn't save — ${state.error}`, quiet: null };
   if (state.flash) return { live: state.flash, quiet: null };
   if (state.dirty) return { live: "", quiet: "unsaved" };

@@ -50,12 +50,20 @@ export function useTracksOpen(): [boolean, (open: boolean) => void] {
 /** The toggle that folds and unfolds the list in one column. */
 export const TRACKS_TOGGLE_ID = "studio-tracks-toggle";
 
+/** A no-break space: what holds a separator to the item before it, and a count together. */
+const NBSP = " ";
+
 /**
  * "Sequence · 04 of 10 · Track 4": the folded list's summary (where you are in the sequence).
  * "Sequence", as the album screens' spine and its disclosure say it (the One Term Rule).
+ * Like every catalog line (CatalogItems), each separator ends the item before it: a no-break
+ * space ties the dot to that item, so a line may end on a dot but never start with one (320px
+ * with 200% text wraps it as "Sequence · / 02 of 09 · / Track 2"), and "04 of 10" stays whole.
+ * A screen reader hears the no-break spaces as spaces.
  */
 export function tracksSummary(current: { track_number: number; title?: string | null } | undefined, count: number) {
   if (!current || !count) return "Sequence";
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `Sequence · ${pad(current.track_number)} of ${pad(count)} · ${current.title?.trim() || "Untitled"}`;
+  const place = [pad(current.track_number), "of", pad(count)].join(NBSP);
+  return ["Sequence", place, current.title?.trim() || "Untitled"].join(`${NBSP}· `);
 }

@@ -67,3 +67,16 @@ export function fadeClearScrollLeft({
   if (itemStart - scrollLeft < stickyStart + margin) return alignStart;
   return Math.ceil(clamp(itemEnd - viewport + margin));
 }
+
+/**
+ * How far an element's focus ring reaches past its border box, in px: the outline's width
+ * plus its offset (the global ring is 2px wide, 2px out: 4px), or 0 when there is no outline
+ * or it is drawn inset (`-outline-offset-2`). Takes the element's computed style, so a scroller
+ * keeping a focused item clear of its fade can count the ring as part of the item.
+ */
+export function focusRingReach(style: Pick<CSSStyleDeclaration, "outlineStyle" | "outlineWidth" | "outlineOffset">): number {
+  if (!style.outlineStyle || style.outlineStyle === "none") return 0;
+  const width = Number.parseFloat(style.outlineWidth) || 0;
+  const offset = Number.parseFloat(style.outlineOffset) || 0;
+  return Math.max(0, width + offset);
+}

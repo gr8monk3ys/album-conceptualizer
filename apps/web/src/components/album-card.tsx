@@ -157,7 +157,11 @@ export function AlbumCard({
     >
       <div className="flex flex-col gap-2 @min-[20rem]:flex-row @min-[20rem]:items-center @min-[20rem]:gap-4">
         <div className="min-w-0 flex-1">
-          <p className="type-display break-words text-lg text-ink hyphens-auto md:text-xl">{album.title}</p>
+          {/* Sized by the row (a size container) so an ordinary long word fits whole at 320px
+              with 200% text; breaking inside a word is only the last resort. */}
+          <p className="type-display break-words text-display-card text-ink hyphens-auto md:text-display-card-lg">
+            {album.title}
+          </p>
           <p className="type-catalog mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
             <CatalogItems
               items={[

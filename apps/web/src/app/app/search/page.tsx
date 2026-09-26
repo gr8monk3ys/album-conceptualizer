@@ -1,23 +1,31 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
 import { AlbumList, toAlbumListItem } from "@/components/album-card";
 import { Button, EmptyState, Field, PageHeader, Section, inputClass } from "@/components/ui";
-import { findTagMatches, searchSnippet, type TagMatch } from "@/lib/search-match";
+import { findTagMatches, searchPageTitle, searchSnippet, type TagMatch } from "@/lib/search-match";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Search",
-  description: "Find albums, songs and lyric lines across your workspace.",
-};
 
 function normalizeQuery(value: string | string[] | undefined) {
   if (typeof value === "string") return value.trim();
   if (Array.isArray(value)) return value[0]?.trim() ?? "";
   return "";
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  return {
+    title: searchPageTitle(normalizeQuery((await searchParams).q)),
+    description: "Find albums, songs and lyric lines across your workspace.",
+  };
 }
 
 function sectionName(type: string) {

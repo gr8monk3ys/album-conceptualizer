@@ -58,6 +58,8 @@ type SectionCommentsProps = {
 };
 
 const MAX_LENGTH = 2000;
+// A single stray keystroke isn't a note; the hint under the field says so.
+const MIN_LENGTH = 2;
 /** The length counter appears only once a comment gets close to the limit. */
 const COUNTER_FROM = 1800;
 
@@ -91,6 +93,8 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
   const [pending, setPending] = useState<Record<string, PendingAction>>({});
   const [tasked, setTasked] = useState<ReadonlySet<string>>(() => new Set());
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  // Post was pressed with too little to post: the status line says why until there is enough.
+  const [tooShort, setTooShort] = useState(false);
   const returnFocus = useReturnFocus();
   // The same guard without waiting for a render, so a double press never sends twice.
   const inFlight = useRef(new Set<string>());
@@ -164,7 +168,13 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
   }, [albumId, sectionId]);
 
   async function submit() {
-    if (submitting || length < 2) return;
+    if (submitting) return;
+    if (length < MIN_LENGTH) {
+      setUi((prev) => ({ ...prev, error: null, status: null }));
+      setTooShort(true);
+      return;
+    }
+    setTooShort(false);
     const fromButton = document.activeElement?.id === postId;
     setUi((prev) => ({ ...prev, submitting: true, error: null, status: "Posting comment…" }));
     try {
@@ -509,32 +519,49 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
         <textarea
           id={inputId}
           value={body}
-          onChange={(e) => setUi((prev) => ({ ...prev, body: e.target.value }))}
+          onChange={(e) => {
+            const next = e.target.value;
+            setUi((prev) => ({ ...prev, body: next }));
+            if (tooShort && next.trim().length >= MIN_LENGTH) setTooShort(false);
+          }}
           rows={3}
           maxLength={MAX_LENGTH}
           aria-describedby={showCounter ? `${inputId}-hint ${inputId}-count` : `${inputId}-hint`}
           className={textareaClass}
         />
         <p id={`${inputId}-hint`} className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
-          Concrete notes work best: what to change and why.
+          Concrete notes work best: what to change and why. A comment needs at least{" "}
+          {MIN_LENGTH} characters.
         </p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
           {/* Both regions stay mounted so each change is announced. */}
           <div className="min-w-0">
-            <p role="status" className={submitting ? "text-sm text-ink-2" : "text-sm text-ok"}>
-              {status && !error ? status : ""}
+            <p
+              role="status"
+              className={submitting || tooShort ? "text-sm text-ink-2" : "text-sm text-ok"}
+            >
+              {tooShort
+                ? length
+                  ? `Add a little more: a comment needs at least ${MIN_LENGTH} characters.`
+                  : "Write the comment first, then post it."
+                : status && !error
+                  ? status
+                  : ""}
             </p>
             <p role="alert" className="text-sm text-danger">
               {error ?? ""}
             </p>
           </div>
-          {/* Busy while posting (focus stays), and unavailable until there's a comment to post. */}
+          {/* Busy while posting (focus stays), and unavailable until there's a comment to post;
+              then it is described by the hint that names the minimum, and pressing it says why. */}
           <Button
             id={postId}
             tone="secondary"
             onClick={() => void submit()}
             busy={submitting}
-            {...(length < 2 && !submitting ? { "aria-disabled": true } : {})}
+            {...(length < MIN_LENGTH && !submitting
+              ? { "aria-disabled": true, "aria-describedby": `${inputId}-hint` }
+              : {})}
           >
             <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
             {submitting ? "Posting…" : "Post comment"}

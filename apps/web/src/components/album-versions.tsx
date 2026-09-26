@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { RelativeTime } from "@/components/relative-time";
 import { versionSavedText } from "@/components/studio/studio-model";
 import { Button, EmptyState, Field, LiveStatus, Panel, Section, inputClass } from "@/components/ui";
 import { useReturnFocus } from "@/components/use-return-focus";
+import { leaveArrival, restoredArrivalText } from "@/lib/arrival-handoff";
 import { beforeRestoringDate } from "@/lib/version-labels";
 
 type VersionListItem = {
@@ -39,6 +40,14 @@ function VersionTitle({ message }: { message: string | null }) {
   return <>{message || "Untitled version"}</>;
 }
 
+function safeSessionStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
 export function AlbumVersions({ albumId, versions }: { albumId: string; versions: VersionListItem[] }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
@@ -55,6 +64,20 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
   // it (and its question is read) instead of dropping to the page.
   const confirmButton = useRef<HTMLButtonElement | null>(null);
   const confirmIds = useId();
+  // After a restore, the album frame (release header, spine) is refreshed here first and the
+  // Overview opened only once that has landed, so the Overview arrives in one route change:
+  // opening it and then refreshing (or then dropping a query parameter) made a second one, and
+  // the route announcer read the album twice ("Salt Year", then "Salt Year · Album
+  // Conceptualizer"). Refreshing here keeps this page's title, so nothing is announced for it.
+  const [refreshing, startRefresh] = useTransition();
+  const openAfterRefresh = useRef<string | null>(null);
+
+  useEffect(() => {
+    const href = openAfterRefresh.current;
+    if (refreshing || !href) return;
+    openAfterRefresh.current = null;
+    router.push(href);
+  }, [refreshing, router]);
 
   useEffect(() => {
     if (confirmingId) confirmButton.current?.focus();
@@ -97,9 +120,12 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
       const res = await fetch(`/api/albums/${albumId}/versions/${versionId}/restore`, { method: "POST" });
       if (!res.ok) throw new Error(await errorFrom(res, "That version wasn't restored. Try again in a moment."));
       setRestoreStatus({ tone: "ok", text: "Version restored. Opening the album…" });
-      // The Overview says what just happened in one line (it reads `restored`).
-      router.push(`/app/albums/${albumId}?restored=${encodeURIComponent(versionId)}`);
-      router.refresh();
+      // The Overview says what just happened in one line, left for it here.
+      const overview = `/app/albums/${albumId}`;
+      const restored = versions.find((version) => version.id === versionId);
+      leaveArrival(safeSessionStorage(), overview, restoredArrivalText(restored?.message));
+      openAfterRefresh.current = overview;
+      startRefresh(() => router.refresh());
     } catch (err) {
       setRestoreStatus({
         tone: "danger",

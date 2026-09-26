@@ -16,9 +16,21 @@ describe("delete questions name what goes", () => {
 });
 
 describe("tracksSummary", () => {
+  // Read with its no-break spaces as plain ones.
+  const plain = (text: string) => text.replace(/ /g, " ");
+
   it("says where you are in the sequence", () => {
-    expect(tracksSummary({ track_number: 4, title: "Track 4" }, 10)).toBe("Sequence · 04 of 10 · Track 4");
-    expect(tracksSummary({ track_number: 1, title: " " }, 3)).toBe("Sequence · 01 of 03 · Untitled");
+    expect(plain(tracksSummary({ track_number: 4, title: "Track 4" }, 10))).toBe("Sequence · 04 of 10 · Track 4");
+    expect(plain(tracksSummary({ track_number: 1, title: " " }, 3))).toBe("Sequence · 01 of 03 · Untitled");
     expect(tracksSummary(undefined, 0)).toBe("Sequence");
+  });
+
+  it("never lets a separator start a line: each dot is held to the item before it", () => {
+    const summary = tracksSummary({ track_number: 2, title: "Low Tide" }, 9);
+    // The only places a line can break are ordinary spaces; each follows a dot or sits in the title.
+    expect(summary).toBe("Sequence · 02 of 09 · Low Tide");
+    for (const [index, char] of [...summary].entries()) {
+      if (char === " ") expect(summary[index + 1]).not.toBe("·");
+    }
   });
 });

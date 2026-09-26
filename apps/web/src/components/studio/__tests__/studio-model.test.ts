@@ -9,6 +9,7 @@ import {
   moveItem,
   mergeRenames,
   moveTrackTo,
+  moveAnnouncement,
   moveUndoLabel,
   nextToWrite,
   normalizeKey,
@@ -224,6 +225,12 @@ describe("moving a track several places at once", () => {
     expect(moveUndoLabel("Signal", "Signal", 0, 4)).toBe("Moved “Signal” from 01 to 05.");
     expect(moveUndoLabel(" ", "", 9, 2)).toBe("Moved “Untitled” from 10 to 03.");
   });
+
+  it("announces a move by title, or by place when the title is a default that follows it", () => {
+    expect(moveAnnouncement("Signal", "Signal", 0, 4, 10)).toBe("Moved “Signal” to track 5 of 10.");
+    expect(moveAnnouncement("Track 3", "Track 2", 2, 1, 10)).toBe("Moved track 3 to track 2 of 10, now called “Track 2”.");
+    expect(moveAnnouncement("  ", "", 1, 0, 3)).toBe("Moved “Untitled” to track 1 of 3.");
+  });
 });
 
 describe("tracks that share a title", () => {
@@ -385,10 +392,12 @@ describe("parseChordProgression", () => {
 });
 
 describe("saveStatusParts", () => {
-  const idle = { saving: false, mode: "auto" as const, error: null, flash: null, dirty: false, lastSavedAt: null };
+  const idle = { saving: false, error: null, flash: null, dirty: false, lastSavedAt: null };
 
-  it("announces a save the artist asked for, and its result", () => {
-    expect(saveStatusParts({ ...idle, saving: true, mode: "manual" })).toEqual({ live: "Saving…", quiet: null });
+  it("announces a save the artist asked for once, by its result", () => {
+    // "Saving…" is shown, never announced (the Quiet Autosave Rule): only "Saved." is said.
+    expect(saveStatusParts({ ...idle, saving: true })).toEqual({ live: "", quiet: "saving" });
+    expect(saveStatusParts({ ...idle, saving: true, flash: "Saved." })).toEqual({ live: "", quiet: "saving" });
     expect(saveStatusParts({ ...idle, flash: "Saved." })).toEqual({ live: "Saved.", quiet: null });
     expect(saveStatusParts({ ...idle, error: "The server can't be reached." })).toEqual({
       live: "Couldn't save — The server can't be reached.",

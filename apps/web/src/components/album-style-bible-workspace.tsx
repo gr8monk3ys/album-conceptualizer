@@ -341,8 +341,10 @@ export function AlbumStyleBibleWorkspace({
                       id={fieldId("narratorPerspective")}
                       value={form.narratorPerspective}
                       onChange={(event) => update("narratorPerspective", event.target.value)}
-                      className={inputClass}
-                      placeholder="e.g. First-person, intimate, slightly unreliable."
+                      // Short enough for the one-line field in the two-column group; an ellipsis
+                      // rather than a hard cut where enlarged text still leaves no room.
+                      className={`${inputClass} text-ellipsis`}
+                      placeholder="e.g. First person, unreliable"
                       autoComplete="off"
                     />
                   </Field>

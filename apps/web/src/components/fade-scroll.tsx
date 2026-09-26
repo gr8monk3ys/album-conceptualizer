@@ -4,7 +4,7 @@ import { useRef, type ComponentProps, type FocusEvent } from "react";
 
 import { useEdgeFade } from "@/components/use-edge-fade";
 import { edgeFadeClass } from "@/lib/edge-fade";
-import { fadeClearScrollLeft } from "@/lib/scroll-clear";
+import { fadeClearScrollLeft, focusRingReach } from "@/lib/scroll-clear";
 import { cn } from "@/lib/utils";
 
 /** The vertical edge fade's depth, 2rem (`@/lib/edge-fade`), in px at the current root size. */
@@ -23,7 +23,9 @@ export function FadeScroll({ className, onFocus, ...props }: ComponentProps<"div
   const ref = useRef<HTMLDivElement | null>(null);
   const fade = useEdgeFade(ref, "y");
   // A focused item (Tab through the sidebar on a short window) is kept clear of the fades, as
-  // TableScroller does sideways: the browser only scrolls it into view, under the fade.
+  // TableScroller does sideways: the browser only scrolls it into view, under the fade. The
+  // item's focus ring counts as part of it (4px past the box for the global ring, none for an
+  // inset one), so the ring's edge doesn't end up in the fade either.
   const keepFocusClear = (event: FocusEvent<HTMLDivElement>) => {
     onFocus?.(event);
     const column = ref.current;
@@ -34,12 +36,13 @@ export function FadeScroll({ className, onFocus, ...props }: ComponentProps<"div
     if (column.scrollHeight <= column.clientHeight + 1) return;
     const box = column.getBoundingClientRect();
     const item = target.getBoundingClientRect();
+    const ring = focusRingReach(getComputedStyle(target));
     const top = fadeClearScrollLeft({
       scrollLeft: column.scrollTop,
       viewport: column.clientHeight,
       content: column.scrollHeight,
-      start: item.top - box.top - column.clientTop,
-      width: item.height,
+      start: item.top - box.top - column.clientTop - ring,
+      width: item.height + 2 * ring,
       margin: fadeWidth(),
     });
     if (top !== column.scrollTop) column.scrollTop = top;

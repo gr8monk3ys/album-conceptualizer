@@ -30,6 +30,16 @@ function pad(trackNumber: number) {
   return String(trackNumber).padStart(2, "0");
 }
 
+/**
+ * The title column's minimum: 8rem, or, in a spine too narrow for that beside the number (a
+ * phone at 200% text, where the region is itself 8rem wide), the room the region leaves once
+ * the number column (at most 1.75rem), the end fade (1.5rem) and the focus ring (2px, 2px out)
+ * are counted. So a focused title always fits in view beside its number, clear of the fade,
+ * instead of running on under it. `cqw` is the spine's own container (the region's width);
+ * where the sheet has no container of its own it falls back to the viewport, and 8rem holds.
+ */
+const TITLE_MIN = "min-w-[min(8rem,calc(100cqw-3.25rem-4px))]";
+
 export type SpineHeads = ThemeHeadClasses & {
   /** The room a theme's name has inside its slot (the slot less its padding), in rem. */
   nameRem: number;
@@ -54,7 +64,8 @@ function albumSpineHeads(count: number): SpineHeads {
  * legend as its description.
  *
  * Built to survive enlarged text: the table sizes itself to its content (never `table-fixed`),
- * the title keeps at least 8rem, and when that no longer fits the table scrolls sideways
+ * the title keeps at least 8rem (less only where the region can't show 8rem beside the number,
+ * `TITLE_MIN`), and when that no longer fits the table scrolls sideways
  * inside its own region (with an edge fade on the side that has more) rather than squeezing
  * the title to a letter per line. The number, lyrics, theme (1rem a key) and role columns are
  * kept narrow enough that three themes and the 8rem title fit a 320px phone at normal text
@@ -84,7 +95,9 @@ export function SpineSheet({
 
   return (
     <>
-      <TableScroller label="Tracks in sequence">
+      {/* The region's ring is drawn inset: the side column that holds the spine scrolls on its
+          own and is exactly the region's width, so a ring outside it lost its sides. */}
+      <TableScroller label="Tracks in sequence" className="focus-visible:-outline-offset-2">
         <table className="w-full border-collapse text-sm" aria-describedby={showLegend ? legendId : undefined}>
           <caption className="sr-only">{caption}</caption>
           <thead>
@@ -149,16 +162,16 @@ export function SpineSheet({
                   <td className="py-1.5 pr-2 align-middle">
                     {href ? (
                       // The link covers the whole row, so any cell is a 44px target. The title
-                      // keeps a readable width however large the text gets.
+                      // keeps a readable width however large the text gets (TITLE_MIN).
                       <Link
                         href={href}
                         title={row.title}
-                        className="line-clamp-2 min-w-[8rem] break-words text-sm text-ink hyphens-auto after:absolute after:inset-0"
+                        className={cn("line-clamp-2 break-words text-sm text-ink hyphens-auto after:absolute after:inset-0", TITLE_MIN)}
                       >
                         {row.title}
                       </Link>
                     ) : (
-                      <span className="line-clamp-2 min-w-[8rem] break-words text-sm text-ink hyphens-auto">
+                      <span className={cn("line-clamp-2 break-words text-sm text-ink hyphens-auto", TITLE_MIN)}>
                         {row.title}
                       </span>
                     )}

@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 
 import { SiteHeader } from "@/components/site-header";
 import { Button, Field, inputClass } from "@/components/ui";
+import { DEFAULT_CALLBACK_PATH, safeCallbackPath } from "@/lib/sign-in-callback";
 import type { SignInErrorMessage } from "@/lib/sign-in-errors";
 
 type SignInFormState = {
@@ -20,12 +21,16 @@ export function SignInClient({
   emailEnabled,
   devLoginEnabled,
   error = null,
+  authOrigin = null,
 }: {
   githubEnabled: boolean;
   emailEnabled: boolean;
   devLoginEnabled: boolean;
   /** Why the last sign-in failed (from `?error=`), mapped to plain words on the server. */
   error?: SignInErrorMessage | null;
+  /** The site's origin as the auth server knows it (NEXTAUTH_URL), which a failed sign-in writes
+   * into `callbackUrl`; accepted alongside this page's own origin. */
+  authOrigin?: string | null;
 }) {
   const errorRef = useRef<HTMLDivElement>(null);
   // Arriving from a failed sign-in, focus goes to the message so it is read first and the next
@@ -36,12 +41,12 @@ export function SignInClient({
     if (active && active !== document.body) return;
     errorRef.current?.focus();
   }, [error]);
+  // Where the person was going. A failed attempt comes back with it as an absolute URL, which is
+  // kept when it is this site's own; anything else goes to the app (lib/sign-in-callback.ts).
   const [callbackUrl] = useState(() => {
-    if (typeof window === "undefined") return "/app";
+    if (typeof window === "undefined") return DEFAULT_CALLBACK_PATH;
     const params = new URLSearchParams(window.location.search);
-    const raw = params.get("callbackUrl") ?? "/app";
-    // Prevent open redirect: only allow relative paths, reject protocol-relative URLs
-    return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/app";
+    return safeCallbackPath(params.get("callbackUrl"), [window.location.origin, authOrigin]);
   });
   const [form, setForm] = useState<SignInFormState>({
     devEmail: "dev@example.com",

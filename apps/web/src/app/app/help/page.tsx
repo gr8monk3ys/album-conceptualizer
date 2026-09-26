@@ -28,7 +28,7 @@ const STEPS: Array<{ title: string; body: ReactNode }> = [
     body: (
       <>
         New album opens a guided setup: a working title, the concept in a sentence or two, the
-        album&apos;s themes and a first tracklist. Creating an album uses{" "}
+        album&apos;s themes and a first sequence of tracks. Creating an album uses{" "}
         {plural(CREDIT_COSTS.albumCreate, "credit")}. Everything the setup drafts is a starting
         point for you to rewrite.
       </>

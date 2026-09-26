@@ -95,7 +95,7 @@ export function StoryFieldsFold({
           aria-expanded={open}
           aria-controls={STORY_FIELDS_BODY_ID}
           onClick={() => onOpenChange(!open)}
-          className="-mx-2 flex min-h-11 w-full min-w-0 flex-col gap-0.5 rounded px-2 py-1.5 text-left transition-colors hover:bg-hover"
+          className="-mx-2 flex min-h-11 w-full min-w-0 flex-col gap-0.5 rounded border border-transparent px-2 py-1.5 text-left transition-colors hover:bg-hover"
         >
           {/* The name and Edit/Hide on one line, what the fields hold under them. */}
           <span className="flex min-w-0 flex-wrap items-center justify-between gap-x-3">
@@ -209,7 +209,7 @@ function SongStoryEditorView({
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => onOpenChange(!open)}
-          className="-mx-2 flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded px-2 py-1.5 text-left transition-colors hover:bg-hover"
+          className="-mx-2 flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded border border-transparent px-2 py-1.5 text-left transition-colors hover:bg-hover"
         >
           <span id={`${SONG_STORY_ID}-name`} className="font-semibold">
             Themes and motifs

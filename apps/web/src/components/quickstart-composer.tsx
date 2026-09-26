@@ -59,7 +59,7 @@ const WIZARD_STEPS: WizardStep[] = [
   },
   {
     key: "tracklist",
-    title: "Tracklist",
+    title: "Sequence",
     detail: "How many tracks, and what they are called for now.",
   },
 ];

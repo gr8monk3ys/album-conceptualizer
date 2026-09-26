@@ -59,6 +59,34 @@ test.describe("Authentication", () => {
     await expect(page.getByText("SomethingOdd")).toHaveCount(0);
   });
 
+  test("a failed sign-in keeps the page the person was going to", async ({ page }) => {
+    await page.goto("/sign-in?callbackUrl=%2Fapp%2Flibrary");
+    await expect(page.getByText("Dev login")).toBeVisible();
+    // An empty email fails the dev login; NextAuth comes back with callbackUrl made absolute.
+    await page.getByPlaceholder("email").fill("");
+    await page.getByRole("button", { name: "Continue (dev)" }).click();
+    await page.waitForURL(/error=CredentialsSignin/);
+    const returned = new URL(page.url()).searchParams.get("callbackUrl");
+    expect(returned).toMatch(/^https?:\/\/.+\/app\/library$/);
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Those details didn't sign you in." }),
+    ).toBeVisible();
+
+    await page.getByPlaceholder("email").fill(randomEmail("retry"));
+    await page.getByPlaceholder("name").fill("Retry User");
+    await page.getByRole("button", { name: "Continue (dev)" }).click();
+    await page.waitForURL("**/app/library");
+    await expect(page.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
+  });
+
+  test("a callbackUrl on another site is not followed", async ({ page }) => {
+    await page.goto("/sign-in?callbackUrl=https%3A%2F%2Fevil.example%2Fapp");
+    await page.getByPlaceholder("email").fill(randomEmail("elsewhere"));
+    await page.getByRole("button", { name: "Continue (dev)" }).click();
+    await page.waitForURL("**/app");
+    expect(new URL(page.url()).host).not.toBe("evil.example");
+  });
+
   test("dev login authenticates user and redirects to dashboard", async ({ page }) => {
     await devLogin(page, randomEmail("sign-in"), "Sign-In Test User");
     await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();

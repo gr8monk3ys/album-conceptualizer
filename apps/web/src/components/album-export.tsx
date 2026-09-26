@@ -18,7 +18,7 @@ const ALL_FORMATS: Array<{ key: ExportFormat; title: string; desc: string }> = [
   { key: "chordpro", title: "ChordPro", desc: "Lyrics with chords for OnSong or SongBook." },
   { key: "musicxml", title: "MusicXML", desc: "Notation for MuseScore, Finale or Sibelius." },
   { key: "json", title: "JSON", desc: "The full album, for backups or moving it elsewhere." },
-  { key: "text", title: "Text", desc: "The tracklist as plain text." },
+  { key: "text", title: "Text", desc: "The sequence as plain text." },
 ];
 
 const HANDOFF_PACKS = [
@@ -123,7 +123,7 @@ export function zipNextStep(formats: ReadonlySet<ExportFormat>): string {
   if (formats.has("musicxml")) return "open the MusicXML files in MuseScore, Finale or Sibelius";
   if (formats.has("chordpro")) return "open the ChordPro charts in OnSong or SongBook";
   if (formats.has("json")) return "keep the JSON as a backup, or import it elsewhere";
-  return "the tracklist is in the text file";
+  return "the sequence is in the text file";
 }
 
 /**

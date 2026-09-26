@@ -3,7 +3,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { LiveStatus } from "@/components/ui";
+import { takeArrival } from "@/lib/arrival-handoff";
 import { cn } from "@/lib/utils";
+
+function safeSessionStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The one line that says what just happened on arrival ("Restored …"), in an always-mounted
@@ -11,8 +20,10 @@ import { cn } from "@/lib/utils";
  * is filled in just after, so screen readers announce it: a region that appears already filled
  * is often read as nothing new.
  *
- * `param` names the query parameter that carried the arrival (`restored`): once the line is
- * shown it is dropped from the address, so a reload or a later refresh doesn't say it again.
+ * With `handoff`, the line is the one the previous screen left for this page
+ * (`@/lib/arrival-handoff`, e.g. after a restore), read once and removed, so a reload doesn't
+ * say it again. It never rides in the address: dropping a query parameter after the arrival
+ * made the router restore its tree, and the route announcer read the page a second time.
  * With `takeFocus`, the line also takes focus when the arrival left it nowhere (the control
  * that navigated here is gone), as the create wizard's banner does. Then focus is what reads
  * it: the line is shown outside the live region, which stays empty, so it is heard once, not
@@ -22,38 +33,35 @@ export function ArrivalStatus({
   message,
   tone = "ok",
   className,
-  param,
+  handoff = false,
   takeFocus = false,
 }: {
-  message: string | null;
+  message?: string | null;
   tone?: "neutral" | "ok" | "danger";
   className?: string;
-  param?: string;
+  handoff?: boolean;
   takeFocus?: boolean;
 }) {
   const [shown, setShown] = useState<{ text: string; focus: boolean } | null>(null);
   const lineRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
     // A beat after the region is in the page, so assistive tech is listening when it fills.
+    // The handoff is taken inside the timer, so an effect that is cleaned up before it fires
+    // (a remount) leaves it for the next one.
     const timer = window.setTimeout(() => {
-      if (!message) {
-        setShown(null);
+      const text =
+        message ||
+        (handoff ? takeArrival(safeSessionStorage(), window.location.pathname) : null);
+      if (!text) {
+        if (!handoff) setShown(null);
         return;
       }
       // Decided before the line appears, so the text goes to exactly one place.
       const active = document.activeElement;
-      setShown({ text: message, focus: takeFocus && (!active || active === document.body) });
-      if (param) {
-        const url = new URL(window.location.href);
-        if (url.searchParams.has(param)) {
-          url.searchParams.delete(param);
-          // `null` state syncs the Next.js router, so its next refresh keeps the new address.
-          window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-        }
-      }
+      setShown({ text, focus: takeFocus && (!active || active === document.body) });
     }, 150);
     return () => window.clearTimeout(timer);
-  }, [message, param, takeFocus]);
+  }, [message, handoff, takeFocus]);
 
   // Once the line is in the page (and focusable), it takes focus if nothing else has it yet.
   useLayoutEffect(() => {
