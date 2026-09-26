@@ -122,7 +122,3 @@ output/
 .playwright-cli/
 .vercel
 apps/web/.lighthouseci/
-
-# impeccable design skill: live-server runtime state and local-only config
-**/.impeccable/live/server.json
-**/.impeccable/config.local.json
