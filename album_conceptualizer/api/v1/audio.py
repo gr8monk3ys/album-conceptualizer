@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from album_conceptualizer.api.jobs import Job, JobStatus, JobStore
+from album_conceptualizer.api.jobs import Job, JobLimitError, JobStatus, JobStore
 from album_conceptualizer.audio.prompt import (
     GenerationBrief,
     build_generation_prompt,
@@ -216,28 +216,31 @@ async def generate(payload: GenerateRequest, request: Request) -> RenderJobRespo
         )
 
     owner = _owner_id(request)
-    active = _render_jobs.count_active(owner_id=owner)
-    if active >= MAX_ACTIVE_RENDERS:
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                f"You already have {active} render(s) in flight. "
-                "Wait for one to finish before starting another."
-            ),
-            headers={"retry-after": "30"},
-        )
-
     # The provider bounds its own polling, but a hung socket would otherwise pin the job
     # in RUNNING until TTL eviction; the runner's timeout guarantees it ends. Provider
     # errors are the expected failure mode and are already written for a human.
-    job = _render_jobs.submit(
-        "music_generation",
-        lambda: _render(payload),
-        owner_id=owner,
-        timeout_seconds=GENERATION_TIMEOUT_SECONDS,
-        timeout_message=f"Generation timed out after {GENERATION_TIMEOUT_SECONDS}s.",
-        expected_errors=(ProviderNotConfiguredError, ProviderRequestError),
-    )
+    # The cap is checked inside submit, under the store's lock, so parallel requests can't
+    # all slip past it: per owner, or across every render when the caller names no owner.
+    try:
+        job = _render_jobs.submit(
+            "music_generation",
+            lambda: _render(payload),
+            owner_id=owner,
+            timeout_seconds=GENERATION_TIMEOUT_SECONDS,
+            timeout_message=f"Generation timed out after {GENERATION_TIMEOUT_SECONDS}s.",
+            expected_errors=(ProviderNotConfiguredError, ProviderRequestError),
+            max_active=MAX_ACTIVE_RENDERS if owner is None else None,
+            max_active_per_owner=MAX_ACTIVE_RENDERS if owner is not None else None,
+        )
+    except JobLimitError as limit:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"You already have {limit.active} render(s) in flight. "
+                "Wait for one to finish before starting another."
+            ),
+            headers={"retry-after": "30"},
+        ) from limit
     return _job_to_response(job)
 
 

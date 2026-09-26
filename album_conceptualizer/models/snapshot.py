@@ -3,16 +3,21 @@
 The web app keeps albums in its own database and sends the engine a snapshot of the album
 JSON with each stateless request (export, agent workflows). This module is the single place
 that turns such a snapshot into engine models. It is deliberately lenient: ids that are not
-UUIDs are regenerated and unknown section types become ``other``, so a snapshot that the web
-app accepted is never rejected by the engine for cosmetic reasons.
+UUIDs are regenerated, unknown section types become ``other``, optional numbers outside the
+engine's range (tempo 0, release year 1850) are cleared, unreadable timestamps fall back to
+defaults and null lists read as empty, so a snapshot that the web app accepted is never
+rejected by the engine for cosmetic reasons.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from album_conceptualizer.models.album import Album, SectionType
+from pydantic import BaseModel, TypeAdapter, ValidationError
+
+from album_conceptualizer.models.album import Album, Section, SectionType, Song
 from album_conceptualizer.models.album_bible import (
     AlbumBible,
     Character,
@@ -30,6 +35,25 @@ _SECTION_ALIASES = {
     "post-chorus": "post_chorus",
     "hook": "chorus",
     "refrain": "chorus",
+}
+
+
+# Optional numbers the engine bounds but the web app does not: out-of-range values are cleared.
+_BOUNDED_INTS: dict[type[BaseModel], dict[str, tuple[int, int | None]]] = {
+    Album: {"release_year": (1900, 2100)},
+    Song: {"tempo": (1, None), "duration_seconds": (1, None)},
+    Section: {"duration_bars": (1, None)},
+}
+_TIMESTAMPS = ("created_at", "updated_at")
+_DATETIME = TypeAdapter(datetime)
+
+
+def _str_list_fields(model: type[BaseModel]) -> tuple[str, ...]:
+    return tuple(name for name, f in model.model_fields.items() if f.annotation == list[str])
+
+
+_LIST_FIELDS: dict[type[BaseModel], tuple[str, ...]] = {
+    model: _str_list_fields(model) for model in (Album, Song, Section)
 }
 
 
@@ -59,6 +83,40 @@ def _without_bad_id(item: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
+def _bounded_int(value: Any, low: int, high: int | None) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    if isinstance(value, float) and not value.is_integer():
+        return None
+    number = int(value)
+    if number < low or (high is not None and number > high):
+        return None
+    return number
+
+
+def _lenient(item: dict[str, Any], model: type[BaseModel]) -> dict[str, Any]:
+    """Clear the optional fields of ``item`` that ``model`` would reject for cosmetic reasons."""
+    data = _without_bad_id(item)
+    for name, (low, high) in _BOUNDED_INTS[model].items():
+        if name in data:
+            data[name] = _bounded_int(data[name], low, high)
+    for name in _LIST_FIELDS[model]:
+        if name in data:
+            value = data[name]
+            if value is None:
+                data[name] = []
+            elif isinstance(value, list):
+                data[name] = [entry for entry in value if entry is not None]
+    if model is Album:
+        for name in _TIMESTAMPS:
+            if name in data:
+                try:
+                    _DATETIME.validate_python(data[name])
+                except ValidationError:
+                    del data[name]  # the model's default applies
+    return data
+
+
 def album_from_snapshot(snapshot: Any) -> Album:
     """Read an album snapshot into an :class:`Album`.
 
@@ -68,17 +126,17 @@ def album_from_snapshot(snapshot: Any) -> Album:
     if not isinstance(snapshot, dict):
         raise InvalidSnapshotError("Album snapshot must be a JSON object.")
 
-    data = _without_bad_id(dict(snapshot))
+    data = _lenient(dict(snapshot), Album)
     songs = []
     for raw_song in data.get("songs") or []:
         if not isinstance(raw_song, dict):
             raise InvalidSnapshotError("Each song in the snapshot must be a JSON object.")
-        song = _without_bad_id(dict(raw_song))
+        song = _lenient(dict(raw_song), Song)
         sections = []
         for raw_section in song.get("sections") or []:
             if not isinstance(raw_section, dict):
                 raise InvalidSnapshotError("Each section in the snapshot must be a JSON object.")
-            section = _without_bad_id(dict(raw_section))
+            section = _lenient(dict(raw_section), Section)
             section["section_type"] = _section_type(section.get("section_type"))
             sections.append(section)
         song["sections"] = sections

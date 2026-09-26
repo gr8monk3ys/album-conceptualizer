@@ -1,5 +1,6 @@
 """Tests for agent API endpoints."""
 
+import threading
 import time
 from unittest.mock import MagicMock, patch
 
@@ -337,6 +338,70 @@ class TestConcurrencyLimit:
         )
         assert resp3.status_code == 429
         assert "Too many active agent jobs" in resp3.json()["detail"]
+
+    @patch("album_conceptualizer.api.v1.agents.MAX_ACTIVE_JOBS", 3)
+    @patch("album_conceptualizer.api.v1.agents.create_album_ideation_crew")
+    def test_parallel_submits_do_not_exceed_the_cap(self, mock_create, agent_client):
+        """Requests racing past the check together must not all start a crew."""
+        gate = threading.Event()
+        crew = MagicMock()
+        crew.kickoff.side_effect = lambda: gate.wait(10) and "done"
+
+        def slow_create(**_kwargs):
+            time.sleep(0.2)  # building a crew takes time; the race window stays open
+            return crew
+
+        mock_create.side_effect = slow_create
+        barrier = threading.Barrier(8)
+        codes: list[int] = []
+
+        def attempt(i: int) -> None:
+            barrier.wait()
+            resp = agent_client.post(
+                "/api/v1/agents/ideation",
+                json={"concept": f"Album {i}"},
+                headers={"x-owner-id": f"owner-{i}"},
+            )
+            codes.append(resp.status_code)
+
+        threads = [threading.Thread(target=attempt, args=(i,)) for i in range(8)]
+        try:
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            assert sorted(codes) == [202] * 3 + [429] * 5
+        finally:
+            gate.set()
+
+    @patch("album_conceptualizer.api.v1.agents.MAX_ACTIVE_JOBS_PER_OWNER", 2)
+    @patch("album_conceptualizer.api.v1.agents.create_album_ideation_crew")
+    def test_one_owner_cannot_hold_every_slot(self, mock_create, agent_client):
+        gate = threading.Event()
+        crew = MagicMock()
+        crew.kickoff.side_effect = lambda: gate.wait(10) and "done"
+        mock_create.return_value = crew
+
+        def start(owner: str):
+            return agent_client.post(
+                "/api/v1/agents/ideation",
+                json={"concept": "Album"},
+                headers={"x-owner-id": owner},
+            )
+
+        try:
+            assert start("alice").status_code == 202
+            assert start("alice").status_code == 202
+            third = start("alice")
+            assert third.status_code == 429
+            assert third.json()["detail"] == (
+                "You already have 2 agent jobs running (the limit is 2). "
+                "Wait for one to finish before starting another."
+            )
+            assert third.headers["retry-after"] == "30"
+            assert start("bob").status_code == 202
+        finally:
+            gate.set()
 
 
 WEB_SNAPSHOT = {

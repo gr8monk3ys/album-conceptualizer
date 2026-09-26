@@ -78,3 +78,101 @@ def test_bible_dedupes_themes_case_insensitively():
     assert bible.style_profile is not None
     assert bible.style_profile.primary_genre == "unspecified"
     assert bible.style_profile.vocabulary_notes == "dread"
+
+
+def _song(**fields):
+    return {"title": "S", "track_number": 1, **fields}
+
+
+@pytest.mark.parametrize(
+    ("fields", "attribute"),
+    [
+        ({"tempo": 0}, "tempo"),
+        ({"tempo": -90}, "tempo"),
+        ({"duration_seconds": 0}, "duration_seconds"),
+        ({"tempo": 120.5}, "tempo"),
+        ({"tempo": "fast"}, "tempo"),
+        ({"tempo": True}, "tempo"),
+    ],
+)
+def test_out_of_range_song_numbers_are_cleared(fields, attribute):
+    album = album_from_snapshot({"title": "T", "songs": [_song(**fields)]})
+    assert getattr(album.songs[0], attribute) is None
+
+
+def test_in_range_numbers_are_kept():
+    album = album_from_snapshot(
+        {
+            "title": "T",
+            "release_year": 2100,
+            "songs": [
+                _song(
+                    tempo=120.0,
+                    duration_seconds=1,
+                    sections=[{"section_type": "verse", "order": 0, "duration_bars": 8}],
+                )
+            ],
+        }
+    )
+    assert album.release_year == 2100
+    assert album.songs[0].tempo == 120
+    assert album.songs[0].duration_seconds == 1
+    assert album.songs[0].sections[0].duration_bars == 8
+
+
+def test_zero_duration_bars_is_cleared():
+    album = album_from_snapshot(
+        {
+            "title": "T",
+            "songs": [_song(sections=[{"section_type": "verse", "order": 0, "duration_bars": 0}])],
+        }
+    )
+    assert album.songs[0].sections[0].duration_bars is None
+
+
+@pytest.mark.parametrize("year", [1899, 2101, 0, 12345])
+def test_release_year_outside_range_is_cleared(year):
+    assert album_from_snapshot({"title": "T", "release_year": year}).release_year is None
+
+
+@pytest.mark.parametrize("value", [None, "not a date", 42])
+def test_unreadable_timestamps_fall_back_to_defaults(value):
+    album = album_from_snapshot({"title": "T", "created_at": value, "updated_at": value})
+    assert album.created_at is not None
+    assert album.updated_at is not None
+
+
+def test_valid_timestamps_are_kept():
+    album = album_from_snapshot({"title": "T", "created_at": "2024-05-01T12:00:00Z"})
+    assert album.created_at.year == 2024
+
+
+def test_null_lists_and_null_items_are_read_as_empty():
+    album = album_from_snapshot(
+        {
+            "title": "T",
+            "central_themes": None,
+            "secondary_genres": None,
+            "recurring_motifs": ["foghorn", None],
+            "reference_albums": None,
+            "visual_inspiration": None,
+            "songs": [
+                _song(
+                    themes=None,
+                    motifs=None,
+                    characters=[None, "Keeper"],
+                    genre_tags=None,
+                    mood_tags=None,
+                    reference_tracks=None,
+                    instrumentation=None,
+                    sections=[{"section_type": "verse", "order": 0, "chord_progression": None}],
+                )
+            ],
+        }
+    )
+    assert album.central_themes == []
+    assert album.recurring_motifs == ["foghorn"]
+    song = album.songs[0]
+    assert song.themes == [] and song.instrumentation == []
+    assert song.characters == ["Keeper"]
+    assert song.sections[0].chord_progression == []

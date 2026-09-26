@@ -9,7 +9,7 @@ from typing import Any, cast
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 
-from album_conceptualizer.api.jobs import Job, JobStatus, JobStore
+from album_conceptualizer.api.jobs import Job, JobLimitError, JobStatus, JobStore
 from album_conceptualizer.api.metrics import MetricsRegistry
 from album_conceptualizer.config import get_settings
 from album_conceptualizer.models.album import Album
@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 CREW_TIMEOUT_SECONDS = int(os.environ.get("ALBUM_CONCEPTUALIZER_CREW_TIMEOUT", "180"))
 MAX_ACTIVE_JOBS = int(os.environ.get("ALBUM_CONCEPTUALIZER_MAX_ACTIVE_JOBS", "5"))
+# One owner (X-Owner-Id) may not hold every slot. Ownerless callers share the global cap only.
+MAX_ACTIVE_JOBS_PER_OWNER = int(
+    os.environ.get("ALBUM_CONCEPTUALIZER_MAX_ACTIVE_JOBS_PER_OWNER", "2")
+)
 
 
 try:
@@ -118,16 +122,18 @@ def _require_crew_function(fn: Any) -> None:
         )
 
 
-def _check_concurrency_limit(job_store: JobStore) -> None:
-    """Reject if the global active-job limit is reached."""
-    active = job_store.count_active()
-    if active >= MAX_ACTIVE_JOBS:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Too many active agent jobs ({active}). "
-            f"Wait for running jobs to complete before starting another.",
-            headers={"retry-after": "30"},
+def _limit_exceeded(exc: JobLimitError) -> HTTPException:
+    if exc.scope == "owner":
+        detail = (
+            f"You already have {exc.active} agent jobs running (the limit is {exc.limit}). "
+            "Wait for one to finish before starting another."
         )
+    else:
+        detail = (
+            f"Too many active agent jobs ({exc.active}). "
+            "Wait for running jobs to complete before starting another."
+        )
+    return HTTPException(status_code=429, detail=detail, headers={"retry-after": "30"})
 
 
 def _get_metrics(request: Request) -> MetricsRegistry | None:
@@ -170,8 +176,6 @@ def _launch(request: Request, workflow: str, crew: Any) -> JobResponse:
     """Run ``crew`` as a supervised job owned by the caller."""
     job_store: JobStore = request.app.state.job_store
     metrics = _get_metrics(request)
-    if metrics:
-        metrics.record_agent_start(workflow)
 
     def on_finish(outcome: str) -> None:
         if not metrics:
@@ -183,14 +187,22 @@ def _launch(request: Request, workflow: str, crew: Any) -> JobResponse:
                 workflow, "timeout" if outcome == "timeout" else "crew_error"
             )
 
-    job = job_store.submit(
-        workflow,
-        lambda: {"output": str(crew.kickoff())},
-        owner_id=_get_owner_id(request),
-        timeout_seconds=CREW_TIMEOUT_SECONDS,
-        timeout_message=f"Timed out after {CREW_TIMEOUT_SECONDS}s.",
-        on_finish=on_finish,
-    )
+    try:
+        # Admission and job creation happen under the store's lock: the caps hold under races.
+        job = job_store.submit(
+            workflow,
+            lambda: {"output": str(crew.kickoff())},
+            owner_id=_get_owner_id(request),
+            timeout_seconds=CREW_TIMEOUT_SECONDS,
+            timeout_message=f"Timed out after {CREW_TIMEOUT_SECONDS}s.",
+            on_finish=on_finish,
+            max_active=MAX_ACTIVE_JOBS,
+            max_active_per_owner=MAX_ACTIVE_JOBS_PER_OWNER,
+        )
+    except JobLimitError as exc:
+        raise _limit_exceeded(exc) from exc
+    if metrics:
+        metrics.record_agent_start(workflow)
     return _job_to_response(job)
 
 
@@ -232,7 +244,6 @@ def agent_status() -> AgentStatusResponse:
 def start_ideation(req: IdeationRequest, request: Request) -> JobResponse:
     _require_anthropic_key()
     _require_crew_function(create_album_ideation_crew)
-    _check_concurrency_limit(request.app.state.job_store)
 
     crew = create_album_ideation_crew(
         concept=req.concept,
@@ -248,7 +259,6 @@ def start_song_development(req: SongDevelopmentRequest, request: Request) -> Job
     _album, bible = _resolve_album(req, request, "song development")
     _require_anthropic_key()
     _require_crew_function(create_song_development_crew)
-    _check_concurrency_limit(request.app.state.job_store)
 
     kwargs: dict = {}
     if req.mood is not None:
@@ -272,7 +282,6 @@ def start_coherence_review(req: CoherenceReviewRequest, request: Request) -> Job
     album, bible = _resolve_album(req, request, "coherence review")
     _require_anthropic_key()
     _require_crew_function(create_coherence_review_crew)
-    _check_concurrency_limit(request.app.state.job_store)
 
     album_content = "\n\n".join(
         f"Track {song.track_number}: {song.title}\n"
