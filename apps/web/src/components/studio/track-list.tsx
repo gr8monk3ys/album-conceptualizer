@@ -104,9 +104,11 @@ export function TrackList({
   const [cut, setCut] = useState<Cut>({ above: 0, below: 0 });
   // The theme matrix is one tab stop; arrow keys move within it (a roving tabindex).
   const [rove, setRove] = useState({ row: 0, col: 0 });
+  // The theme column whose toggle has keyboard focus, picked out in the legend.
+  const [focusedTheme, setFocusedTheme] = useState<number | null>(null);
   const themes = centralThemes.filter((t) => t.trim()).slice(0, MAX_THEME_COLUMNS);
   const hiddenThemes = centralThemes.filter((t) => t.trim()).length - themes.length;
-  // Short horizontal keys head the theme columns (spelled out in a legend), as in the spine.
+  // Each toggle shows its theme's short key (the first letters of the name over its column).
   const abbreviations = themeAbbreviations(themes);
   const activeId = songs[activeIndex]?.id;
   const roveRow = Math.min(rove.row, Math.max(0, songs.length - 1));
@@ -192,9 +194,10 @@ export function TrackList({
       // Beside the editor the list sticks under the header and save bar (their measured
       // height, set by the Studio as --sticky-offset), except on short screens, where a
       // sticky column would leave no room to write.
+      // The breakpoint is in em, so it follows the reader's text size.
       className={cn(
         "flex min-w-0 flex-col",
-        "[@media(min-height:501px)]:@2xl:sticky [@media(min-height:501px)]:@2xl:top-[var(--sticky-offset,var(--header-h))] [@media(min-height:501px)]:@2xl:max-h-[calc(100dvh_-_var(--sticky-offset,var(--header-h))_-_1rem)] @2xl:self-start",
+        "[@media(min-height:31.3125em)]:@2xl:sticky [@media(min-height:31.3125em)]:@2xl:top-[var(--sticky-offset,var(--header-h))] [@media(min-height:31.3125em)]:@2xl:max-h-[calc(100dvh_-_var(--sticky-offset,var(--header-h))_-_1rem)] @2xl:self-start",
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -213,9 +216,12 @@ export function TrackList({
         <TableScroller
           ref={scrollRef}
           label="Track list"
-          className="mt-1 min-h-0 border-b border-line focus-visible:-outline-offset-2 [@media(min-height:501px)]:@2xl:flex-1 [@media(min-height:501px)]:@2xl:overflow-y-auto"
+          className="mt-1 min-h-0 border-b border-line focus-visible:-outline-offset-2 [@media(min-height:31.3125em)]:@2xl:flex-1 [@media(min-height:31.3125em)]:@2xl:overflow-y-auto"
         >
-          <table className="w-full border-collapse text-left">
+          <table
+            className="w-full border-collapse text-left"
+            aria-describedby={themes.length ? "theme-legend" : undefined}
+          >
             <caption className="sr-only">
               Tracks in order, with lyrics written, the central themes each carries and its role.
               Choose a track to edit it.
@@ -233,17 +239,14 @@ export function TrackList({
                 <th scope="col" className={cn(HEAD, "w-px text-right")}>
                   Lyrics
                 </th>
-                {themes.length ? (
-                  <th scope="col" className={cn(HEAD, "w-px text-right @5xl:hidden")}>
-                    Themes
-                  </th>
-                ) : null}
-                {themes.map((theme, col) => (
-                  <th key={theme} scope="col" className={cn(HEAD, "hidden w-px px-0 text-center @5xl:table-cell")}>
-                    <abbr title={theme} aria-hidden="true" className="no-underline">
-                      {abbreviations[col]}
-                    </abbr>
-                    <span className="sr-only">{theme}</span>
+                {themes.map((theme) => (
+                  // The theme's name, cut to the 44px column with an ellipsis; the full name is
+                  // the header's text (so its accessible name), its tooltip, and in the legend
+                  // below, where the theme under keyboard focus is picked out.
+                  <th key={theme} scope="col" className={cn(HEAD, "hidden w-11 px-0 text-center @5xl:table-cell")}>
+                    <span title={theme} className="mx-auto block w-11 truncate px-0.5">
+                      {theme}
+                    </span>
                   </th>
                 ))}
                 <th scope="col" className={cn(HEAD, "hidden w-32 pl-3 @7xl:table-cell")}>
@@ -289,6 +292,7 @@ export function TrackList({
                         onClick={() => onSelect(index)}
                         aria-current={isActive ? "true" : undefined}
                         aria-keyshortcuts={TRACK_KEYSHORTCUTS}
+                        aria-describedby={themes.length ? `track-themes-${index}` : undefined}
                         className={cn(
                           // The ring is drawn inset: the scroller would clip it at the row's edge.
                           "flex min-h-11 w-full min-w-32 flex-col justify-center text-left focus-visible:-outline-offset-2 after:absolute after:inset-0 after:content-['']",
@@ -302,20 +306,23 @@ export function TrackList({
                         {position ? (
                           <span className="line-clamp-2 break-words text-xs text-ink-2 @7xl:hidden">{position}</span>
                         ) : null}
+                        {themes.length ? (
+                          // Without the theme columns, the names of the themes it carries, as text.
+                          <span aria-hidden="true" className="type-catalog break-words text-xs text-ink-2 @5xl:hidden">
+                            {carried.length ? carried.join(" · ") : <span className="text-ink-3">No album themes</span>}
+                          </span>
+                        ) : null}
                       </button>
+                      {themes.length ? (
+                        <span id={`track-themes-${index}`} className="sr-only">
+                          {carriedThemesPhrase(carried, themes.length)}
+                        </span>
+                      ) : null}
                     </th>
                     <td className="type-figure px-1 text-right align-middle text-sm text-ink-2">
                       <span aria-hidden="true">{lyricFraction(progress)}</span>
                       <span className="sr-only">{lyricSentence(progress)}</span>
                     </td>
-                    {themes.length ? (
-                      <td className="type-figure px-1 text-right align-middle text-sm text-ink-2 @5xl:hidden">
-                        <span aria-hidden="true">
-                          {carried.length}/{themes.length}
-                        </span>
-                        <span className="sr-only">{carriedThemesPhrase(carried, themes.length)}</span>
-                      </td>
-                    ) : null}
                     {themes.map((theme, col) => {
                       const carries = carriedKeys.has(theme.trim().toLowerCase());
                       const tabbable = index === roveRow && col === roveCol;
@@ -329,7 +336,11 @@ export function TrackList({
                             title={`${carries ? "Untag" : "Tag"} track ${song.track_number}: ${theme}`}
                             tabIndex={tabbable ? 0 : -1}
                             aria-describedby={tabbable ? "theme-matrix-hint" : undefined}
-                            onFocus={() => setRove({ row: index, col })}
+                            onFocus={() => {
+                              setRove({ row: index, col });
+                              setFocusedTheme(col);
+                            }}
+                            onBlur={() => setFocusedTheme(null)}
                             onKeyDown={(e) => onMatrixKeyDown(e, index, col)}
                             onClick={() => onToggleTheme(index, theme)}
                             // Above the row's stretched select box. A tagged cell gets a
@@ -375,11 +386,24 @@ export function TrackList({
       )}
 
       {themes.length ? (
-        // The key to the theme columns; the column heads carry the full names for screen readers.
-        <p aria-hidden="true" className="mt-2 hidden max-w-[65ch] flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2 @5xl:flex">
+        // The theme columns spelled out in full, left to right, tied to the table as its
+        // description. While a theme toggle has focus, its theme is picked out here, so the
+        // full name is on screen for keyboard users too (a tooltip only follows the pointer).
+        <p id="theme-legend" className="mt-2 hidden max-w-[65ch] flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2 @5xl:flex">
+          <span className="sr-only">Album themes, in column order: </span>
           {themes.map((theme, col) => (
-            <span key={theme} className="min-w-0 break-words">
-              <span className="type-catalog text-ink-3">{abbreviations[col]}</span> {theme}
+            <span
+              key={theme}
+              className={cn(
+                "min-w-0 break-words",
+                focusedTheme === col && "font-semibold text-ink underline decoration-line-strong underline-offset-4",
+              )}
+            >
+              <span aria-hidden="true" className="type-catalog text-ink-3">
+                {abbreviations[col]}
+              </span>{" "}
+              {theme}
+              {col < themes.length - 1 ? <span className="sr-only">,</span> : null}
             </span>
           ))}
         </p>
@@ -409,6 +433,60 @@ export function TrackList({
         </p>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * The current track's album themes as a row of toggles, for layouts where the track list has
+ * no theme columns (a phone, enlarged text): each theme by its name, pressed when the track
+ * carries it. Pressed is a filled Bone Ink chip with Ground lettering (CanvasText/Canvas in
+ * forced colors); unpressed, an outline chip.
+ */
+export function TrackThemeToggles({
+  song,
+  centralThemes,
+  onToggle,
+  className,
+}: {
+  song: StudioSong;
+  centralThemes: string[];
+  onToggle: (theme: string) => void;
+  className?: string;
+}) {
+  const themes = centralThemes.filter((t) => t.trim()).slice(0, MAX_THEME_COLUMNS);
+  if (!themes.length) return null;
+  const carried = new Set(carriedThemes(song.themes, themes).map((t) => t.trim().toLowerCase()));
+  const labelId = `track-theme-toggles-${song.id ?? song.track_number}`;
+  return (
+    <div role="group" aria-labelledby={labelId} className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      <p id={labelId} className="text-sm font-medium text-ink">
+        Album themes on this track
+      </p>
+      <div className="flex min-w-0 flex-wrap gap-2">
+        {themes.map((theme) => {
+          const carries = carried.has(theme.trim().toLowerCase());
+          return (
+            <button
+              key={theme}
+              type="button"
+              aria-pressed={carries}
+              onClick={() => onToggle(theme)}
+              className={cn(
+                "type-catalog inline-flex min-h-11 min-w-11 max-w-full items-center justify-center break-words rounded border px-3 text-xs transition-colors forced-color-adjust-none",
+                carries
+                  ? "border-ink bg-ink font-semibold text-ground forced-colors:border-[color:CanvasText] forced-colors:bg-[CanvasText] forced-colors:text-[Canvas]"
+                  : "border-line-strong text-ink-2 hover:bg-hover hover:text-ink forced-colors:border-[color:GrayText] forced-colors:text-[CanvasText]",
+              )}
+            >
+              {theme}
+            </button>
+          );
+        })}
+      </div>
+      <p className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
+        Pressed means this track carries the theme; the coherence report checks each track for them.
+      </p>
+    </div>
   );
 }
 

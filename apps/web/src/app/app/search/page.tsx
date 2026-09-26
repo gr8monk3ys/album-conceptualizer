@@ -145,6 +145,7 @@ export default async function SearchPage({
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
+        size="page"
         title="Search"
         description="Find an album by title, artist or concept, a song by name or story note, a theme or motif you tagged, or a line you wrote in any lyric draft."
       />

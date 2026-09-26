@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { RelativeTime } from "@/components/relative-time";
-import { Button, EmptyState, Field, Panel, Section, StatusMessage, inputClass } from "@/components/ui";
+import { Button, EmptyState, Field, LiveStatus, Panel, Section, inputClass } from "@/components/ui";
+import { useReturnFocus } from "@/components/use-return-focus";
 
 type VersionListItem = {
   id: string;
@@ -42,6 +43,9 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [restoreStatus, setRestoreStatus] = useState<Status>(null);
   const named = Boolean(message.trim());
+  const returnFocus = useReturnFocus();
+  // Each version's Restore button, so Cancel can hand focus back to the one it replaced.
+  const restoreButtons = useRef(new Map<string, HTMLButtonElement>());
 
   async function save() {
     const trimmed = message.trim();
@@ -132,7 +136,8 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                   Name the version to save it.
                 </p>
               )}
-              {saveStatus ? <StatusMessage tone={saveStatus.tone}>{saveStatus.text}</StatusMessage> : null}
+              {/* Always mounted, so "Version saved." is announced when it arrives. */}
+              <LiveStatus message={saveStatus?.text ?? null} tone={saveStatus?.tone} />
             </div>
           </form>
         </Panel>
@@ -166,6 +171,10 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                     </div>
                     {confirming ? null : (
                       <Button
+                        ref={(node) => {
+                          if (node) restoreButtons.current.set(version.id, node);
+                          else restoreButtons.current.delete(version.id);
+                        }}
                         disabled={Boolean(restoringId)}
                         onClick={() => {
                           setConfirmingId(version.id);
@@ -193,13 +202,18 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                         >
                           {restoringId === version.id ? "Restoring…" : "Restore this version"}
                         </Button>
-                        <Button tone="ghost" disabled={Boolean(restoringId)} onClick={() => setConfirmingId(null)}>
+                        <Button
+                          tone="ghost"
+                          disabled={Boolean(restoringId)}
+                          onClick={() => {
+                            setConfirmingId(null);
+                            returnFocus(() => restoreButtons.current.get(version.id));
+                          }}
+                        >
                           Cancel
                         </Button>
                       </div>
-                      {restoreStatus ? (
-                        <StatusMessage tone={restoreStatus.tone}>{restoreStatus.text}</StatusMessage>
-                      ) : null}
+                      <LiveStatus message={restoreStatus?.text ?? null} tone={restoreStatus?.tone} />
                     </div>
                   ) : null}
                 </li>

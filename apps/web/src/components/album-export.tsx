@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, type MouseEvent } from "react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
-import { Panel, Section, StatusMessage, buttonClass } from "@/components/ui";
+import { LiveStatus, Panel, Section, buttonClass } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
-type ExportFormat = "midi" | "chordpro" | "musicxml" | "json" | "text";
+export type ExportFormat = "midi" | "chordpro" | "musicxml" | "json" | "text";
 
 type Status = { tone: "ok" | "danger" | "neutral"; text: string } | null;
 
@@ -110,6 +110,18 @@ function credits(n: number) {
   return `${n} ${n === 1 ? "credit" : "credits"}`;
 }
 
+/**
+ * What to do with the zip once it is down, for the formats in it: the export ends on the next
+ * step of the work, not on the balance. MIDI leads because it is what goes into a DAW.
+ */
+export function zipNextStep(formats: ReadonlySet<ExportFormat>): string {
+  if (formats.has("midi")) return "open the MIDI files in your DAW (one per track, at each track's tempo)";
+  if (formats.has("musicxml")) return "open the MusicXML files in MuseScore, Finale or Sibelius";
+  if (formats.has("chordpro")) return "open the ChordPro charts in OnSong or SongBook";
+  if (formats.has("json")) return "keep the JSON as a backup, or import it elsewhere";
+  return "the tracklist is in the text file";
+}
+
 export function AlbumExport({
   albumId,
   creditsRemaining,
@@ -163,7 +175,7 @@ export function AlbumExport({
     }
     const left = Math.max(0, remaining - cost);
     setRemaining(left);
-    setZipStatus({ tone: "ok", text: `Zip downloaded. ${credits(left)} left.` });
+    setZipStatus({ tone: "ok", text: `Zip downloaded — ${zipNextStep(selected)}. ${credits(left)} left.` });
     // The zip was charged for; re-render the server layout so the credits meter agrees.
     router.refresh();
   }
@@ -235,9 +247,7 @@ export function AlbumExport({
             Every pack also carries the album blueprint, the Style bible, your references, rough
             demo reviews and the top Coherence fixes. Fields you haven&apos;t set are left out. Handoff packs don&apos;t use credits.
           </p>
-          {handoffStatus ? (
-            <StatusMessage tone={handoffStatus.tone}>{handoffStatus.text}</StatusMessage>
-          ) : null}
+          <LiveStatus message={handoffStatus?.text ?? null} tone={handoffStatus?.tone} />
         </div>
       </Section>
 
@@ -337,9 +347,8 @@ export function AlbumExport({
                     . Handoff packs above are free.
                   </p>
                 )}
-                {zipStatus ? (
-                  <StatusMessage tone={zipStatus.tone}>{zipStatus.text}</StatusMessage>
-                ) : null}
+                {/* Always mounted, so "Preparing…" and the result are both announced. */}
+                <LiveStatus message={zipStatus?.text ?? null} tone={zipStatus?.tone} />
               </div>
             </div>
           </div>

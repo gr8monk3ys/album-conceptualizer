@@ -27,6 +27,7 @@ export default async function LibraryPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
+        size="page"
         title="Library"
         catalog={albums.length ? <span className="type-figure">{count}</span> : undefined}
         description="Every album in this workspace, most recently edited first."

@@ -35,9 +35,10 @@
   /* Height of the app header. */
   --header-h: 4.3125rem;
   /* How much of the top of the window the app header covers: its height where it sticks,
-     nothing on a short screen (500px or less, a phone held sideways, or 200% text), where it
-     scrolls away with the page instead of taking a third of the window. Scroll padding and
-     anything sticky below the header read this, never --header-h. */
+     nothing on a short screen (under 31.3125em: 500px or less at the default text size, a
+     phone held sideways, or a phone at 200% text), where it scrolls away with the page
+     instead of taking a third of the window. Scroll padding and anything sticky below the
+     header read this, never --header-h. */
   --header-offset: 0px;
 
   /* The sidebar's rendered width: none below 768px (it is a sheet there), 16rem capped at a
@@ -52,8 +53,10 @@
   }
 }
 
-/* The same breakpoint as the header's own `[@media(min-height:501px)]:sticky`. */
-@media (min-height: 501px) {
+/* The same breakpoint as the header's own `[@media(min-height:31.3125em)]:sticky`. In em,
+   because it exists for text size: a media query's em is the reader's default font size, so
+   at 200% text the header needs a window twice as tall before it sticks. */
+@media (min-height: 31.3125em) {
   :root {
     --header-offset: var(--header-h);
   }
@@ -107,8 +110,11 @@
   --text-display-xl: clamp(2rem, min(1.1rem + 3.9vw, 11cqi), 3.5rem);
   --text-display-xl--line-height: 1.02;
   /* The album title in the release header on every album screen: 2.25rem on a phone,
-     growing to 3.75rem on a wide screen (and stepping down in a narrow header, see above). */
-  --text-display-release: clamp(max(1.5rem, min(2.25rem, 13cqi)), min(1.35rem + 2.6vw, 13cqi), 3.75rem);
+     growing to 3.75rem on a wide screen, and never above 13% of a narrow header. Its floor is
+     1rem, not 1.5rem: at 320px with 200% text the header is 256px wide, and at the old 48px
+     floor a nine-letter word ("Lighthouse") was wider than that and broke inside itself; at
+     13% (33px) it fits. From 320px at normal text size nothing changes (36px). */
+  --text-display-release: clamp(max(1rem, min(2.25rem, 13cqi)), min(1.35rem + 2.6vw, 13cqi), 3.75rem);
   --text-display-release--line-height: 1.02;
 
   /* Archivo is self-hosted by next/font (app/layout.tsx); latin-ext loads only when needed.

@@ -11,7 +11,7 @@ import {
   Field,
   Panel,
   Section,
-  StatusMessage,
+  LiveStatus,
   inputClass,
   selectClass,
   textareaClass,
@@ -632,10 +632,10 @@ export function AlbumReferencesWorkspace({
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button type="submit" tone="primary" disabled={isSubmitting}>
+            <Button type="submit" tone="primary" busy={isSubmitting}>
               {isSubmitting ? "Saving…" : mode === "edit" ? "Save reference" : "Add reference"}
             </Button>
-            {formError ? <StatusMessage tone="danger">{formError}</StatusMessage> : null}
+            <LiveStatus message={formError} tone="danger" />
           </div>
         </form>
       </Panel>
@@ -660,11 +660,7 @@ export function AlbumReferencesWorkspace({
           {uniqueRoles === 1 ? "role" : "roles"}
         </p>
       </div>
-      {listError ? (
-        <StatusMessage tone="danger" className="mt-3">
-          {listError}
-        </StatusMessage>
-      ) : null}
+      <LiveStatus message={listError} tone="danger" className="mt-3" />
       <ul className="divide-y divide-line">
         {references.map((reference) => {
           const isEditing = editing?.id === reference.id;
@@ -843,12 +839,7 @@ export function AlbumReferencesWorkspace({
         }
       >
         <div className="flex flex-col gap-6">
-          <p
-            role="status"
-            className={notice ? (notice.tone === "ok" ? "text-sm text-ok" : "text-sm text-ink-2") : "sr-only"}
-          >
-            {notice?.text}
-          </p>
+          <LiveStatus message={notice?.text ?? null} tone={notice?.tone === "ok" ? "ok" : "neutral"} />
           {addOpen ? renderForm("add") : null}
           {references.length ? list : addOpen ? null : emptyState}
         </div>

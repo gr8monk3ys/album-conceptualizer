@@ -288,6 +288,32 @@ export function carriedThemes(songThemes: readonly string[] | null | undefined, 
   return albumThemes.filter((t) => carried.has(t.trim().toLowerCase()));
 }
 
+/**
+ * Chords anywhere on the album that the exports can't read: how many tokens, and the first
+ * section that has one (album order), so the save status can say "Saved · 2 chords won't
+ * export" and take the artist to the field.
+ */
+export function unreadableChordsOnAlbum(
+  songs: readonly { sections?: readonly { chord_progression?: unknown }[] | null }[],
+): { count: number; first: { song: number; section: number } | null } {
+  let count = 0;
+  let first: { song: number; section: number } | null = null;
+  songs.forEach((song, songIndex) => {
+    (song.sections ?? []).forEach((section, sectionIndex) => {
+      const bad = invalidChords(section?.chord_progression).length;
+      if (!bad) return;
+      count += bad;
+      first ??= { song: songIndex, section: sectionIndex };
+    });
+  });
+  return { count, first };
+}
+
+/** "1 chord won’t export", "3 chords won’t export" (the save status adds "Saved · "). */
+export function unreadableChordsStatus(count: number): string {
+  return `${count} ${count === 1 ? "chord" : "chords"} won’t export`;
+}
+
 /** Index of the first section whose lyrics aren't written yet, or -1 when all are. */
 export function firstUnwrittenSection(sections: readonly { lyrics?: unknown }[] | null | undefined): number {
   return (sections ?? []).findIndex((section) => !isWrittenLyrics(section?.lyrics));

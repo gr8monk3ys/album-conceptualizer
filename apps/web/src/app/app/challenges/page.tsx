@@ -11,7 +11,7 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Challenges",
-  description: "A short songwriting prompt each day. Completing it earns workspace credits.",
+  description: "A short songwriting prompt each day. Writing it into an album earns workspace credits.",
 };
 
 const PLAN_NAME = { free: "Free", pro: "Pro", team: "Team" } as const;
@@ -64,7 +64,7 @@ export default async function ChallengesPage() {
         createdAt: true,
       },
     }),
-    // For the optional "Written for" choice, and to link a finished entry back to its album.
+    // For the "Written in" choice, and to link a finished entry back to its album.
     prisma.album.findMany({
       where: { workspaceId: workspace.id },
       orderBy: { updatedAt: "desc" },
@@ -81,6 +81,8 @@ export default async function ChallengesPage() {
     where: {
       workspaceId: workspace.id,
       challengeDay: { gte: since },
+      // A note saved without credits (the writing didn't show) doesn't count toward the run.
+      creditsEarned: { gt: 0 },
     },
     orderBy: { challengeDay: "desc" },
     select: { challengeDay: true, creditsEarned: true },
@@ -94,7 +96,8 @@ export default async function ChallengesPage() {
     <div className="flex flex-col gap-10">
       <PageHeader
         title="Challenges"
-        description="One short writing prompt a day, the same for everyone. Write against it in any album, note what you drafted and where, and your workspace earns the credits shown. A new prompt arrives at 00:00 UTC."
+        size="page"
+        description="One short writing prompt a day, the same for everyone. Write against it in one of your albums, then note what you drafted and where. The credits come once that album shows lyrics written today (UTC). A new prompt arrives at 00:00 UTC."
       />
 
       {/* Rem-sized container query: with enlarged text the side column folds under the prompt. */}
@@ -103,10 +106,16 @@ export default async function ChallengesPage() {
           <DailyChallengeCard
             day={day}
             challenge={challenge}
-            completed={Boolean(completion)}
-            completionNote={completion ? (completion.notes ?? "") : null}
-            completionLink={completionLink}
-            completionTime={completion?.createdAt?.toISOString() ?? null}
+            completion={
+              completion
+                ? {
+                    note: completion.notes ?? "",
+                    link: completionLink,
+                    time: completion.createdAt.toISOString(),
+                    creditsEarned: completion.creditsEarned,
+                  }
+                : null
+            }
             albums={albums.map((album) => ({
               id: album.id,
               title: album.title,

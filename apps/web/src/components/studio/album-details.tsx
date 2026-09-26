@@ -28,8 +28,9 @@ export function albumFocusTarget(album: Pick<StudioAlbum, "concept_summary" | "c
 }
 
 /**
- * The album-level fields the Studio edits alongside the tracks, as a disclosure below the
- * track editor so the writing surface stays first.
+ * The album-level fields the Studio edits alongside the tracks, as a collapsed disclosure at the
+ * very bottom of the editor column, named for its reach ("all tracks") so it never reads as
+ * part of the current track.
  */
 export function AlbumDetails({
   album,
@@ -59,7 +60,7 @@ export function AlbumDetails({
           onClick={() => onOpenChange(!open)}
           className="-mx-2 inline-flex min-h-11 items-center gap-2 rounded px-2 transition-colors hover:bg-hover"
         >
-          Album details
+          Album details (all tracks)
           <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} aria-hidden="true" />
         </button>
       </h2>

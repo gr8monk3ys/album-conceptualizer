@@ -319,7 +319,12 @@ export function buildHandoffPackMarkdown(input: {
   }
   lines.push(
     `- **Coherence:** ${
-      coherence.insufficient ? "Not scored yet" : `${coherence.score}/100 · ${verdictText(coherence.verdict)}`
+      coherence.insufficient
+        ? "Not scored yet"
+        : coherence.writtenScore !== null
+          ? // Progress first, as the report reads: the capped whole-album score comes second.
+            `${verdictText(coherence.verdict)} · the written tracks score ${coherence.writtenScore}/100 (the whole album ${coherence.score}/100 until the rest are written)`
+          : `${coherence.score}/100 · ${verdictText(coherence.verdict)}`
     }`,
   );
   if (coherence.nextActions.length) {

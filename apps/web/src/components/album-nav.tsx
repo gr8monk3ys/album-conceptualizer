@@ -205,6 +205,22 @@ export function AlbumNextAction(props: { albumId: string; step: HeaderStep }) {
 }
 
 /**
+ * The side column's width by the number of album themes, so the spine can head its theme
+ * columns by name (`themeHeadClasses`: 15rem plus 3rem a theme, and 1rem more for a scrollbar)
+ * wherever the album body has room. From 56rem the column is 22rem, the narrowest, where
+ * three or more themes fall back to keys; from 64rem it widens to fit names for up to four
+ * themes (28rem at most, leaving the content at least 33.5rem); from 72rem, for all six.
+ * (Literal class names, so Tailwind generates them.)
+ */
+const SPINE_COLUMNS: Record<number, string> = {
+  2: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @6xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]",
+  3: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @5xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]",
+  4: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @5xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]",
+  5: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @5xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] @6xl:grid-cols-[minmax(0,31rem)_minmax(0,1fr)]",
+  6: "@4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @5xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] @6xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]",
+};
+
+/**
  * The spine sits beside the content on large screens and folds into a "Sequence"
  * disclosure above it on smaller ones; on the Overview, the album's home, that disclosure
  * starts open so a phone shows the whole sequence. The Studio has its own editable track
@@ -214,11 +230,14 @@ export function AlbumBody({
   spine,
   compactSpine,
   trackCount,
+  themeCount = 0,
   children,
 }: {
   spine: ReactNode;
   compactSpine: ReactNode;
   trackCount: number;
+  /** The album's central themes shown in the spine (at most six): the side column fits their names. */
+  themeCount?: number;
   children: ReactNode;
 }) {
   const segment = usePathname()?.match(/\/app\/albums\/[^/]+\/([^/]+)/)?.[1] ?? "";
@@ -234,10 +253,11 @@ export function AlbumBody({
   // scaled up, the spine folds into the disclosure instead of squeezing the content. 22rem
   // fits six theme marks beside an 8rem title and the "Lyrics" and "Role" heads (21rem was
   // 10px short, so the spine scrolled sideways); from 72rem the spine takes 24rem so titles
-  // wrap less.
+  // wrap less; with three or more themes it widens further so they are headed by name.
+  const columns = SPINE_COLUMNS[Math.max(2, Math.min(6, themeCount))];
   return (
     <div className="@container min-w-0">
-      <div className="grid min-w-0 grid-cols-1 gap-6 @4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @4xl:gap-10 @6xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+      <div className={cn("grid min-w-0 grid-cols-1 gap-6 @4xl:gap-10", columns)}>
         {/* Sticky just below the app header (at the top on a short screen, where the header
             scrolls away); the negative margin and padding line its top up with the content
             while keeping it clear of the header once it sticks. */}

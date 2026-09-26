@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui";
+import { useReturnFocus } from "@/components/use-return-focus";
 
 function credits(n: number) {
   return `${n} ${n === 1 ? "credit" : "credits"}`;
@@ -16,8 +17,9 @@ function credits(n: number) {
  *
  * Focus never drops to the page: while the spend runs, the confirm stays focused and busy
  * (`Button busy`, so a second press can't spend twice), and when it is done on a screen that
- * stays, the confirm closes and focus goes back to the trigger. If the spend navigates away,
- * there is nothing to return to and nothing is done.
+ * stays, the confirm closes and focus goes back to the trigger, after the close has committed
+ * (`useReturnFocus`, which also survives the `router.refresh()` a spend usually makes). If the
+ * spend navigates away, there is nothing to return to and nothing is done.
  */
 export function ConfirmSpend({
   cost,
@@ -53,6 +55,7 @@ export function ConfirmSpend({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const confirmRef = useRef<HTMLButtonElement | null>(null);
   const mounted = useRef(false);
+  const returnFocus = useReturnFocus();
   const known = typeof remaining === "number";
   const after = known ? remaining - cost : null;
   const affordable = after === null || after >= 0;
@@ -71,7 +74,7 @@ export function ConfirmSpend({
 
   function close() {
     setOpen(false);
-    requestAnimationFrame(() => triggerRef.current?.focus());
+    returnFocus(() => triggerRef.current);
   }
 
   async function confirm() {

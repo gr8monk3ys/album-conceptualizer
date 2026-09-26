@@ -79,13 +79,15 @@ describe("not-found title", () => {
 });
 
 describe("sticky app header", () => {
-  it("sticks only on screens taller than 500px, and only then counts in the scroll padding", () => {
+  it("sticks only on screens taller than 31.3125em (501px at default text), and only then counts in the scroll padding", () => {
     const layout = read("app/app/layout.tsx");
-    expect(layout).toContain("[@media(min-height:501px)]:sticky");
+    // In em, so enlarged text needs a taller window before the header sticks.
+    expect(layout).toContain("[@media(min-height:31.3125em)]:sticky");
+    expect(layout).not.toMatch(/min-height:\d+px/);
     expect(layout).not.toMatch(/className="sticky top-0/);
     const css = read("app/globals.css");
     expect(css).toMatch(/--header-offset:\s*0px/);
-    expect(css).toMatch(/@media \(min-height: 501px\)\s*\{\s*:root\s*\{\s*--header-offset:\s*var\(--header-h\)/);
+    expect(css).toMatch(/@media \(min-height: 31\.3125em\)\s*\{\s*:root\s*\{\s*--header-offset:\s*var\(--header-h\)/);
     expect(css).toContain("scroll-padding-top: calc(var(--sticky-offset, var(--header-offset)) + 1rem)");
   });
 });

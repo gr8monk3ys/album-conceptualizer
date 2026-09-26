@@ -49,6 +49,7 @@ export default async function AnalyticsPage() {
   return (
     <div className="flex flex-col gap-10">
       <PageHeader
+        size="page"
         title="Album progress"
         description="How your albums move from first draft to export and publishing. Each album counts once per stage."
       />

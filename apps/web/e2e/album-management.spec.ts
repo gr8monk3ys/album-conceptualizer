@@ -297,6 +297,9 @@ test.describe("Album Management", () => {
       await expect(page).toHaveTitle(/Page not found/);
       expect(await page.evaluate(() => document.title)).toContain("Page not found");
     }
+    // Under the album's header, the not-found heading is the page's one h1, not the album title.
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("This album has no page called “mix”");
   });
 
   test("analytics page shows the new project in the workspace funnel", async ({ page }) => {

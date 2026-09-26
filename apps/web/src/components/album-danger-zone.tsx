@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 
-import { Button, Field, StatusMessage, inputClass } from "@/components/ui";
+import { Button, Field, LiveStatus, inputClass } from "@/components/ui";
+import { useReturnFocus } from "@/components/use-return-focus";
 
 /**
  * Deleting an album cannot be undone, so the button opens an inline confirmation that asks
@@ -17,6 +18,8 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const matches = typed.trim() === albumTitle.trim();
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocus = useReturnFocus();
 
   async function remove() {
     if (!matches || busy) return;
@@ -93,16 +96,18 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
                 setConfirming(false);
                 setTyped("");
                 setError(null);
+                // Cancel goes with the form; focus goes back to the button that opened it.
+                returnFocus(() => triggerRef.current);
               }}
             >
               Cancel
             </Button>
           </div>
-          {error ? <StatusMessage tone="danger">{error}</StatusMessage> : null}
+          <LiveStatus message={error} tone="danger" />
         </form>
       ) : (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Button tone="ghost" className="text-danger hover:bg-danger-soft hover:text-danger" onClick={() => setConfirming(true)}>
+          <Button ref={triggerRef} tone="ghost" className="text-danger hover:bg-danger-soft hover:text-danger" onClick={() => setConfirming(true)}>
             Delete album…
           </Button>
           <p className="min-w-0 max-w-[65ch] text-xs leading-relaxed text-ink-3">

@@ -17,15 +17,26 @@ function songsOf(data: unknown): Raw[] {
 }
 
 /**
- * "7 tracks · lyrics on 5": the track count and how many tracks have any written lyrics (count
- * those with `getSpineRows`, whose `lyricSections` follows @/lib/lyrics).
+ * ["7 tracks", "lyrics on 5"]: the track count and how many tracks have any written lyrics
+ * (count those with `getSpineRows`, whose `lyricSections` follows @/lib/lyrics), as two
+ * catalog items. `CatalogItems` joins them, so no separator is baked into the text.
  */
-export function writtenSummaryLine({ tracks, withLyrics }: { tracks: number; withLyrics: number }) {
+export function writtenSummaryItems({ tracks, withLyrics }: { tracks: number; withLyrics: number }): string[] {
   const count = `${tracks} ${tracks === 1 ? "track" : "tracks"}`;
-  if (!tracks) return count;
-  if (!withLyrics) return `${count} · no lyrics yet`;
-  if (withLyrics === tracks) return `${count} · lyrics on all`;
-  return `${count} · lyrics on ${withLyrics}`;
+  if (!tracks) return [count];
+  if (!withLyrics) return [count, "no lyrics yet"];
+  if (withLyrics === tracks) return [count, "lyrics on all"];
+  return [count, `lyrics on ${withLyrics}`];
+}
+
+/**
+ * The card's lyric strip in one phrase for screen readers: "Lyrics written on 5 of 7 tracks".
+ */
+export function lyricStripPhrase({ tracks, withLyrics }: { tracks: number; withLyrics: number }): string {
+  if (!tracks) return "";
+  if (!withLyrics) return `No lyrics written yet on ${tracks === 1 ? "its 1 track" : `its ${tracks} tracks`}`;
+  if (withLyrics === tracks) return tracks === 1 ? "Lyrics written on its 1 track" : `Lyrics written on all ${tracks} tracks`;
+  return `Lyrics written on ${withLyrics} of ${tracks} tracks`;
 }
 
 /**

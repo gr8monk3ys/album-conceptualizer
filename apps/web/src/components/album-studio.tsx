@@ -1,8 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, Copy, Download, Loader2, Play, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  CircleHelp,
+  Copy,
+  Download,
+  History,
+  Loader2,
+  Play,
+  Plus,
+  RotateCcw,
+  Save,
+  Trash2,
+} from "lucide-react";
 
 import { previewErrorMessage, usePlayerControls } from "@/components/player/player-provider";
 import { previewFailureMessage } from "@/components/player/preview-errors";
@@ -20,7 +35,8 @@ import {
 import { previewBlockedMessage } from "@/components/studio/input-checks";
 import { MoreMenu } from "@/components/studio/more-menu";
 import { ChordField, TempoField } from "@/components/studio/musical-fields";
-import { SongStoryEditor, STORY_FOCUS_TARGETS } from "@/components/studio/song-story-editor";
+import { SongStoryEditor, SongStoryFields, STORY_FOCUS_TARGETS } from "@/components/studio/song-story-editor";
+import { STICKY_MIN_HEIGHT_QUERY, saveBarSticks, visibleBelowSticky } from "@/components/studio/sticky-stack";
 import { SECTION_KEYSHORTCUTS, studioShortcut } from "@/components/studio/studio-shortcuts";
 import {
   KEY_OPTIONS,
@@ -52,6 +68,8 @@ import {
   sectionTypeLabel,
   saveStatusParts,
   toggleTheme,
+  unreadableChordsOnAlbum,
+  unreadableChordsStatus,
   type ChordSnapshot,
   type SaveMode,
   type StudioAlbum,
@@ -63,8 +81,10 @@ import {
   STUDIO_GRID_BASE,
   STUDIO_GRID_COLUMNS,
   TrackList,
+  TrackThemeToggles,
   pad2,
 } from "@/components/studio/track-list";
+import { useUndoWindow } from "@/components/studio/undo-window";
 import { Button, EmptyState, Field, Section, inputClass, selectClass, textareaClass } from "@/components/ui";
 import { invalidChords } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
@@ -78,7 +98,8 @@ type SelectionInput = {
   q?: string;
   /**
    * Deep-link focus, always with `song=<trackNumber>` for the track-level ones:
-   * story (Story note) | role | song-themes | motifs: open the song's story, focus that field.
+   * story (Story note) | role: focus that field, under the track title.
+   * song-themes | motifs: open the track's "Themes and motifs", focus that field.
    * album (the first empty album field) | album-motifs: open Album details, focus that field.
    * lyrics: select the song's first unwritten section and focus its lyrics.
    * Older links keep working: themes = song-themes, position = role, album-themes, album-concept.
@@ -161,12 +182,15 @@ const EDITOR_ID = "studio-editor";
 const SECTION_EDITOR_ID = "studio-section-editor";
 const BATCH_CHORDS_ID = "use-chords-everywhere";
 const SECTION_MENU_ID = "section-more";
+const ADD_TRACK_ID = "studio-add-track";
+const ADD_SECTION_ID = "studio-add-section";
+const VERSION_TOGGLE_ID = "save-version-toggle";
+const VERSION_FORM_ID = "studio-version-form";
 const PREVIEW_CHORD_LIMIT = 128;
 
 const AUTOSAVE_DELAY_MS = 2000;
 /** Adding, deleting or moving a track saves almost at once, so the header and spine follow. */
 const STRUCTURAL_SAVE_DELAY_MS = 400;
-const UNDO_WINDOW_MS = 10_000;
 /** How long "Saved." stays after an explicit save before the relative time returns. */
 const SAVED_FLASH_MS = 4000;
 
@@ -199,11 +223,12 @@ type FocusTarget = { id: string; opens: "story" | "details" | null };
 /** A deep-link `focus` value → the field to focus and the disclosure that holds it. */
 function focusTargetFor(focus: string | undefined | null, album: StudioAlbum): FocusTarget | null {
   switch (focus) {
+    // Story note and Role are always in view under the track title.
     case "story":
-      return { id: STORY_FOCUS_TARGETS.story, opens: "story" };
+      return { id: STORY_FOCUS_TARGETS.story, opens: null };
     case "role":
     case "position":
-      return { id: STORY_FOCUS_TARGETS.role, opens: "story" };
+      return { id: STORY_FOCUS_TARGETS.role, opens: null };
     case "themes":
     case "song-themes":
       return { id: STORY_FOCUS_TARGETS.themes, opens: "story" };
@@ -226,6 +251,31 @@ function focusTargetFor(focus: string | undefined | null, album: StudioAlbum): F
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * After the page has scrolled to show a target's surroundings (the skip link brings the
+ * section's heading to the top), make sure the focused target itself can be seen below the
+ * sticky layers: at 320px with 200% text the heading row alone can fill the window. Checked
+ * once the scroll has settled (`scrollend`, or a timeout where no scroll happened).
+ */
+function revealWhenSettled(el: HTMLElement) {
+  let done = false;
+  let timer = 0;
+  const check = () => {
+    if (done) return;
+    done = true;
+    window.clearTimeout(timer);
+    window.removeEventListener("scrollend", check);
+    const offset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sticky-offset")) || 0;
+    const rect = el.getBoundingClientRect();
+    if (visibleBelowSticky(rect, offset, window.innerHeight)) return;
+    // Taller than the room under the sticky layers: its top, under them; otherwise all of it.
+    const room = window.innerHeight - offset;
+    el.scrollIntoView({ block: rect.height > room ? "start" : "nearest", behavior: "auto" });
+  };
+  window.addEventListener("scrollend", check);
+  timer = window.setTimeout(check, prefersReducedMotion() ? 50 : 900);
 }
 
 function Kbd({ children }: { children: string }) {
@@ -270,13 +320,19 @@ function useAlbumStudioRender({
   );
   const [storyOpen, setStoryOpen] = useState(() => initialTarget?.opens === "story");
   const [detailsOpen, setDetailsOpen] = useState(() => initialTarget?.opens === "details");
+  // "Save version…" in the save bar opens its name field inline, in the bar.
   const [versionOpen, setVersionOpen] = useState(false);
+  // The save bar sticks only while it and the header leave most of the window for writing.
+  const [barSticks, setBarSticks] = useState(true);
   // A link to one section (`sid`, e.g. from Comments and tasks) opens its comments.
   const [commentsOpenAtStart] = useState(() => Boolean(initialSelection?.sid));
   const [navAnnouncement, setNavAnnouncement] = useState("");
   // Said once on arrival (read from the first render's props, since the URL is cleaned below)
   // and dismissed by the first edit.
   const [arrivalNote, setArrivalNote] = useState(() => arrivalText(arrival, creditsRemaining));
+  // The arrival line is written into the save bar's live region after the page has mounted (a
+  // region that is already filled when it appears is never announced), so it is said once.
+  const [arrivalLive, setArrivalLive] = useState(false);
 
   const albumRef = useRef(album);
   const revisionRef = useRef(0);
@@ -320,10 +376,12 @@ function useAlbumStudioRender({
   }, [album]);
 
   // The sticky stack (app header + save bar) is measured, not assumed, and published as
-  // --sticky-offset on <html> while the Studio is mounted: the page's scroll padding and the
-  // fields' scroll margin read it, so a focused field never hides under the bar, and the track
-  // list sticks just below it. It follows the bar's real height (it grows while Undo is
-  // offered) and drops the bar when the bar stops sticking on short screens.
+  // --sticky-offset on <html> while the Studio is mounted: the page's scroll padding reads it,
+  // so a focused field never hides under the bar, and the track list sticks just below it. It
+  // follows the bar's real height (it grows while Undo or the version field is open). The bar
+  // sticks only on a window at least 31.3125em tall (em, so it follows the text size) and only
+  // while header + bar cover less than 35% of it; otherwise it scrolls away with the page and
+  // only the header (while it sticks) is counted.
   useEffect(() => {
     const bar = saveBarRef.current;
     if (!bar) return;
@@ -331,10 +389,18 @@ function useAlbumStudioRender({
     const header = bar.closest("main")?.previousElementSibling;
     const appHeader = header instanceof HTMLElement && header.tagName === "HEADER" ? header : null;
     const stuck = (el: HTMLElement) => /^(sticky|fixed)$/.test(getComputedStyle(el).position);
+    const tall = window.matchMedia(STICKY_MIN_HEIGHT_QUERY);
     const measure = () => {
       const headerHeight = appHeader && stuck(appHeader) ? appHeader.getBoundingClientRect().height : 0;
-      const barHeight = stuck(bar) ? bar.getBoundingClientRect().height : 0;
-      root.style.setProperty("--sticky-offset", `${Math.round(headerHeight + barHeight)}px`);
+      const barHeight = bar.getBoundingClientRect().height;
+      const sticks = saveBarSticks({
+        tallEnough: tall.matches,
+        headerHeight,
+        barHeight,
+        viewportHeight: window.innerHeight,
+      });
+      setBarSticks(sticks);
+      root.style.setProperty("--sticky-offset", `${Math.round(headerHeight + (sticks ? barHeight : 0))}px`);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -367,6 +433,8 @@ function useAlbumStudioRender({
             block: pendingFocus.scroll === "none" ? "nearest" : pendingFocus.scroll,
             behavior: prefersReducedMotion() ? "auto" : "smooth",
           });
+          // Scrolled to the surroundings: the focused field itself must end up in view too.
+          if (scrollEl !== el) revealWhenSettled(el);
         }
       }
       setPendingFocus(null);
@@ -388,6 +456,12 @@ function useAlbumStudioRender({
     router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
   }, [arrival, router]);
 
+  useEffect(() => {
+    if (!arrival) return;
+    const timer = window.setTimeout(() => setArrivalLive(true), 500);
+    return () => window.clearTimeout(timer);
+  }, [arrival]);
+
   // Leaving the Studio never drops words. An in-app link click saves first (waiting for any
   // save in flight) and then navigates; only if that save fails does the viewer choose.
   // Closing or reloading the tab still asks, and sends a last keepalive save.
@@ -406,11 +480,28 @@ function useAlbumStudioRender({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, on unmount
   }, []);
 
-  useEffect(() => {
-    if (!undo) return;
-    const timer = window.setTimeout(() => setUndo(null), UNDO_WINDOW_MS);
-    return () => window.clearTimeout(timer);
-  }, [undo]);
+  // Undo waits for people (WCAG 2.2.1): its 10 s clock stops while it has focus or the pointer,
+  // and restarts in full when both leave. Should it lapse with focus inside, focus moves to the
+  // row the change was about and the page says Undo is gone, never leaving focus on nothing.
+  const undoWindow = useUndoWindow(undo?.key ?? null, (focusInside) => {
+    const lapsed = undo;
+    setUndo(null);
+    if (!focusInside || !lapsed) return;
+    setPendingFocus({ id: undoLapseFocusId(lapsed), scroll: "nearest" });
+    setNavAnnouncement("Undo is no longer available.");
+  });
+
+  /** Where focus goes when Undo lapses under it: the affected track's or section's row. */
+  function undoLapseFocusId(entry: UndoEntry): string {
+    if (entry.kind === "track") {
+      const song = songs[songIndex];
+      return song?.id ? `track-row-${song.id}` : ADD_TRACK_ID;
+    }
+    const owner = songs.find((song) => song.id === entry.songId);
+    const list = owner?.sections ?? [];
+    const section = entry.kind === "chords" ? list[entry.sourceIndex] : list[Math.min(entry.index, list.length - 1)];
+    return section?.id ? `section-row-${section.id}` : ADD_SECTION_ID;
+  }
 
   useEffect(() => {
     if (!savedFlash) return;
@@ -487,7 +578,12 @@ function useAlbumStudioRender({
       setStableIdsPersisted(true);
       if (revisionRef.current === revision) setDirty(false);
       if (mode === "version") setVersionMessage("");
-      if (mode !== "auto") setSavedFlash(mode === "version" ? "Saved as a new version." : "Saved.");
+      if (mode !== "auto") {
+        // Saved, but honestly: chords the exports can't read are said with it.
+        const unreadable = unreadableChordsOnAlbum(snapshot.songs).count;
+        const saved = mode === "version" ? "Saved as a new version." : "Saved.";
+        setSavedFlash(unreadable ? `${saved} ${unreadableChordsStatus(unreadable)}.` : saved);
+      }
       // The album's shared frame (release header, track count, spine on the other tabs) is
       // rendered by the layout; refresh it whenever this save changed something it shows.
       const frameKey = albumFrameKey(snapshot);
@@ -768,6 +864,36 @@ function useAlbumStudioRender({
     setNavAnnouncement(upNext.song === songIndex ? label : `Track ${song?.track_number}: ${song?.title || "Untitled"}, ${label}`);
   }
 
+  /** Saves a named version from the save bar's inline field, then closes it (focus to its trigger). */
+  async function saveVersion() {
+    if (!versionMessage.trim()) return;
+    const ok = await save("version");
+    if (ok) closeVersion();
+  }
+
+  function openVersion() {
+    setVersionOpen(true);
+    setPendingFocus({ id: "version-message", scroll: "none" });
+  }
+
+  function closeVersion() {
+    setVersionOpen(false);
+    setPendingFocus({ id: VERSION_TOGGLE_ID, scroll: "none" });
+  }
+
+  const unreadable = useMemo(() => unreadableChordsOnAlbum(songs), [songs]);
+
+  /** "Saved · 2 chords won't export" goes to the first chord field that has one. */
+  function goToUnreadableChords() {
+    const first = unreadable.first;
+    if (!first) return;
+    setSelection(first);
+    setPendingFocus({ id: "section-chords", scroll: "center" });
+    const song = songs[first.song];
+    const label = sectionLabels(song?.sections ?? [])[first.section] ?? "Section";
+    setNavAnnouncement(`Track ${song?.track_number}: ${song?.title || "Untitled"}, ${label}, chord progression`);
+  }
+
   /** The first save turns comments on; focus moves from the button that goes to the thread. */
   async function saveToTurnOnComments() {
     const fromButton = focusedId() === "save-for-comments";
@@ -949,16 +1075,34 @@ function useAlbumStudioRender({
   // Saving has one live region, and it speaks only for events: a save the artist asked for
   // ("Saving…", then "Saved."), and a save that failed. Autosave's quiet cycle and the ticking
   // "Saved · 3 minutes ago" sit beside it, readable but never announced.
+  // The remix arrival is the one exception: said once, through the live region, after mount.
   const status = saveStatusParts({ saving, mode: savingMode, error: saveError, flash: savedFlash, dirty, lastSavedAt });
-  const liveStatus = status.live;
+  const settled = status.quiet === "saved-at" || status.quiet === "no-changes";
+  const arrivalShown = Boolean(arrivalNote && settled);
+  const arrivalSpoken = arrivalShown && arrivalLive && !status.live;
+  const liveStatus = status.live || (arrivalSpoken ? arrivalNote : "");
   const quietStatus =
     status.quiet === "saving" ? (
       "Saving…"
     ) : status.quiet === "unsaved" ? (
       "Unsaved changes"
-    ) : arrivalNote && (status.quiet === "saved-at" || status.quiet === "no-changes") ? (
-      // Until the first edit, the arrival line stands where "Saved · …" would.
-      <span className="text-ink">{arrivalNote}</span>
+    ) : arrivalShown ? (
+      // Until the first edit, the arrival line stands where "Saved · …" would; before the
+      // page has mounted it sits here, then moves into the live region to be announced.
+      arrivalSpoken ? null : <span className="text-ink">{arrivalNote}</span>
+    ) : settled && unreadable.count ? (
+      // Saved, but not everything will export: say so, and go to the first field that has one.
+      <>
+        Saved ·{" "}
+        <button
+          type="button"
+          onClick={goToUnreadableChords}
+          title="Go to the first chord the exports can't read"
+          className="relative ml-1 text-left text-warn underline decoration-warn/50 underline-offset-4 after:absolute after:-inset-y-3 after:inset-x-0 after:content-[''] hover:decoration-warn"
+        >
+          {unreadableChordsStatus(unreadable.count)}
+        </button>
+      </>
     ) : status.quiet === "saved-at" && lastSavedAt ? (
       <>
         Saved · <RelativeTime date={lastSavedAt} />
@@ -967,17 +1111,29 @@ function useAlbumStudioRender({
       "No changes yet"
     ) : null;
 
+  const writeNextLabel = upNext
+    ? `${upNext.song === songIndex ? "" : trackPrefix(songs[upNext.song])}${
+        sectionLabels(songs[upNext.song]?.sections ?? [])[upNext.section] ?? "Section"
+      }`
+    : "";
+
   const currentTrack = activeSong ? `${pad2(activeSong.track_number)} · ${activeSong.title.trim() || "Untitled"}` : null;
 
   // One quiet row: the current track (so a phone writer knows where they are while typing), the
   // save status, Undo while it is offered, keyboard hints (only with a fine pointer and room for
-  // them) and a ghost "Save now". Autosave does the saving; the saffron on this screen belongs
-  // to the next step of the writing. On short screens (a phone on its side) the bar scrolls
-  // away with the page instead of sticking.
+  // them), then the quiet actions: on a small screen the next section to write (ghost; the
+  // in-page "Write next" stays the saffron primary), Help, "Save version…" (its name field
+  // opens inline, below) and a ghost "Save now". Below 48em (a phone, or enlarged text) the
+  // last three are 44px icons with their names kept, so the bar stays two rows at most. Autosave does the saving; the saffron on this
+  // screen belongs to the next step of the writing. The bar sticks only where it leaves most of
+  // the window for writing (see the measurement above); otherwise it scrolls with the page.
   const saveBar = (
     <div
       ref={saveBarRef}
-      className="z-20 -mx-4 border-b border-line bg-ground px-4 py-0.5 md:-mx-8 md:px-8 [@media(min-height:501px)]:sticky [@media(min-height:501px)]:top-header"
+      className={cn(
+        "z-20 -mx-4 border-b border-line bg-ground px-4 py-0.5 md:-mx-8 md:px-8",
+        barSticks && "[@media(min-height:31.3125em)]:sticky [@media(min-height:31.3125em)]:top-header-offset",
+      )}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
         <div className="flex min-h-11 min-w-0 flex-1 basis-40 flex-col justify-center">
@@ -988,9 +1144,16 @@ function useAlbumStudioRender({
             </p>
           ) : null}
           {/* The live and the quiet status never both hold text, so no gap between them. */}
-          <p className={cn("flex min-w-0 items-center text-sm", saveError ? "text-danger" : "text-ink-2")}>
+          <p className={cn("flex min-w-0 flex-wrap items-center text-sm", saveError ? "text-danger" : "text-ink-2")}>
             {saving ? <Loader2 className="mr-2 h-4 w-4 flex-none animate-spin" aria-hidden="true" /> : null}
-            <span role="status" className={cn("min-w-0 break-words", savedFlash && !saving && !saveError && "text-ok")}>
+            <span
+              role="status"
+              className={cn(
+                "min-w-0 break-words",
+                savedFlash && !saving && !saveError && "text-ok",
+                arrivalSpoken && "text-ink",
+              )}
+            >
               {liveStatus}
             </span>
             {quietStatus ? <span className="min-w-0 break-words">{quietStatus}</span> : null}
@@ -1003,7 +1166,7 @@ function useAlbumStudioRender({
           </Button>
         ) : null}
         {undo ? (
-          <span className="flex min-w-0 items-center gap-x-2 text-sm text-ink">
+          <span {...undoWindow.groupProps} className="flex min-w-0 items-center gap-x-2 text-sm text-ink">
             <span id="studio-undo-text" className="line-clamp-2 min-w-0 max-w-[36ch] break-words" title={undoText(undo)}>
               {undoText(undo)}
             </span>
@@ -1018,10 +1181,88 @@ function useAlbumStudioRender({
             <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
           </p>
         </div>
-        <Button tone="ghost" onClick={() => void save("manual")} busy={saving} aria-keyshortcuts="Control+S Meta+S">
-          <Save className="h-4 w-4" aria-hidden="true" />
-          Save now
-        </Button>
+        <div className="flex flex-wrap items-center gap-x-1">
+          {upNext ? (
+            // Small screens only (em, so enlarged text counts as small): the in-page primary
+            // can be a long way down the page there.
+            <Button tone="ghost" onClick={writeNext} className="min-[48em]:hidden">
+              Write next: {writeNextLabel}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          ) : null}
+          <Link
+            href="/app/help#keyboard-title"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded px-3 text-sm font-semibold text-ink-2 transition-colors hover:bg-hover hover:text-ink"
+          >
+            <CircleHelp className="h-4 w-4" aria-hidden="true" />
+            <span className="max-[48em]:sr-only">Help</span>
+            <span className="sr-only"> with the Studio and its shortcuts</span>
+          </Link>
+          <Button
+            id={VERSION_TOGGLE_ID}
+            tone="ghost"
+            aria-expanded={versionOpen}
+            aria-controls={VERSION_FORM_ID}
+            onClick={() => (versionOpen ? closeVersion() : openVersion())}
+          >
+            <History className="h-4 w-4" aria-hidden="true" />
+            <span className="max-[48em]:sr-only">Save version…</span>
+          </Button>
+          <Button tone="ghost" onClick={() => void save("manual")} busy={saving} aria-keyshortcuts="Control+S Meta+S">
+            <Save className="h-4 w-4" aria-hidden="true" />
+            <span className="max-[48em]:sr-only">Save now</span>
+          </Button>
+        </div>
+      </div>
+      {/* A named snapshot, kept in version history: an occasional act, so it opens here, in
+          the bar, only when asked for. Escape closes it and focus returns to its trigger. */}
+      <div
+        id={VERSION_FORM_ID}
+        role="group"
+        aria-label="Save a version"
+        hidden={!versionOpen}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeVersion();
+          }
+        }}
+        className="max-w-[40rem] flex-col gap-2 pb-3 pt-1 [&:not([hidden])]:flex"
+      >
+        <Field
+          label="Version note"
+          htmlFor="version-message"
+          hint={<span className="block max-w-[65ch]">For example: tightened chorus, new bridge chords.</span>}
+        >
+          <input
+            id="version-message"
+            value={versionMessage}
+            onChange={(e) => setVersionMessage(e.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void saveVersion();
+              }
+            }}
+            maxLength={200}
+            className={inputClass}
+          />
+        </Field>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Busy while saving and unavailable without a note, but never natively disabled, so
+              focus stays on it when the saved version clears the note. */}
+          <Button
+            tone="secondary"
+            onClick={() => void saveVersion()}
+            busy={saving}
+            {...(versionMessage.trim() ? {} : { "aria-disabled": true })}
+          >
+            Save version
+          </Button>
+          <Button tone="ghost" onClick={closeVersion}>
+            Cancel
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -1189,6 +1430,16 @@ function useAlbumStudioRender({
           onClamped={setNavAnnouncement}
         />
       </div>
+      {/* The track's Role and Story note, always in view: Coherence asks every track for them. */}
+      <SongStoryFields song={activeSong} onChange={updateSongField} />
+      {/* Where the track list has no theme columns (a phone, enlarged text), this track's
+          album themes are toggled here instead. */}
+      <TrackThemeToggles
+        className="@5xl/studio:hidden"
+        song={activeSong}
+        centralThemes={album.central_themes ?? []}
+        onToggle={(theme) => toggleTrackTheme(songIndex, theme)}
+      />
     </section>
   ) : null;
 
@@ -1198,7 +1449,7 @@ function useAlbumStudioRender({
       title="Sections"
       className="pt-5"
       actions={
-        <Button tone="secondary" onClick={addSection}>
+        <Button id={ADD_SECTION_ID} tone="secondary" onClick={addSection}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           Add section
         </Button>
@@ -1368,8 +1619,7 @@ function useAlbumStudioRender({
               {upNext ? (
                 <div>
                   <Button tone="primary" onClick={writeNext}>
-                    Write next: {upNext.song === songIndex ? "" : trackPrefix(songs[upNext.song])}
-                    {sectionLabels(songs[upNext.song]?.sections ?? [])[upNext.section] ?? "Section"}
+                    Write next: {writeNextLabel}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 </div>
@@ -1444,57 +1694,6 @@ function useAlbumStudioRender({
     </div>
   ) : null;
 
-  // Collapsed like Album details: a named snapshot is an occasional act, not part of writing.
-  const versionPanel = (
-    <section id="studio-version" aria-labelledby="studio-version-title" className="min-w-0 border-t border-line pt-5">
-      <h2 id="studio-version-title" className="text-lg font-semibold text-ink">
-        <button
-          type="button"
-          aria-expanded={versionOpen}
-          aria-controls="studio-version-body"
-          onClick={() => setVersionOpen(!versionOpen)}
-          className="-mx-2 inline-flex min-h-11 items-center gap-2 rounded px-2 transition-colors hover:bg-hover"
-        >
-          Save a version
-          <ChevronDown className={cn("h-4 w-4 transition-transform", versionOpen && "rotate-180")} aria-hidden="true" />
-        </button>
-      </h2>
-      <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
-        A named snapshot of the album as it is now, kept in its version history.
-      </p>
-      <div id="studio-version-body" hidden={!versionOpen} className="mt-4 flex-col gap-3 [&:not([hidden])]:flex">
-        <Field
-          label="Version note"
-          htmlFor="version-message"
-          hint={<span className="block max-w-[65ch]">For example: tightened chorus, new bridge chords.</span>}
-        >
-          <input
-            id="version-message"
-            value={versionMessage}
-            onChange={(e) => setVersionMessage(e.target.value)}
-            maxLength={200}
-            aria-describedby="version-message-hint"
-            className={inputClass}
-          />
-        </Field>
-        <div>
-          {/* Busy while saving and unavailable without a note, but never natively disabled, so
-              focus stays on it when the saved version clears the note. */}
-          <Button
-            tone="secondary"
-            onClick={() => {
-              if (versionMessage.trim()) void save("version");
-            }}
-            busy={saving}
-            {...(versionMessage.trim() ? {} : { "aria-disabled": true })}
-          >
-            Save version
-          </Button>
-        </div>
-      </div>
-    </section>
-  );
-
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {/* The first stop inside the album content: past the save bar and the whole track list,
@@ -1550,7 +1749,7 @@ function useAlbumStudioRender({
             <EmptyState
               title="Start the record with its first track"
               action={
-                <Button tone="secondary" onClick={addTrack}>
+                <Button id={ADD_TRACK_ID} tone="secondary" onClick={addTrack}>
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Add track
                 </Button>
@@ -1566,7 +1765,6 @@ function useAlbumStudioRender({
             onOpenChange={setDetailsOpen}
             onChange={(patch) => edit((prev) => ({ ...prev, ...patch }))}
           />
-          {versionPanel}
         </div>
       </div>
       </div>

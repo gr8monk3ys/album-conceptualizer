@@ -105,8 +105,12 @@ export function IconButton({
 }
 
 /**
- * The top of every page: the h1 in the display cut, an optional catalog line beneath it
- * (artist · tracks · status), and the page's actions, with at most one primary.
+ * The top of every page: the h1, an optional catalog line beneath it (artist · tracks ·
+ * status), and the page's actions, with at most one primary. `size="display"` (the default)
+ * sets the h1 in the expanded display cut, for pages whose title is a work (an album, a
+ * plan); `size="page"` sets it at headline size in the normal cut, for the app's own screens
+ * (Home, Library, Search, Notifications, Settings, Help), so the display face stays for titles
+ * that are the artist's.
  */
 export function PageHeader({
   title,
@@ -114,20 +118,31 @@ export function PageHeader({
   description,
   actions,
   className,
+  size = "display",
 }: {
   title: ReactNode;
   catalog?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   className?: string;
+  size?: "display" | "page";
 }) {
   return (
     // A size container, so the title steps down in a narrow column (a phone at 200% text)
     // instead of breaking inside words (--text-display-md in globals.css).
     <header className={cn("@container flex flex-wrap items-end justify-between gap-x-6 gap-y-4", className)}>
       <div className="min-w-0">
-        <h1 className="type-display text-display-md break-words hyphens-auto text-ink">{title}</h1>
-        {catalog ? <p className="type-catalog mt-3 text-xs text-ink-2">{catalog}</p> : null}
+        <h1
+          className={cn(
+            "break-words hyphens-auto text-ink",
+            size === "page" ? "text-2xl font-semibold leading-tight" : "type-display text-display-md",
+          )}
+        >
+          {title}
+        </h1>
+        {catalog ? (
+          <p className={cn("type-catalog text-xs text-ink-2", size === "page" ? "mt-2" : "mt-3")}>{catalog}</p>
+        ) : null}
         {description ? (
           <p className="mt-3 max-w-[65ch] text-sm leading-relaxed text-ink-2">{description}</p>
         ) : null}
@@ -366,7 +381,9 @@ export function LiveStatus({
 }) {
   const color = tone === "ok" ? "text-ok" : tone === "danger" ? "text-danger" : "text-ink-2";
   return (
-    <div aria-live="polite" className={cn(message ? className : undefined)}>
+    // While empty it is taken out of the flow (`empty:absolute`, zero size), so an idle region
+    // adds no gap to the flex or grid it sits in; it stays in the page, so it is still listening.
+    <div aria-live="polite" className={cn("empty:absolute", message ? className : undefined)}>
       {message ? (
         <p role={tone === "danger" ? "alert" : undefined} className={cn("text-sm", color)}>
           {message}

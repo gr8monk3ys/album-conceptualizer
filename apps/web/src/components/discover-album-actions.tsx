@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Heart, Shuffle } from "lucide-react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
-import { ButtonLink, IconButton, StatusMessage } from "@/components/ui";
+import { ButtonLink, IconButton, LiveStatus } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { likeToggleName } from "@/lib/discover";
 import { remixArrivalHref } from "@/lib/remix-arrival";
@@ -229,7 +229,7 @@ export function DiscoverAlbumActions({
           />
         )}
       </div>
-      {error ? <StatusMessage tone="danger">{error}</StatusMessage> : null}
+      <LiveStatus message={error} tone="danger" />
     </div>
   );
 }

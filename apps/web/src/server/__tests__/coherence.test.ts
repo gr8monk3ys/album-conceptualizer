@@ -156,7 +156,10 @@ describe("analyzeAlbumCoherence with written material", () => {
     expect(report.stats.songsWithLyrics).toBe(2);
     expect(report.insufficient).toBe(false);
     expect(report.missing).toEqual([]);
-    expect(report.summary).toMatch(/^\d+\/100 overall/);
+    // Four tracks are still unwritten, so the summary leads with progress, then the written
+    // tracks' score, and the capped overall second.
+    expect(report.summary).toMatch(/^2 of 6 tracks written\. The written tracks score \d+; the whole album scores \d+\/100/);
+    expect(report.writtenScore).not.toBeNull();
   });
 
   it("never counts the starter loop, even once lyrics exist", () => {
@@ -360,8 +363,27 @@ describe("honest signals on a half-written album", () => {
     expect(report.insufficient).toBe(false);
     expect(report.verdict.label).toBe("Unfinished");
     expect(verdictText(report.verdict)).toBe("Unfinished · 3 of 7 tracks written");
-    expect(report.summary).toContain("unfinished");
+    expect(report.summary.startsWith("3 of 7 tracks written.")).toBe(true);
     expect(report.summary).not.toMatch(/Needs polish/);
+  });
+
+  it("frames the unwritten tracks as progress: ink, not the warning colour", () => {
+    expect(report.verdict.tone).toBe("neutral");
+    expect(lyrics()?.progress).toBe(true);
+  });
+
+  it("scores the written tracks on their own, and never below the capped overall", () => {
+    expect(report.writtenScore).not.toBeNull();
+    expect(report.writtenScore ?? 0).toBeGreaterThanOrEqual(report.score);
+    expect(report.summary).toContain(`The written tracks score ${report.writtenScore}`);
+    expect(report.summary).toContain(`the whole album scores ${report.score}/100`);
+  });
+
+  it("keeps real contradictions as problems, not progress", () => {
+    const songs = partlyWrittenAlbum().songs as Array<Record<string, unknown>>;
+    songs[1] = { ...songs[1], track_number: 1 };
+    const duplicate = analyzeAlbumCoherence(album(songs));
+    expect(duplicate.issues.find((issue) => issue.id === "duplicate_track_numbers")?.progress).toBeUndefined();
   });
 
   it("rates 4 empty tracks of 7 as an error and ranks it first", () => {
@@ -409,6 +431,7 @@ describe("honest signals on a half-written album", () => {
     expect(done.issues.find((issue) => issue.id === "missing_lyrics")).toBeUndefined();
     expect(done.scoreCap).toBe(100);
     expect(["Tight", "Solid", "Needs polish", "Loose"]).toContain(done.verdict.label);
+    expect(done.writtenScore).toBeNull();
   });
 });
 
@@ -467,7 +490,7 @@ describe("each dimension's own signal while the cap holds", () => {
   });
 
   it("names the weak spot in the summary", () => {
-    expect(report.summary).toContain("on the written ones, Narrative is weakest");
+    expect(report.summary).toContain("On the written ones, Narrative is weakest");
   });
 
   it("measures the whole album, with no hold, once every track is written", () => {

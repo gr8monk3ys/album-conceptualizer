@@ -28,7 +28,12 @@ describe("ChordField starter-loop hint", () => {
     const html = render(true);
     expect(html).toContain("Still the starter loop — change a chord to make it this track’s own.");
     expect(html).toContain('aria-describedby="section-chords-hint"');
-    expect(html).toContain("text-warn");
+    // Ordinary guidance, not a problem: never the warn colour (that is for things that are wrong).
+    expect(html).not.toContain("text-warn");
+  });
+
+  it("links to Help's explanation of what counts as written", () => {
+    expect(render(false)).toContain('href="/app/help#written-title"');
   });
 
   it("says nothing about it once the chords are the track's own", () => {

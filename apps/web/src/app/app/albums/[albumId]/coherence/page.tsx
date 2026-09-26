@@ -13,6 +13,7 @@ import {
   coherenceTrackHref,
   dimensionsWeakestFirst,
   MIN_WRITTEN_TRACKS_FOR_SCORE,
+  weakestDimension,
   type CoherenceFix,
   type CoherenceIssue,
   type CoherenceIssueSeverity,
@@ -61,6 +62,17 @@ const SEVERITY: Record<CoherenceIssueSeverity, { label: string; tone: "danger" |
   warning: { label: "Warning", tone: "warn" },
   info: { label: "Note", tone: "neutral" },
 };
+
+/**
+ * The chip a finding wears. Work not done yet (unwritten lyrics, a story note to write) is
+ * guidance, in ink: the unwritten tracks, pinned first, say "Start here", anything else still
+ * to write says "To do". Coral and Ember are kept for real contradictions ("Warn colour is for
+ * problems").
+ */
+function findingChip(issue: CoherenceIssue): { label: string; tone: "danger" | "warn" | "neutral" } {
+  if (issue.progress) return { label: issue.id === "missing_lyrics" ? "Start here" : "To do", tone: "neutral" };
+  return SEVERITY[issue.severity];
+}
 
 function fixLabel(fix: CoherenceFix | undefined) {
   return fix?.focus === "style" ? "Open the Style bible" : "Fix in Studio";
@@ -118,7 +130,7 @@ function Finding({
   showSeverity: boolean;
   lead: boolean;
 }) {
-  const severity = SEVERITY[issue.severity];
+  const severity = findingChip(issue);
   const dimension = report.breakdown.find((item) => item.key === issue.category)?.label;
   const tracks = (issue.relatedTracks ?? []).slice().sort((left, right) => left - right);
   const suggested = (issue.suggestedTracks ?? []).slice().sort((left, right) => left - right);
@@ -236,6 +248,15 @@ function HowScored({ report }: { report: CoherenceReport }) {
           lyrics, whatever the score; the label says how many are written. Once every track is written the
           score gets a band: {bands.join(", ")}.
         </p>
+        {/* A link on its own line: a full 44px target. */}
+        <p>
+          <Link
+            href="/app/help#written-title"
+            className="inline-flex min-h-11 items-center text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink"
+          >
+            What counts as written, in Help
+          </Link>
+        </p>
       </div>
     </details>
   );
@@ -264,8 +285,8 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
     { label: "On an album theme", value: stats.songsAlignedToThemes },
     { label: "Motifs that return", value: stats.callbackMotifs },
   ];
-  // A level badge only tells findings apart when they aren't all the same level.
-  const showSeverity = new Set(report.issues.map((issue) => issue.severity)).size > 1;
+  // A chip only tells findings apart when they don't all wear the same one.
+  const showSeverity = new Set(report.issues.map((issue) => findingChip(issue).label)).size > 1;
   const lead = report.issues.slice(0, LEAD_FINDINGS);
   const rest = report.issues.slice(LEAD_FINDINGS);
   // Weakest first by each dimension's own value, so the weak spot leads even while the cap
@@ -273,6 +294,10 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
   const dimensions = dimensionsWeakestFirst(report.breakdown);
   const anyHeld = scored && dimensions.some((item) => item.heldBecause);
   const partlyWritten = stats.songsWithLyrics < stats.songCount;
+  // While tracks are unwritten the report leads with the progress and what the written tracks
+  // score; the whole album's score, held down by the cap, comes second.
+  const leadWithProgress = scored && partlyWritten && report.writtenScore !== null;
+  const unwrittenCount = stats.songCount - stats.songsWithLyrics;
 
   return (
     <div className="flex flex-col gap-10">
@@ -282,8 +307,37 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
         path={`/app/albums/${album.id}/coherence`}
       />
 
-      <Section id="coherence-summary" title="Coherence report" description={scored ? report.summary : undefined}>
-        {scored ? (
+      <Section
+        id="coherence-summary"
+        title="Coherence report"
+        description={scored && !leadWithProgress ? report.summary : undefined}
+      >
+        {leadWithProgress ? (
+          <div className="flex flex-col gap-2">
+            <p className="type-figure text-base font-semibold text-ink">
+              {stats.songsWithLyrics} of {stats.songCount} tracks written
+              <span className="font-normal text-ink-2"> · {overall.label}</span>
+            </p>
+            <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <span className="type-figure text-5xl font-semibold text-ink">
+                {report.writtenScore}
+                <span className="text-lg font-normal text-ink-3">/100</span>
+              </span>
+              <span className="text-base text-ink">
+                The written {stats.songsWithLyrics === 1 ? "track scores" : "tracks score"}{" "}
+                <span className="type-figure">{report.writtenScore}</span>
+              </span>
+            </p>
+            <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
+              <span className="type-figure">
+                The whole album scores {report.score}/100 for now
+              </span>
+              : no dimension counts above <span className="type-figure">{report.scoreCap}</span> until{" "}
+              {unwrittenCount === 1 ? "the last track has" : `the other ${unwrittenCount} tracks have`} lyrics.
+              On the written ones, {weakestDimension(report).label} is weakest.
+            </p>
+          </div>
+        ) : scored ? (
           <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <span className="type-figure text-5xl font-semibold text-ink">
               {report.score}

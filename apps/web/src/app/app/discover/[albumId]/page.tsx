@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Check } from "lucide-react";
 
 import { CatalogItems } from "@/components/album-card";
 import { DiscoverAlbumActions } from "@/components/discover-album-actions";
 import { RelativeTime } from "@/components/relative-time";
-import { ThemeMark } from "@/components/theme-mark";
+import { ReadOnlySpine } from "@/components/read-only-spine";
 import { ButtonLink, Chip, PageHeader, Section } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
-import { lyricExcerptsByTrack, writtenSummaryLine } from "@/lib/discover";
+import { lyricExcerptsByTrack, writtenSummaryItems } from "@/lib/discover";
 import { getSpineRows, getSpineThemes } from "@/server/album-songs";
 import { analyzeAlbumCoherence, MIN_WRITTEN_TRACKS_FOR_SCORE, verdictText } from "@/server/coherence";
 import { getCredits } from "@/server/credits";
@@ -49,14 +48,12 @@ function readStoryNotes(data: unknown): Map<number, string> {
   return notes;
 }
 
-function pad(trackNumber: number) {
-  return String(trackNumber).padStart(2, "0");
+function trackAnchor(trackNumber: number) {
+  return `track-${trackNumber}`;
 }
 
-/** "memory", "memory and signal", "memory, signal and loss". */
-function spokenList(items: string[]) {
-  if (items.length <= 1) return items.join("");
-  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+function pad(trackNumber: number) {
+  return String(trackNumber).padStart(2, "0");
 }
 
 export default async function DiscoverAlbumPage({
@@ -95,10 +92,16 @@ export default async function DiscoverAlbumPage({
   const storyNotes = readStoryNotes(album.data);
   const excerpts = lyricExcerptsByTrack(album.data);
   const coherence = analyzeAlbumCoherence(album.data);
-  const written = writtenSummaryLine({
+  const written = writtenSummaryItems({
     tracks: rows.length,
     withLyrics: rows.filter((row) => row.lyricSections > 0).length,
   });
+  // Tracks with something to read below the sequence: a story note or written lyrics.
+  const readable = new Set(
+    rows
+      .filter((row) => storyNotes.has(row.trackNumber) || (excerpts.get(row.trackNumber) ?? []).length)
+      .map((row) => row.trackNumber),
+  );
 
   return (
     <div className="flex flex-col gap-10">
@@ -110,9 +113,11 @@ export default async function DiscoverAlbumPage({
               items={[
                 album.artist || "Artist not named",
                 album.primaryGenre,
-                <span key="written" className="type-figure">
-                  {written}
-                </span>,
+                ...written.map((item) => (
+                  <span key={item} className="type-figure">
+                    {item}
+                  </span>
+                )),
                 isOwn ? "Your album" : null,
                 album.publishedAt ? (
                   <span key="published">
@@ -138,108 +143,77 @@ export default async function DiscoverAlbumPage({
       {/* Rem-sized container query: with enlarged text the side column folds under the sequence. */}
       <div className="@container">
         <div className="grid grid-cols-1 gap-10 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
-          <section aria-labelledby="sequence-title" className="min-w-0">
-            <h2 id="sequence-title" className="text-lg font-semibold text-ink">
-              Sequence
-            </h2>
-            {themes.length ? (
-              <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
-                <span className="text-ink-3">Album themes: </span>
-                {themes.join(" · ")}
-              </p>
+          <div className="flex min-w-0 flex-col gap-10">
+            <section aria-labelledby="sequence-title" className="min-w-0">
+              <h2 id="sequence-title" className="mb-2 text-lg font-semibold text-ink">
+                Sequence
+              </h2>
+              {rows.length ? (
+                <ReadOnlySpine
+                  rows={rows}
+                  themes={themes}
+                  anchorFor={(trackNumber) => (readable.has(trackNumber) ? trackAnchor(trackNumber) : null)}
+                />
+              ) : (
+                <p className="max-w-[65ch] text-sm text-ink-2">
+                  This album was published before any tracks were added.
+                </p>
+              )}
+            </section>
+
+            {readable.size ? (
+              <Section
+                title="Lyrics"
+                description="Each track's story note and the first lines written for it. Select a title in the sequence to jump to it."
+              >
+                <ol className="border-t border-line">
+                  {rows
+                    .filter((row) => readable.has(row.trackNumber))
+                    .map((row) => {
+                      const excerpt = excerpts.get(row.trackNumber) ?? [];
+                      const story = storyNotes.get(row.trackNumber);
+                      return (
+                        <li
+                          key={row.trackNumber}
+                          id={trackAnchor(row.trackNumber)}
+                          className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 border-b border-line py-4"
+                        >
+                          <span className="type-figure pt-0.5 text-sm font-semibold text-ink-3">
+                            <span className="sr-only">Track </span>
+                            {pad(row.trackNumber)}
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="break-words text-base font-semibold text-ink hyphens-auto">{row.title}</h3>
+                            {story ? (
+                              <p className="mt-1 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
+                                {story}
+                              </p>
+                            ) : null}
+                            {excerpt.length ? (
+                              <figure className="mt-3">
+                                <blockquote className="max-w-[65ch] border-l border-line-strong pl-3 text-sm leading-relaxed text-ink">
+                                  {excerpt.map((line, index) => (
+                                    <p key={index} className="break-words">
+                                      {line}
+                                      {index === excerpt.length - 1 ? " …" : null}
+                                    </p>
+                                  ))}
+                                </blockquote>
+                                <figcaption className="mt-1 pl-3 text-xs text-ink-3">
+                                  Excerpt: the first written lines
+                                </figcaption>
+                              </figure>
+                            ) : (
+                              <p className="mt-1 text-sm text-ink-3">No lyrics written yet.</p>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                </ol>
+              </Section>
             ) : null}
-            {rows.length ? (
-              <ol className="mt-3 border-t border-line">
-                {rows.map((row) => {
-                  const themeKeys = new Set(row.themeKeys);
-                  const carried = themes.filter((theme) => themeKeys.has(theme.toLowerCase()));
-                  const excerpt = excerpts.get(row.trackNumber) ?? [];
-                  const story = storyNotes.get(row.trackNumber);
-                  return (
-                    <li
-                      key={row.trackNumber}
-                      className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 border-b border-line py-4"
-                    >
-                      <span className="type-figure pt-0.5 text-sm font-semibold text-ink-3">
-                        <span className="sr-only">Track </span>
-                        {pad(row.trackNumber)}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                          <h3 className="min-w-0 break-words text-base font-semibold text-ink hyphens-auto">
-                            {row.title}
-                          </h3>
-                          {row.sections ? (
-                            <p className="type-figure text-sm text-ink-2">
-                              <span aria-hidden="true">
-                                Lyrics {row.lyricSections}/{row.sections}
-                              </span>
-                              <span className="sr-only">
-                                Lyrics: {row.lyricSections} of {row.sections}{" "}
-                                {row.sections === 1 ? "section" : "sections"} written
-                              </span>
-                            </p>
-                          ) : (
-                            <p className="text-sm text-ink-3">No sections yet</p>
-                          )}
-                        </div>
-
-                        {row.narrativePosition || carried.length ? (
-                          <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-2">
-                            {row.narrativePosition ? (
-                              <span className="inline-flex min-w-0 items-center gap-1.5">
-                                <Check className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
-                                <span className="break-words">Role: {row.narrativePosition}</span>
-                              </span>
-                            ) : null}
-                            {carried.length ? (
-                              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                                <span className="sr-only">Carries {spokenList(carried)}</span>
-                                {carried.map((theme) => (
-                                  <span key={theme} aria-hidden="true" className="inline-flex items-center gap-1.5">
-                                    <span className="inline-block w-2.5">
-                                      <ThemeMark carries label="" />
-                                    </span>
-                                    {theme}
-                                  </span>
-                                ))}
-                              </span>
-                            ) : null}
-                          </p>
-                        ) : null}
-
-                        {story ? (
-                          <p className="mt-2 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
-                            {story}
-                          </p>
-                        ) : null}
-
-                        {excerpt.length ? (
-                          <figure className="mt-3">
-                            <blockquote className="max-w-[65ch] border-l border-line-strong pl-3 text-sm leading-relaxed text-ink">
-                              {excerpt.map((line, index) => (
-                                <p key={index} className="break-words">
-                                  {line}
-                                  {index === excerpt.length - 1 ? " …" : null}
-                                </p>
-                              ))}
-                            </blockquote>
-                            <figcaption className="mt-1 pl-3 text-xs text-ink-3">
-                              Excerpt: the first written lines
-                            </figcaption>
-                          </figure>
-                        ) : null}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            ) : (
-              <p className="mt-3 text-sm text-ink-2">
-                This album was published before any tracks were added.
-              </p>
-            )}
-          </section>
+          </div>
 
           <div className="flex min-w-0 flex-col gap-8">
             <Section

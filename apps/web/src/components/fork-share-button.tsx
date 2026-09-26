@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Shuffle } from "lucide-react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
-import { StatusMessage } from "@/components/ui";
+import { LiveStatus } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { remixArrivalHref } from "@/lib/remix-arrival";
 
@@ -60,7 +60,7 @@ export function ForkShareButton({
         <Shuffle className="h-4 w-4" aria-hidden="true" />
         {isBusy ? "Remixing…" : `Remix into my library · ${cost} credits`}
       </ConfirmSpend>
-      {status ? <StatusMessage tone={status.tone}>{status.text}</StatusMessage> : null}
+      <LiveStatus message={status?.text ?? null} tone={status?.tone} />
     </div>
   );
 }

@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 
 import { AlbumDangerZone } from "@/components/album-danger-zone";
+import { ArrivalStatus } from "@/components/arrival-status";
 import { FirstProjectChecklist } from "@/components/first-project-checklist";
 import { PublishAlbumButton } from "@/components/publish-album-button";
 import { ShareAlbumButton } from "@/components/share-album-button";
-import { ButtonLink, Section, StatusMessage, buttonClass } from "@/components/ui";
+import { ButtonLink, Section, buttonClass } from "@/components/ui";
 import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
 import { analyzeAlbumCoherence, verdictText, weakestDimension } from "@/server/coherence";
@@ -164,11 +165,15 @@ export default async function AlbumOverviewPage({
 
   return (
     <div className="flex flex-col gap-10">
-      {restoredVersion ? (
-        <StatusMessage tone="ok" className="max-w-[65ch]">
-          {`Restored ${restoredVersion.message?.trim() ? `“${restoredVersion.message.trim()}”` : "an earlier version"} · the draft it replaced is saved in Version history.`}
-        </StatusMessage>
-      ) : null}
+      {/* Arriving from a restore: one line says what happened, announced as it appears. */}
+      <ArrivalStatus
+        className="max-w-[65ch]"
+        message={
+          restoredVersion
+            ? `Restored ${restoredVersion.message?.trim() ? `“${restoredVersion.message.trim()}”` : "an earlier version"} · the draft it replaced is saved in Version history.`
+            : null
+        }
+      />
       {welcoming ? (
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded border border-line bg-raised px-4 py-3">
           <p className="min-w-0 max-w-[65ch] break-words text-sm text-ink">
@@ -199,17 +204,21 @@ export default async function AlbumOverviewPage({
           <StatusRow
             href={`${base}/coherence`}
             label="Coherence"
+            // While tracks are unwritten it leads with the progress and what the written tracks
+            // score; the whole album's capped score comes second (as the report does).
             figure={
               coherence.insufficient
                 ? verdictText(coherence.verdict)
-                : `${coherence.score}/100 · ${verdictText(coherence.verdict)}`
+                : coherence.writtenScore !== null
+                  ? `${verdictText(coherence.verdict)} · written tracks ${coherence.writtenScore}/100`
+                  : `${coherence.score}/100 · ${verdictText(coherence.verdict)}`
             }
             // Which tracks are written is the spine's to show; this row says what the spine can't.
             detail={
               coherence.insufficient
                 ? coherence.summary
                 : emptyTracks > 0
-                  ? `Weakest on the written tracks: ${weakest.label}. ${findings} in all.`
+                  ? `The whole album scores ${coherence.score}/100 until the rest are written. Weakest on the written tracks: ${weakest.label}. ${findings} in all.`
                   : coherence.issues.length
                     ? `Weakest area: ${weakest.label}. ${findings} to work through.`
                     : "No open findings. The tracks hold together on this draft."

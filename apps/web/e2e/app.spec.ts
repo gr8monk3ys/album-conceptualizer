@@ -52,6 +52,10 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   expect(filename).toMatch(/_export\.zip$/);
   const path = await download.path();
   expect(path).not.toBeNull();
+  // The export ends on what to do next, and focus comes back to the trigger, not the page body.
+  await expect(page.getByText(/Zip downloaded — /)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download zip · 2 credits" })).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
 
   // Publish and verify Discover.
   await page.goto("/app");
@@ -60,6 +64,9 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   // The album isn't finished, so Publish asks once before it goes out.
   await page.getByRole("button", { name: "Publish anyway" }).click();
   await expect(page.getByText("Published to Discover.")).toBeVisible();
+  // The confirm closed and the route refreshed; focus is back on the Publish control.
+  await expect(page.getByRole("button", { name: "Unpublish" })).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
 
   await page.goto("/app/discover");
   await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
@@ -71,8 +78,12 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await albumCard.getByRole("button", { name: `Like ${albumTitle}`, exact: true }).click();
   await expect(albumCard.getByRole("button", { name: `Liked ${albumTitle}`, exact: true })).toBeVisible();
 
-  // Your own published album opens in the Studio from Discover: no remix, no credits spent.
+  // A card opens the album's Discover page; Remix lives there. Your own published album opens
+  // in the Studio from it: no remix, no credits spent.
   await expect(albumCard.getByRole("button", { name: /Remix/ })).toHaveCount(0);
-  await albumCard.getByRole("link", { name: /Open in Studio/ }).click();
+  await albumCard.getByRole("link", { name: albumTitle, exact: true }).click();
+  await page.waitForURL("**/app/discover/**");
+  await expect(page.getByRole("button", { name: /Remix/ })).toHaveCount(0);
+  await page.getByRole("link", { name: /Open in Studio/ }).click();
   await page.waitForURL("**/app/albums/**/studio");
 });

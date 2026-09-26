@@ -6,7 +6,8 @@ import { Check } from "lucide-react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
 import { IdeationAi, type BrainstormPatch } from "@/components/ideation-ai";
-import { Button, Chip, Field, Panel, StatusMessage, inputClass, textareaClass } from "@/components/ui";
+import { ReadOnlySpine } from "@/components/read-only-spine";
+import { Button, Chip, Field, LiveStatus, Panel, inputClass, textareaClass } from "@/components/ui";
 import { STARTER_PROGRESSIONS } from "@/lib/chords";
 import {
   CREATE_DRAFT_KEY,
@@ -22,6 +23,7 @@ import {
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { clearDraft, useDraftState } from "@/lib/use-autosave";
 import { cn } from "@/lib/utils";
+import type { SpineRow } from "@/server/album-songs";
 
 type StatusTone = "error" | "success" | "info";
 type SetQuickStartField = <K extends keyof QuickStartFormState>(
@@ -481,6 +483,19 @@ function BlueprintPreview({
   const themes = splitListInput(form.centralThemesRaw);
   const arc = NARRATIVE_OPTIONS.find((option) => option.key === form.narrativeStructure)?.label;
   const title = form.title.trim();
+  // The spine shows the album's first six themes, as the album will.
+  const spineThemes = Array.from(new Map(themes.map((theme) => [theme.toLowerCase(), theme])).values()).slice(0, 6);
+  const previewRows: SpineRow[] = Array.from({ length: form.trackCount }, (_, index) => ({
+    trackNumber: index + 1,
+    title: trackNames[index] || `Track ${index + 1}`,
+    sections: 2,
+    lyricSections: 0,
+    themes: 0,
+    themeKeys: [],
+    hasNarrative: false,
+    writtenHarmony: false,
+    narrativePosition: null,
+  }));
 
   return (
     <section aria-labelledby="blueprint-preview-title" className="min-w-0">
@@ -519,37 +534,33 @@ function BlueprintPreview({
         ) : null}
       </div>
 
-      <ol className="mt-6 border-t border-line" aria-label="Tracklist">
-        {Array.from({ length: form.trackCount }, (_, index) => {
-          const trackTitle = trackNames[index];
-          const progression = progressionFor(index);
-          return (
-            <li key={index} className="flex items-baseline gap-4 border-b border-line py-2.5">
-              <span className="type-figure w-9 shrink-0 text-2xl font-semibold text-ink-3">{pad(index + 1)}</span>
-              <div className="min-w-0 flex-1">
-                <p
-                  className={cn(
-                    "break-words text-sm font-semibold",
-                    trackTitle ? "text-ink" : "text-ink-3",
-                  )}
-                >
-                  {trackTitle || `Track ${index + 1}`}
-                </p>
-                <p className="mt-0.5 text-xs text-ink-3">
-                  Verse and chorus to write
-                  <span aria-hidden="true"> · </span>
-                  <span className="sr-only">, </span>
-                  starting-point chords to replace:{" "}
-                  <span className="type-figure">{progression.chords.join(" ")}</span>
-                </p>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+      {spineThemes.length ? (
+        // The spine the album will open with: every theme still to be tagged, every lyric
+        // still to write. The artist fills it in the Studio.
+        <div className="mt-6">
+          <h3 className="mb-2 text-sm font-semibold text-ink">Sequence</h3>
+          <ReadOnlySpine rows={previewRows} themes={spineThemes} />
+        </div>
+      ) : (
+        <ol className="mt-6 border-t border-line" aria-label="Tracklist">
+          {previewRows.map((row) => {
+            const named = Boolean(trackNames[row.trackNumber - 1]);
+            return (
+              <li key={row.trackNumber} className="flex min-h-11 items-baseline gap-3 border-b border-line py-2.5">
+                <span className="type-figure w-6 shrink-0 text-sm font-semibold text-ink-3">
+                  {pad(row.trackNumber)}
+                </span>
+                <span className={cn("min-w-0 break-words text-sm", named ? "text-ink" : "text-ink-3")}>
+                  {row.title}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
       <p className="mt-3 max-w-[65ch] text-xs leading-relaxed text-ink-3">
-        Each track starts with an empty verse and chorus. The chord loops are only there so you can
-        hear a track right away; replace them when you write.
+        Every track opens with an empty verse and chorus over a starter chord loop, there only so
+        you can hear it right away; it doesn&apos;t count as written.
       </p>
     </section>
   );
@@ -754,15 +765,21 @@ export function QuickStartComposer({
     <div className="@container">
       <div className="grid grid-cols-1 gap-x-10 gap-y-10 @4xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @4xl:items-start">
         <Panel className="min-w-0">
-          {draft.restored ? (
-            <p role="status" className="-mt-1 mb-3 flex flex-wrap items-center gap-x-1 text-sm text-ink-2">
-              <span>Restored your draft</span>
-              <span aria-hidden="true">·</span>
-              <Button tone="ghost" className="-my-1 px-2" onClick={startOver}>
-                Start over
-              </Button>
-            </p>
-          ) : null}
+          {/* Mounted empty, then filled once the draft is restored after hydration, so the
+              restore is announced; Start over sits beside it, outside the live region. */}
+          <div className={cn("flex flex-wrap items-center gap-x-1", draft.restored && "-mt-1 mb-3")}>
+            <LiveStatus message={draft.restored ? "Restored your draft" : null} />
+            {draft.restored ? (
+              <>
+                <span aria-hidden="true" className="text-sm text-ink-2">
+                  ·
+                </span>
+                <Button tone="ghost" className="-my-1 px-2" onClick={startOver}>
+                  Start over
+                </Button>
+              </>
+            ) : null}
+          </div>
 
           <WizardProgress step={step} form={form} visited={visited} onStepSelect={goTo} />
 
@@ -801,7 +818,7 @@ export function QuickStartComposer({
           </div>
 
           <div className="mt-6 flex flex-col gap-3 border-t border-line pt-4">
-            {status ? <StatusMessage tone={statusTone}>{status.text}</StatusMessage> : null}
+            <LiveStatus message={status?.text ?? null} tone={statusTone} />
 
             {/* One row: Back on the left, the next step on the right. The right column takes
                 the rest of the width, so an open spend confirm wraps inside it (question, then

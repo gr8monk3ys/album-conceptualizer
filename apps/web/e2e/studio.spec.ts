@@ -74,6 +74,9 @@ test.describe("Studio", () => {
 
     expect(download.suggestedFilename()).toMatch(/_export\.zip$/);
     expect(await download.path()).not.toBeNull();
+    // Focus is back on the trigger once the confirm closes, never on the page body.
+    await expect(page.getByRole("button", { name: "Download zip · 2 credits" })).toBeFocused();
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
   });
 
   // WCAG 2.4.11: no focus stop may be hidden under the sticky header or save bar, including at

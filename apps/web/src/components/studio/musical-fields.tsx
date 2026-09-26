@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import {
@@ -20,7 +21,10 @@ import { cn } from "@/lib/utils";
  * lib/chords never counts a progression with an unreadable token as written.
  *
  * `starterLoop` (from lib/chords `isScaffoldSection`) says the chords are still the setup's
- * loop, which nothing counts as written; the rule is explained here, in Ember, where it bites.
+ * loop, which nothing counts as written; the rule is explained here, where it bites, as an
+ * ordinary hint (Ash Ink): a fresh section isn't a problem, so it never borrows the warn colour.
+ * Coral stays for chords the exports can't read. The hint ends with a link to Help's "What
+ * counts as written".
  */
 export function ChordField({
   id,
@@ -56,12 +60,16 @@ export function ChordField({
       hint={
         <>
           {starterLoop ? (
-            <span className="block max-w-[65ch] font-medium text-warn">
-              Still the starter loop — change a chord to make it this track’s own.
-            </span>
+            <span className="block max-w-[65ch]">Still the starter loop — change a chord to make it this track’s own.</span>
           ) : null}
           <span className="block max-w-[65ch]">
-            Separate chords with spaces or commas. Loops of 4 to 8 chords export cleanly.
+            Separate chords with spaces or commas. Loops of 4 to 8 chords export cleanly.{" "}
+            <Link
+              href="/app/help#written-title"
+              className="text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink hover:decoration-ink"
+            >
+              What counts as written
+            </Link>
           </span>
         </>
       }

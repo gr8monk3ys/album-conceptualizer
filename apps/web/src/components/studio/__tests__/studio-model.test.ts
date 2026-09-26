@@ -14,6 +14,8 @@ import {
   parseInitialAlbum,
   saveStatusParts,
   toggleTheme,
+  unreadableChordsOnAlbum,
+  unreadableChordsStatus,
 } from "@/components/studio/studio-model";
 
 const songs = (titles: string[]) => titles.map((title, i) => ({ title, track_number: i + 1 }));
@@ -199,5 +201,28 @@ describe("saveStatusParts", () => {
     expect(saveStatusParts({ ...idle, dirty: true })).toEqual({ live: "", quiet: "unsaved" });
     expect(saveStatusParts({ ...idle, lastSavedAt: "2026-09-23T10:00:00Z" })).toEqual({ live: "", quiet: "saved-at" });
     expect(saveStatusParts(idle)).toEqual({ live: "", quiet: "no-changes" });
+  });
+});
+
+describe("unreadableChordsOnAlbum", () => {
+  it("counts every unreadable chord on the album and points at the first section that has one", () => {
+    const songs = [
+      { sections: [{ chord_progression: ["C", "G"] }] },
+      { sections: [{ chord_progression: ["Am"] }, { chord_progression: ["banana", "F", "zz"] }] },
+      { sections: [{ chord_progression: ["qq"] }] },
+    ];
+    expect(unreadableChordsOnAlbum(songs)).toEqual({ count: 3, first: { song: 1, section: 1 } });
+  });
+
+  it("is nothing when every chord reads", () => {
+    expect(unreadableChordsOnAlbum([{ sections: [{ chord_progression: ["C", "Am7", "G/B"] }] }, { sections: null }])).toEqual({
+      count: 0,
+      first: null,
+    });
+  });
+
+  it("says it in the save status with the right plural", () => {
+    expect(unreadableChordsStatus(1)).toBe("1 chord won’t export");
+    expect(unreadableChordsStatus(2)).toBe("2 chords won’t export");
   });
 });

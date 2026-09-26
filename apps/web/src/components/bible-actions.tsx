@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Download, Tags } from "lucide-react";
 
-import { Button, StatusMessage, buttonClass } from "@/components/ui";
+import { useUndoWindow } from "@/components/studio/undo-window";
+import { Button, LiveStatus, buttonClass } from "@/components/ui";
+import { useReturnFocus } from "@/components/use-return-focus";
 import {
   TAG_KINDS,
   countTags,
@@ -48,6 +50,19 @@ function albumMatchKeys(proposals: TrackTagProposal[]) {
   );
 }
 
+const LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
+
+/** "Undone: took tide off 04 and static off 05." Past six tags it counts them. */
+function describeRemovedTags(tracks: TrackTags[]) {
+  const total = countTags(tracks);
+  if (!total) return "Nothing to undo: those tags were already gone.";
+  if (total > 6) {
+    return `Undone: took the ${total} tags off ${tracks.length === 1 ? "track" : "tracks"} ${LIST.format(tracks.map((track) => pad(track.trackNumber)))}.`;
+  }
+  const parts = tracks.map((track) => `${LIST.format(TAG_KINDS.flatMap((kind) => track[kind]))} off ${pad(track.trackNumber)}`);
+  return `Undone: took ${parts.join(", ")}.`;
+}
+
 async function errorFrom(response: Response, fallback: string) {
   const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
   return typeof body?.error === "string" && body.error ? body.error : fallback;
@@ -58,7 +73,9 @@ async function errorFrom(response: Response, fallback: string) {
  * writes on its own: it lists what the lyrics suggest per track as dashed suggestions (the
  * album's own themes, motifs and characters the lyrics mention come first and ticked; any other
  * word is marked "New tag" and left unticked), adds only what the artist ticks, then says
- * exactly what it added.
+ * exactly what it added, with an Undo that stays at least 10 seconds and waits while it has
+ * focus or the pointer (the Studio's `useUndoWindow`). Focus goes back to "Tag from lyrics"
+ * after the review closes, once that has committed (`useReturnFocus`).
  */
 export function BibleActions({ albumId, className }: { albumId: string; className?: string }) {
   const router = useRouter();
@@ -67,7 +84,22 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
   const [proposals, setProposals] = useState<TrackTagProposal[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<Status>(null);
+  // The tags the last apply added, while they can still be taken off again.
+  const [undo, setUndo] = useState<{ key: number; added: TrackTags[] } | null>(null);
+  const [undoing, setUndoing] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocus = useReturnFocus();
+  const undoWindow = useUndoWindow(undo?.key ?? null, (focusInside) => {
+    setUndo(null);
+    if (focusInside) {
+      // Focus was on the Undo as it lapsed: it goes back to the tagging control, and the
+      // status says why the Undo went.
+      returnFocus(() => triggerRef.current);
+      setStatus((current) =>
+        current ? { ...current, text: `${current.text} Undo has ended; the tags stay.` } : current,
+      );
+    }
+  });
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const reviewing = phase === "review" || phase === "applying";
 
@@ -80,12 +112,13 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
     setProposals([]);
     setSelected(new Set());
     setStatus(nextStatus);
-    requestAnimationFrame(() => triggerRef.current?.focus());
+    returnFocus(() => triggerRef.current);
   }
 
   async function suggest() {
     setPhase("loading");
     setStatus(null);
+    setUndo(null);
     try {
       const res = await fetch(`/api/albums/${albumId}/autotag`, { cache: "no-store" });
       if (!res.ok) throw new Error(await errorFrom(res, "No tags could be suggested. Try again in a moment."));
@@ -133,6 +166,7 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
       if (!res.ok) throw new Error(await errorFrom(res, "The tags weren't added. Try again in a moment."));
       const body = (await res.json()) as { added: TrackTags[] };
       close({ tone: "ok", text: describeAddedTags(body.added) });
+      setUndo(countTags(body.added) ? { key: Date.now(), added: body.added } : null);
       // The theme map, the spine and the motif index read these tags: redraw them now.
       router.refresh();
     } catch (err) {
@@ -141,6 +175,29 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
         tone: "danger",
         text: err instanceof Error ? err.message : "The tags weren't added. Try again in a moment.",
       });
+    }
+  }
+
+  async function undoTags() {
+    if (!undo || undoing) return;
+    setUndoing(true);
+    try {
+      const res = await fetch(`/api/albums/${albumId}/autotag/undo`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ remove: undo.added }),
+      });
+      if (!res.ok) throw new Error(await errorFrom(res, "The tags are still on. Try Undo again."));
+      const body = (await res.json()) as { removed: TrackTags[] };
+      setUndo(null);
+      setStatus({ tone: "ok", text: describeRemovedTags(body.removed) });
+      // The Undo button goes; focus goes back to the tagging control.
+      returnFocus(() => triggerRef.current);
+      router.refresh();
+    } catch (err) {
+      setStatus({ tone: "danger", text: err instanceof Error ? err.message : "The tags are still on. Try Undo again." });
+    } finally {
+      setUndoing(false);
     }
   }
 
@@ -285,11 +342,20 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
         </div>
       ) : null}
 
-      {status ? (
-        <StatusMessage tone={status.tone} className="mt-2">
-          {status.text}
-        </StatusMessage>
-      ) : null}
+      {/* The live region is always mounted, so each result is announced when it arrives; the
+          Undo sits beside it while the tags can still come off. */}
+      <div
+        {...undoWindow.groupProps}
+        className={status || undo ? "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1" : undefined}
+      >
+        <LiveStatus message={status?.text ?? null} tone={status?.tone} className="min-w-0 max-w-[65ch]" />
+        {undo ? (
+          <Button tone="ghost" busy={undoing} onClick={() => void undoTags()}>
+            {undoing ? "Undoing…" : "Undo"}
+            <span className="sr-only"> adding these tags</span>
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }

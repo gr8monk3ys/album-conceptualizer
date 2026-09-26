@@ -95,6 +95,12 @@ export type CoherenceIssue = {
   /** Where each of `relatedTracks` / `suggestedTracks` is fixed; plain track editing when absent. */
   trackFocus?: CoherenceTrackFocus;
   fix?: CoherenceFix;
+  /**
+   * True when the finding is work not done yet (lyrics, chords, a story note, a theme still to
+   * write) rather than something that is wrong. Pages show it as guidance in ink, never in
+   * the warning or danger colours ("Warn colour is for problems").
+   */
+  progress?: boolean;
 };
 
 export type CoherenceBreakdownItem = {
@@ -154,6 +160,13 @@ export type CoherenceReport = {
    * with placeholder lyrics has nothing to judge yet, so pages show `missing` instead.
    */
   score: number;
+  /**
+   * While some tracks are still unwritten (and the report is scored): the overall score of the
+   * written tracks on their own, the same weighting as `score` over each dimension's
+   * `uncapped` value. Pages lead with this and the progress ("4 of 8 tracks written") and put
+   * the capped `score` second. Null once every track is written, or before there is a score.
+   */
+  writtenScore: number | null;
   summary: string;
   insufficient: boolean;
   missing: CoherenceMissingPiece[];
@@ -240,10 +253,11 @@ export function coherenceVerdict(input: {
 }): CoherenceVerdict {
   if (input.insufficient) return { label: "Not scored yet", tone: "neutral" };
   if (input.songsWithLyrics < input.songCount) {
+    // Unwritten tracks are progress, not a fault: ink, not the warning colour.
     return {
       label: "Unfinished",
       detail: `${input.songsWithLyrics} of ${input.songCount} tracks written`,
-      tone: "warn",
+      tone: "neutral",
     };
   }
   const band = COHERENCE_BANDS.find((entry) => input.score >= entry.min) ?? COHERENCE_BANDS[3];
@@ -268,6 +282,23 @@ function plural(count: number, one: string, many = `${one}s`) {
 
 /** Tracks without lyrics always lead: nothing else about an album matters as much. */
 const PINNED_FIRST = "missing_lyrics";
+
+/**
+ * Findings that are work not done yet rather than something wrong: an empty field, an
+ * unwritten track. They are guidance (`CoherenceIssue.progress`); duplicate numbers, drifting
+ * themes, motifs that never return, flat energy and weak bookends are the problems.
+ */
+const PROGRESS_FINDINGS = new Set([
+  "no_songs",
+  "missing_lyrics",
+  "missing_chords",
+  "missing_key_tempo",
+  "missing_concept",
+  "missing_narrative_summaries",
+  "no_themes",
+  "no_motifs",
+  "minimal_structure",
+]);
 
 function isEmptyProgression(chords: string[] | undefined) {
   return !(chords ?? []).some((chord) => chord.trim());
@@ -515,6 +546,7 @@ function getInvalidAlbumReport(detail: string): CoherenceReport {
 
   return {
     score: 0,
+    writtenScore: null,
     summary: "This album could not be read, so there is nothing to score yet.",
     insufficient: true,
     verdict: { label: "Not scored yet", tone: "neutral" },
@@ -1010,7 +1042,9 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     });
   }
 
-  const sortedIssues = sortIssues(issues);
+  const sortedIssues = sortIssues(issues).map((issue) =>
+    PROGRESS_FINDINGS.has(issue.id) ? { ...issue, progress: true } : issue,
+  );
 
   const albumFacts: AlbumFacts = {
     songCount,
@@ -1135,6 +1169,17 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     breakdown[3].score * 0.18 +
     breakdown[4].score * 0.16;
   const score = clampScore(weightedScore);
+  // What the written tracks score on their own, by the same weights, while some are unwritten.
+  const writtenScore =
+    !insufficient && partlyWritten
+      ? clampScore(
+          breakdown[0].uncapped * 0.28 +
+            breakdown[1].uncapped * 0.2 +
+            breakdown[2].uncapped * 0.18 +
+            breakdown[3].uncapped * 0.18 +
+            breakdown[4].uncapped * 0.16,
+        )
+      : null;
   const weakest = weakestDimension({ breakdown });
   const topIssue = sortedIssues[0];
 
@@ -1175,13 +1220,14 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       ? "Not enough material yet — write lyrics for this track to get a score."
       : "Not enough material yet — write lyrics for two tracks to get a score."
     : songsMissingLyrics
-      ? `${score}/100 overall, and unfinished: ${songsWithLyrics} of ${songCount} tracks are written, so no dimension scores above ${scoreCap}. Finish the empty ${songsMissingLyrics === 1 ? "track" : "tracks"} first; on the written ${songsWithLyrics === 1 ? "one" : "ones"}, ${weakest.label} is weakest.`
+      ? `${songsWithLyrics} of ${songCount} tracks written. The written ${songsWithLyrics === 1 ? "track scores" : "tracks score"} ${writtenScore ?? score}; the whole album scores ${score}/100 until the rest are written, since no dimension counts above ${scoreCap} yet. On the written ${songsWithLyrics === 1 ? "one" : "ones"}, ${weakest.label} is weakest.`
       : topIssue
         ? `${score}/100 overall. Weakest area: ${weakest.label} (${weakest.score}/100). Top issue: ${topIssue.title}.`
         : `${score}/100 overall. The album is structurally coherent across the current draft.`;
 
   return {
     score,
+    writtenScore,
     summary,
     insufficient,
     missing,

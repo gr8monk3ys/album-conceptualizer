@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { carriedThemesPhrase, themeAbbreviations } from "@/lib/theme-keys";
+import { carriedThemesPhrase, themeAbbreviations, themeHeadClasses, themeNamesFromRem } from "@/lib/theme-keys";
 
 describe("themeAbbreviations", () => {
   it("uses one letter when every theme starts differently", () => {
@@ -40,5 +40,29 @@ describe("carriedThemesPhrase", () => {
 
   it("is empty when the album has no themes", () => {
     expect(carriedThemesPhrase([], 0)).toBe("");
+  });
+});
+
+describe("theme heads: names, not codes", () => {
+  it("heads the columns by name from 15rem plus 3rem a theme", () => {
+    expect(themeNamesFromRem(1)).toBe(18);
+    expect(themeNamesFromRem(3)).toBe(24);
+    expect(themeNamesFromRem(6)).toBe(33);
+  });
+
+  it("switches at exactly that container width, for every count", () => {
+    for (let count = 1; count <= 6; count += 1) {
+      const at = `@min-[${themeNamesFromRem(count)}rem]`;
+      const classes = themeHeadClasses(count);
+      expect(classes.keys).toBe(`${at}:hidden`);
+      expect(classes.names).toBe(`hidden ${at}:block`);
+      expect(classes.slot).toBe(`${at}:w-12`);
+      expect(classes.legend).toBe(`${at}:hidden`);
+    }
+  });
+
+  it("clamps to one to six themes", () => {
+    expect(themeHeadClasses(0)).toEqual(themeHeadClasses(1));
+    expect(themeHeadClasses(9)).toEqual(themeHeadClasses(6));
   });
 });

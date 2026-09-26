@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Check } from "lucide-react";
 
-import { Button, Chip, PageHeader, Section, StatusMessage, TableScroller } from "@/components/ui";
+import { CatalogItems } from "@/components/album-card";
+import { Button, Chip, LiveStatus, PageHeader, Section, TableScroller } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { cn } from "@/lib/utils";
 
@@ -162,11 +163,16 @@ export function BillingPlans({
     <div className="flex flex-col gap-10">
       <PageHeader
         title="Plan and billing"
-        catalog={`${workspaceName} · ${PLAN_NAME[currentPlan]} plan`}
+        size="page"
+        catalog={
+          <span className="flex flex-wrap gap-x-2 gap-y-0.5">
+            <CatalogItems items={[workspaceName, `${PLAN_NAME[currentPlan]} plan`]} />
+          </span>
+        }
         description="Your plan sets how many albums you can keep and how many credits arrive each month. Payments are handled by Stripe."
         actions={
           hasCustomer ? (
-            <Button tone="secondary" onClick={openPortal} disabled={portalLoading}>
+            <Button tone="secondary" onClick={openPortal} busy={portalLoading}>
               {portalLoading ? "Opening…" : "Manage billing"}
             </Button>
           ) : null
@@ -184,8 +190,8 @@ export function BillingPlans({
               : "No subscription. You're on Free."}
           </dd>
         </dl>
-        {banner ? <StatusMessage tone={banner.tone}>{banner.text}</StatusMessage> : null}
-        {error ? <StatusMessage tone="danger">{error}</StatusMessage> : null}
+        {/* One live region, mounted empty: the arrival from checkout, or what went wrong. */}
+        <LiveStatus message={error ?? banner?.text ?? null} tone={error ? "danger" : banner?.tone} />
       </div>
 
       <Section
@@ -243,7 +249,9 @@ export function BillingPlans({
                       <Button
                         tone={plan.key === recommended ? "primary" : "secondary"}
                         className="w-full"
-                        disabled={loadingPlan !== null}
+                        // Busy while its own checkout opens (keeps focus); the others wait.
+                        busy={loadingPlan === plan.key}
+                        disabled={loadingPlan !== null && loadingPlan !== plan.key}
                         onClick={() => checkout(plan.key)}
                       >
                         {loadingPlan === plan.key

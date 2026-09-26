@@ -1,8 +1,6 @@
 import Link from "next/link";
 
-import { CREDIT_COSTS } from "@/lib/credit-costs";
-
-/** The workspace's credit balance, with what it is for and where to get more. */
+/** The workspace's credit balance and where to get more. What things cost is on each button and in Help. */
 export function CreditsMeter({ credits }: { credits?: { remaining: number; total: number } }) {
   const remaining = credits?.remaining ?? 0;
   const total = credits?.total ?? 0;
@@ -32,10 +30,8 @@ export function CreditsMeter({ credits }: { credits?: { remaining: number; total
           style={{ width: `${Math.round(ratio * 100)}%` }}
         />
       </div>
-      <p className="mt-2 max-w-[65ch] text-xs leading-relaxed text-ink-3">
-        Creating an album costs {CREDIT_COSTS.albumCreate}, a remix {CREDIT_COSTS.albumFork}, an export{" "}
-        {CREDIT_COSTS.exportZip} and an AI draft {CREDIT_COSTS.agentRun}. Your balance refills monthly.
-      </p>
+      {/* No price list here: each priced button names its cost and Help lists them all, so the
+          meter stays a balance and a way to earn more. */}
       <Link
         href="/app/challenges"
         className="mt-1 inline-flex min-h-11 items-center text-xs text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink hover:decoration-ink"

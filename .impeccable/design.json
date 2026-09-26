@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-23T23:08:57Z",
+  "generatedAt": "2026-09-26T05:00:00Z",
   "title": "Design System: Album Conceptualizer",
   "extensions": {
     "colorMeta": {
@@ -361,7 +361,11 @@
     },
     "focus": {
       "value": "outline: 2px solid var(--accent); outline-offset: 2px",
-      "purpose": "The one global focus ring (:focus-visible), declared in the base layer so utilities can adjust it. Every element carries outline-color: var(--accent) before focus, so transition-colors never fades the ring in from the text color. Rows and tabs inside a scroller or a tight list (sidebar rows, album tabs) inset it (outline-offset: -2px) so it is never clipped or painted over."
+      "purpose": "The one global focus ring (:focus-visible), declared in the base layer so utilities can adjust it. Every element carries outline-color: var(--accent) before focus, so transition-colors never fades the ring in from the text color. Rows and tabs inside a scroller or a tight list (sidebar rows, album tabs) inset it (outline-offset: -2px) so it is never clipped or painted over.",
+      "returnFocus": {
+        "value": "useReturnFocus (components/use-return-focus.ts, lib/focus-hold.ts)",
+        "purpose": "After an action that closes a confirm, replaces its trigger or refreshes the route, focus goes (in a layout effect after the commit) to the trigger or what replaced it if it was dropped to the body, and back there for 3s if a refresh drops it again; never taken from where the person moved it."
+      }
     },
     "motion": [
       {
@@ -408,17 +412,32 @@
       {
         "name": "album-body-container",
         "value": "56rem (container query)",
-        "purpose": "Spine becomes a sticky side column (up to 21rem); below it folds into the Sequence disclosure, open by default on the Overview."
+        "purpose": "Spine becomes a sticky side column (22rem, the narrowest, where three or more themes fall back to keys); below it folds into the Sequence disclosure, open by default on the Overview."
       },
       {
         "name": "album-body-wide",
         "value": "72rem (container query)",
-        "purpose": "The spine column widens to 24rem."
+        "purpose": "The spine column widens to 24rem for up to two themes, 31rem for five, 34rem for six, so every theme is headed by name."
       },
       {
         "name": "album-tabs-row",
         "value": "32rem (container query)",
         "purpose": "Album tabs sit in one row; below it they stack as a ruled grid of three columns, two below 20rem."
+      },
+      {
+        "name": "album-body-mid",
+        "value": "64rem (container query)",
+        "purpose": "The spine column widens to 25rem for three themes and 28rem for four or more, so up to four themes are headed by name on a laptop."
+      },
+      {
+        "name": "sticky-height",
+        "value": "min-height: 31.3125em (media query, em)",
+        "purpose": "The app header and the Studio's save bar stick only from here: 501px at the default text size, and taller as the reader's default font size grows (Em Breakpoint Rule)."
+      },
+      {
+        "name": "theme-names",
+        "value": "15rem + 3rem per theme (container query, @min-[18rem] to @min-[33rem])",
+        "purpose": "A theme matrix heads its columns by the theme's name from here; below it, short keys and a legend (themeHeadClasses)."
       }
     ],
     "masks": [
@@ -431,7 +450,7 @@
     "layoutMeta": {
       "scrollPadding": {
         "value": "calc(var(--sticky-offset, var(--header-offset)) + 1rem)",
-        "purpose": "The only sticky offset: anchors and focused fields land clear of everything sticky. --header-offset is the header's height where it sticks and 0 on a window 500px tall or less; the Studio sets --sticky-offset (header plus save bar, each only while it sticks) while mounted. No element adds a scroll-margin of its own."
+        "purpose": "The only sticky offset: anchors and focused fields land clear of everything sticky. --header-offset is the header's height where it sticks and 0 on a window under 31.3125em tall (500px or less at the default text size); the Studio sets --sticky-offset (header plus save bar, each only while it sticks) while mounted. No element adds a scroll-margin of its own."
       },
       "sidebar": {
         "value": "sticky, 100dvh, scrolls as one column (FadeScroll)",
@@ -442,8 +461,8 @@
         "purpose": "The sidebar's rendered width (`w-sidebar`), and the left edge of anything fixed to the content column, such as the docked preview player (`md:left-sidebar`)."
       },
       "spineColumn": {
-        "value": "22rem from a 56rem album body, 24rem from 72rem",
-        "purpose": "Six theme marks, an 8rem title and the Lyrics and Role heads fit without the spine scrolling at normal text size; three themes and the 8rem title fit a 320px phone."
+        "value": "22rem from a 56rem album body; by theme count from 64rem (25rem for three, 28rem for four or more) and 72rem (24rem up to two, 31rem for five, 34rem for six)",
+        "purpose": "Room for the theme names (15rem plus 3rem a theme, 1rem for a scrollbar) wherever the album body has it, with the content keeping at least 33.5rem."
       },
       "fontFallbacks": {
         "value": "app/font-fallbacks.css: \"Archivo Local Arial\", \"Archivo Local Roboto\", \"Archivo Local DejaVu\"",
@@ -603,6 +622,22 @@
       "description": "One album as a whole-row link: title in the small display cut, catalog line, then \"Lyrics written 3/8\" and the Coherence verdict label where the page loaded them (Library, Home), a status chip and a chevron. A size container: from 20rem the chip sits at the end and the title keeps 12rem; below it the chip and chevron drop under the catalog line.",
       "html": "<a class=\"ds-row\" href=\"#\"><div><p class=\"ds-row-title\">Salt Signal</p><p class=\"ds-catalog\">Mara Lind · 8 tracks · Edited 2 hours ago</p><dl class=\"ds-row-progress\"><dt>Lyrics written</dt><dd>3/8</dd><dt>Coherence</dt><dd>Unfinished</dd></dl></div><span class=\"ds-chip\">Draft</span></a>",
       "css": ".ds-row { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: 44px; padding: 12px 4px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); } .ds-row:hover { background: var(--hover); } .ds-row-title { margin: 0; font-size: 1.125rem; font-weight: 760; font-stretch: 125%; } .ds-catalog { margin: 6px 0 0; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); } .ds-row-progress { display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 6px 0 0; align-items: baseline; } .ds-row-progress dt { font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); } .ds-row-progress dd { margin: 0 12px 0 0; font-size: 0.875rem; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-chip { font-size: 0.75rem; padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--ink-2); }"
+    },
+    {
+      "name": "Live Status",
+      "kind": "status",
+      "refersTo": "LiveStatus",
+      "description": "The one after-action status line: an always-mounted polite live region, rendered unconditionally and filled when there is something to say; errors go in as an alert. Out of the flow while empty.",
+      "html": "<div aria-live=\"polite\"><p class=\"ds-status ds-status-ok\">Published to Discover.</p></div>",
+      "css": ".ds-status { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; line-height: 1.25rem; margin: 0; color: var(--ink-2); } .ds-status-ok { color: var(--ok); } .ds-status-danger { color: var(--danger); }"
+    },
+    {
+      "name": "Page Title",
+      "kind": "heading",
+      "refersTo": "page-title",
+      "description": "PageHeader size=\"page\": the h1 of the app's own screens (Home, Library, Search, Notifications, Settings, Help, Challenges, Billing) at 1.5rem semibold in the normal cut; the display cut stays for album titles.",
+      "html": "<h1 class=\"ds-page-title\">Home</h1>",
+      "css": ".ds-page-title { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 1.5rem; line-height: 1.25; font-weight: 600; color: var(--ink); margin: 0; }"
     }
   ],
   "narrative": {
@@ -776,6 +811,46 @@
         "name": "The One Term for AI Rule",
         "body": "The AI action and its cost have one name everywhere: \"AI draft\" (\"AI draft · 5 credits\", \"New AI draft\", \"AI drafts\" in plural). Never \"AI run\", \"agent workflow\" or \"brainstorm\" as the name of the spend; the ideation feature may say it brainstorms ideas, but its cost line says \"AI draft\". Likewise lyrics are \"written\", never \"started\" (\"Lyrics written 3/8\").",
         "section": "components"
+      },
+      {
+        "name": "The Focus Comes Back Rule",
+        "body": "After any action that re-renders the route (router.refresh()) or replaces its trigger, focus lands on a sensible element after the commit: the trigger, or what replaced it (useReturnFocus), never the page body; done in a layout effect after the commit, never in a requestAnimationFrame before a refresh.",
+        "section": "components"
+      },
+      {
+        "name": "The Mounted Empty Rule",
+        "body": "A status that appears after an action goes into a live region already in the page, empty (LiveStatus, rendered unconditionally).",
+        "section": "components"
+      },
+      {
+        "name": "The Timed Things Wait Rule",
+        "body": "An Undo or transient offer stays at least 10 seconds, pauses while it has focus or hover, restarts its window when both leave, and if it lapses with focus inside moves focus to the affected item and says so.",
+        "section": "components"
+      },
+      {
+        "name": "The Em Breakpoint Rule",
+        "body": "A breakpoint that exists for text size is in em: the header and the Studio save bar stick from min-height: 31.3125em, not 501px.",
+        "section": "layout"
+      },
+      {
+        "name": "The Names, Not Codes Rule",
+        "body": "A theme is shown by its name (catalog caps, truncated, full name on hover and in the accessible name) wherever there is room; single-letter keys with a legend the table names as its description only in the narrowest layouts.",
+        "section": "components"
+      },
+      {
+        "name": "The Warn For Problems Rule",
+        "body": "Ember and Coral are for things that are actually wrong; ordinary guidance (unwritten tracks, Unfinished, a starter loop) is Stone or Ash Ink with a neutral chip (Start here, To do).",
+        "section": "colors"
+      },
+      {
+        "name": "The Progress First Rule",
+        "body": "While an album is partly written a score leads with the progress and the written tracks' own score; the capped whole-album score comes second.",
+        "section": "components"
+      },
+      {
+        "name": "The Next Step Ends It Rule",
+        "body": "A confirmation of finished work ends on what to do next with it, then on the balance.",
+        "section": "components"
       }
     ],
     "dos": [
@@ -790,7 +865,10 @@
       "Do give a mark that relies on a wash or saffron a forced-colors equivalent (Highlight, CanvasText, a border).",
       "Do put every table that may scroll sideways in `TableScroller` (it brings its own edge fade), and line anything fixed to the content column up with `--sidebar-w`.",
       "Do check every screen at 320px with 200% text: rows stack their trailing action below the text, header actions become icons, catalog separators stay with the next word.",
-      "Do use `Button busy` for a control busy with its own work, and return focus to the trigger when an action finishes on a screen that stays."
+      "Do use `Button busy` for a control busy with its own work, and return focus to the trigger when an action finishes on a screen that stays.",
+      "Do render every after-action status as a LiveStatus, unconditionally, and return focus with useReturnFocus when an action finishes on a screen that stays.",
+      "Do use PageHeader size=\"page\" for the app's own screens and keep the display cut for album titles.",
+      "Do write height breakpoints meant for enlarged text in em."
     ],
     "donts": [
       "Don't use saffron for headings, the wordmark, links, hovers, badges, checkboxes, meters or decoration, and never more than one saffron button on a screen.",
@@ -804,7 +882,9 @@
       "Don't use `table-fixed` with rem columns, rotate column heads, or read a matrix out one cell at a time.",
       "Don't add a `scroll-margin` for the sticky header: `html`'s scroll padding already clears it, and a second offset doubles it. Anything that sits below the header reads `--header-offset`, not `--header-h`.",
       "Don't write a vulgar-fraction glyph (\"½\") for progress; fractions are \"1/2\" in tabular figures.",
-      "Don't put `disabled` on a control that is only busy; it drops keyboard focus."
+      "Don't put `disabled` on a control that is only busy; it drops keyboard focus.",
+      "Don't mount a status region with its message already in it, or move focus in a requestAnimationFrame before a refresh.",
+      "Don't colour ordinary progress in Ember or Coral, or head a theme column with a letter where its name fits."
     ]
   }
 }

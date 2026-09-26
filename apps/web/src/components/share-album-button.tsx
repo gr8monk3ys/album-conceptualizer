@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Copy, Link2 } from "lucide-react";
 
-import { Button, StatusMessage } from "@/components/ui";
+import { Button, LiveStatus } from "@/components/ui";
+import { useReturnFocus } from "@/components/use-return-focus";
 
 type ShareResponse =
   | { share: null }
@@ -14,7 +15,11 @@ async function errorFrom(response: Response, fallback: string) {
   return typeof body?.error === "string" && body.error ? body.error : fallback;
 }
 
-/** A private read-only link to the album, for people who aren't in the workspace. */
+/**
+ * A private read-only link to the album, for people who aren't in the workspace. Each action
+ * replaces the control that started it, so focus moves to what replaced it once that has
+ * committed: Create share link hands it to Copy link, Revoke hands it back to Create share link.
+ */
 export function ShareAlbumButton({
   albumId,
   initialLink,
@@ -26,6 +31,9 @@ export function ShareAlbumButton({
   const [linkOverride, setLinkOverride] = useState<string | null>(null);
   const [busy, setBusy] = useState<"create" | "revoke" | null>(null);
   const link = linkOverride ?? initialLink ?? "";
+  const copyRef = useRef<HTMLButtonElement | null>(null);
+  const createRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocus = useReturnFocus();
 
   async function copy(url: string, created: boolean) {
     try {
@@ -52,6 +60,7 @@ export function ShareAlbumButton({
         throw new Error("The share link wasn't created. Try again.");
       }
       setLinkOverride(body.share.url);
+      returnFocus(() => copyRef.current);
       await copy(body.share.url, true);
     } catch (err) {
       setStatus({
@@ -70,6 +79,7 @@ export function ShareAlbumButton({
       const res = await fetch(`/api/albums/${albumId}/share`, { method: "DELETE" });
       if (!res.ok) throw new Error(await errorFrom(res, "The link is still active. Try revoking it again."));
       setLinkOverride("");
+      returnFocus(() => createRef.current);
       setStatus({ tone: "ok", text: "Link revoked. Anyone who has it can no longer open the album." });
     } catch (err) {
       setStatus({
@@ -96,7 +106,7 @@ export function ShareAlbumButton({
               onFocus={(event) => event.currentTarget.select()}
               className="min-h-11 min-w-0 flex-1 basis-64 rounded border border-line-control bg-sunken px-3 text-sm text-ink-2"
             />
-            <Button onClick={() => void copy(link, false)} disabled={busy === "revoke"}>
+            <Button ref={copyRef} onClick={() => void copy(link, false)} disabled={busy === "revoke"}>
               <Copy className="h-4 w-4" aria-hidden="true" />
               Copy link
             </Button>
@@ -110,7 +120,7 @@ export function ShareAlbumButton({
         </>
       ) : (
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => void create()} busy={busy === "create"}>
+          <Button ref={createRef} onClick={() => void create()} busy={busy === "create"}>
             <Link2 className="h-4 w-4" aria-hidden="true" />
             {busy === "create" ? "Creating link…" : "Create share link"}
           </Button>
@@ -119,7 +129,8 @@ export function ShareAlbumButton({
           </p>
         </div>
       )}
-      {status ? <StatusMessage tone={status.tone}>{status.text}</StatusMessage> : null}
+      {/* Always mounted, so the result is announced when it arrives. */}
+      <LiveStatus message={status?.text ?? null} tone={status?.tone} />
     </div>
   );
 }

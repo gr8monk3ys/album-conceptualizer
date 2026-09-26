@@ -73,7 +73,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-10">
-      <PageHeader title="Settings" catalog={workspace.name} />
+      <PageHeader size="page" title="Settings" catalog={workspace.name} />
 
       <SettingsRows rows={rows} label="Settings" />
 

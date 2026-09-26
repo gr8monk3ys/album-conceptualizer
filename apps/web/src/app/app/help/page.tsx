@@ -131,14 +131,46 @@ const SHORTCUTS: Array<{ keys: string[][]; does: string; spoken: string }> = [
   },
 ];
 
+/** The page's sections, in order, for the jump list at the top (each Section's h2 is `<id>-title`). */
+const CONTENTS = [
+  { id: "workflow", label: "From idea to handoff" },
+  { id: "credits", label: "Credits and plans" },
+  { id: "written", label: "What counts as written" },
+  { id: "keyboard", label: "Keyboard shortcuts" },
+  { id: "stuck", label: "Still stuck?" },
+];
+
 /** A short, task-based guide: the workflow, credits and plans, what counts, shortcuts. */
 export default function HelpPage() {
   return (
     <div className="flex flex-col gap-10">
       <PageHeader
+        size="page"
         title="Help"
         description="How an album goes from one idea to a handoff pack, and the details that come up on the way."
       />
+
+      {/* A jump list: every section one step away, so a question from another screen (What
+          counts as written, from the Coherence report) lands on its answer. */}
+      <nav aria-label="On this page" className="-mt-4">
+        <ul className="flex flex-wrap items-center gap-x-1 text-sm">
+          {CONTENTS.map((item, index) => (
+            <li key={item.id} className="flex items-center gap-x-1">
+              {index > 0 ? (
+                <span aria-hidden="true" className="text-ink-3">
+                  ·
+                </span>
+              ) : null}
+              <a
+                href={`#${item.id}-title`}
+                className="inline-flex min-h-11 items-center px-1 text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       <Section
         id="workflow"
@@ -271,8 +303,10 @@ export default function HelpPage() {
             <dt className="font-semibold text-ink">The coherence score</dt>
             <dd className="mt-1 text-ink-2">
               The Coherence report waits for enough tracks with lyrics before it gives a score.
-              Until then it lists what&apos;s missing, and an album with tracks still unwritten
-              reads as unfinished, whatever the score.
+              Until then it lists what&apos;s missing. While some tracks are still unwritten it
+              leads with how many are written and what the written tracks score on their own; the
+              whole album&apos;s score comes second, held down until every track has lyrics, and
+              the album reads as unfinished, whatever the score. That is progress, not a fault.
             </dd>
           </div>
         </dl>

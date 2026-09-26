@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyAcceptedTags, proposeTagsFromLyrics, stem } from "@/server/autotag";
+import { applyAcceptedTags, proposeTagsFromLyrics, removeAddedTags, stem } from "@/server/autotag";
 
 function song(trackNumber: number, lyrics: string, extra: Record<string, unknown> = {}) {
   return {
@@ -193,5 +193,72 @@ describe("applyAcceptedTags", () => {
     ]);
     expect(result?.added).toEqual([]);
     expect(result?.album.songs[0].themes).toEqual(["memory"]);
+  });
+});
+
+// The critique's album (run 6): "Last ferry, last word" was proposed as "ferry last".
+describe("phrase proposals keep the lyric's word order", () => {
+  const FERRY = "Last ferry, last word\nThe gulls heard what you never heard\nI watched the last ferry go";
+
+  it("never proposes the reversed pair it used to read across the comma", () => {
+    const result = proposeTagsFromLyrics(
+      album([song(1, "Last ferry, last word\nThe gulls heard what you never heard")], { central_themes: [], recurring_motifs: [] }),
+    );
+    for (const proposal of result?.proposals ?? []) expect(proposal.motifs).not.toContain("ferry last");
+  });
+
+  it("proposes the phrase as the lyrics say it", () => {
+    const result = proposeTagsFromLyrics(album([song(1, FERRY)], { central_themes: [], recurring_motifs: [] }));
+    const motifs = result?.proposals[0]?.motifs ?? [];
+    expect(motifs).toContain("last ferry");
+    expect(motifs).not.toContain("ferry last");
+  });
+
+  it("never makes a phrase from words on either side of punctuation", () => {
+    const result = proposeTagsFromLyrics(
+      album([song(1, "Harbour, lights\nHarbour; lights\nHarbour. Lights")], { central_themes: [], recurring_motifs: [] }),
+    );
+    expect(result?.proposals[0]?.motifs ?? []).not.toContain("harbour lights");
+  });
+
+  it("spells a tied phrase the way the lyrics say it first", () => {
+    const result = proposeTagsFromLyrics(
+      album([song(1, "Paper boats drift\nboats paper the bay")], {
+        central_themes: [],
+        recurring_motifs: [],
+      }),
+    );
+    expect(result?.proposals[0]?.motifs).toContain("paper boats");
+  });
+});
+
+describe("removeAddedTags", () => {
+  const data = album([
+    song(1, TIDE, { themes: ["memory", "tide"], motifs: ["static"] }),
+    song(2, "Signal fires", { motifs: ["Static"] }),
+  ]);
+
+  it("takes off exactly what an apply added, whatever the case, and keeps the rest", () => {
+    const result = removeAddedTags(data, [
+      { trackNumber: 1, themes: ["Tide"], motifs: [], characters: [] },
+      { trackNumber: 2, themes: [], motifs: ["static"], characters: [] },
+    ]);
+    expect(result?.album.songs[0].themes).toEqual(["memory"]);
+    expect(result?.album.songs[0].motifs).toEqual(["static"]);
+    expect(result?.album.songs[1].motifs).toEqual([]);
+    expect(result?.removed).toEqual([
+      { trackNumber: 1, themes: ["tide"], motifs: [], characters: [] },
+      { trackNumber: 2, themes: [], motifs: ["Static"], characters: [] },
+    ]);
+  });
+
+  it("round-trips an apply", () => {
+    const applied = applyAcceptedTags(data, [{ trackNumber: 2, themes: ["signal"], motifs: [], characters: ["Mara"] }]);
+    const undone = removeAddedTags(applied?.album, applied?.added ?? []);
+    expect(undone?.album.songs[1]).toMatchObject({ themes: [], characters: [], motifs: ["Static"] });
+  });
+
+  it("returns null for an album it can't read", () => {
+    expect(removeAddedTags({ title: 5 }, [])).toBeNull();
   });
 });

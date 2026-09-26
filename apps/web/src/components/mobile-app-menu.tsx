@@ -24,12 +24,19 @@ export function MobileAppMenu({
   unreadNotifications?: number;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      dialog.showModal();
+      // The sheet opens on its Close button, a named control, never on the scrolling column
+      // (at 320px with 200% text the column overflows and is itself focusable). `autoFocus`
+      // on the button says the same for the dialog's own focusing steps.
+      closeRef.current?.focus();
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
@@ -66,7 +73,7 @@ export function MobileAppMenu({
                 <Wordmark fit />
                 <span className="mt-1 block break-words text-xs text-ink-3">{workspaceName}</span>
               </div>
-              <IconButton label="Close navigation menu" onClick={() => setOpen(false)}>
+              <IconButton ref={closeRef} autoFocus label="Close navigation menu" onClick={() => setOpen(false)}>
                 <X className="h-5 w-5" aria-hidden="true" />
               </IconButton>
             </div>

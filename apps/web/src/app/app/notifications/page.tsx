@@ -55,6 +55,7 @@ export default async function NotificationsPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
+        size="page"
         title="Notifications"
         catalog={
           notifications.length ? (

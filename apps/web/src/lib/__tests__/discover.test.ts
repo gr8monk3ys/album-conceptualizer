@@ -15,7 +15,8 @@ import {
   lyricExcerptsByTrack,
   parseDiscoverView,
   widenViewHref,
-  writtenSummaryLine,
+  lyricStripPhrase,
+  writtenSummaryItems,
 } from "@/lib/discover";
 
 const album = {
@@ -34,12 +35,25 @@ const album = {
   ],
 };
 
-describe("writtenSummaryLine", () => {
-  it("reads as a catalog line", () => {
-    expect(writtenSummaryLine({ tracks: 7, withLyrics: 5 })).toBe("7 tracks · lyrics on 5");
-    expect(writtenSummaryLine({ tracks: 1, withLyrics: 1 })).toBe("1 track · lyrics on all");
-    expect(writtenSummaryLine({ tracks: 3, withLyrics: 0 })).toBe("3 tracks · no lyrics yet");
-    expect(writtenSummaryLine({ tracks: 0, withLyrics: 0 })).toBe("0 tracks");
+describe("writtenSummaryItems", () => {
+  it("returns the count and the lyric coverage as separate catalog items", () => {
+    expect(writtenSummaryItems({ tracks: 7, withLyrics: 5 })).toEqual(["7 tracks", "lyrics on 5"]);
+    expect(writtenSummaryItems({ tracks: 1, withLyrics: 1 })).toEqual(["1 track", "lyrics on all"]);
+    expect(writtenSummaryItems({ tracks: 3, withLyrics: 0 })).toEqual(["3 tracks", "no lyrics yet"]);
+    expect(writtenSummaryItems({ tracks: 0, withLyrics: 0 })).toEqual(["0 tracks"]);
+  });
+  it("never bakes a separator into an item", () => {
+    for (const item of writtenSummaryItems({ tracks: 10, withLyrics: 3 })) expect(item).not.toContain("·");
+  });
+});
+
+describe("lyricStripPhrase", () => {
+  it("says the strip in one phrase", () => {
+    expect(lyricStripPhrase({ tracks: 7, withLyrics: 5 })).toBe("Lyrics written on 5 of 7 tracks");
+    expect(lyricStripPhrase({ tracks: 7, withLyrics: 7 })).toBe("Lyrics written on all 7 tracks");
+    expect(lyricStripPhrase({ tracks: 1, withLyrics: 1 })).toBe("Lyrics written on its 1 track");
+    expect(lyricStripPhrase({ tracks: 3, withLyrics: 0 })).toBe("No lyrics written yet on its 3 tracks");
+    expect(lyricStripPhrase({ tracks: 0, withLyrics: 0 })).toBe("");
   });
 });
 

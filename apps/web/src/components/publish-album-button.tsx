@@ -5,7 +5,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Globe2, Lock } from "lucide-react";
 
 import { ReadinessList } from "@/components/album-readiness";
-import { Button, StatusMessage } from "@/components/ui";
+import { Button, LiveStatus } from "@/components/ui";
+import { useReturnFocus } from "@/components/use-return-focus";
 import type { AlbumReadiness } from "@/server/readiness";
 
 async function errorFrom(response: Response, fallback: string) {
@@ -34,6 +35,8 @@ export function PublishAlbumButton({
   const [status, setStatus] = useState<{ tone: "ok" | "danger"; text: string } | null>(null);
   const isPublic = publicOverride ?? initialPublic;
   const promptId = useId();
+  const groupId = useId();
+  const returnFocus = useReturnFocus();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const confirmRef = useRef<HTMLButtonElement | null>(null);
 
@@ -43,7 +46,7 @@ export function PublishAlbumButton({
 
   function cancel() {
     setConfirming(false);
-    requestAnimationFrame(() => triggerRef.current?.focus());
+    returnFocus(() => triggerRef.current);
   }
 
   async function toggle() {
@@ -76,11 +79,10 @@ export function PublishAlbumButton({
       });
     } finally {
       setBusy(false);
-      if (confirming) {
-        // The confirm closes; give focus back to the button it replaced.
-        setConfirming(false);
-        requestAnimationFrame(() => triggerRef.current?.focus());
-      }
+      // The confirm closes; focus goes back to the button it replaced once that has committed,
+      // and stays there through the refresh above (never dropped to the page).
+      setConfirming(false);
+      returnFocus(() => triggerRef.current);
     }
   }
 
@@ -91,6 +93,7 @@ export function PublishAlbumButton({
     <div className="flex flex-col gap-2">
       {confirming && readiness ? (
         <div
+          id={groupId}
           role="group"
           aria-labelledby={promptId}
           className="flex flex-col gap-2"
@@ -124,7 +127,9 @@ export function PublishAlbumButton({
             ref={triggerRef}
             onClick={() => (needsConfirm ? setConfirming(true) : void toggle())}
             busy={busy}
-            aria-haspopup={needsConfirm ? "true" : undefined}
+            // Like Confirm Spend: a disclosure of the question in its place, not a menu.
+            aria-expanded={needsConfirm ? false : undefined}
+            aria-controls={needsConfirm ? groupId : undefined}
           >
             {isPublic ? (
               <Lock className="h-4 w-4" aria-hidden="true" />
@@ -140,7 +145,8 @@ export function PublishAlbumButton({
           </p>
         </div>
       )}
-      {status ? <StatusMessage tone={status.tone}>{status.text}</StatusMessage> : null}
+      {/* Always mounted, so the result is announced when it arrives. */}
+      <LiveStatus message={status?.text ?? null} tone={status?.tone} />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
   Field,
   Panel,
   Section,
-  StatusMessage,
+  LiveStatus,
   inputClass,
   selectClass,
   textareaClass,
@@ -187,10 +187,9 @@ function getPayloadError(payload: RoughDemoCollection | { error?: string } | nul
   return payload && "error" in payload && payload.error ? payload.error : fallback;
 }
 
+/** A rough memo that still needs shape is ordinary progress, not a problem: neutral, not warn. */
 function readinessTone(label: RoughDemoReview["readinessLabel"]) {
-  if (label === "Ready") return "ok" as const;
-  if (label === "Needs shape") return "warn" as const;
-  return "neutral" as const;
+  return label === "Ready" ? ("ok" as const) : ("neutral" as const);
 }
 
 function sameForm(left: RoughDemoFormState, right: RoughDemoFormState) {
@@ -340,7 +339,7 @@ function ReviewBlock({ demoId, review }: { demoId: string; review: RoughDemoRevi
 
       {review.concerns.length ? (
         <p className="mt-1 max-w-[65ch] text-sm text-ink-2">
-          <span className="text-warn">Watch:</span> {review.concerns.join(" · ")}
+          <span className="text-ink-3">Still open:</span> {review.concerns.join(" · ")}
         </p>
       ) : null}
     </div>
@@ -793,10 +792,10 @@ export function AlbumRoughDemoWorkspace({
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button type="submit" tone="primary" disabled={isSaving}>
+            <Button type="submit" tone="primary" busy={isSaving}>
               {isSaving ? "Saving…" : mode === "edit" ? "Update demo" : "Add demo"}
             </Button>
-            {formError ? <StatusMessage tone="danger">{formError}</StatusMessage> : null}
+            <LiveStatus message={formError} tone="danger" />
           </div>
         </form>
       </Panel>
@@ -828,11 +827,7 @@ export function AlbumRoughDemoWorkspace({
           {unassignedCount === 1 ? "still needs" : "still need"} a track decision
         </p>
       </div>
-      {listError ? (
-        <StatusMessage tone="danger" className="mt-3">
-          {listError}
-        </StatusMessage>
-      ) : null}
+      <LiveStatus message={listError} tone="danger" className="mt-3" />
       <ul className="@container divide-y divide-line">
         {demos.map((demo) => {
           const review = reviewsById[demo.id];
@@ -952,12 +947,7 @@ export function AlbumRoughDemoWorkspace({
         }
       >
         <div className="flex flex-col gap-6">
-          <p
-            role="status"
-            className={notice ? (notice.tone === "ok" ? "text-sm text-ok" : "text-sm text-ink-2") : "sr-only"}
-          >
-            {notice?.text}
-          </p>
+          <LiveStatus message={notice?.text ?? null} tone={notice?.tone === "ok" ? "ok" : "neutral"} />
           {addOpen ? renderForm("add") : null}
           {demos.length ? list : addOpen ? null : emptyState}
         </div>

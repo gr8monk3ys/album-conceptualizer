@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { useAiUnavailableNotice } from "@/components/ai-unavailable";
 import { ConfirmSpend } from "@/components/confirm-spend";
-import { Button, Section, StatusMessage } from "@/components/ui";
+import { Button, LiveStatus, Section } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { useAgentJob } from "@/hooks/use-agent-job";
 import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -128,6 +129,18 @@ export function CoherenceAiReview({
         ? { text: failedText, retryable: !NOT_AVAILABLE.test(failedText) }
         : null;
 
+  // The retry goes away once the new AI draft starts. If it had focus, focus moves to the
+  // section's own AI draft button after the commit, never to the page body.
+  const showRetry = Boolean(error?.retryable && aiAvailable);
+  const actionsRef = useRef<HTMLSpanElement>(null);
+  const retryShown = useRef(false);
+  useLayoutEffect(() => {
+    if (retryShown.current && !showRetry && (!document.activeElement || document.activeElement === document.body)) {
+      actionsRef.current?.querySelector("button")?.focus();
+    }
+    retryShown.current = showRetry;
+  }, [showRetry]);
+
   const buttonLabel = isStarting
     ? "Starting…"
     : isPolling
@@ -150,16 +163,18 @@ export function CoherenceAiReview({
       }
       actions={
         aiAvailable ? (
-          <ConfirmSpend
-            cost={COST}
-            remaining={creditsRemaining}
-            actionLabel={output ? "Start a new AI draft" : "Start AI draft"}
-            onConfirm={start}
-            busy={isBusy}
-          >
-            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-            {buttonLabel}
-          </ConfirmSpend>
+          <span ref={actionsRef} className="contents">
+            <ConfirmSpend
+              cost={COST}
+              remaining={creditsRemaining}
+              actionLabel={output ? "Start a new AI draft" : "Start AI draft"}
+              onConfirm={start}
+              busy={isBusy}
+            >
+              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+              {buttonLabel}
+            </ConfirmSpend>
+          </span>
         ) : (
           // Disabled and unpriced: nothing can be spent here, and the plain line says why.
           <Button disabled aria-describedby={unavailable.describedBy}>
@@ -168,29 +183,33 @@ export function CoherenceAiReview({
         )
       }
     >
-      {error ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <StatusMessage tone="danger" className="max-w-[65ch]">
-            {error.text}
-          </StatusMessage>
-          {error.retryable && aiAvailable ? (
-            <ConfirmSpend
-              cost={COST}
-              remaining={creditsRemaining}
-              actionLabel="Try the AI draft again"
-              onConfirm={start}
-              busy={isBusy}
-              tone="ghost"
-            >
-              {`Try the AI draft again · ${PRICE}`}
-            </ConfirmSpend>
-          ) : null}
-        </div>
-      ) : null}
-
-      {isPolling && !output ? (
-        <StatusMessage>The AI draft is reading your Bible and tracks. Keep this page open.</StatusMessage>
-      ) : null}
+      {/* One live region for the review, mounted from the start so each change is announced;
+          the retry sits beside it, outside the region. */}
+      <div className={cn("flex flex-wrap items-center gap-3", (error || isPolling) && !output && "mb-3")}>
+        <LiveStatus
+          className="max-w-[65ch]"
+          tone={error ? "danger" : "neutral"}
+          message={
+            error
+              ? error.text
+              : isPolling && !output
+                ? "The AI draft is reading your Bible and tracks. Keep this page open."
+                : null
+          }
+        />
+        {showRetry ? (
+          <ConfirmSpend
+            cost={COST}
+            remaining={creditsRemaining}
+            actionLabel="Try the AI draft again"
+            onConfirm={start}
+            busy={isBusy}
+            tone="ghost"
+          >
+            {`Try the AI draft again · ${PRICE}`}
+          </ConfirmSpend>
+        ) : null}
+      </div>
 
       {output ? (
         <div className="max-w-[65ch] whitespace-pre-wrap border-l border-line-strong pl-4 text-sm leading-relaxed text-ink-2">

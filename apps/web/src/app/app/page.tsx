@@ -62,6 +62,7 @@ export default async function AppHomePage() {
   return (
     <div className="flex flex-col gap-10">
       <PageHeader
+        size="page"
         title="Home"
         description={
           latest

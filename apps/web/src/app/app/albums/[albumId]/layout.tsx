@@ -6,6 +6,7 @@ import { CatalogItems, albumStatusLabel } from "@/components/album-card";
 import { AlbumBody, AlbumNav, AlbumNextAction } from "@/components/album-nav";
 import { AlbumSpine } from "@/components/album-spine";
 import { RelativeTime } from "@/components/relative-time";
+import { ReleaseTitle } from "@/components/release-title";
 import { getSpineRows, getSpineThemes, nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
 import { requireUser } from "@/server/identity";
@@ -15,9 +16,11 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 // A quiet link inside the catalog line: catalog caps in Stone Ink with the Strong Rule
 // underline. The line stays one line of small caps; the link's 44px target is an invisible
 // box stretched above and below its text (after:), so the target doesn't loosen the lock-up
-// of title and catalog line.
+// of title and catalog line. The link is set as a block of the line's own height (16px) and
+// the box reaches 16px past it each way: 48px, clear of the 44px minimum (stretched 14px from
+// an inline box it measured 42px).
 const CATALOG_LINK =
-  "relative underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink after:absolute after:inset-x-0 after:-inset-y-3.5";
+  "relative inline-block underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink after:absolute after:inset-x-0 after:-inset-y-4";
 
 /** The release header, album navigation and spine shared by every album screen. */
 export default async function AlbumLayout({
@@ -45,10 +48,14 @@ export default async function AlbumLayout({
       <header className="@container flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div className="flex min-w-0 max-w-full flex-col gap-3">
           {/* 18.75em is 24ch of the display cut, set in em so the measure is the same before
-              and after Archivo loads (the fallback's "0" is narrower). */}
-          <h1 className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto">
+              and after Archivo loads (the fallback's "0" is narrower). The page's h1, except
+              under an address the album has no page for, where the not-found heading is. */}
+          <ReleaseTitle
+            albumId={album.id}
+            className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto"
+          >
             {album.title}
-          </h1>
+          </ReleaseTitle>
           {/* Each separator stays with the item after it, so a wrapped line never ends on a dot. */}
           <p className="type-catalog flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">
             <CatalogItems
@@ -90,6 +97,7 @@ export default async function AlbumLayout({
       <AlbumNav albumId={album.id} />
       <AlbumBody
         trackCount={rows.length}
+        themeCount={themes.length}
         spine={<AlbumSpine albumId={album.id} rows={rows} themes={themes} />}
         compactSpine={
           <AlbumSpine albumId={album.id} rows={rows} themes={themes} heading={false} idPrefix="album-spine-compact" />

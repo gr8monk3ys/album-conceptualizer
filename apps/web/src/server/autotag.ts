@@ -125,27 +125,44 @@ function ranked<T extends { count: number; form: string }>(items: T[], min: numb
 
 /**
  * Two-word phrases that repeat, both words content words, each pair counted once whatever its
- * order ("count down" and "down count" are one phrase, spelt the way it occurs most).
+ * order ("count down" and "down count" are one phrase). A phrase never spans punctuation: in
+ * "Last ferry, last word" the words "ferry" and "last" belong to different clauses, so they are
+ * not a phrase. It is spelt the way the lyrics say it most, and on a tie the way they say it
+ * first, so a proposal keeps the lyric's word order ("last ferry", never "ferry last").
  */
-function repeatedPhrases(lines: string[][]) {
-  const map = new Map<string, { count: number; forms: Map<string, number> }>();
-  for (const line of lines) {
-    for (let i = 0; i < line.length - 1; i += 1) {
-      const a = line[i];
-      const b = line[i + 1];
+function repeatedPhrases(clauses: string[][]) {
+  const map = new Map<string, { count: number; forms: Map<string, { count: number; first: number }> }>();
+  let position = 0;
+  for (const clause of clauses) {
+    for (let i = 0; i < clause.length - 1; i += 1) {
+      position += 1;
+      const a = clause[i];
+      const b = clause[i + 1];
       if (!isContentWord(a) || !isContentWord(b) || stem(a) === stem(b)) continue;
       const key = [stem(a), stem(b)].sort().join(" ");
-      const entry = map.get(key) ?? { count: 0, forms: new Map<string, number>() };
+      const entry = map.get(key) ?? { count: 0, forms: new Map<string, { count: number; first: number }>() };
       entry.count += 1;
       const form = `${a} ${b}`;
-      entry.forms.set(form, (entry.forms.get(form) ?? 0) + 1);
+      const seen = entry.forms.get(form) ?? { count: 0, first: position };
+      seen.count += 1;
+      entry.forms.set(form, seen);
       map.set(key, entry);
     }
   }
   return Array.from(map.entries()).map(([key, entry]) => {
-    const form = Array.from(entry.forms.entries()).sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))[0][0];
+    const form = Array.from(entry.forms.entries()).sort(
+      (x, y) => y[1].count - x[1].count || x[1].first - y[1].first,
+    )[0][0];
     return { key, form, count: entry.count };
   });
+}
+
+/** A lyric's clauses: its lines, cut again at punctuation that ends a phrase. */
+function clauses(lyrics: string): string[][] {
+  return lyrics
+    .split(/\n+|[,.;:!?()"\u201c\u201d\u2014\u2013]+|\s-\s/)
+    .map(words)
+    .filter((clause) => clause.length);
 }
 
 /**
@@ -237,7 +254,7 @@ function suggestTagsFromLyrics(album: AlbumJson): TrackTagSuggestion[] {
         4,
       ).map((item) => item.form);
       const newMotifs = ranked(
-        repeatedPhrases(lines).filter((item) => !item.key.split(" ").some((part) => taken.has(part))),
+        repeatedPhrases(clauses(lyrics)).filter((item) => !item.key.split(" ").some((part) => taken.has(part))),
         2,
         3,
       ).map((item) => item.form);
@@ -345,4 +362,45 @@ export function applyAcceptedTags(
   });
 
   return { album: { ...album, songs }, added: added.sort((left, right) => left.trackNumber - right.trackNumber) };
+}
+
+/**
+ * Undo for "Tag from lyrics": take off exactly the tags an apply added (matched without regard
+ * to case), and nothing else, so tags the artist added by hand since stay. Returns the album and
+ * what was taken off, for the confirmation. Null when the album can't be read.
+ */
+export function removeAddedTags(
+  data: unknown,
+  added: readonly TrackTags[],
+): { album: AlbumJson; removed: TrackTags[] } | null {
+  const parsed = AlbumJsonSchema.safeParse(data);
+  if (!parsed.success) return null;
+  const album = parsed.data;
+
+  const byTrack = new Map<number, Record<TagKind, Set<string>>>();
+  for (const entry of added) {
+    const current = byTrack.get(entry.trackNumber) ?? { themes: new Set(), motifs: new Set(), characters: new Set() };
+    for (const kind of TAG_KINDS) for (const tag of entry[kind]) current[kind].add(normKey(tag));
+    byTrack.set(entry.trackNumber, current);
+  }
+
+  const removed: TrackTags[] = [];
+  const songs = album.songs.map((song) => {
+    const drop = byTrack.get(song.track_number);
+    if (!drop) return song;
+    const next = { ...song };
+    const removedHere: TrackTags = { trackNumber: song.track_number, themes: [], motifs: [], characters: [] };
+    for (const kind of TAG_KINDS) {
+      const existing = Array.isArray(song[kind]) ? song[kind] : [];
+      next[kind] = existing.filter((tag) => {
+        if (!drop[kind].has(normKey(tag))) return true;
+        removedHere[kind].push(tag);
+        return false;
+      });
+    }
+    if (TAG_KINDS.some((kind) => removedHere[kind].length)) removed.push(removedHere);
+    return next;
+  });
+
+  return { album: { ...album, songs }, removed: removed.sort((left, right) => left.trackNumber - right.trackNumber) };
 }

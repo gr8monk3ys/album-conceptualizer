@@ -1,11 +1,11 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 
 import { AiUnavailableNote, useAiUnavailableNotice } from "@/components/ai-unavailable";
 import { ConfirmSpend } from "@/components/confirm-spend";
-import { Button, StatusMessage } from "@/components/ui";
+import { Button, LiveStatus } from "@/components/ui";
 import { useAgentJob } from "@/hooks/use-agent-job";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
@@ -254,6 +254,13 @@ function BrainstormResult({ output, onApply }: { output: string; onApply: Ideati
   const [takeTracks, setTakeTracks] = useState(parsed.trackTitles.length > 0);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [undone, setUndone] = useState(false);
+  const applyRef = useRef<HTMLButtonElement>(null);
+
+  // Undo removes itself once pressed: focus goes back to Apply after the commit, never to the
+  // page body.
+  useLayoutEffect(() => {
+    if (undone) applyRef.current?.focus();
+  }, [undone]);
 
   const nothingChosen =
     !(takeConcept && parsed.concept) &&
@@ -343,24 +350,30 @@ function BrainstormResult({ output, onApply }: { output: string; onApply: Ideati
       </fieldset>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={apply} disabled={nothingChosen}>
+        <Button ref={applyRef} onClick={apply} disabled={nothingChosen}>
           Apply to blueprint
         </Button>
+        <LiveStatus
+          message={
+            undone
+              ? "Undone. Your blueprint is back as it was."
+              : undo
+                ? "Applied. Check the fields and change anything you like."
+                : null
+          }
+          tone={undo && !undone ? "ok" : "neutral"}
+        />
         {undo && !undone ? (
-          <>
-            <StatusMessage tone="ok">Applied. Check the fields and change anything you like.</StatusMessage>
-            <Button
-              tone="ghost"
-              onClick={() => {
-                undo();
-                setUndone(true);
-              }}
-            >
-              Undo
-            </Button>
-          </>
+          <Button
+            tone="ghost"
+            onClick={() => {
+              undo();
+              setUndone(true);
+            }}
+          >
+            Undo
+          </Button>
         ) : null}
-        {undone ? <StatusMessage>Undone. Your blueprint is back as it was.</StatusMessage> : null}
       </div>
     </div>
   );
@@ -484,28 +497,25 @@ export function IdeationAi({
         ) : null}
       </div>
 
-      {isPolling ? (
-        <StatusMessage className="mt-3">
-          Brainstorming. This usually takes 30 to 90 seconds; you can keep writing meanwhile.
-        </StatusMessage>
-      ) : null}
-
-      {error ? (
-        <StatusMessage tone="danger" className="mt-3">
-          {error}
-        </StatusMessage>
-      ) : null}
-
-      {failed ? (
-        <StatusMessage tone="danger" className="mt-3">
-          The AI draft didn&apos;t finish, and its {price} were refunded. Try again in a minute, or
-          carry on with your own concept: the rest of the setup works without it.
-        </StatusMessage>
-      ) : null}
-
-      {job?.status === "completed" && !output ? (
-        <StatusMessage className="mt-3">The AI draft came back empty. Try again with a longer concept.</StatusMessage>
-      ) : null}
+      {/* One live region for the job, mounted from the start so each change is announced. */}
+      <LiveStatus
+        className="mt-3"
+        tone={error || failed ? "danger" : "neutral"}
+        message={
+          error ? (
+            error
+          ) : failed ? (
+            <>
+              The AI draft didn&apos;t finish, and its {price} were refunded. Try again in a minute,
+              or carry on with your own concept: the rest of the setup works without it.
+            </>
+          ) : isPolling ? (
+            "Brainstorming. This usually takes 30 to 90 seconds; you can keep writing meanwhile."
+          ) : job?.status === "completed" && !output ? (
+            "The AI draft came back empty. Try again with a longer concept."
+          ) : null
+        }
+      />
 
       {output && jobId ? <BrainstormResult key={jobId} output={output} onApply={onApply} /> : null}
     </section>
