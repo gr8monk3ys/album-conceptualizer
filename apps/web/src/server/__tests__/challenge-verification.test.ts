@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   challengeWritingReason,
   checkChallengeWriting,
+  lyricBaselineHashes,
   startOfUtcDay,
   writtenLyricTexts,
 } from "@/server/challenge-verification";
@@ -49,6 +50,7 @@ describe("checkChallengeWriting", () => {
         now: NOW,
         album: { data, createdAt: TODAY, updatedAt: TODAY },
         trackNumber: 1,
+        dayBaseline: null,
         versionBeforeToday: null,
         firstVersion: null,
       }),
@@ -65,6 +67,7 @@ describe("checkChallengeWriting", () => {
         now: NOW,
         album: { data, createdAt: TODAY, updatedAt: TODAY },
         trackNumber: 1,
+        dayBaseline: null,
         versionBeforeToday: null,
         firstVersion: null,
       }),
@@ -78,6 +81,7 @@ describe("checkChallengeWriting", () => {
         now: NOW,
         album: { data, createdAt: LAST_WEEK, updatedAt: new Date("2026-09-25T23:59:00Z") },
         trackNumber: null,
+        dayBaseline: null,
         versionBeforeToday: null,
         firstVersion: null,
       }),
@@ -92,23 +96,28 @@ describe("checkChallengeWriting", () => {
         now: NOW,
         album: { data: now, createdAt: LAST_WEEK, updatedAt: TODAY },
         trackNumber: 1,
+        dayBaseline: null,
         versionBeforeToday: { data: before },
         firstVersion: { data: before },
       }),
     ).toEqual({ verified: false, reason: "unchanged" });
   });
 
-  it("pays for a new or changed section since the last version before today", () => {
+  it("pays for a new section only against today's baseline, not an older version alone", () => {
     const before = album([{ track: 1, lyrics: ["Salt on the glass", null] }]);
     const now = album([{ track: 1, lyrics: ["Salt on the glass", "The keeper counts the ships"] }]);
+    const input = {
+      now: NOW,
+      album: { data: now, createdAt: LAST_WEEK, updatedAt: TODAY },
+      trackNumber: 1,
+      dayBaseline: null,
+      versionBeforeToday: { data: before },
+      firstVersion: { data: before },
+    };
+    // The version may be weeks old: the new section could have been written any day since.
+    expect(checkChallengeWriting(input)).toEqual({ verified: false, reason: "no-baseline" });
     expect(
-      checkChallengeWriting({
-        now: NOW,
-        album: { data: now, createdAt: LAST_WEEK, updatedAt: TODAY },
-        trackNumber: 1,
-        versionBeforeToday: { data: before },
-        firstVersion: { data: before },
-      }),
+      checkChallengeWriting({ ...input, dayBaseline: { lyricHashes: lyricBaselineHashes(before) } }),
     ).toEqual({ verified: true });
   });
 
@@ -126,6 +135,7 @@ describe("checkChallengeWriting", () => {
         now: NOW,
         album: { data: now, createdAt: LAST_WEEK, updatedAt: TODAY },
         trackNumber: 1,
+        dayBaseline: null,
         versionBeforeToday: { data: before },
         firstVersion: null,
       }),
@@ -138,6 +148,7 @@ describe("checkChallengeWriting", () => {
       now: NOW,
       album: { data: copy, createdAt: TODAY, updatedAt: TODAY },
       trackNumber: 1,
+      dayBaseline: null,
       versionBeforeToday: null,
       firstVersion: { data: copy },
     };
@@ -149,17 +160,52 @@ describe("checkChallengeWriting", () => {
     });
   });
 
-  it("takes an older album saved today at its word when there is no earlier version", () => {
+  it("doesn't pay an older album saved today when there is no baseline to measure by", () => {
     const data = album([{ track: 1, lyrics: ["Salt on the glass"] }]);
     expect(
       checkChallengeWriting({
         now: NOW,
         album: { data, createdAt: LAST_WEEK, updatedAt: TODAY },
         trackNumber: null,
+        dayBaseline: null,
         versionBeforeToday: null,
         firstVersion: null,
       }),
-    ).toEqual({ verified: true });
+    ).toEqual({ verified: false, reason: "no-baseline" });
+  });
+
+  it("measures an older album against today's baseline", () => {
+    const before = album([{ track: 1, lyrics: ["Salt on the glass"] }]);
+    const input = {
+      now: NOW,
+      album: { data: before, createdAt: LAST_WEEK, updatedAt: TODAY },
+      trackNumber: 1,
+      dayBaseline: { lyricHashes: lyricBaselineHashes(before) },
+      versionBeforeToday: null,
+      firstVersion: null,
+    };
+    expect(checkChallengeWriting(input)).toEqual({ verified: false, reason: "unchanged" });
+
+    const grown = album([{ track: 1, lyrics: ["Salt on the glass", "The keeper counts the ships"] }]);
+    expect(checkChallengeWriting({ ...input, album: { ...input.album, data: grown } })).toEqual({
+      verified: true,
+    });
+  });
+
+  it("doesn't count lyrics restored from the last version before today", () => {
+    const version = album([{ track: 1, lyrics: ["Low tide"] }]);
+    const baseline = album([{ track: 1, lyrics: [null] }]);
+    const restored = album([{ track: 1, lyrics: ["Low tide"] }]);
+    expect(
+      checkChallengeWriting({
+        now: NOW,
+        album: { data: restored, createdAt: LAST_WEEK, updatedAt: TODAY },
+        trackNumber: 1,
+        dayBaseline: { lyricHashes: lyricBaselineHashes(baseline) },
+        versionBeforeToday: { data: version },
+        firstVersion: null,
+      }),
+    ).toEqual({ verified: false, reason: "unchanged" });
   });
 });
 

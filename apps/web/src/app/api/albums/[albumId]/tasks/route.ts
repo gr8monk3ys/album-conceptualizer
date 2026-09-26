@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { MAX_ALBUM_SONGS } from "@/server/album-json";
 import {
   ApiError,
   apiHandler,
@@ -27,7 +28,7 @@ const PostBodySchema = z.object({
   assignedToUserId: z.string().trim().min(1).optional(),
   sourceCommentId: z.string().trim().min(1).optional(),
   sectionId: z.string().trim().min(1).max(120).optional(),
-  songTrackNumber: z.number().int().min(1).max(99).optional(),
+  songTrackNumber: z.number().int().min(1).max(MAX_ALBUM_SONGS).optional(),
   sectionType: z.string().trim().min(1).max(64).optional(),
   sectionOrder: z.number().int().min(0).max(99).optional(),
 });

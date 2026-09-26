@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
 import { AlbumJsonSchema } from "@/server/album-json";
-import { writeAlbumSnapshot } from "@/server/album-sync";
+import { keepFieldsTheStudioDoesNotEdit, updateAlbumSnapshot } from "@/server/album-sync";
 import { trackProductEventSafe } from "@/server/analytics";
 import { apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
@@ -32,25 +32,24 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
   const { albumId } = await params;
   const existing = await requireAlbum(workspaceId, albumId, { id: true });
 
-  // Update updated_at in the JSON snapshot so exports carry correct metadata.
-  const album = {
-    ...payload.album,
-    updated_at: new Date().toISOString(),
-  };
-
-  await getPrisma().$transaction(async (tx) => {
-    await writeAlbumSnapshot(tx, existing.id, album);
+  const album = await getPrisma().$transaction(async (tx) => {
+    // The Studio's copy replaces the album, except the parts it never edits (Sound bible, demos),
+    // which keep what is stored now. The written snapshot carries a fresh updated_at for exports.
+    const { album: saved } = await updateAlbumSnapshot(tx, existing.id, (stored) => ({
+      album: keepFieldsTheStudioDoesNotEdit(stored, payload.album),
+    }));
     if (payload.versionMessage) {
       await tx.albumVersion.create({
         data: {
           albumId: existing.id,
           createdByUserId: userId,
           message: payload.versionMessage,
-          data: album as Prisma.InputJsonValue,
+          data: saved as Prisma.InputJsonValue,
         },
         select: { id: true },
       });
     }
+    return saved;
   });
 
   await trackProductEventSafe({

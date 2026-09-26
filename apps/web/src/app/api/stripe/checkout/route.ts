@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { trackProductEventSafe } from "@/server/analytics";
-import { apiHandler, enforceRateLimit, parseJsonBody, requireWorkspace } from "@/server/api";
+import { ApiError, apiHandler, enforceRateLimit, parseJsonBody, requireWorkspace } from "@/server/api";
 import { getAuthSession } from "@/server/auth";
-import { priceForPlan, requireStripe, stripeFailure } from "@/server/stripe";
+import { getPrisma } from "@/server/db";
+import { isEntitledStatus } from "@/server/plan";
+import { createPortalSession, priceForPlan, requireStripe, stripeFailure } from "@/server/stripe";
 
 export const runtime = "nodejs";
 
@@ -22,7 +24,29 @@ export const POST = apiHandler(async (request: Request) => {
   const { plan } = await parseJsonBody(request, BodySchema, "Choose the Pro or Team plan.");
   const priceId = priceForPlan(plan);
   const stripe = requireStripe();
-  const email = (await getAuthSession())?.user?.email ?? undefined;
+  const current = await getPrisma().subscription.findUnique({
+    where: { workspaceId },
+    select: { status: true, stripeCustomerId: true, stripeSubscriptionId: true },
+  });
+
+  // A workspace that is already paying changes plans on its existing subscription, in the
+  // billing portal. A second Checkout would bill two subscriptions at once.
+  if (isEntitledStatus(current?.status)) {
+    if (!current?.stripeCustomerId) {
+      throw new ApiError(409, "This workspace already has a subscription. Change plans from Manage billing.");
+    }
+    try {
+      const portal = await createPortalSession(stripe, current.stripeCustomerId, current.stripeSubscriptionId);
+      return NextResponse.json({ url: portal.url, portal: true });
+    } catch (err) {
+      throw stripeFailure(err, "portal");
+    }
+  }
+
+  // Subscribing again after a lapse stays on the same Stripe customer (one portal, one history).
+  const customer = current?.stripeCustomerId
+    ? { customer: current.stripeCustomerId }
+    : { customer_email: (await getAuthSession())?.user?.email ?? undefined };
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const metadata = { plan, workspaceId, userId };
@@ -35,7 +59,7 @@ export const POST = apiHandler(async (request: Request) => {
       cancel_url: `${appUrl}/app/settings/billing?canceled=1`,
       allow_promotion_codes: true,
       client_reference_id: workspaceId,
-      customer_email: email,
+      ...customer,
       metadata,
       subscription_data: { metadata },
     });

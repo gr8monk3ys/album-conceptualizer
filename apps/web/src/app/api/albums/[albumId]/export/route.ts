@@ -1,25 +1,28 @@
 import { z } from "zod";
 
 import { trackProductEventSafe } from "@/server/analytics";
-import { apiHandler, enforceRateLimit, parseWith, requireAlbum, requireWorkspace } from "@/server/api";
+import { apiHandler, enforceRateLimit, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
 import { CREDIT_COSTS, withCredits } from "@/server/credits";
 import { exportAlbumZip } from "@/server/engine";
 import { contentDisposition, safeFilename } from "@/server/headers";
 
 export const runtime = "nodejs";
 
-const FormatsSchema = z
-  .string()
-  .transform((value) =>
-    value
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  )
-  .pipe(z.array(z.enum(["midi", "chordpro", "musicxml", "json", "text"])))
-  .refine((formats) => formats.length > 0, "Select at least one format.");
+const BodySchema = z.object({
+  formats: z
+    .array(z.string().trim().toLowerCase().pipe(z.enum(["midi", "chordpro", "musicxml", "json", "text"])))
+    .max(5)
+    .default(["json"])
+    .refine((formats) => formats.length > 0, "Select at least one format."),
+  includeProductionNotes: z.boolean().optional().default(false),
+});
 
-export const GET = apiHandler(
+/**
+ * Builds the album's zip on the engine and answers with it. A POST, because it spends
+ * credits: a link or redirect from another site (a top-level GET, which carries the session
+ * cookie) can't make one. The client downloads the zip from this response.
+ */
+export const POST = apiHandler(
   async (request: Request, { params }: { params: Promise<{ albumId: string }> }) => {
     const { userId, workspaceId, plan } = await requireWorkspace();
     await enforceRateLimit(
@@ -31,9 +34,12 @@ export const GET = apiHandler(
     const { albumId } = await params;
     const album = await requireAlbum(workspaceId, albumId, { title: true, data: true });
 
-    const url = new URL(request.url);
-    const formats = parseWith(FormatsSchema, url.searchParams.get("formats") ?? "json", "Invalid formats.");
-    const includeProductionNotes = url.searchParams.get("production_notes") === "1";
+    const { formats: requested, includeProductionNotes } = await parseJsonBody(
+      request,
+      BodySchema,
+      "Invalid formats.",
+    );
+    const formats = [...new Set(requested)];
 
     const body = await withCredits(
       {

@@ -7,6 +7,8 @@ import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } f
 import {
   challengeWritingReason,
   checkChallengeWriting,
+  findLyricsBaseline,
+  recordLyricsBaseline,
   startOfUtcDay,
 } from "@/server/challenge-verification";
 import { getDailyChallenge, getUtcDay, isKnownChallenge } from "@/server/challenges";
@@ -26,7 +28,8 @@ const BodySchema = z.object({
 
 /**
  * Saves today's challenge entry. Credits are granted only when the linked track (or album)
- * has written lyrics that are new today (UTC, `checkChallengeWriting`); otherwise the note is
+ * has written lyrics that are new today (UTC, `checkChallengeWriting`: measured against the
+ * album's lyrics baseline for the day, recorded here when it is missing); otherwise the note is
  * saved with 0 credits and the response says why, and the artist can send it again once they
  * have written, which grants the credits then. An entry that has earned its credits is final.
  */
@@ -60,7 +63,8 @@ export const POST = apiHandler(async (request: Request) => {
 
   const prisma = getPrisma();
   const dayStart = startOfUtcDay(now);
-  const [versionBeforeToday, firstVersion, existing] = await Promise.all([
+  const [dayBaseline, versionBeforeToday, firstVersion, existing] = await Promise.all([
+    findLyricsBaseline(prisma, album.id, now),
     prisma.albumVersion.findFirst({
       where: { albumId: album.id, createdAt: { lt: dayStart } },
       orderBy: { createdAt: "desc" },
@@ -78,7 +82,14 @@ export const POST = apiHandler(async (request: Request) => {
   ]);
   if (existing && existing.creditsEarned > 0) throw new ApiError(409, "Already completed today.");
 
-  const check = checkChallengeWriting({ now, album, trackNumber, versionBeforeToday, firstVersion });
+  const check = checkChallengeWriting({
+    now,
+    album,
+    trackNumber,
+    dayBaseline,
+    versionBeforeToday,
+    firstVersion,
+  });
   const earned = check.verified ? challenge.credits : 0;
   const entry = {
     notes: payload.notes ?? null,
@@ -101,6 +112,11 @@ export const POST = apiHandler(async (request: Request) => {
           data: { workspaceId, challengeKey: challenge.key, challengeDay: today, ...entry },
           select: { id: true },
         });
+      }
+      if (!earned && !dayBaseline && album.createdAt < dayStart) {
+        // No baseline yet: what the album shows now is what later writing is measured against
+        // (when it hasn't been saved today, that is exactly the album as it stood before today).
+        await recordLyricsBaseline(tx, album.id, album.data, now);
       }
       if (!earned) return null;
       return grantCredits(tx, {

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { writeAlbumSnapshot } from "@/server/album-sync";
+import { updateAlbumSnapshot } from "@/server/album-sync";
 import { trackProductEventSafe } from "@/server/analytics";
 import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
 import { buildRoughDemoCollection } from "@/server/rough-demo-review";
 import {
+  type AlbumRoughDemoRecord,
   RoughDemoBodySchema,
   listAlbumRoughDemos,
   normalizeRoughDemo,
@@ -16,35 +17,36 @@ export const runtime = "nodejs";
 
 type Context = { params: Promise<{ albumId: string; demoId: string }> };
 
-async function requireRoughDemo(workspaceId: string, albumId: string, demoId: string) {
-  const album = await requireAlbum(workspaceId, albumId, { id: true, data: true });
-  const demo = listAlbumRoughDemos(album.data).find((item) => item.id === demoId);
+/** The demo as stored now (read under the album lock), or a 404. */
+function requireRoughDemo(stored: unknown, demoId: string): AlbumRoughDemoRecord {
+  const demo = listAlbumRoughDemos(stored).find((item) => item.id === demoId);
   if (!demo) throw new ApiError(404, "Demo not found.");
-  return { album, demo };
+  return demo;
 }
 
 export const PATCH = apiHandler(async (request: Request, { params }: Context) => {
   const { userId, workspaceId } = await requireWorkspace();
   const payload = await parseJsonBody(request, RoughDemoBodySchema, "Invalid rough demo payload.");
   const { albumId, demoId } = await params;
-  const { album: existing, demo: current } = await requireRoughDemo(workspaceId, albumId, demoId);
+  const existing = await requireAlbum(workspaceId, albumId, { id: true });
 
-  const now = new Date().toISOString();
-  const demo = normalizeRoughDemo({
-    ...current,
-    ...payload,
-    id: current.id,
-    created_at: current.created_at,
-    updated_at: now,
-  });
-  const nextAlbum = patchAlbumRoughDemos(existing.data, (demos) =>
-    demos.map((item) => (item.id === demoId ? demo : item)),
+  const { album: nextAlbum, demo } = await getPrisma().$transaction((tx) =>
+    updateAlbumSnapshot(tx, existing.id, (stored) => {
+      const current = requireRoughDemo(stored, demoId);
+      const updated = normalizeRoughDemo({
+        ...current,
+        ...payload,
+        id: current.id,
+        created_at: current.created_at,
+        updated_at: new Date().toISOString(),
+      });
+      const patched = patchAlbumRoughDemos(stored, (demos) =>
+        demos.map((item) => (item.id === demoId ? updated : item)),
+      );
+      if (!patched) throw new ApiError(409, "Stored album data is invalid.");
+      return { album: patched, demo: updated };
+    }),
   );
-  if (!nextAlbum) throw new ApiError(409, "Stored album data is invalid.");
-
-  await getPrisma().$transaction(async (tx) => {
-    await writeAlbumSnapshot(tx, existing.id, { ...nextAlbum, updated_at: now });
-  });
 
   await trackProductEventSafe({
     name: "album_demo_updated",
@@ -65,17 +67,16 @@ export const PATCH = apiHandler(async (request: Request, { params }: Context) =>
 export const DELETE = apiHandler(async (_request: Request, { params }: Context) => {
   const { userId, workspaceId } = await requireWorkspace();
   const { albumId, demoId } = await params;
-  const { album: existing, demo: current } = await requireRoughDemo(workspaceId, albumId, demoId);
+  const existing = await requireAlbum(workspaceId, albumId, { id: true });
 
-  const now = new Date().toISOString();
-  const nextAlbum = patchAlbumRoughDemos(existing.data, (demos) =>
-    demos.filter((item) => item.id !== demoId),
+  const { album: nextAlbum, deleted } = await getPrisma().$transaction((tx) =>
+    updateAlbumSnapshot(tx, existing.id, (stored) => {
+      const current = requireRoughDemo(stored, demoId);
+      const patched = patchAlbumRoughDemos(stored, (demos) => demos.filter((item) => item.id !== demoId));
+      if (!patched) throw new ApiError(409, "Stored album data is invalid.");
+      return { album: patched, deleted: current };
+    }),
   );
-  if (!nextAlbum) throw new ApiError(409, "Stored album data is invalid.");
-
-  await getPrisma().$transaction(async (tx) => {
-    await writeAlbumSnapshot(tx, existing.id, { ...nextAlbum, updated_at: now });
-  });
 
   await trackProductEventSafe({
     name: "album_demo_deleted",
@@ -84,9 +85,9 @@ export const DELETE = apiHandler(async (_request: Request, { params }: Context) 
     albumId: existing.id,
     path: `/api/albums/${existing.id}/rough-demos/${demoId}`,
     metadata: {
-      sourceKind: current.source_kind,
-      targetedTrack: current.song_track_number,
-      hasLocalFile: Boolean(current.local_file),
+      sourceKind: deleted.source_kind,
+      targetedTrack: deleted.song_track_number,
+      hasLocalFile: Boolean(deleted.local_file),
     },
   });
 

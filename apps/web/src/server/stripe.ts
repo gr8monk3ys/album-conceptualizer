@@ -42,6 +42,41 @@ export function planForPrice(priceId: string | null | undefined): PaidPlan | nul
   return null;
 }
 
+function billingUrl() {
+  return `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/app/settings/billing`;
+}
+
+/**
+ * A billing-portal session for a Stripe customer. With `subscriptionId` it opens straight on
+ * that subscription's plan picker, falling back to the portal's home page when the portal
+ * configuration doesn't allow plan changes. Stripe errors propagate (see `stripeFailure`).
+ */
+export async function createPortalSession(
+  stripe: Stripe,
+  customer: string,
+  subscriptionId?: string | null,
+): Promise<Stripe.BillingPortal.Session> {
+  const returnUrl = billingUrl();
+  if (subscriptionId) {
+    try {
+      return await stripe.billingPortal.sessions.create({
+        customer,
+        return_url: returnUrl,
+        flow_data: {
+          type: "subscription_update",
+          subscription_update: { subscription: subscriptionId },
+          after_completion: { type: "redirect", redirect: { return_url: returnUrl } },
+        },
+      });
+    } catch (err) {
+      const type = (err as { type?: unknown } | null)?.type;
+      if (type !== "StripeInvalidRequestError") throw err;
+      console.warn("stripe_portal_update_flow_unavailable", err);
+    }
+  }
+  return stripe.billingPortal.sessions.create({ customer, return_url: returnUrl });
+}
+
 /** Translate a failed Stripe API call into the ApiError a billing route should return. */
 export function stripeFailure(err: unknown, action: "checkout" | "portal"): ApiError {
   console.error(`stripe_${action}_error`, err);

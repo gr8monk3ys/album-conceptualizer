@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { writeAlbumSnapshot } from "@/server/album-sync";
+import { updateAlbumSnapshot } from "@/server/album-sync";
 import { trackProductEventSafe } from "@/server/analytics";
 import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
@@ -27,7 +27,7 @@ export const POST = apiHandler(async (request: Request, { params }: Context) => 
   const { userId, workspaceId } = await requireWorkspace();
   const payload = await parseJsonBody(request, RoughDemoBodySchema, "Invalid rough demo payload.");
   const { albumId } = await params;
-  const existing = await requireAlbum(workspaceId, albumId, { id: true, data: true });
+  const existing = await requireAlbum(workspaceId, albumId, { id: true });
 
   const now = new Date().toISOString();
   const demo = normalizeRoughDemo({
@@ -35,12 +35,13 @@ export const POST = apiHandler(async (request: Request, { params }: Context) => 
     created_at: now,
     updated_at: now,
   });
-  const nextAlbum = patchAlbumRoughDemos(existing.data, (current) => [demo, ...current]);
-  if (!nextAlbum) throw new ApiError(409, "Stored album data is invalid.");
-
-  await getPrisma().$transaction(async (tx) => {
-    await writeAlbumSnapshot(tx, existing.id, { ...nextAlbum, updated_at: now });
-  });
+  const { album: nextAlbum } = await getPrisma().$transaction((tx) =>
+    updateAlbumSnapshot(tx, existing.id, (stored) => {
+      const patched = patchAlbumRoughDemos(stored, (current) => [demo, ...current]);
+      if (!patched) throw new ApiError(409, "Stored album data is invalid.");
+      return { album: patched };
+    }),
+  );
 
   await trackProductEventSafe({
     name: "album_demo_added",

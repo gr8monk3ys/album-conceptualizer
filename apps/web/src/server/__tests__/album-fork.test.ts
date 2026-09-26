@@ -52,4 +52,61 @@ describe("forkAlbumJson", () => {
     expect(remix.songs[0].id).not.toBe(source.songs[0].id);
     expect(remix.songs[0].sections[0].id).not.toBe(source.songs[0].sections[0].id);
   });
+
+  it("leaves the owner's private working material behind", () => {
+    const owned = AlbumJsonSchema.parse({
+      title: "Tide Tables",
+      artist: "Mara Vale",
+      concept_summary: "A harbour town counts the tides.",
+      central_themes: ["distance"],
+      private_scratch: "don't share",
+      rough_demos: [
+        {
+          title: "Voice memo",
+          source_kind: "voice_memo",
+          external_url: "https://dropbox.example/private/draft.m4a",
+          capture_notes: "rough take, the neighbour's dog barks at 0:40",
+          local_file: { name: "draft-final-FINAL.m4a" },
+        },
+      ],
+      style_bible: { lead_voice: "Close and dry", sonic_palette: ["tape hiss"], owner_memo: "secret" },
+      songs: [
+        {
+          title: "Low Water",
+          track_number: 1,
+          narrative_summary: "She waits on the pier.",
+          production_notes: "ask Sam about the studio rate",
+          song_memo: "private",
+          sections: [
+            {
+              section_type: "verse",
+              order: 0,
+              lyrics: "The water goes out",
+              chord_progression: ["Am", "F"],
+              notes: "this line is about my ex",
+              section_memo: "private",
+            },
+          ],
+        },
+      ],
+    });
+    const remix = forkAlbumJson(owned, { remixerName: "Theo" }) as Record<string, unknown>;
+
+    expect(remix.rough_demos).toEqual([]);
+    expect(remix.private_scratch).toBeUndefined();
+    expect(remix.style_bible).toMatchObject({ lead_voice: "Close and dry", sonic_palette: ["tape hiss"] });
+    expect(remix.style_bible).not.toHaveProperty("owner_memo");
+    const song = (remix as { songs: Array<Record<string, unknown>> }).songs[0]!;
+    expect(song.production_notes).toBeUndefined();
+    expect(song.song_memo).toBeUndefined();
+    expect(song.narrative_summary).toBe("She waits on the pier.");
+    const section = (song.sections as Array<Record<string, unknown>>)[0]!;
+    expect(section.notes).toBeUndefined();
+    expect(section.section_memo).toBeUndefined();
+    expect(section).toMatchObject({ section_type: "verse", order: 0, lyrics: "The water goes out", chord_progression: ["Am", "F"] });
+    // What the album shows others comes along, and the copy is still a valid album.
+    expect(remix.concept_summary).toBe("A harbour town counts the tides.");
+    expect(remix.central_themes).toEqual(["distance"]);
+    expect(AlbumJsonSchema.safeParse(remix).success).toBe(true);
+  });
 });

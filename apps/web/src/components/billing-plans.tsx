@@ -238,13 +238,16 @@ export function BillingPlans({
                       <Button
                         tone={plan.key === recommended ? "primary" : "secondary"}
                         className="w-full"
-                        // Busy while its own checkout opens (keeps focus); the others wait.
+                        // Busy while its own checkout opens (keeps focus); the others wait. A
+                        // paid plan changes in the billing portal, never through a second checkout.
                         busy={loadingPlan === plan.key}
                         disabled={loadingPlan !== null && loadingPlan !== plan.key}
                         onClick={() => checkout(plan.key)}
                       >
                         {loadingPlan === plan.key
-                          ? "Opening checkout…"
+                          ? currentPlan === "free"
+                            ? "Opening checkout…"
+                            : "Opening billing…"
                           : `${plan.rank > currentRank ? "Upgrade to" : "Switch to"} ${plan.name}`}
                       </Button>
                     )}

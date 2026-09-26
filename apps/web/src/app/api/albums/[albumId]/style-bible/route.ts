@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 
 import { StyleBibleSchema } from "@/server/album-json";
-import { writeAlbumSnapshot } from "@/server/album-sync";
+import { updateAlbumSnapshot } from "@/server/album-sync";
 import { trackProductEventSafe } from "@/server/analytics";
 import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
-import { getAlbumStyleBible, patchAlbumStyleBible } from "@/server/style-bible";
+import { assertStyleBibleListsFit, getAlbumStyleBible, patchAlbumStyleBible } from "@/server/style-bible";
 
 export const runtime = "nodejs";
 
@@ -23,22 +23,19 @@ export const GET = apiHandler(async (_request: Request, { params }: Context) => 
 export const PATCH = apiHandler(async (request: Request, { params }: Context) => {
   const { userId, workspaceId } = await requireWorkspace();
   const payload = await parseJsonBody(request, StyleBibleSchema, "Invalid Sound bible payload.");
+  assertStyleBibleListsFit(payload);
   const { albumId } = await params;
-  const existing = await requireAlbum(workspaceId, albumId, { id: true, data: true });
+  const existing = await requireAlbum(workspaceId, albumId, { id: true });
 
-  const patchedAlbum = patchAlbumStyleBible(existing.data, payload);
-  if (!patchedAlbum) throw new ApiError(409, "Stored album data is invalid.");
+  const { album } = await getPrisma().$transaction((tx) =>
+    updateAlbumSnapshot(tx, existing.id, (stored) => {
+      const patched = patchAlbumStyleBible(stored, payload);
+      if (!patched) throw new ApiError(409, "Stored album data is invalid.");
+      return { album: patched };
+    }),
+  );
 
-  const nextAlbum = {
-    ...patchedAlbum,
-    updated_at: new Date().toISOString(),
-  };
-
-  await getPrisma().$transaction(async (tx) => {
-    await writeAlbumSnapshot(tx, existing.id, nextAlbum);
-  });
-
-  const styleBible = getAlbumStyleBible(nextAlbum);
+  const styleBible = getAlbumStyleBible(album);
 
   await trackProductEventSafe({
     name: "album_style_bible_saved",

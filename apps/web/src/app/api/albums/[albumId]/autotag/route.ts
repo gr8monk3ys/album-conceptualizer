@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { writeAlbumSnapshot } from "@/server/album-sync";
+import { updateAlbumSnapshot } from "@/server/album-sync";
 import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
 import { applyAcceptedTags, proposeTagsFromLyrics } from "@/server/autotag";
 import { getPrisma } from "@/server/db";
@@ -50,19 +50,17 @@ export const POST = apiHandler(
     const { workspaceId } = await requireWorkspace();
     const { albumId } = await params;
     const { accept } = await parseJsonBody(request, BodySchema, "Choose at least one tag to add.");
-    const album = await requireAlbum(workspaceId, albumId, { id: true, data: true });
+    const album = await requireAlbum(workspaceId, albumId, { id: true });
 
-    const result = applyAcceptedTags(album.data, accept);
-    if (!result) throw new ApiError(400, UNREADABLE);
+    const { added } = await getPrisma().$transaction((tx) =>
+      updateAlbumSnapshot(tx, album.id, (stored) => {
+        const result = applyAcceptedTags(stored, accept);
+        if (!result) throw new ApiError(400, UNREADABLE);
+        // Nothing new to add: leave the album (and its updated_at) as it is.
+        return { ...result, album: result.added.length ? result.album : null };
+      }),
+    );
 
-    if (result.added.length) {
-      // The album was rewritten, so its JSON snapshot carries a fresh updated_at.
-      const updated = { ...result.album, updated_at: new Date().toISOString() };
-      await getPrisma().$transaction(async (tx) => {
-        await writeAlbumSnapshot(tx, album.id, updated);
-      });
-    }
-
-    return NextResponse.json({ added: result.added });
+    return NextResponse.json({ added });
   },
 );

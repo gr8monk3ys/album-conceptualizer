@@ -13,6 +13,12 @@ function serializeError(err: unknown) {
   return String(err);
 }
 
+/**
+ * Public health check for uptime monitors and the smoke scripts: whether the app, its
+ * configuration, the database and the engine are up, as booleans and "ok"/"degraded". It is
+ * unauthenticated, so what went wrong (database errors, missing configuration) is logged for
+ * operators, never answered.
+ */
 export async function GET() {
   const checks: Record<string, boolean> = {
     api: true,
@@ -54,14 +60,14 @@ export async function GET() {
   }
 
   const ok = Object.values(checks).every(Boolean);
+  if (Object.keys(errors).length) console.error("health_degraded", { checks, errors });
   return NextResponse.json(
     {
       ok,
+      status: ok ? "ok" : "degraded",
       service: "album-conceptualizer-web",
-      mode: isStrictProductionRuntime() ? "strict" : "default",
       checks,
-      errors: Object.keys(errors).length ? errors : undefined,
     },
-    { status: ok ? 200 : 503 },
+    { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } },
   );
 }

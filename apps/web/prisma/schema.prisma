@@ -135,6 +135,7 @@ model Album {
   notifications Notification[]
   analyticsEvents AnalyticsEvent[]
   challengeCompletions ChallengeCompletion[]
+  lyricsBaselines AlbumLyricsBaseline[]
   @@schema("album_conceptualizer")
 }
 
@@ -276,6 +277,23 @@ model ChallengeCompletion {
 
   @@unique([workspaceId, challengeKey, challengeDay])
   @@index([workspaceId, challengeDay])
+  @@schema("album_conceptualizer")
+}
+
+/// An album's written lyrics as they stood on a UTC day before it was written in that day
+/// (hashes of the normalised texts), so a challenge entry is paid only for writing done since.
+/// Recorded when the day's challenge is opened or sent (`server/challenge-verification.ts`).
+model AlbumLyricsBaseline {
+  albumId   String
+  // UTC day string (YYYY-MM-DD), as ChallengeCompletion.challengeDay.
+  day       String
+  lyricHashes Json
+  createdAt DateTime @default(now())
+
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@id([albumId, day])
+  @@index([day])
   @@schema("album_conceptualizer")
 }
 

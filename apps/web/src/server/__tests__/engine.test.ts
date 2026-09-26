@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { checkEngineHealth, getAgentJob, startAgentJob } from "@/server/engine";
+import { checkEngineHealth, exportAlbumZip, getAgentJob, startAgentJob } from "@/server/engine";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -39,6 +39,40 @@ describe("engine client", () => {
       status: 404,
       message: expect.stringContaining("Job not found"),
     });
+  });
+
+  it("never shows the artist a validation detail that isn't a sentence", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    stubFetch(
+      Response.json(
+        { detail: [{ type: "missing", loc: ["body", "album", "title"], msg: "Field required", input: null }] },
+        { status: 422 },
+      ),
+    );
+    const invalid = await exportAlbumZip({ album: null, formats: ["json"], includeProductionNotes: false }).catch(
+      (err) => err,
+    );
+    expect(invalid.status).toBe(422);
+    expect(invalid.message).toMatch(/^Export failed\. /);
+    expect(invalid.message).not.toMatch(/[{}[\]]|missing|Field required/);
+
+    stubFetch(Response.json({ detail: { code: "bad" } }, { status: 400 }));
+    const object = await getAgentJob("j", "u").catch((err) => err);
+    expect(object.message).not.toContain("code");
+
+    stubFetch(new Response("<html><body>Bad Request</body></html>", { status: 400 }));
+    const html = await getAgentJob("j", "u").catch((err) => err);
+    expect(html.message).not.toContain("<html>");
+  });
+
+  it("maps engine 401 and 403 to 502, so the artist isn't told they are signed out", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const status of [401, 403]) {
+      stubFetch(Response.json({ detail: "Invalid API key" }, { status }));
+      const denied = await getAgentJob("j", "u").catch((err) => err);
+      expect(denied.status).toBe(502);
+      expect(denied.message).not.toContain("API key");
+    }
   });
 
   it("passes the engine's retry-after through on 429", async () => {

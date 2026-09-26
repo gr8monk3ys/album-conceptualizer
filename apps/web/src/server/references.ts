@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { MAX_ALBUM_SONGS } from "@/server/album-json";
 import { findAlbumSongByTrackNumber } from "@/server/album-songs";
 import { ApiError } from "@/server/api-error";
 import { getPrisma } from "@/server/db";
@@ -43,7 +44,7 @@ export const ReferenceBodySchema = z.object({
   key: z.string().trim().max(64).optional(),
   moodTags: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
   arrangementTags: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
-  songTrackNumber: z.number().int().min(1).max(99).optional(),
+  songTrackNumber: z.number().int().min(1).max(MAX_ALBUM_SONGS).optional(),
 });
 
 export type ReferenceBody = z.infer<typeof ReferenceBodySchema>;

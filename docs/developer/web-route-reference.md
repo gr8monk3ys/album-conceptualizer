@@ -93,7 +93,7 @@ Important exceptions:
 | `/api/albums` | `POST` | create an album from an `album.json` payload |
 | `/api/albums/[albumId]` | `PATCH`, `DELETE` | save or delete an album |
 | `/api/albums/[albumId]/autotag` | `POST` | generate or refresh tags |
-| `/api/albums/[albumId]/export` | `GET` | export through the Python engine |
+| `/api/albums/[albumId]/export` | `POST` | zip export through the Python engine (spends credits; JSON body `{ formats, includeProductionNotes }`) |
 | `/api/albums/[albumId]/publish` | `POST` | publish to Discover |
 | `/api/albums/[albumId]/fork` | `POST` | fork into the active workspace |
 | `/api/albums/[albumId]/like` | `POST`, `DELETE` | like or unlike a public album |

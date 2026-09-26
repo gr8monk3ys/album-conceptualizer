@@ -1,6 +1,8 @@
 import type { Prisma } from "@prisma/client";
+import { z } from "zod";
 
-import type { AlbumJson } from "@/server/album-json";
+import { RoughDemoSchema, StyleBibleSchema, type AlbumJson } from "@/server/album-json";
+import { ApiError } from "@/server/api-error";
 
 // The album JSON (`Album.data`) is the source of truth. The Album columns and the Song and
 // Section rows are a projection of it for listing and search, rebuilt on every write. The
@@ -55,12 +57,27 @@ export function buildAlbumMutationData(album: AlbumJson) {
   };
 }
 
-/** Replace an existing album's snapshot and rebuild its projection. */
-export async function writeAlbumSnapshot(
-  tx: Prisma.TransactionClient,
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Lock the Album row for the rest of the transaction and return its stored snapshot, or a 404.
+ * Every snapshot write takes this lock first, so concurrent writes to one album queue up
+ * instead of racing on the Song rows' (albumId, trackNumber) uniqueness.
+ */
+async function lockAlbum(tx: Tx, albumId: string): Promise<Prisma.JsonValue | null> {
+  // SELECT … FOR UPDATE rather than a no-op UPDATE, so a patch that writes nothing leaves the
+  // row's updatedAt alone. The table is qualified as in schema.prisma's @@schema.
+  const rows = await tx.$queryRaw<Array<{ data: Prisma.JsonValue | null }>>`
+    SELECT "data" FROM "album_conceptualizer"."Album" WHERE "id" = ${albumId} FOR UPDATE`;
+  if (!rows.length) throw new ApiError(404, "Not found.");
+  return rows[0].data;
+}
+
+async function replaceSnapshot(
+  tx: Tx,
   albumId: string,
   album: AlbumJson,
-  extra: Omit<Prisma.AlbumUpdateInput, "songs" | "data"> = {},
+  extra: Omit<Prisma.AlbumUpdateInput, "songs" | "data">,
 ) {
   await tx.song.deleteMany({ where: { albumId } });
   await tx.album.update({
@@ -68,4 +85,56 @@ export async function writeAlbumSnapshot(
     data: { ...buildAlbumMutationData(album), ...extra },
     select: { id: true },
   });
+}
+
+/** Replace an existing album's snapshot and rebuild its projection. */
+export async function writeAlbumSnapshot(
+  tx: Tx,
+  albumId: string,
+  album: AlbumJson,
+  extra: Omit<Prisma.AlbumUpdateInput, "songs" | "data"> = {},
+) {
+  await lockAlbum(tx, albumId);
+  await replaceSnapshot(tx, albumId, album, extra);
+}
+
+/**
+ * Change part of an album's snapshot: lock the album, hand `patch` the snapshot as stored now,
+ * and write the `album` it returns (with a fresh `updated_at`); `album: null` writes nothing.
+ * `patch` may throw an ApiError to refuse. Resolves to what `patch` returned, with `album` as
+ * written, so a route can answer with anything else it worked out under the lock.
+ *
+ * Use this for every write that changes some fields and keeps the rest, so two saves of
+ * different parts of one album can't undo each other.
+ */
+export async function updateAlbumSnapshot<Result extends { album: AlbumJson | null }>(
+  tx: Tx,
+  albumId: string,
+  patch: (stored: Prisma.JsonValue | null) => Result,
+): Promise<Result> {
+  const result = patch(await lockAlbum(tx, albumId));
+  if (!result.album) return result;
+  const album = { ...result.album, updated_at: new Date().toISOString() };
+  await replaceSnapshot(tx, albumId, album, {});
+  return { ...result, album };
+}
+
+/**
+ * Fields of the snapshot the Studio loads but never edits: the Sound bible and the rough demos
+ * have their own pages and routes. A Studio save keeps the stored values of these, so a Studio
+ * tab opened before a Sound bible or demo edit can't put the old ones back.
+ */
+export function keepFieldsTheStudioDoesNotEdit(stored: unknown, studio: AlbumJson): AlbumJson {
+  const current = stored && typeof stored === "object" ? (stored as Record<string, unknown>) : {};
+  const merged: AlbumJson = { ...studio };
+
+  // The stored value wins whenever it is readable; an unreadable one is left to the Studio's copy.
+  const styleBible = StyleBibleSchema.safeParse(current.style_bible);
+  if (current.style_bible === undefined) delete merged.style_bible;
+  else if (styleBible.success) merged.style_bible = styleBible.data;
+
+  const roughDemos = z.array(RoughDemoSchema).safeParse(current.rough_demos);
+  if (roughDemos.success) merged.rough_demos = roughDemos.data;
+
+  return merged;
 }

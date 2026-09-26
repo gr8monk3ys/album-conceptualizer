@@ -87,12 +87,15 @@ export const StyleBibleSchema = z
   })
   .passthrough();
 
+/** The most tracks an album can have; anything that points at a track number caps it here. */
+export const MAX_ALBUM_SONGS = 100;
+
 export const AlbumJsonSchema = z
   .object({
     id: z.string().optional(),
     title: z.string().min(1).max(200),
     artist: z.string().optional().nullable(),
-    songs: z.array(SongSchema).max(100),
+    songs: z.array(SongSchema).max(MAX_ALBUM_SONGS),
     // Metadata
     created_at: z.string().optional().nullable(),
     updated_at: z.string().optional().nullable(),

@@ -1,5 +1,6 @@
 import { trackHasWrittenHarmony } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
+import { asList } from "@/lib/snapshot-values";
 import { analyzeAlbumCoherence } from "@/server/coherence";
 
 export type AlbumSongOption = {
@@ -46,10 +47,6 @@ export type SpineRow = {
   /** The track's Role in the arc ("Inciting incident"), when set. */
   narrativePosition: string | null;
 };
-
-function asList(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;

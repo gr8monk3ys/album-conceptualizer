@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDailyChallenge } from "@/server/challenges";
 import { getCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
+import { recordLyricsBaselines } from "@/server/challenge-verification";
 
 // The challenge complete route with the caller's workspace stubbed; the album, its versions,
 // the completion and the credit ledger run against the Postgres in DATABASE_URL.
@@ -106,6 +107,65 @@ describe.skipIf(!hasDatabase)("challenge completion pays for written lyrics (dat
     const result = await complete({ albumId: album.id });
     expect(result.body).toMatchObject({ credited: false, creditsEarned: 0 });
     expect(result.body.reason).toMatch(/the same as before today/);
+  });
+
+  /** An album made last week and not saved since, with no versions (like most albums). */
+  async function oldAlbum(lyrics: string) {
+    const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return prisma.album.create({
+      data: {
+        workspaceId: caller.workspaceId,
+        title: "Lighthouse Static",
+        data: albumData(lyrics),
+        createdAt: lastWeek,
+        updatedAt: lastWeek,
+      },
+      select: { id: true },
+    });
+  }
+
+  it("doesn't pay an old album with no versions for a save today with unchanged lyrics", async () => {
+    const album = await oldAlbum("Salt on the glass");
+    const before = await balance();
+    // Saved today, but with last week's words, and no version to compare with.
+    await prisma.album.update({ where: { id: album.id }, data: { title: "Lighthouse Static" } });
+
+    const first = await complete({ albumId: album.id });
+    expect(first.body).toMatchObject({ credited: false, creditsEarned: 0 });
+    expect(first.body.reason).toMatch(/Write something new in the Studio/);
+    // Sending it again without writing anything still pays nothing.
+    await prisma.album.update({ where: { id: album.id }, data: { title: "Lighthouse Static" } });
+    const again = await complete({ albumId: album.id });
+    expect(again.body).toMatchObject({ credited: false, creditsEarned: 0 });
+    expect(again.body.reason).toMatch(/the same as before today/);
+    expect(await balance()).toBe(before);
+  });
+
+  it("pays an old album for lyrics written after the challenge was opened", async () => {
+    const album = await oldAlbum("Salt on the glass");
+    const before = await balance();
+    // Opening Challenges records each album's lyrics as they stood before today's writing.
+    await recordLyricsBaselines(prisma, caller.workspaceId, new Date());
+    await prisma.album.update({
+      where: { id: album.id },
+      data: { data: albumData("Salt on the glass, the keeper counts the ships") },
+    });
+
+    const result = await complete({ albumId: album.id });
+    expect(result.body).toMatchObject({ credited: true, creditsEarned: challenge.credits });
+    expect(await balance()).toBe(before + challenge.credits);
+  });
+
+  it("pays an old album written in before the challenge, once more is written after the entry", async () => {
+    const album = await oldAlbum("Salt on the glass");
+    // Written today before the challenge was opened: what is new can't be told apart.
+    await prisma.album.update({ where: { id: album.id }, data: { data: albumData("Low tide") } });
+    const first = await complete({ albumId: album.id });
+    expect(first.body).toMatchObject({ credited: false, creditsEarned: 0 });
+
+    await prisma.album.update({ where: { id: album.id }, data: { data: albumData("Low tide, high water") } });
+    const second = await complete({ albumId: album.id });
+    expect(second.body).toMatchObject({ credited: true, creditsEarned: challenge.credits });
   });
 
   it("refuses a track that isn't on the album", async () => {

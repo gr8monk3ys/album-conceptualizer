@@ -1,6 +1,8 @@
 // Workspace search helpers that don't need the database: tag matching over album snapshots
 // (themes and motifs live only in the snapshot) and result snippets that keep line breaks.
 
+import { asList } from "@/lib/snapshot-values";
+
 export type TagKind = "theme" | "motif";
 
 /** One theme or motif tag that matches the query, on the album itself or on one of its tracks. */
@@ -13,10 +15,6 @@ export type TagMatch = {
   /** Set for a track's own tag; absent for an album-level theme or motif. */
   track?: { number: number; title: string };
 };
-
-function asList(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
 
 function tags(value: unknown): string[] {
   const seen = new Set<string>();

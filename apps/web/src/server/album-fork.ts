@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
-import { AlbumJsonSchema, type AlbumJson } from "@/server/album-json";
+import { AlbumJsonSchema, type AlbumJson, type AlbumStyleBible } from "@/server/album-json";
 import { buildAlbumMutationData } from "@/server/album-sync";
 import { ApiError } from "@/server/api-error";
 import { chargeCredits, CREDIT_COSTS } from "@/server/credits";
@@ -10,6 +10,77 @@ import { enforceProjectLimit, type Plan } from "@/server/plan";
 
 function newId() {
   return crypto.randomUUID();
+}
+
+// A Remix copies what the album shows others, never the owner's working material: rough demos
+// (capture notes, private links, file names), section notes, production notes and any keys the
+// schema only passes through are left behind. Each level is built from an allowlist, so a field
+// added to the snapshot later stays private until it is named here.
+
+const ALBUM_FIELDS = [
+  "concept_summary",
+  "narrative_structure",
+  "primary_genre",
+  "secondary_genres",
+  "era_influence",
+  "release_year",
+  "central_themes",
+  "recurring_motifs",
+  "reference_albums",
+  "visual_inspiration",
+] as const satisfies ReadonlyArray<keyof AlbumJson>;
+
+const STYLE_BIBLE_FIELDS = [
+  "lead_voice",
+  "narrator_perspective",
+  "vocal_attributes",
+  "sonic_palette",
+  "arrangement_rules",
+  "mix_priorities",
+  "avoid_list",
+  "emotional_targets",
+  "reference_strategy",
+] as const satisfies ReadonlyArray<keyof AlbumStyleBible>;
+
+type ForkSong = AlbumJson["songs"][number];
+type ForkSection = ForkSong["sections"][number];
+
+const SONG_FIELDS = [
+  "duration_estimate",
+  "duration_seconds",
+  "key",
+  "tempo",
+  "time_signature",
+  "narrative_position",
+  "narrative_summary",
+  "chronological_order",
+  "themes",
+  "motifs",
+  "characters",
+  "genre_tags",
+  "mood_tags",
+  "reference_tracks",
+  "instrumentation",
+] as const satisfies ReadonlyArray<keyof ForkSong>;
+
+const SECTION_FIELDS = [
+  "lyrics",
+  "chord_progression",
+  "duration_bars",
+  "narrative_function",
+  "emotional_arc",
+  "key",
+  "tempo_modifier",
+  "dynamics",
+] as const satisfies ReadonlyArray<keyof ForkSection>;
+
+/** The named fields of `source` that are set, and nothing else. */
+function pick<T extends object, K extends keyof T>(source: T, fields: ReadonlyArray<K>): Pick<T, K> {
+  const out = {} as Pick<T, K>;
+  for (const field of fields) {
+    if (source[field] !== undefined) out[field] = source[field];
+  }
+  return out;
 }
 
 export function forkAlbumJson(
@@ -30,7 +101,7 @@ export function forkAlbumJson(
   const remixer = opts?.remixerName?.trim().slice(0, 200) || null;
 
   return {
-    ...album,
+    ...pick(album, ALBUM_FIELDS),
     id: newId(),
     title: `${album.title}${titleSuffix}`.trim().slice(0, 200),
     artist: remixer,
@@ -46,12 +117,19 @@ export function forkAlbumJson(
     },
     created_at: now,
     updated_at: now,
+    // The owner's demos (notes, links, file names) are theirs; a remix starts with none.
+    rough_demos: [],
+    ...(album.style_bible ? { style_bible: pick(album.style_bible, STYLE_BIBLE_FIELDS) } : {}),
     songs: album.songs.map((song) => ({
-      ...song,
+      ...pick(song, SONG_FIELDS),
       id: newId(),
+      title: song.title,
+      track_number: song.track_number,
       sections: song.sections.map((section) => ({
-        ...section,
+        ...pick(section, SECTION_FIELDS),
         id: newId(),
+        section_type: section.section_type,
+        order: section.order,
       })),
     })),
   };

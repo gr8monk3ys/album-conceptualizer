@@ -644,6 +644,8 @@ export function QuickStartComposer({
   const [showErrors, setShowErrors] = useState(false);
   const [status, setStatus] = useState<{ tone: StatusTone; text: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Set synchronously, so a second click before the re-render can't send a second create.
+  const savingRef = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const hasMovedRef = useRef(false);
 
@@ -755,8 +757,9 @@ export function QuickStartComposer({
       });
       return;
     }
-    if (!draftAlbum) return;
+    if (!draftAlbum || savingRef.current) return;
 
+    savingRef.current = true;
     setIsSaving(true);
     setStatus(null);
     try {
@@ -776,6 +779,8 @@ export function QuickStartComposer({
       // The album exists now; the draft has done its job.
       clearDraft(CREATE_DRAFT_KEY);
       setStatus({ tone: "success", text: "Saved. Opening your album…" });
+      // The button stays busy until the album opens: clicked again during the redirect, it
+      // would create (and charge for) a second album.
       router.push(`/app/albums/${saved.id}?welcome=1`);
       // Creating the album spent credits; refresh so the layout's credits meter shows it.
       router.refresh();
@@ -785,7 +790,7 @@ export function QuickStartComposer({
           ? error.message
           : "The album couldn't be saved. Check your connection and try again.";
       setStatus({ tone: "error", text: message });
-    } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
 import { LiveStatus, Panel, Section, buttonClass } from "@/components/ui";
@@ -85,10 +85,10 @@ function filenameFrom(disposition: string | null) {
 }
 
 /** Fetch a file and hand it to the browser as a download, so failures can be explained. */
-async function download(url: string, fallbackName: string, failure: string) {
+async function download(url: string, fallbackName: string, failure: string, init?: RequestInit) {
   let response: Response;
   try {
-    response = await fetch(url, { cache: "no-store" });
+    response = await fetch(url, { cache: "no-store", ...init });
   } catch {
     return { ok: false as const, message: `${failure} Check your connection and try again.` };
   }
@@ -143,13 +143,6 @@ export function AlbumExport({
   const cost = CREDIT_COSTS.exportZip;
   const canAfford = remaining >= cost;
 
-  const query = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set("formats", Array.from(selected).join(","));
-    if (includeProductionNotes) params.set("production_notes", "1");
-    return params.toString();
-  }, [selected, includeProductionNotes]);
-
   function toggle(format: ExportFormat) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -163,11 +156,12 @@ export function AlbumExport({
     if (!selected.size || !canAfford) return;
     setIsZipping(true);
     setZipStatus({ tone: "neutral", text: "Preparing your zip…" });
-    const result = await download(
-      `/api/albums/${albumId}/export?${query}`,
-      "album_export.zip",
-      "The zip couldn't be built.",
-    );
+    // A POST: the zip spends credits, so it is never a plain link.
+    const result = await download(`/api/albums/${albumId}/export`, "album_export.zip", "The zip couldn't be built.", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ formats: Array.from(selected), includeProductionNotes }),
+    });
     setIsZipping(false);
     if (!result.ok) {
       setZipStatus({ tone: "danger", text: result.message });

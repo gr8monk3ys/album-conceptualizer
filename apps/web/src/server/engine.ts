@@ -2,8 +2,9 @@ import { ApiError } from "@/server/api-error";
 
 // The one client for the Python engine. Albums live in this app's database; every engine
 // call that needs an album sends its snapshot (the album JSON), so the engine keeps no copy.
-// Failures surface as ApiError: engine 4xx responses keep their status, everything else
-// (5xx, timeouts, the engine being down) becomes a 502.
+// Failures surface as ApiError: engine 4xx responses keep their status (and their detail when
+// it is a sentence), everything else (401/403 from a wrong engine key, 5xx, timeouts, the
+// engine being down) becomes a 502.
 
 export type AgentAction = "ideation" | "song-development" | "coherence-review";
 export type AgentJobStatus = "pending" | "running" | "completed" | "failed";
@@ -56,15 +57,19 @@ export function isEngineConfigured() {
   return Boolean(process.env.ENGINE_API_URL);
 }
 
-async function readDetail(response: Response): Promise<string> {
-  const text = await response.text().catch(() => "");
+/**
+ * The engine's error `detail` when it is a sentence written for people, else null. FastAPI's
+ * validation details are lists of objects, and a proxy may answer with HTML: neither is shown.
+ */
+async function readDetail(response: Response): Promise<{ message: string | null; raw: string }> {
+  const raw = (await response.text().catch(() => "")).trim().slice(0, 500);
   try {
-    const data = JSON.parse(text) as { detail?: unknown };
-    if (typeof data?.detail === "string") return data.detail;
+    const data = JSON.parse(raw) as { detail?: unknown };
+    if (typeof data?.detail === "string" && data.detail.trim()) return { message: data.detail.trim(), raw };
   } catch {
-    // Not JSON; fall through to the raw text.
+    // Not JSON: not for people.
   }
-  return text.trim().slice(0, 500) || `HTTP ${response.status}`;
+  return { message: null, raw };
 }
 
 async function call(
@@ -102,12 +107,17 @@ async function call(
     const detail = await readDetail(response);
     const retryAfter = response.headers.get("retry-after");
     const headers = retryAfter ? { "retry-after": retryAfter } : undefined;
-    if (response.status >= 400 && response.status < 500) {
+    // 401/403 mean this app's engine key is wrong: an operator problem, not the artist's
+    // session, so they are a 502 below (a 401 would read as "you're signed out").
+    if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
       // Validation, not-found and rate-limit details are written for people; pass them on.
-      throw new ApiError(response.status, `${init.failure} ${detail}`, headers);
+      // Anything else (a list of validation errors, HTML) gets a plain sentence instead.
+      if (!detail.message) console.error("engine_rejected", { path, status: response.status, detail: detail.raw });
+      const message = detail.message ?? "The request wasn't accepted. Check it and try again.";
+      throw new ApiError(response.status, `${init.failure} ${message}`, headers);
     }
     // Server-side failures (including missing configuration) are for operators, not artists.
-    console.error("engine_error", { path, status: response.status, detail });
+    console.error("engine_error", { path, status: response.status, detail: detail.raw });
     const message =
       response.status === 503
         ? `${init.failure} This feature isn't available on this server right now.`

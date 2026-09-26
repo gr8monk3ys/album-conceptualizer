@@ -3,13 +3,16 @@ import type Stripe from "stripe";
 
 import { ApiError, apiHandler } from "@/server/api";
 import { getPrisma } from "@/server/db";
+import { ENTITLED_STATUSES } from "@/server/plan";
 import { planForPrice, requireStripe, type PaidPlan } from "@/server/stripe";
 
 export const runtime = "nodejs";
 
 // The plan always comes from the subscription's price, never from client-writable metadata.
-// Every handler is an idempotent upsert keyed by workspace or subscription id, so Stripe's
-// retries and out-of-order deliveries converge on the latest subscription state.
+// Events are only a signal: every handler re-fetches the subscription from Stripe and syncs
+// that, so a late or retried delivery can't write back an older state. A workspace follows one
+// subscription at a time: events for any other subscription are ignored while the current one
+// still carries its plan (active, trialing or past_due).
 
 function subscriptionPlan(subscription: Stripe.Subscription): PaidPlan | null {
   return planForPrice(subscription.items?.data?.[0]?.price?.id);
@@ -20,13 +23,15 @@ function periodEnd(subscription: Stripe.Subscription): Date | null {
   return end ? new Date(end * 1000) : null;
 }
 
-async function syncSubscription(
-  subscription: Stripe.Subscription,
-  workspaceId: string | null,
-  stripeCustomerId: string | null,
-) {
+function customerId(customer: string | { id: string } | null | undefined): string | null {
+  if (!customer) return null;
+  return typeof customer === "string" ? customer : customer.id;
+}
+
+async function syncSubscription(subscription: Stripe.Subscription, workspaceId: string | null) {
   const prisma = getPrisma();
   const plan = subscriptionPlan(subscription);
+  const stripeCustomerId = customerId(subscription.customer);
   const data = {
     status: subscription.status ?? "inactive",
     currentPeriodEnd: periodEnd(subscription),
@@ -35,15 +40,40 @@ async function syncSubscription(
     ...(stripeCustomerId ? { stripeCustomerId } : {}),
   };
 
-  if (workspaceId) {
-    await prisma.subscription.upsert({
-      where: { workspaceId },
-      create: { workspaceId, plan: plan ?? "free", ...data },
-      update: data,
+  if (!workspaceId) {
+    await prisma.subscription.updateMany({ where: { stripeSubscriptionId: subscription.id }, data });
+    return;
+  }
+
+  // One conditional UPDATE, so the check and the write can't interleave with another delivery.
+  const { count } = await prisma.subscription.updateMany({
+    where: {
+      workspaceId,
+      OR: [
+        { stripeSubscriptionId: null },
+        { stripeSubscriptionId: subscription.id },
+        { status: { notIn: [...ENTITLED_STATUSES] } },
+      ],
+    },
+    data,
+  });
+  if (count > 0) return;
+
+  const existing = await prisma.subscription.findUnique({
+    where: { workspaceId },
+    select: { stripeSubscriptionId: true },
+  });
+  if (existing) {
+    console.warn("stripe_webhook_ignored_other_subscription", {
+      workspaceId,
+      subscriptionId: subscription.id,
+      currentSubscriptionId: existing.stripeSubscriptionId,
     });
     return;
   }
-  await prisma.subscription.updateMany({ where: { stripeSubscriptionId: subscription.id }, data });
+  // A concurrent first delivery may create the row first; the unique violation then fails
+  // this delivery and Stripe's retry takes the update path.
+  await prisma.subscription.create({ data: { workspaceId, plan: plan ?? "free", ...data } });
 }
 
 export const POST = apiHandler(async (request: Request) => {
@@ -72,8 +102,7 @@ export const POST = apiHandler(async (request: Request) => {
         typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
       if (workspaceId && subscriptionId) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-        const customer = typeof session.customer === "string" ? session.customer : null;
-        await syncSubscription(subscription, workspaceId, customer);
+        await syncSubscription(subscription, workspaceId);
       }
     }
 
@@ -82,8 +111,9 @@ export const POST = apiHandler(async (request: Request) => {
       event.type === "customer.subscription.updated" ||
       event.type === "customer.subscription.deleted"
     ) {
-      const subscription = event.data.object as Stripe.Subscription;
-      await syncSubscription(subscription, subscription.metadata?.workspaceId ?? null, null);
+      const { id } = event.data.object as Stripe.Subscription;
+      const subscription = await stripe.subscriptions.retrieve(id);
+      await syncSubscription(subscription, subscription.metadata?.workspaceId ?? null);
     }
   } catch (err) {
     console.error("stripe_webhook_processing_error", err);

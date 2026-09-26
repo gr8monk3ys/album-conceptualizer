@@ -2,6 +2,7 @@ import { DailyChallengeCard } from "@/components/daily-challenge-card";
 import { PageHeader, Section } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { getAlbumSongOptions } from "@/server/album-songs";
+import { recordLyricsBaselines } from "@/server/challenge-verification";
 import { getDailyChallenge } from "@/server/challenges";
 import { getPrisma } from "@/server/db";
 import { getAgentAvailability } from "@/server/engine";
@@ -47,7 +48,12 @@ export default async function ChallengesPage() {
   const plan = effectivePlan(workspace.subscription);
   const prisma = getPrisma();
 
+  const now = new Date();
   const { day, challenge } = getDailyChallenge();
+
+  // Opening the challenge records where each album's lyrics stand before today's writing, so
+  // the entry's credits are paid for what is written after (see challenge-verification).
+  await recordLyricsBaselines(prisma, workspace.id, now);
 
   const [completion, albums, aiAvailable] = await Promise.all([
     prisma.challengeCompletion.findFirst({

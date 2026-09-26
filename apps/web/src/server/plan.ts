@@ -7,7 +7,13 @@ export type Plan = "free" | "pro" | "team";
 // Stripe statuses under which a paid plan's entitlements still apply. `past_due` keeps
 // access during Stripe's retry window; anything else (canceled, unpaid, incomplete,
 // inactive) falls back to the free plan.
-const ENTITLED_STATUSES = new Set(["active", "trialing", "past_due"]);
+export const ENTITLED_STATUSES = ["active", "trialing", "past_due"] as const;
+const ENTITLED = new Set<string>(ENTITLED_STATUSES);
+
+/** Whether a Stripe subscription status still carries its plan's entitlements. */
+export function isEntitledStatus(status: string | null | undefined): boolean {
+  return ENTITLED.has(status ?? "");
+}
 
 export const FREE_PROJECT_LIMIT = 5;
 
@@ -16,7 +22,7 @@ export function effectivePlan(
 ): Plan {
   const plan = subscription?.plan;
   if (plan !== "pro" && plan !== "team") return "free";
-  return ENTITLED_STATUSES.has(subscription?.status ?? "") ? plan : "free";
+  return isEntitledStatus(subscription?.status) ? plan : "free";
 }
 
 export function planMonthlyCredits(plan: Plan): number {

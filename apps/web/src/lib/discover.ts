@@ -3,12 +3,9 @@
 // snapshot; "written" always means what @/lib/lyrics says it means.
 
 import { isWrittenLyrics } from "@/lib/lyrics";
+import { asList } from "@/lib/snapshot-values";
 
 type Raw = Record<string, unknown>;
-
-function asList(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
 
 function songsOf(data: unknown): Raw[] {
   return asList((data as { songs?: unknown } | null)?.songs)

@@ -17,6 +17,7 @@ import {
   textareaClass,
 } from "@/components/ui";
 import { referenceRoleLabel, referenceRoleList } from "@/lib/reference-roles";
+import { STYLE_BIBLE_LIST_LIMIT } from "@/lib/style-bible-limits";
 import { useAutosave } from "@/lib/use-autosave";
 import type { AlbumStyleBible } from "@/server/album-json";
 
@@ -246,6 +247,14 @@ export function AlbumStyleBibleWorkspace({
   const label = (key: keyof StyleBibleFormState) =>
     SECTIONS.find((section) => section.key === key)?.label ?? key;
 
+  /** A list over the limit won't save; say so under the field, not only in the status line. */
+  const overLimit = (key: keyof StyleBibleFormState) => {
+    const count = splitList(form[key]).length;
+    return count > STYLE_BIBLE_LIST_LIMIT
+      ? `${count} items; this list keeps up to ${STYLE_BIBLE_LIST_LIMIT}. Remove ${count - STYLE_BIBLE_LIST_LIMIT} to save.`
+      : undefined;
+  };
+
   return (
     <Section
       id="style-bible"
@@ -317,28 +326,48 @@ export function AlbumStyleBibleWorkspace({
                       autoComplete="off"
                     />
                   </Field>
-                  <Field label={label("vocalAttributes")} htmlFor={fieldId("vocalAttributes")}>
+                  <Field
+                    label={label("vocalAttributes")}
+                    htmlFor={fieldId("vocalAttributes")}
+                    error={overLimit("vocalAttributes")}
+                  >
                     {textarea("vocalAttributes", "e.g. breathy, clipped consonants, stacked harmonies")}
                   </Field>
                 </Group>
 
                 <Group legend="Sound">
-                  <Field label={label("sonicPalette")} htmlFor={fieldId("sonicPalette")}>
+                  <Field
+                    label={label("sonicPalette")}
+                    htmlFor={fieldId("sonicPalette")}
+                    error={overLimit("sonicPalette")}
+                  >
                     {textarea("sonicPalette", "e.g. chorused guitars, pillowy synths, dry drum room")}
                   </Field>
-                  <Field label={label("arrangementRules")} htmlFor={fieldId("arrangementRules")}>
+                  <Field
+                    label={label("arrangementRules")}
+                    htmlFor={fieldId("arrangementRules")}
+                    error={overLimit("arrangementRules")}
+                  >
                     {textarea(
                       "arrangementRules",
                       "e.g. no full drums before chorus, let bridges drop to bass + vocal",
                     )}
                   </Field>
-                  <Field label={label("mixPriorities")} htmlFor={fieldId("mixPriorities")}>
+                  <Field
+                    label={label("mixPriorities")}
+                    htmlFor={fieldId("mixPriorities")}
+                    error={overLimit("mixPriorities")}
+                  >
                     {textarea(
                       "mixPriorities",
                       "e.g. lead vocal forward, bass warm not boomy, choruses widen hard",
                     )}
                   </Field>
-                  <Field label={label("avoidList")} htmlFor={fieldId("avoidList")}>
+                  <Field
+                    label={label("avoidList")}
+                    htmlFor={fieldId("avoidList")}
+                    error={overLimit("avoidList")}
+                  >
                     {textarea("avoidList", "e.g. EDM risers, trap hats, glossy pop vocal tuning")}
                   </Field>
                 </Group>
@@ -347,6 +376,7 @@ export function AlbumStyleBibleWorkspace({
                   <Field
                     label={label("emotionalTargets")}
                     htmlFor={fieldId("emotionalTargets")}
+                    error={overLimit("emotionalTargets")}
                     className="@xl:col-span-2"
                   >
                     {textarea(
@@ -369,7 +399,8 @@ export function AlbumStyleBibleWorkspace({
               </div>
 
               <p className="mt-6 max-w-[65ch] border-t border-line pt-4 text-xs leading-relaxed text-ink-3">
-                List fields take commas or new lines. Changes save as you type;{" "}
+                List fields take commas or new lines, up to {STYLE_BIBLE_LIST_LIMIT} items each. Changes
+                save as you type;{" "}
                 <span className="pointer-coarse:hidden">press Ctrl or ⌘ + S, or </span>
                 use Save now to save at once.
               </p>

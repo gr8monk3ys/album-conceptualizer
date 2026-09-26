@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { ApiError, apiHandler, enforceRateLimit, requireWorkspace } from "@/server/api";
 import { getPrisma } from "@/server/db";
-import { requireStripe, stripeFailure } from "@/server/stripe";
+import { createPortalSession, requireStripe, stripeFailure } from "@/server/stripe";
 
 export const runtime = "nodejs";
 
@@ -23,12 +23,8 @@ export const POST = apiHandler(async () => {
   }
 
   const stripe = requireStripe();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   try {
-    const portal = await stripe.billingPortal.sessions.create({
-      customer: subscription.stripeCustomerId,
-      return_url: `${appUrl}/app/settings/billing`,
-    });
+    const portal = await createPortalSession(stripe, subscription.stripeCustomerId);
     return NextResponse.json({ url: portal.url });
   } catch (err) {
     throw stripeFailure(err, "portal");
