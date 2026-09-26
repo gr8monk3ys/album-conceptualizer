@@ -94,6 +94,7 @@ import { invalidChords } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
 import { useLeaveGuard } from "@/lib/use-autosave";
 import { cn } from "@/lib/utils";
+import { prefersReducedMotion } from "@/lib/motion";
 
 type SelectionInput = {
   song?: string;
@@ -253,10 +254,6 @@ function focusTargetFor(focus: string | undefined | null, album: StudioAlbum): F
     default:
       return null;
   }
-}
-
-function prefersReducedMotion() {
-  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**

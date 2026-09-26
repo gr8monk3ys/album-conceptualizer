@@ -19,6 +19,7 @@ import { mergeStringFields, useDraftState, useLeaveGuard } from "@/lib/use-autos
 import type { AlbumSongOption } from "@/server/album-songs";
 import type { AlbumRoughDemoRecord } from "@/server/rough-demos";
 import type { RoughDemoCollection, RoughDemoReview } from "@/server/rough-demo-review";
+import { scrollBehavior } from "@/lib/motion";
 
 type RoughDemoFormState = {
   title: string;
@@ -211,11 +212,6 @@ function parseDraft(raw: unknown): RoughDemoFormState | null {
     };
   }
   return form;
-}
-
-/** Smooth scrolling, unless the viewer asked the system for less motion. */
-function scrollBehavior(): ScrollBehavior {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }
 
 /** A success notice that clears itself. Its live region is always rendered, so it is heard. */

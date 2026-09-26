@@ -8,6 +8,7 @@ import { ButtonLink, PRIMARY_ACTION_MARKER } from "@/components/ui";
 import { useEdgeFade } from "@/components/use-edge-fade";
 import { edgeFadeClass } from "@/lib/edge-fade";
 import { cn } from "@/lib/utils";
+import { prefersReducedMotion } from "@/lib/motion";
 
 /**
  * Six tabs, each named after what it opens ("Story bible" opens the Story bible, "Sound" the
@@ -30,10 +31,6 @@ function useAlbumSegment(albumId: string) {
   const pathname = usePathname() ?? "";
   const base = `/app/albums/${albumId}`;
   return pathname.startsWith(`${base}/`) ? pathname.slice(base.length + 1).split("/")[0] : "";
-}
-
-function prefersReducedMotion() {
-  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**

@@ -20,6 +20,7 @@ import { REFERENCE_ROLES, referenceRoleLabel } from "@/lib/reference-roles";
 import { mergeStringFields, useDraftState, useLeaveGuard } from "@/lib/use-autosave";
 import type { AlbumSongOption } from "@/server/album-songs";
 import type { AlbumReferenceRecord } from "@/server/references";
+import { scrollBehavior } from "@/lib/motion";
 
 type ReferenceFormState = {
   title: string;
@@ -157,11 +158,6 @@ function toForm(reference: AlbumReferenceRecord): ReferenceFormState {
 
 function sameForm(left: ReferenceFormState, right: ReferenceFormState) {
   return JSON.stringify(left) === JSON.stringify(right);
-}
-
-/** Smooth scrolling, unless the viewer asked the system for less motion. */
-function scrollBehavior(): ScrollBehavior {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }
 
 /** A success notice that clears itself. Its live region is always rendered, so it is heard. */
