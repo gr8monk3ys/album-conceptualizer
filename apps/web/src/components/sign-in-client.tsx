@@ -35,10 +35,16 @@ export function SignInClient({
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,rgba(109,94,252,0.06),rgba(255,62,165,0.025)_30%,transparent_68%)]">
+      <a
+        href="#main-content"
+        className="sr-only absolute left-4 top-4 z-50 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black focus:not-sr-only focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.35)]"
+      >
+        Skip to content
+      </a>
       <div className="relative mx-auto flex max-w-[1100px] flex-col px-6 pb-16 pt-8 md:pt-10">
         <SiteHeader />
 
-        <main className="mt-14 grid w-full grid-cols-1 items-start gap-10 md:mt-20 lg:grid-cols-2">
+        <main id="main-content" tabIndex={-1} className="mt-14 grid w-full grid-cols-1 items-start gap-10 md:mt-20 lg:grid-cols-2">
           <div className="flex flex-col">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-xs text-[var(--muted)]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
