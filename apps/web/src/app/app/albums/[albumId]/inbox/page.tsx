@@ -1,15 +1,37 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { CompleteTaskButton, ResolveCommentButton } from "@/components/inbox-actions";
+import { RelativeTime } from "@/components/relative-time";
+import { ButtonLink, Chip, EmptyState, Section } from "@/components/ui";
+import { AlbumJsonSchema } from "@/server/album-json";
+import { openTaskWhere, untrackedCommentWhere } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
-import { CompleteTaskButton, ResolveCommentButton } from "@/components/inbox-actions";
+import { taskDetail } from "@/lib/task-detail";
+import { placeFor, sectionPlaceLine, sectionPlacePhrase, sectionPlaces, type SectionPlace } from "@/lib/section-place";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Album Inbox",
-  description: "Resolve album comments and tasks from a focused inbox.",
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  if (!albumTitle) return { title: "Page not found" };
+  return {
+    title: albumPageTitle("Comments and tasks", albumTitle),
+    description: "Resolve the album's section comments and open tasks in one place.",
+  };
+}
+
+const TASK_STATUS: Record<string, { label: string; tone: "neutral" | "ok" }> = {
+  open: { label: "Open", tone: "neutral" },
+  in_progress: { label: "In progress", tone: "neutral" },
+  done: { label: "Done", tone: "ok" },
 };
 
 function excerpt(text: string, max = 220) {
@@ -19,6 +41,34 @@ function excerpt(text: string, max = 220) {
   return `${t.slice(0, max)}…`;
 }
 
+/**
+ * Both lists share one row: the note on the left, and from a 36rem row the actions in one
+ * fixed column of two equal slots (Open in Studio, then the row's own action), so Resolve and
+ * Mark done line up down the page whichever list they are in, and a task with no section to
+ * open keeps its Mark done in the second slot.
+ */
+const ROW = "flex flex-col gap-3 py-4 @xl:grid @xl:grid-cols-[minmax(0,1fr)_auto] @xl:items-start @xl:gap-6";
+const ACTIONS =
+  "flex min-w-0 flex-wrap items-start gap-2 @xl:grid @xl:grid-cols-[repeat(2,minmax(0,9.5rem))] @xl:gap-2";
+const SLOT_OPEN = "px-3 @xl:w-full";
+const SLOT_ACTION = "@xl:col-start-2";
+
+function formatSectionType(value: string | null) {
+  if (!value) return null;
+  const words = value.replace(/[_-]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * "01 · Low Tide Leaving · Verse 1": where in the album a comment or task points, named as the
+ * spine and the Studio name it (`@/lib/section-place`), or "Whole album".
+ */
+function PlaceLine({ place }: { place: SectionPlace | null }) {
+  if (!place) return <>Whole album</>;
+  return <span className="type-figure break-words">{sectionPlaceLine(place)}</span>;
+}
+
+// The album layout renders the title, catalog line, album tabs and spine above this page.
 export default async function AlbumInboxPage({ params }: { params: Promise<{ albumId: string }> }) {
   const [{ albumId }, { userId }] = await Promise.all([params, requireUser()]);
   const workspace = await getActiveWorkspaceForUser(userId);
@@ -26,13 +76,18 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
 
   const album = await prisma.album.findFirst({
     where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true, title: true },
+    select: { id: true, title: true, data: true },
   });
   if (!album) notFound();
+  // Tracks move and get renamed: each comment is named by where its section is now.
+  const parsed = AlbumJsonSchema.safeParse(album.data);
+  const songs = parsed.success ? parsed.data.songs : [];
+  const places = sectionPlaces(songs);
 
-  const [comments, tasks] = await Promise.all([
+  const [comments, tasks, otherMembers] = await Promise.all([
     prisma.albumSectionComment.findMany({
-      where: { albumId: album.id, deletedAt: null, resolvedAt: null },
+      // A comment an open task tracks is listed once, as that task (server/comment-tasks.ts).
+      where: untrackedCommentWhere(album.id),
       orderBy: { createdAt: "asc" },
       take: 200,
       select: {
@@ -47,7 +102,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
       },
     }),
     prisma.albumTask.findMany({
-      where: { albumId: album.id, deletedAt: null, status: { not: "done" } },
+      where: openTaskWhere(album.id),
       orderBy: [{ status: "asc" }, { createdAt: "asc" }],
       take: 200,
       select: {
@@ -64,167 +119,192 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
         createdAt: true,
         createdBy: { select: { id: true, name: true, email: true, image: true } },
         assignedTo: { select: { id: true, name: true, email: true, image: true } },
+        sourceComment: { select: { deletedAt: true, author: { select: { name: true, email: true } } } },
       },
     }),
+    prisma.workspaceMember.count({ where: { workspaceId: workspace.id, userId: { not: userId } } }),
   ]);
+  // The owner may predate member rows; count them as a collaborator if they aren't the viewer.
+  const trackedComments = tasks.filter((task) => task.sourceComment && !task.sourceComment.deletedAt).length;
+  const workingAlone = otherMembers === 0 && workspace.ownerId === userId;
 
-  const commentCount = comments.length;
-  const taskCount = tasks.length;
+  const studioUrl = `/app/albums/${album.id}/studio`;
+  const sectionUrl = (track: number, sectionId: string) =>
+    `${studioUrl}?song=${track}&sid=${encodeURIComponent(sectionId)}`;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-[var(--muted2)]">Review inbox</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-            {album.title}
-          </div>
-          <div className="mt-2 text-sm text-[var(--muted)]">
-            {commentCount} unresolved comments · {taskCount} open tasks
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/app/albums/${album.id}`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Back
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/studio`}
-            className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90"
-          >
-            Studio
-          </Link>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs text-[var(--muted2)]">Comments</div>
-              <div className="text-sm font-semibold text-[var(--text)]">Unresolved</div>
-            </div>
-            <div className="text-xs text-[var(--muted)]">{commentCount}</div>
-          </div>
-
-          <div className="mt-3 space-y-2">
-            {comments.length ? (
-              comments.map((comment) => {
-                const url = `/app/albums/${album.id}/studio?song=${comment.songTrackNumber}&sid=${encodeURIComponent(
-                  comment.sectionId,
-                )}`;
-                const author = comment.author.name || comment.author.email || "User";
+    <Section
+      id="inbox"
+      title="Comments and tasks"
+      description={
+        workingAlone
+          ? "You're the only one in this workspace, so comments are notes to yourself; @mentions notify collaborators once they join."
+          : "Everything left on a section in the Studio waits here until it's resolved or done."
+      }
+    >
+      <div className="flex flex-col gap-10">
+        <Section
+          id="inbox-comments"
+          headingLevel={3}
+          title="Unresolved comments"
+          description={
+            comments.length
+              ? `${comments.length} ${comments.length === 1 ? "comment is" : "comments are"} waiting on a section, oldest first.`
+              : undefined
+          }
+        >
+          {comments.length ? (
+            <ul className="@container divide-y divide-line border-y border-line">
+              {comments.map((comment) => {
+                const author = comment.author.name || comment.author.email || "A collaborator";
+                const place = placeFor(places, songs, comment);
+                const phrase = place ? sectionPlacePhrase(place) : "the album";
                 return (
-                  <div
-                    key={comment.id}
-                    className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-xs text-[var(--muted2)]">
-                          Track {comment.songTrackNumber} · {comment.sectionType} #
-                          {comment.sectionOrder + 1}
-                        </div>
-                        <div className="mt-1 text-xs text-[var(--muted2)]">
-                          {author} · {comment.createdAt.toLocaleString()}
-                        </div>
-                        <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
-                          {excerpt(comment.body)}
-                        </div>
-                      </div>
-                      <div className="flex flex-none items-center gap-2">
-                        <Link
-                          href={url}
-                          className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-[10px] font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-                        >
-                          Open
-                        </Link>
-                        <ResolveCommentButton albumId={album.id} commentId={comment.id} />
-                      </div>
+                  <li key={comment.id} className={ROW}>
+                    <div className="min-w-0">
+                      <p className="text-sm text-ink-2">
+                        <PlaceLine place={place} />
+                      </p>
+                      <p className="mt-1 max-w-[65ch] break-words text-sm leading-relaxed text-ink">
+                        {excerpt(comment.body)}
+                      </p>
+                      <p className="mt-1 text-xs text-ink-3">
+                        {author} · <RelativeTime date={comment.createdAt.toISOString()} />
+                      </p>
                     </div>
-                  </div>
+                    <div className={ACTIONS}>
+                      <ButtonLink
+                        href={sectionUrl(comment.songTrackNumber, comment.sectionId)}
+                        tone="ghost"
+                        className={SLOT_OPEN}
+                        aria-label={`Open in Studio: ${place ? sectionPlaceLine(place) : "the album"}`}
+                      >
+                        Open in Studio
+                      </ButtonLink>
+                      <ResolveCommentButton
+                        albumId={album.id}
+                        commentId={comment.id}
+                        itemLabel={`comment on ${phrase}`}
+                        className={SLOT_ACTION}
+                      />
+                    </div>
+                  </li>
                 );
-              })
-            ) : (
-              <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-6 text-center text-sm text-[var(--muted)]">
-                No unresolved comments.
-              </div>
-            )}
-          </div>
-        </section>
+              })}
+            </ul>
+          ) : (
+            <EmptyState
+              title="No unresolved comments"
+              action={
+                <ButtonLink href={studioUrl} tone="secondary">
+                  Open Studio
+                </ButtonLink>
+              }
+            >
+              {trackedComments
+                ? `Comments that became tasks are listed once, under Open tasks. New comments left on a section in the Studio wait here until someone resolves them.`
+                : "Comments left on a section in the Studio wait here until someone resolves them."}
+            </EmptyState>
+          )}
+        </Section>
 
-        <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs text-[var(--muted2)]">Tasks</div>
-              <div className="text-sm font-semibold text-[var(--text)]">Open</div>
-            </div>
-            <div className="text-xs text-[var(--muted)]">{taskCount}</div>
-          </div>
-
-          <div className="mt-3 space-y-2">
-            {tasks.length ? (
-              tasks.map((task) => {
+        <Section
+          id="inbox-tasks"
+          headingLevel={3}
+          title="Open tasks"
+          description={
+            tasks.length
+              ? `${tasks.length} ${tasks.length === 1 ? "task is" : "tasks are"} still open.`
+              : undefined
+          }
+        >
+          {tasks.length ? (
+            <ul className="@container divide-y divide-line border-y border-line">
+              {tasks.map((task) => {
                 const url =
                   task.sectionId && task.songTrackNumber
-                    ? `/app/albums/${album.id}/studio?song=${task.songTrackNumber}&sid=${encodeURIComponent(
-                        task.sectionId,
-                      )}`
-                    : `/app/albums/${album.id}/inbox`;
-                const creator = task.createdBy.name || task.createdBy.email || "User";
+                    ? sectionUrl(task.songTrackNumber, task.sectionId)
+                    : null;
+                const creator = task.createdBy.name || task.createdBy.email || "A collaborator";
+                // A task made from a comment is that comment, listed once: it says whose note it
+                // was, and Mark done resolves the comment too.
+                const commentAuthor =
+                  task.sourceComment && !task.sourceComment.deletedAt
+                    ? task.sourceComment.author.name || task.sourceComment.author.email || "a collaborator"
+                    : null;
+                const detail = taskDetail(task.title, task.body);
                 const assignee = task.assignedTo?.name || task.assignedTo?.email || null;
+                const status = TASK_STATUS[task.status] ?? {
+                  label: formatSectionType(task.status) ?? task.status,
+                  tone: "neutral" as const,
+                };
                 return (
-                  <div
-                    key={task.id}
-                    className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="truncate text-sm font-semibold text-[var(--text)]">
-                            {task.title}
-                          </div>
-                          <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-2 py-0.5 text-[10px] font-semibold text-[var(--muted2)]">
-                            {task.status}
-                          </div>
-                          <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-2 py-0.5 text-[10px] font-semibold text-[var(--muted2)]">
-                            P{task.priority}
-                          </div>
-                        </div>
-                        <div className="mt-1 text-xs text-[var(--muted2)]">
-                          {creator}
-                          {assignee ? ` → ${assignee}` : ""} · {task.createdAt.toLocaleString()}
-                        </div>
-                        {task.body ? (
-                          <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
-                            {excerpt(task.body)}
-                          </div>
+                  <li key={task.id} className={ROW}>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="min-w-0 break-words text-sm font-semibold text-ink">
+                          {task.title}
+                        </p>
+                        <Chip tone={status.tone}>{status.label}</Chip>
+                        {task.priority !== 2 ? (
+                          <Chip>
+                            Priority <span className="type-figure">{task.priority}</span>
+                          </Chip>
                         ) : null}
                       </div>
-
-                      <div className="flex flex-none items-center gap-2">
-                        <Link
-                          href={url}
-                          className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-[10px] font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-                        >
-                          Open
-                        </Link>
-                        <CompleteTaskButton albumId={album.id} taskId={task.id} />
-                      </div>
+                      <p className="mt-1 text-sm text-ink-2">
+                        <PlaceLine place={placeFor(places, songs, task)} />
+                      </p>
+                      {/* A task made from a comment has its first line as the title: only what
+                          the comment adds after it is shown here, never the title again. */}
+                      {detail ? (
+                        <p className="mt-1 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
+                          {excerpt(detail)}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-xs text-ink-3">
+                        {commentAuthor ? `From ${commentAuthor}’s comment` : creator}
+                        {assignee ? ` → ${assignee}` : ""} ·{" "}
+                        <RelativeTime date={task.createdAt.toISOString()} />
+                        {task.dueAt ? (
+                          <>
+                            {" · Due "}
+                            <RelativeTime date={task.dueAt.toISOString()} />
+                          </>
+                        ) : null}
+                      </p>
                     </div>
-                  </div>
+                    <div className={ACTIONS}>
+                      {url ? (
+                        <ButtonLink
+                          href={url}
+                          tone="ghost"
+                          className={SLOT_OPEN}
+                          aria-label={`Open in Studio: ${task.title}`}
+                        >
+                          Open in Studio
+                        </ButtonLink>
+                      ) : null}
+                      <CompleteTaskButton
+                        albumId={album.id}
+                        taskId={task.id}
+                        itemLabel={task.title}
+                        fromComment={Boolean(task.sourceComment && !task.sourceComment.deletedAt)}
+                        className={SLOT_ACTION}
+                      />
+                    </div>
+                  </li>
                 );
-              })
-            ) : (
-              <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-6 text-center text-sm text-[var(--muted)]">
-                No open tasks.
-              </div>
-            )}
-          </div>
-        </section>
+              })}
+            </ul>
+          ) : (
+            <EmptyState title="No open tasks">
+              Turn a section comment into a task in the Studio and it stays here until it&apos;s
+              done.
+            </EmptyState>
+          )}
+        </Section>
       </div>
-    </div>
+    </Section>
   );
 }

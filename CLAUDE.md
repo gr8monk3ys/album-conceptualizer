@@ -36,7 +36,9 @@ For the Next.js frontend (`apps/web/`):
 npm run dev        # development server
 npm run build      # production build
 npm run lint       # eslint
-npm run test:e2e   # Playwright end-to-end tests
+npm run typecheck  # tsc --noEmit
+npm test           # vitest unit tests (src/**/*.test.ts); *.db.test.ts need DATABASE_URL (Postgres)
+npm run test:e2e   # Playwright end-to-end tests (needs Postgres + the engine on :8000)
 npx prisma generate         # regenerate Prisma client after schema changes
 npx prisma migrate dev      # apply migrations (dev)
 npx prisma migrate deploy   # apply migrations (production)
@@ -83,7 +85,9 @@ The active stores are attached to `app.state` (`album_store`, `bible_store`, `su
 
 **Experience layer** (`api/v1/experience.py`, ~3 800 lines): All experience endpoints are pure data computation — zero Anthropic/LLM API calls. They operate on albums, songs, and in-memory collab room / remix battle state stored via `ExperienceStateStore`.
 
-**Agent workflows** (`api/v1/agents.py`): Three crew endpoints — ideation, song-development, coherence-review — fire CrewAI crews in background threads via `concurrent.futures.ThreadPoolExecutor` with a 180s timeout. Global concurrency cap of 5 active jobs. Requires `ANTHROPIC_API_KEY` and the `[ai]` extra at runtime. The Next.js app proxies these via `/api/agents/[action]` and `/api/agents/jobs/[jobId]` routes, with credit deduction (5 credits per job).
+**Album snapshots** (`models/snapshot.py`): the engine is stateless toward the web app (ADR 0001). Zip export and the song-development / coherence-review agents receive the album JSON inline (`album`), read it leniently with `album_from_snapshot()` and derive the Album Bible with `bible_from_album()`. `album_id` lookups against the engine's own stores remain only for direct API users.
+
+**Agent workflows** (`api/v1/agents.py`): Three crew endpoints — ideation, song-development, coherence-review — fire CrewAI crews in background threads via `concurrent.futures.ThreadPoolExecutor` with a 180s timeout. Admission is atomic in `JobStore.submit`: at most 5 active jobs overall and 2 per owner (`X-Owner-Id`; `ALBUM_CONCEPTUALIZER_MAX_ACTIVE_JOBS_PER_OWNER`), a timed-out job keeps its slot until its crew thread ends, and over-limit requests get a 429. Requires `ANTHROPIC_API_KEY` and the `[ai]` extra at runtime. The Next.js app proxies these via `/api/agents/[action]` and `/api/agents/jobs/[jobId]` routes, with credit deduction (5 credits per job).
 
 **Optional extras**: AI agents (`agents/`, requires `[ai]`), RAG with ChromaDB (`rag/`, requires `[rag]`), MIDI/MusicXML export (`export/`, requires `[music]`). These modules are excluded from coverage measurement in CI because they need runtime extras not installed with `[dev]`.
 
@@ -101,6 +105,12 @@ Coverage is measured with branch coverage (`branch = true`) and must stay ≥ 85
 Next.js 16, React 19, Tailwind CSS 4. Auth via `next-auth` with Prisma adapter (PostgreSQL/Neon). Payments via Stripe. Tone.js for in-browser MIDI preview. `@tonejs/midi` for MIDI parsing. Rate limiting via `@upstash/ratelimit` + `@upstash/redis`.
 
 Prisma schema lives in `apps/web/prisma/schema.prisma`. Always run `npx prisma generate` after schema changes.
+
+Server modules to use instead of re-implementing (`apps/web/src/server/`):
+- `api.ts` — route guards. Wrap every route handler in `apiHandler()`; use `requireUser` / `requireWorkspace` / `requireAlbum` / `parseJsonBody` / `parseWith` / `enforceRateLimit`, and `throw new ApiError(status, message)` for failures. Errors reach the client as `{ error, details? }`.
+- `engine.ts` — the only Python engine client (agents, zip export, progression render, health). Engine failures surface as `ApiError`.
+- `credits.ts` + `plan.ts` — `effectivePlan()` (paid plans count only while the subscription is active/trialing/past_due), `chargeCredits(tx, …)` inside a transaction, `withCredits(…, work)` for engine work (refunds on failure). Monthly grants come from the ledger (ADR 0003).
+- `album-sync.ts` — `writeAlbumSnapshot(tx, albumId, album)` for every album rewrite; `album-fork.ts` `forkIntoWorkspace()`; `share-links.ts` `findSharedAlbum()`; `notify.ts` for notification fan-out; `stripe.ts` for plan↔price mapping.
 
 ## Key env vars
 

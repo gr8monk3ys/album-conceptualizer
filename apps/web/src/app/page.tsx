@@ -1,109 +1,129 @@
-import { SiteHeader } from "@/components/site-header";
+import type { Metadata } from "next";
+import Link from "next/link";
 
-export const metadata = {
-  title: "Album Conceptualizer",
+import { ExampleAlbum } from "@/components/landing/example-album";
+import { Wordmark } from "@/components/wordmark";
+import { SiteHeader } from "@/components/site-header";
+import { ButtonLink } from "@/components/ui";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { FREE_PROJECT_LIMIT, planMonthlyCredits } from "@/server/plan";
+
+export const metadata: Metadata = {
+  title: { absolute: "Album Conceptualizer" },
   description:
-    "Build concept albums that hold together with narrative, lyrics, harmony, collaboration, and export-ready handoff.",
+    "Plan a concept album that holds together: a narrative arc, a Story bible, lyrics and chords for every track, and a clean handoff to your DAW.",
 };
+
+const MOVES = [
+  {
+    title: "Plan the arc",
+    body: "Start from one idea. Name the album, set its narrative arc and themes, and sketch the sequence in three short steps. An optional AI brainstorm can suggest a direction; you decide what stays.",
+  },
+  {
+    title: "Write inside the sequence",
+    body: "Draft sections, lyrics and chords track by track with the whole record in view. The Story bible and the Coherence report show which tracks carry the themes and which ones drift.",
+  },
+  {
+    title: "Hand off to your DAW or generator",
+    body: "Export MIDI, ChordPro, MusicXML or JSON, or a handoff pack written for the tool you use next. The blueprint leaves with its structure intact.",
+  },
+];
+
+const FOOTER_LINKS = [
+  { href: "#how-it-works", label: "How it works" },
+  { href: "/sign-in", label: "Sign in" },
+  { href: "/app", label: "Open your workspace" },
+];
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,rgba(109,94,252,0.06),rgba(255,62,165,0.025)_30%,transparent_68%)]">
-      <div className="relative mx-auto flex max-w-[1200px] flex-col px-6 pb-16 pt-8 md:pt-10">
+    <div className="min-h-screen bg-ground">
+      <div className="mx-auto flex max-w-[1200px] flex-col px-4 pb-10 pt-4 sm:px-6 md:pt-6">
         <SiteHeader />
 
-        <main className="mt-14 grid grid-cols-1 items-start gap-10 md:mt-20 lg:grid-cols-[1.2fr_1fr]">
-          <div>
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-xs text-[var(--muted)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-              AI workspace for concept albums
-            </div>
-            <h1 className="mt-5 text-4xl font-semibold tracking-tight text-[var(--text)] md:text-6xl">
-              Build a concept album that actually holds together.
-            </h1>
-            <p className="mt-5 max-w-[62ch] text-sm leading-relaxed text-[var(--muted)] md:text-base">
-              Turn one idea into a coherent album blueprint with an album bible, tracklist, lyrics
-              drafts, chord progressions, narrative arcs, comments, versions, and export-ready
-              handoff for your DAW.
-            </p>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <form action="/sign-in">
-                <button
-                  type="submit"
-                  className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-6 py-3 text-sm font-semibold text-black hover:brightness-110"
-                >
+        <main className="flex flex-col">
+          <section className="grid grid-cols-[minmax(0,1fr)] gap-x-12 gap-y-10 pt-12 md:pt-16 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
+            {/* A size container: the headline's display size stays within 11% of this column
+                (see --text-display-xl), so it breaks at its two phrases at every width. */}
+            <div className="min-w-0 @container">
+              {/* Two phrases that each wrap on their own (balanced), so no word is left alone
+                  on a line: "Build a / concept album / that actually / holds together." Their
+                  width doesn't depend on the font's "0" (unlike ch), so the lines are the same
+                  before and after Archivo loads. */}
+              <h1 className="type-display text-display-xl break-words text-ink hyphens-auto">
+                <span className="inline-block max-w-full">Build a concept album</span>{" "}
+                <span className="inline-block max-w-full">that actually holds together.</span>
+              </h1>
+              {/* Measures on this page are in em (27.5em is 48ch of Archivo), so they hold the
+                  same width in the fallback face that shows until Archivo arrives. */}
+              <p className="mt-6 max-w-[27.5em] text-base leading-relaxed text-ink-2">
+                Album Conceptualizer turns one idea into an album blueprint: a sequence of tracks,
+                a narrative arc, the themes each track carries, and lyric and chord drafts for every
+                section. Then it hands the record to your DAW without losing the thread.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <ButtonLink href="/sign-in" tone="primary" className="px-5">
                   Start your first album
-                </button>
-              </form>
-              <form action="/app/create">
-                <button
-                  type="submit"
-                  className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-6 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-                >
-                  See the workflow
-                </button>
-              </form>
+                </ButtonLink>
+                <ButtonLink href="#how-it-works" tone="secondary" className="px-5">
+                  See how it works
+                </ButtonLink>
+              </div>
+              {/* What it costs, said plainly before anyone signs up. */}
+              <p className="mt-4 max-w-[27.5em] text-sm leading-relaxed text-ink-2">
+                The free plan comes with {planMonthlyCredits("free")} credits a month and up to{" "}
+                {FREE_PROJECT_LIMIT} albums. Creating an album uses {CREDIT_COSTS.albumCreate}.
+              </p>
+              <p className="mt-6 max-w-[27.5em] text-sm leading-relaxed text-ink-3">
+                Not an audio generator. It plans the record so the audio you make later has
+                something to hold on to.
+              </p>
             </div>
 
-            <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3 [content-visibility:auto] [contain-intrinsic-size:220px]">
-              {[
-                { k: "Album bible", v: "Themes, motifs, references, and narrative rules" },
-                { k: "DAW handoff", v: "MIDI, ChordPro, MusicXML, JSON export packs" },
-                { k: "Publish + remix", v: "Share blueprints and fork stronger ideas" },
-              ].map((item) => (
-                <div
-                  key={item.k}
-                  className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4"
-                >
-                  <div className="text-sm font-semibold text-[var(--text)]">{item.k}</div>
-                  <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{item.v}</div>
-                </div>
+            <ExampleAlbum className="border-t border-line-strong pt-6 lg:border-t-0 lg:pt-0" />
+          </section>
+
+          <section
+            id="how-it-works"
+            aria-labelledby="how-it-works-title"
+            className="mt-20 border-t border-line pt-8 md:mt-24"
+          >
+            <h2 id="how-it-works-title" className="type-display text-2xl text-ink md:text-3xl">
+              How it works
+            </h2>
+            <p className="mt-3 max-w-[35.5em] text-sm leading-relaxed text-ink-2">
+              The album is the unit, not the song. Three moves take it from an idea to a session.
+            </p>
+            <ol className="mt-8 grid grid-cols-1 gap-x-10 gap-y-8 md:grid-cols-3">
+              {MOVES.map((move) => (
+                <li key={move.title} className="min-w-0 border-t border-line-strong pt-4">
+                  <h3 className="text-lg font-semibold text-ink">{move.title}</h3>
+                  <p className="mt-2 max-w-[27.5em] text-sm leading-relaxed text-ink-2">{move.body}</p>
+                </li>
               ))}
-            </div>
-          </div>
-
-          <div className="hidden rounded-[32px] border border-[var(--border)] bg-[rgba(255,255,255,0.035)] p-4 [content-visibility:auto] [contain-intrinsic-size:420px] lg:block">
-            <div className="rounded-[28px] border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.2)] p-5">
-                <div className="text-xs text-[var(--muted2)]">How it works</div>
-                <div className="mt-2 text-lg font-semibold text-[var(--text)]">
-                  The before-the-DAW workflow
-                </div>
-                <div className="mt-4 space-y-3">
-                  {[
-                    "Start with a concept, not a blank session.",
-                    "Shape tracks, motifs, lyrics, and comments in one workspace.",
-                    "Export a clean handoff pack or publish the blueprint for remix.",
-                  ].map((line) => (
-                    <div
-                      key={line}
-                      className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--muted)]"
-                    >
-                      {line}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-5 text-xs text-[var(--muted2)]">
-                  Not an audio generator. A blueprint that makes your audio better.
-                </div>
-            </div>
-          </div>
+            </ol>
+          </section>
         </main>
 
-        <footer className="mt-16 flex flex-col gap-3 border-t border-[var(--border)] pt-6 text-xs text-[var(--muted2)] sm:flex-row sm:items-center sm:justify-between sm:gap-4 md:mt-20">
-          <div>Built for artists, producers, and bands who care about coherence.</div>
-          <div className="flex shrink-0 items-center gap-4">
-            <form action="/sign-in">
-              <button type="submit" className="hover:text-[var(--text)]">
-                Sign in
-              </button>
-            </form>
-            <form action="/app">
-              <button type="submit" className="hover:text-[var(--text)]">
-                App
-              </button>
-            </form>
+        <footer className="mt-20 flex flex-col gap-4 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between md:mt-24">
+          <div className="min-w-0">
+            <Wordmark />
+            <p className="mt-1 text-xs text-ink-3">Plan concept albums that hold together.</p>
           </div>
+          <nav aria-label="Footer">
+            <ul className="flex flex-wrap gap-x-2">
+              {FOOTER_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="inline-flex min-h-11 items-center rounded px-2 text-sm text-ink-2 hover:text-ink hover:underline"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
         </footer>
       </div>
     </div>

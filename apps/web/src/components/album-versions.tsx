@@ -1,7 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
+
+import { RelativeTime } from "@/components/relative-time";
+import { versionSavedText } from "@/components/studio/studio-model";
+import { Button, EmptyState, Field, LiveStatus, Panel, Section, inputClass } from "@/components/ui";
+import { useReturnFocus } from "@/components/use-return-focus";
+import { leaveArrival, restoredArrivalText, safeSessionStorage } from "@/lib/arrival-handoff";
+import { beforeRestoringDate } from "@/lib/version-labels";
 
 type VersionListItem = {
   id: string;
@@ -10,156 +17,294 @@ type VersionListItem = {
   createdBy?: { name: string | null; email: string | null } | null;
 };
 
-export function AlbumVersions({
-  albumId,
-  versions,
-}: {
-  albumId: string;
-  versions: VersionListItem[];
-}) {
+type Status = { tone: "ok" | "danger" | "neutral"; text: string } | null;
+
+async function errorFrom(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof body?.error === "string" && body.error ? body.error : fallback;
+}
+
+/**
+ * A restore names the draft it keeps after the version it restored, or by that version's save
+ * time ("Before restoring <ISO date>"); show that date in the viewer's own terms.
+ */
+function VersionTitle({ message }: { message: string | null }) {
+  const date = beforeRestoringDate(message);
+  if (date) {
+    return (
+      <>
+        Before restoring the version from <RelativeTime date={date} />
+      </>
+    );
+  }
+  return <>{message || "Untitled version"}</>;
+}
+
+export function AlbumVersions({ albumId, versions }: { albumId: string; versions: VersionListItem[] }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
-  const [status, setStatus] = useState<string>("");
+  const [saveStatus, setSaveStatus] = useState<Status>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isRestoring, setIsRestoring] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreStatus, setRestoreStatus] = useState<Status>(null);
+  const named = Boolean(message.trim());
+  const returnFocus = useReturnFocus();
+  // Each version's Restore button, so Cancel can hand focus back to the one it replaced.
+  const restoreButtons = useRef(new Map<string, HTMLButtonElement>());
+  // The open confirm's first action. Restore swaps itself for the confirm, so focus moves into
+  // it (and its question is read) instead of dropping to the page.
+  const confirmButton = useRef<HTMLButtonElement | null>(null);
+  const confirmIds = useId();
+  // After a restore, the album frame (release header, spine) is refreshed here first and the
+  // Overview opened only once that has landed, so the Overview arrives in one route change:
+  // opening it and then refreshing (or then dropping a query parameter) made a second one, and
+  // the route announcer read the album twice ("Salt Year", then "Salt Year · Album
+  // Conceptualizer"). Refreshing here keeps this page's title, so nothing is announced for it.
+  const [refreshing, startRefresh] = useTransition();
+  const openAfterRefresh = useRef<string | null>(null);
 
-  const canSave = message.trim().length > 0;
+  useEffect(() => {
+    const href = openAfterRefresh.current;
+    if (refreshing || !href) return;
+    openAfterRefresh.current = null;
+    router.push(href);
+  }, [refreshing, router]);
+
+  useEffect(() => {
+    if (confirmingId) confirmButton.current?.focus();
+  }, [confirmingId]);
+
+  function cancelRestore(versionId: string) {
+    setConfirmingId(null);
+    returnFocus(() => restoreButtons.current.get(versionId));
+  }
+
+  async function save() {
+    const trimmed = message.trim();
+    // An unnamed press says why in the status line, as Post comment does; focus stays.
+    if (!trimmed) {
+      setSaveStatus({ tone: "neutral", text: "Name the version first, then save it." });
+      return;
+    }
+    setIsSaving(true);
+    setSaveStatus(null);
+    try {
+      const res = await fetch(`/api/albums/${albumId}/versions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: trimmed }),
+      });
+      if (!res.ok) throw new Error(await errorFrom(res, "The version wasn't saved. Try again in a moment."));
+      setMessage("");
+      setSaveStatus({ tone: "ok", text: versionSavedText(trimmed) });
+      router.refresh();
+    } catch (err) {
+      setSaveStatus({
+        tone: "danger",
+        text: err instanceof Error ? err.message : "The version wasn't saved. Try again in a moment.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function restore(versionId: string) {
+    setRestoringId(versionId);
+    setRestoreStatus(null);
+    try {
+      const res = await fetch(`/api/albums/${albumId}/versions/${versionId}/restore`, { method: "POST" });
+      if (!res.ok) throw new Error(await errorFrom(res, "That version wasn't restored. Try again in a moment."));
+      setRestoreStatus({ tone: "ok", text: "Version restored. Opening the album…" });
+      // The Overview says what just happened in one line, left for it here.
+      const overview = `/app/albums/${albumId}`;
+      const restored = versions.find((version) => version.id === versionId);
+      leaveArrival(safeSessionStorage(), overview, restoredArrivalText(restored?.message));
+      openAfterRefresh.current = overview;
+      startRefresh(() => router.refresh());
+    } catch (err) {
+      setRestoreStatus({
+        tone: "danger",
+        text: err instanceof Error ? err.message : "That version wasn't restored. Try again in a moment.",
+      });
+      setRestoringId(null);
+    }
+  }
 
   return (
-    <div className="flex flex-col gap-4">
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="text-xs text-[var(--muted2)]">Versions</div>
-            <div className="text-lg font-semibold tracking-tight text-[var(--text)]">
-              Save a snapshot
-            </div>
-          </div>
+    <div className="flex flex-col gap-10">
+      {/* The page's own heading: Version history is no album tab's page, so the location is
+          named here (and marked current on the catalog line's link). */}
+      <div className="flex min-w-0 flex-col gap-1">
+        <h2 className="break-words text-xl font-semibold text-ink">Version history</h2>
+        <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
+          Save the album as it is now, and go back to an earlier version whenever you need to.
+        </p>
+      </div>
 
-          <button
-            type="button"
-            disabled={!canSave || isSaving}
-            onClick={async () => {
-              const trimmed = message.trim();
-              if (!trimmed) return;
-              setIsSaving(true);
-              try {
-                const res = await fetch(`/api/albums/${albumId}/versions`, {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ message: trimmed }),
-                });
-                if (!res.ok) {
-                  const body = (await res.json().catch(() => null)) as { error?: string } | null;
-                  throw new Error(body?.error || "Failed to save version.");
-                }
-                setMessage("");
-                setStatus("Saved version.");
-                router.refresh();
-              } catch (err) {
-                const msg = err instanceof Error ? err.message : "Failed to save version.";
-                setStatus(msg);
-              } finally {
-                setIsSaving(false);
-                window.setTimeout(() => setStatus(""), 1800);
-              }
+      <Section
+        id="versions-save"
+        headingLevel={3}
+        title="Save a version"
+        description="Keep the album as it is right now before a big lyric or chord rewrite, so you can come back to it."
+      >
+        <Panel className="max-w-2xl">
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void save();
             }}
-            className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSaving ? "Saving..." : "Save version"}
-          </button>
-        </div>
-
-        <div className="mt-3">
-          <label className="block">
-            <div className="text-xs font-semibold text-[var(--text)]">Message</div>
-            <input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder='e.g., "Chorus rewrite + key changes"'
-              className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-              maxLength={200}
-            />
-          </label>
-          {status ? <div className="mt-2 text-xs text-[var(--muted2)]">{status}</div> : null}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-xs text-[var(--muted2)]">History</div>
-            <div className="text-sm font-semibold text-[var(--text)]">
-              {versions.length ? "Saved versions" : "No versions yet"}
-            </div>
-          </div>
-          <div className="text-xs text-[var(--muted)]">{versions.length} items</div>
-        </div>
-
-        <div className="mt-3 space-y-2">
-          {versions.length ? (
-            versions.map((version) => (
-              <div
-                key={version.id}
-                className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3"
+            <Field
+              htmlFor="version-message"
+              label="What's in this version"
+              hint="A few words you'll recognise later, e.g. “Chorus rewrite and key changes”."
+            >
+              <input
+                id="version-message"
+                value={message}
+                onChange={(event) => {
+                  setMessage(event.target.value);
+                  // The "name it first" answer has done its job once there is a name.
+                  if (saveStatus?.tone === "neutral" && event.target.value.trim()) setSaveStatus(null);
+                }}
+                aria-describedby="version-message-hint"
+                className={inputClass}
+                maxLength={200}
+              />
+            </Field>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Unavailable until named, but never `disabled`: the field clears once the version
+                  is saved, and a disabled button would drop focus to the page right then. The
+                  form ignores an unnamed submit. */}
+              <Button
+                type="submit"
+                tone="primary"
+                busy={isSaving}
+                aria-disabled={!named || isSaving || undefined}
+                aria-describedby={named || saveStatus ? undefined : "version-save-reason"}
               >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-[var(--text)]">
-                      {version.message || "Version snapshot"}
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--muted2)]">
-                      {new Date(version.createdAt).toLocaleString()}
-                      {version.createdBy?.email ? ` · ${version.createdBy.email}` : ""}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={Boolean(isRestoring)}
-                    onClick={async () => {
-                      const ok = window.confirm(
-                        "Restore this version? This will overwrite the current project snapshot.",
-                      );
-                      if (!ok) return;
-                      setIsRestoring(version.id);
-                      setStatus("Restoring...");
-                      try {
-                        const res = await fetch(
-                          `/api/albums/${albumId}/versions/${version.id}/restore`,
-                          { method: "POST" },
-                        );
-                        if (!res.ok) {
-                          const body = (await res.json().catch(() => null)) as
-                            | { error?: string }
-                            | null;
-                          throw new Error(body?.error || "Restore failed.");
-                        }
-                        setStatus("Restored version.");
-                        router.push(`/app/albums/${albumId}`);
-                        router.refresh();
-                      } catch (err) {
-                        const msg = err instanceof Error ? err.message : "Restore failed.";
-                        setStatus(msg);
-                      } finally {
-                        setIsRestoring(null);
-                        window.setTimeout(() => setStatus(""), 2000);
-                      }
-                    }}
-                    className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isRestoring === version.id ? "Restoring..." : "Restore"}
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-10 text-center text-sm text-[var(--muted)]">
-              Save a version before making big lyric or chord changes so you can revert quickly.
+                {isSaving ? "Saving…" : "Save version"}
+              </Button>
+              {/* An unavailable button says why, where the eye already is. */}
+              {/* Not beside "Saved “…” as a version.": the field clears after a save, and the reason is
+                  only news once someone starts naming the next one. */}
+              {/* Replaced by the status line's own answer once an unnamed save was pressed. */}
+              {named || saveStatus ? null : (
+                <p id="version-save-reason" className="min-w-0 text-sm text-ink-3">
+                  Name the version to save it.
+                </p>
+              )}
+              {/* Always mounted, so the save ("Saved “First pass” as a version.") is announced once, when it arrives. */}
+              <LiveStatus message={saveStatus?.text ?? null} tone={saveStatus?.tone} />
             </div>
-          )}
-        </div>
-      </section>
+          </form>
+        </Panel>
+      </Section>
+
+      <Section
+        id="versions-history"
+        headingLevel={3}
+        title="Saved versions"
+        description={
+          versions.length
+            ? "Newest first. Restoring saves the current draft as a version first, so a restore can be undone."
+            : undefined
+        }
+      >
+        {versions.length ? (
+          <ol className="divide-y divide-line border-y border-line">
+            {versions.map((version) => {
+              const confirming = confirmingId === version.id;
+              const groupId = `${confirmIds}-${version.id}`;
+              const promptId = `${groupId}-prompt`;
+              const author = version.createdBy?.name || version.createdBy?.email;
+              return (
+                <li key={version.id} className="py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* A 12rem basis: with less room Restore drops below the name instead of
+                        squeezing it until words break inside themselves. */}
+                    <div className="min-w-0 grow basis-48">
+                      <p className="break-words text-sm font-semibold text-ink">
+                        <VersionTitle message={version.message} />
+                      </p>
+                      <p className="mt-0.5 text-xs text-ink-3">
+                        <RelativeTime date={version.createdAt} />
+                        {author ? ` · ${author}` : ""}
+                      </p>
+                    </div>
+                    {confirming ? null : (
+                      <Button
+                        ref={(node) => {
+                          if (node) restoreButtons.current.set(version.id, node);
+                          else restoreButtons.current.delete(version.id);
+                        }}
+                        disabled={Boolean(restoringId)}
+                        // A disclosure of the question in its place, like Publish and Confirm Spend.
+                        aria-expanded={false}
+                        aria-controls={groupId}
+                        onClick={() => {
+                          setConfirmingId(version.id);
+                          setRestoreStatus(null);
+                        }}
+                      >
+                        Restore
+                        <span className="sr-only">
+                          {` the version “${version.message || "Untitled version"}”`}
+                        </span>
+                      </Button>
+                    )}
+                  </div>
+                  {confirming ? (
+                    <div
+                      id={groupId}
+                      role="group"
+                      aria-labelledby={promptId}
+                      className="mt-3 flex flex-col gap-3 rounded border border-line-strong p-3"
+                      onKeyDown={(event) => {
+                        // Escape cancels, like every other inline confirm, unless it is running.
+                        if (event.key === "Escape" && !restoringId) {
+                          event.stopPropagation();
+                          cancelRestore(version.id);
+                        }
+                      }}
+                    >
+                      <p id={promptId} className="max-w-[65ch] text-sm text-ink">
+                        Replace the current draft with this version? The draft is saved as a version
+                        first.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          ref={confirmButton}
+                          tone="danger"
+                          busy={Boolean(restoringId)}
+                          onClick={() => void restore(version.id)}
+                        >
+                          {restoringId === version.id ? "Restoring…" : "Restore this version"}
+                        </Button>
+                        <Button
+                          tone="ghost"
+                          disabled={Boolean(restoringId)}
+                          onClick={() => cancelRestore(version.id)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      <LiveStatus message={restoreStatus?.text ?? null} tone={restoreStatus?.tone} />
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <EmptyState title="No versions yet">
+            Save one above before a big rewrite. You can restore any version later, and restoring
+            keeps the draft it replaces.
+          </EmptyState>
+        )}
+      </Section>
     </div>
   );
 }

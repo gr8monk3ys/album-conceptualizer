@@ -1,15 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 
-import { AlbumCard, type AlbumListItem } from "@/components/album-card";
+import { AlbumList, toAlbumListItem } from "@/components/album-card";
+import { Button, EmptyState, Field, PageHeader, Section, inputClass } from "@/components/ui";
+import { findTagMatches, searchPageTitle, searchSnippet, type TagMatch } from "@/lib/search-match";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Search",
-  description: "Search albums, summaries, and themes across your workspace.",
-};
 
 function normalizeQuery(value: string | string[] | undefined) {
   if (typeof value === "string") return value.trim();
@@ -17,18 +17,45 @@ function normalizeQuery(value: string | string[] | undefined) {
   return "";
 }
 
-function snippet(text: string, q: string) {
-  const maxLen = 140;
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (!normalized) return "";
-  const idx = normalized.toLowerCase().indexOf(q.toLowerCase());
-  if (idx < 0) return normalized.slice(0, maxLen) + (normalized.length > maxLen ? "…" : "");
-  const start = Math.max(0, idx - 40);
-  const end = Math.min(normalized.length, idx + 80);
-  const prefix = start > 0 ? "…" : "";
-  const suffix = end < normalized.length ? "…" : "";
-  return `${prefix}${normalized.slice(start, end)}${suffix}`;
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  return {
+    title: searchPageTitle(normalizeQuery((await searchParams).q)),
+    description: "Find albums, songs and lyric lines across your workspace.",
+  };
 }
+
+function sectionName(type: string) {
+  const words = type.replace(/[-_]+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Section";
+}
+
+/** Where a matching tag is edited: the track's theme or motif tags, or the album's. */
+function tagHref(match: TagMatch, qParam: string) {
+  const base = `/app/albums/${match.albumId}/studio`;
+  if (match.track) {
+    const focus = match.kind === "theme" ? "song-themes" : "motifs";
+    return `${base}?song=${match.track.number}&focus=${focus}&q=${qParam}`;
+  }
+  return `${base}?focus=${match.kind === "theme" ? "album" : "album-motifs"}&q=${qParam}`;
+}
+
+function tagLabel(match: TagMatch) {
+  const kind = match.kind === "theme" ? "theme" : "motif";
+  return match.track ? `Track ${kind}` : `Album ${kind}`;
+}
+
+const TAG_RESULT_LIMIT = 30;
+
+// In a narrow list (a phone at 200% text) the track number sits above the text instead of
+// beside it and the chevron goes, so the words get the whole width and never break inside
+// themselves (the list is a size container).
+const rowLink =
+  "group flex min-h-11 items-center gap-4 px-1 py-3 transition-colors hover:bg-hover @max-[20rem]:flex-col @max-[20rem]:items-start @max-[20rem]:gap-1";
+const rowChevron = "h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink @max-[20rem]:hidden";
 
 export default async function SearchPage({
   searchParams,
@@ -43,8 +70,9 @@ export default async function SearchPage({
   const prisma = getPrisma();
 
   const shouldSearch = q.length >= 2;
+  const qParam = encodeURIComponent(q);
 
-  const [albums, songs, sections] = await Promise.all([
+  const [albums, songs, sections, snapshots] = await Promise.all([
     shouldSearch
       ? prisma.album.findMany({
           where: {
@@ -60,10 +88,11 @@ export default async function SearchPage({
           select: {
             id: true,
             title: true,
-            primaryGenre: true,
+            artist: true,
             trackCount: true,
-            coverUrl: true,
             status: true,
+            isPublic: true,
+            updatedAt: true,
           },
         })
       : [],
@@ -82,9 +111,8 @@ export default async function SearchPage({
             id: true,
             title: true,
             trackNumber: true,
-            album: {
-              select: { id: true, title: true },
-            },
+            narrativeSummary: true,
+            album: { select: { id: true, title: true } },
           },
         })
       : [],
@@ -111,143 +139,188 @@ export default async function SearchPage({
           },
         })
       : [],
+    // Themes and motifs live only in the album snapshot, so tags are matched here, not in SQL.
+    shouldSearch
+      ? prisma.album.findMany({
+          where: { workspaceId: workspace.id },
+          orderBy: { updatedAt: "desc" },
+          take: 200,
+          select: { id: true, title: true, data: true },
+        })
+      : [],
   ]);
 
-  const albumItems: AlbumListItem[] = albums.map((album) => ({
-    id: album.id,
-    title: album.title,
-    subtitle: `${album.primaryGenre || "Concept"} | ${album.trackCount} tracks`,
-    tag: album.status === "draft" ? "draft" : undefined,
-    cover: album.coverUrl ?? undefined,
-  }));
-
-  const totalHits = albumItems.length + songs.length + sections.length;
+  const tagMatches = findTagMatches(snapshots, q).slice(0, TAG_RESULT_LIMIT);
+  const totalHits = albums.length + songs.length + tagMatches.length + sections.length;
+  const tooShort = q.length === 1;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <div className="text-xs text-[var(--muted2)]">Search</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-          Find anything
-        </div>
-        <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
-          Search titles, summaries, track names, and lyrics drafts inside this workspace.
-        </div>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        size="page"
+        title="Search"
+        description="Find an album by title, artist or concept, a song by name or story note, a theme or motif you tagged, or a line you wrote in any lyric draft."
+      />
 
-      <form
-        action="/app/search"
-        method="get"
-        className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4"
-      >
-        <label className="flex flex-col gap-2">
-          <span className="text-xs text-[var(--muted2)]">Query</span>
-          <input
-            name="q"
-            defaultValue={q}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Search: album title, song name, lyric line…"
-            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-          />
-        </label>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-[var(--muted2)]">
-            {shouldSearch ? `${totalHits} hits` : "Type at least 2 characters"}
-          </div>
-          <button
-            type="submit"
-            className="rounded-2xl bg-white px-5 py-2 text-xs font-semibold text-black hover:bg-white/90"
+      <form action="/app/search" method="get" role="search" aria-label="Workspace search" className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-end gap-3">
+          <Field
+            htmlFor="search-q"
+            label="Search workspace"
+            className="min-w-0 flex-1 basis-64"
+            error={tooShort ? "Type at least 2 characters." : undefined}
           >
+            <input
+              id="search-q"
+              name="q"
+              type="search"
+              defaultValue={q}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Album, song, theme or lyric line"
+              aria-describedby={tooShort ? "search-q-error" : undefined}
+              className={inputClass}
+            />
+          </Field>
+          <Button tone="secondary" type="submit">
             Search
-          </button>
+          </Button>
         </div>
+        {shouldSearch ? (
+          <p className="max-w-[65ch] break-words text-sm text-ink-2" aria-live="polite">
+            {totalHits} {totalHits === 1 ? "result" : "results"} for “{q}”
+          </p>
+        ) : null}
       </form>
 
-      {shouldSearch ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
-          <section className="space-y-3">
-            <div className="text-xs text-[var(--muted2)]">Projects</div>
-            {albumItems.length ? (
-              <div className="grid grid-cols-1 gap-3">
-                {albumItems.map((album) => (
-                  <AlbumCard
-                    key={album.id}
-                    album={album}
-                    href={`/app/albums/${album.id}/studio?q=${encodeURIComponent(q)}`}
-                  />
+      {!shouldSearch ? (
+        <EmptyState title="Search everything you have written">
+          <p>
+            Results are grouped into albums, songs, themes and motifs, and lyrics. Lyric results
+            open the Studio on the song and section where the line appears, so you can keep
+            writing from there.
+          </p>
+        </EmptyState>
+      ) : totalHits === 0 ? (
+        <EmptyState title={`Nothing matches “${q}”`}>
+          <p>
+            Search looks at album titles, artists and concepts, song titles and story notes, album
+            and track themes and motifs, and lyric drafts. Try a shorter phrase or a single
+            distinctive word from a line.
+          </p>
+        </EmptyState>
+      ) : (
+        <div className="flex flex-col gap-10">
+          {albums.length ? (
+            <Section id="results-albums" title={`Albums (${albums.length})`}>
+              <AlbumList
+                label="Matching albums"
+                albums={albums.map(toAlbumListItem)}
+                hrefFor={(album) => `/app/albums/${album.id}/studio?q=${qParam}`}
+              />
+            </Section>
+          ) : null}
+
+          {songs.length ? (
+            <Section id="results-songs" title={`Songs (${songs.length})`}>
+              <ul aria-label="Matching songs" className="@container border-t border-line">
+                {songs.map((song) => (
+                  <li key={song.id} className="border-b border-line">
+                    <Link
+                      href={`/app/albums/${song.album.id}/studio?song=${song.trackNumber}&q=${qParam}`}
+                      className={rowLink}
+                    >
+                      <span className="type-figure w-8 shrink-0 text-lg font-semibold text-ink-3">
+                        {String(song.trackNumber).padStart(2, "0")}
+                      </span>
+                      <span className="min-w-0 flex-1 @max-[20rem]:w-full">
+                        <span className="block break-words text-sm font-semibold text-ink">{song.title}</span>
+                        <span className="type-catalog mt-1 block break-words text-xs text-ink-2">
+                          {song.album.title} · Track {song.trackNumber}
+                        </span>
+                        {song.narrativeSummary ? (
+                          <span className="mt-1 block max-w-[65ch] break-words text-sm text-ink-2">
+                            {searchSnippet(song.narrativeSummary, q)}
+                          </span>
+                        ) : null}
+                      </span>
+                      <ChevronRight className={rowChevron} aria-hidden="true" />
+                    </Link>
+                  </li>
                 ))}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-5 text-sm text-[var(--muted)]">
-                No matching projects.
-              </div>
-            )}
-          </section>
+              </ul>
+            </Section>
+          ) : null}
 
-          <aside className="space-y-4">
-            <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-              <div className="text-xs text-[var(--muted2)]">Tracks</div>
-              <div className="mt-2 space-y-2">
-                {songs.length ? (
-                  songs.map((song) => (
-                    <Link
-                      key={song.id}
-                      href={`/app/albums/${song.album.id}/studio?song=${song.trackNumber}&q=${encodeURIComponent(q)}`}
-                      className="block rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-3 hover:bg-[rgba(255,255,255,0.05)]"
-                    >
-                      <div className="text-sm font-semibold text-[var(--text)]">
-                        {song.title}
-                      </div>
-                      <div className="mt-1 text-xs text-[var(--muted2)]">
-                        {song.album.title} · Track {song.trackNumber}
-                      </div>
+          {tagMatches.length ? (
+            <Section id="results-tags" title={`Themes and motifs (${tagMatches.length})`}>
+              <ul aria-label="Matching themes and motifs" className="@container border-t border-line">
+                {tagMatches.map((match) => (
+                  <li
+                    key={`${match.albumId}-${match.track?.number ?? "album"}-${match.kind}-${match.tag}`}
+                    className="border-b border-line"
+                  >
+                    <Link href={tagHref(match, qParam)} className={rowLink}>
+                      <span className="type-figure w-8 shrink-0 text-lg font-semibold text-ink-3">
+                        {match.track ? String(match.track.number).padStart(2, "0") : null}
+                      </span>
+                      <span className="min-w-0 flex-1 @max-[20rem]:w-full">
+                        <span className="block break-words text-sm font-semibold text-ink">
+                          {match.track ? match.track.title : match.albumTitle}
+                        </span>
+                        {match.track ? (
+                          <span className="type-catalog mt-1 block break-words text-xs text-ink-2">
+                            {match.albumTitle} · Track {match.track.number}
+                          </span>
+                        ) : null}
+                        <span className="mt-1 block max-w-[65ch] break-words text-sm text-ink">
+                          <span className="text-ink-2">{tagLabel(match)}: </span>
+                          {match.tag}
+                        </span>
+                      </span>
+                      <ChevronRight className={rowChevron} aria-hidden="true" />
                     </Link>
-                  ))
-                ) : (
-                  <div className="text-sm text-[var(--muted)]">No matching tracks.</div>
-                )}
-              </div>
-            </div>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
 
-            <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-              <div className="text-xs text-[var(--muted2)]">Lyrics</div>
-              <div className="mt-2 space-y-2">
-                {sections.length ? (
-                  sections.map((section) => (
+          {sections.length ? (
+            <Section id="results-lyrics" title={`Lyrics (${sections.length})`}>
+              <ul aria-label="Matching lyrics" className="@container border-t border-line">
+                {sections.map((section) => (
+                  <li key={section.id} className="border-b border-line">
                     <Link
-                      key={section.id}
-                      href={`/app/albums/${section.song.album.id}/studio?song=${section.song.trackNumber}&section=${section.order}&q=${encodeURIComponent(
-                        q,
-                      )}`}
-                      className="block rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-3 hover:bg-[rgba(255,255,255,0.05)]"
+                      href={`/app/albums/${section.song.album.id}/studio?song=${section.song.trackNumber}&section=${section.order}&q=${qParam}`}
+                      className={rowLink}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-[var(--text)]">
+                      <span className="type-figure w-8 shrink-0 text-lg font-semibold text-ink-3">
+                        {String(section.song.trackNumber).padStart(2, "0")}
+                      </span>
+                      <span className="min-w-0 flex-1 @max-[20rem]:w-full">
+                        <span className="block break-words text-sm font-semibold text-ink">
                           {section.song.title}
-                        </div>
-                        <div className="text-xs text-[var(--muted2)]">
-                          {section.sectionType} #{section.order + 1}
-                        </div>
-                      </div>
-                      <div className="mt-1 text-xs text-[var(--muted2)]">
-                        {section.song.album.title} · Track {section.song.trackNumber}
-                      </div>
-                      {section.lyrics ? (
-                        <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
-                          {snippet(section.lyrics, q)}
-                        </div>
-                      ) : null}
+                          <span className="font-normal text-ink-2"> · {sectionName(section.sectionType)}</span>
+                        </span>
+                        <span className="type-catalog mt-1 block break-words text-xs text-ink-2">
+                          {section.song.album.title} · Track {section.song.trackNumber}
+                        </span>
+                        {section.lyrics ? (
+                          <span className="mt-1.5 block max-w-[65ch] break-words text-sm leading-relaxed text-ink">
+                            {searchSnippet(section.lyrics, q)}
+                          </span>
+                        ) : null}
+                      </span>
+                      <ChevronRight className={rowChevron} aria-hidden="true" />
                     </Link>
-                  ))
-                ) : (
-                  <div className="text-sm text-[var(--muted)]">No matching lyric drafts.</div>
-                )}
-              </div>
-            </div>
-          </aside>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

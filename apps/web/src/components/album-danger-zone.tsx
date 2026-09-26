@@ -1,56 +1,130 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 
-export function AlbumDangerZone({
-  albumId,
-  albumTitle,
-}: {
-  albumId: string;
-  albumTitle: string;
-}) {
+import { Button, Field, LiveStatus, inputClass } from "@/components/ui";
+import { useReturnFocus } from "@/components/use-return-focus";
+
+/**
+ * Deleting an album cannot be undone, so the button opens an inline confirmation that asks
+ * for the album's title before the real delete is enabled.
+ */
+export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albumTitle: string }) {
   const router = useRouter();
+  const inputId = useId();
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const matches = typed.trim() === albumTitle.trim();
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocus = useReturnFocus();
 
+  function cancel() {
+    if (busy) return;
+    setConfirming(false);
+    setTyped("");
+    setError(null);
+    // Cancel goes with the form; focus goes back to the button that opened it.
+    returnFocus(() => triggerRef.current);
+  }
+
+  async function remove() {
+    if (!matches || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/albums/${albumId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+        throw new Error(
+          typeof body?.error === "string" && body.error
+            ? body.error
+            : "The album wasn't deleted. Try again in a moment.",
+        );
+      }
+      router.push("/app");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The album wasn't deleted. Try again in a moment.");
+      setBusy(false);
+    }
+  }
+
+  // Quiet by design: a danger-text button at the end of the Release rows, away from the
+  // writing path. The real delete sits behind a typed confirmation.
   return (
-    <div className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,0,64,0.06)] p-4">
-      <div className="text-sm font-semibold text-[var(--text)]">Danger zone</div>
-      <div className="mt-1 text-sm text-[var(--muted)]">
-        Delete <span className="font-semibold text-[var(--text)]">{albumTitle}</span> and all its
-        data.
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={async () => {
-            if (!confirm(`Delete "${albumTitle}"? This cannot be undone.`)) return;
-            setBusy(true);
-            setStatus("");
-            try {
-              const response = await fetch(`/api/albums/${albumId}`, { method: "DELETE" });
-              if (!response.ok) {
-                const body = (await response.json().catch(() => null)) as { error?: string } | null;
-                throw new Error(body?.error || "Delete failed.");
-              }
-              router.push("/app");
-              router.refresh();
-            } catch (err) {
-              const message = err instanceof Error ? err.message : "Delete failed.";
-              setStatus(message);
-            } finally {
-              setBusy(false);
+    <div className="flex flex-col gap-3">
+      {confirming ? (
+        <form
+          aria-labelledby={`${inputId}-title`}
+          className="flex max-w-xl flex-col gap-4 rounded border border-danger/60 p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void remove();
+          }}
+          onKeyDown={(event) => {
+            // Escape cancels, like every other inline confirm (Confirm Spend).
+            if (event.key === "Escape" && !event.defaultPrevented) {
+              event.preventDefault();
+              cancel();
             }
           }}
-          className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {busy ? "Deleting..." : "Delete project"}
-        </button>
-        {status ? <div className="text-xs text-[var(--muted2)]">{status}</div> : null}
-      </div>
+          <div>
+            <h3 id={`${inputId}-title`} className="text-sm font-semibold text-ink">
+              Delete album
+            </h3>
+            <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+              Removes the album, its songs, versions, references and demos for good. Remixes other
+              people made stay in their workspaces.
+            </p>
+          </div>
+          <Field
+            htmlFor={inputId}
+            label={
+              <>
+                Type <span className="font-semibold">{albumTitle}</span> to confirm
+              </>
+            }
+            hint="This can't be undone."
+          >
+            <input
+              id={inputId}
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby={`${inputId}-hint`}
+              className={inputClass}
+              autoFocus
+            />
+          </Field>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" tone="danger" disabled={!matches} busy={busy}>
+              {busy ? "Deleting…" : "Delete this album"}
+            </Button>
+            <Button
+              tone="ghost"
+              disabled={busy}
+              onClick={cancel}
+            >
+              Cancel
+            </Button>
+          </div>
+          <LiveStatus message={error} tone="danger" />
+        </form>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Button ref={triggerRef} tone="ghost" className="text-danger hover:bg-danger-soft hover:text-danger" onClick={() => setConfirming(true)}>
+            Delete album…
+          </Button>
+          <p className="min-w-0 max-w-[65ch] text-xs leading-relaxed text-ink-3">
+            Removes the album and everything in it for good. It asks you to type the title first.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
-

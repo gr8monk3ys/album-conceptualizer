@@ -1,8 +1,83 @@
+import { trackHasWrittenHarmony } from "@/lib/chords";
+import { isWrittenLyrics } from "@/lib/lyrics";
+import { albumMotifIndex } from "@/lib/motifs";
 import { AlbumJsonSchema } from "@/server/album-json";
+import { SETUP_TEMPO } from "@/lib/tempo";
 
 export type CoherenceIssueSeverity = "info" | "warning" | "error";
 export type CoherenceDimension = "narrative" | "lyrics" | "harmony" | "sequence" | "motifs";
 export type CoherenceActionTarget = "album" | "bible" | "studio";
+
+/** Where a single track's issue is fixed in the Studio (the ROUND3 Studio focus values). */
+export type CoherenceTrackFocus = "song" | "lyrics" | "story" | "role" | "song-themes" | "motifs";
+
+/**
+ * Where an issue is fixed. Every fix lives in the Studio: a track itself (`song`), the first
+ * unwritten lyrics (`lyrics`), its Story note (`story`), its Role (`role`), its theme tags
+ * (`song-themes`) or motif tags (`motifs`); the album details (`album`) or the album's motifs
+ * (`album-motifs`); or the Sound bible (`style`).
+ */
+export type CoherenceFix = {
+  focus: CoherenceTrackFocus | "album" | "album-motifs" | "style";
+  trackNumber?: number;
+};
+
+/** One piece of material the report still needs before it can give a score. */
+export type CoherenceMissingPiece = {
+  id: string;
+  label: string;
+  fix?: CoherenceFix;
+};
+
+/** Tracks with written lyrics needed before the report gives a score. */
+export const MIN_WRITTEN_TRACKS_FOR_SCORE = 2;
+
+/** The page that fixes an issue, for an album. */
+export function coherenceFixHref(albumId: string, fix: CoherenceFix | undefined) {
+  const base = `/app/albums/${albumId}`;
+  if (!fix) return `${base}/studio`;
+  if (fix.focus === "style") return `${base}/style`;
+  if (fix.focus === "album" || fix.focus === "album-motifs") return `${base}/studio?focus=${fix.focus}`;
+  const song = typeof fix.trackNumber === "number" ? `song=${fix.trackNumber}` : "";
+  if (fix.focus !== "song") return `${base}/studio?${song ? `${song}&` : ""}focus=${fix.focus}`;
+  return song ? `${base}/studio?${song}` : `${base}/studio`;
+}
+
+/** The Studio link for one of the tracks a finding names or suggests. */
+export function coherenceTrackHref(albumId: string, issue: CoherenceIssue, trackNumber: number) {
+  return coherenceFixHref(albumId, { focus: issue.trackFocus ?? "song", trackNumber });
+}
+
+/** "1", "1 and 4", "1, 4 and 7": track numbers in order, for a sentence. */
+export function formatTrackList(trackNumbers: number[]) {
+  const sorted = Array.from(new Set(trackNumbers)).sort((left, right) => left - right);
+  if (sorted.length <= 1) return sorted.join("");
+  return `${sorted.slice(0, -1).join(", ")} and ${sorted[sorted.length - 1]}`;
+}
+
+/**
+ * Track numbers as compact runs: "1–3", "1–3 and 5", "2, 4 and 6". Runs of three or more
+ * collapse to a range; a pair stays a pair ("4 and 5").
+ */
+export function formatTrackRuns(trackNumbers: number[]) {
+  const sorted = Array.from(new Set(trackNumbers)).sort((left, right) => left - right);
+  const runs: string[] = [];
+  for (let index = 0; index < sorted.length; ) {
+    let end = index;
+    while (end + 1 < sorted.length && sorted[end + 1] === sorted[end] + 1) end += 1;
+    if (end - index >= 2) runs.push(`${sorted[index]}–${sorted[end]}`);
+    else for (let at = index; at <= end; at += 1) runs.push(String(sorted[at]));
+    index = end + 1;
+  }
+  if (runs.length <= 1) return runs.join("");
+  return `${runs.slice(0, -1).join(", ")} and ${runs[runs.length - 1]}`;
+}
+
+/** "track 3", "tracks 1–3 and 5". */
+function tracksPhrase(trackNumbers: number[]) {
+  const count = new Set(trackNumbers).size;
+  return `${count === 1 ? "track" : "tracks"} ${formatTrackRuns(trackNumbers)}`;
+}
 
 export type CoherenceIssue = {
   id: string;
@@ -11,14 +86,55 @@ export type CoherenceIssue = {
   title: string;
   detail: string;
   suggestion?: string;
+  /** The tracks with the problem, in order. */
   relatedTracks?: number[];
+  /**
+   * Tracks where a fix would land best (not tracks with a problem): "Try it on tracks 1, 4
+   * and 7". Kept apart from `relatedTracks` so pages can say which kind of list it is.
+   */
+  suggestedTracks?: number[];
+  /** Where each of `relatedTracks` / `suggestedTracks` is fixed; plain track editing when absent. */
+  trackFocus?: CoherenceTrackFocus;
+  fix?: CoherenceFix;
+  /**
+   * True when the finding is work not done yet (lyrics, chords, a story note, a theme still to
+   * write) rather than something that is wrong. Pages show it as guidance in ink, never in
+   * the warning or danger colours ("Warn colour is for problems").
+   */
+  progress?: boolean;
 };
 
 export type CoherenceBreakdownItem = {
   key: CoherenceDimension;
   label: string;
+  /** The score the report gives, after the cap (see `CoherenceReport.scoreCap`). */
   score: number;
+  /** What the dimension sees across the whole album, in one or two sentences. */
   summary: string;
+  /**
+   * The dimension's own score before any cap, measured on the written tracks only (the whole
+   * album once every track is written). While the cap holds every dimension at the same
+   * number, this is what tells them apart: pages order by it, weakest first.
+   */
+  uncapped: number;
+  /** Why the cap holds `score` below `uncapped` ("only 3 of 8 tracks are written"); absent when it doesn't. */
+  heldBecause?: string;
+  /**
+   * Which cap holds it, when one does: the lyric cap every dimension shares, or Harmony's own
+   * chords cap. Pages say the shared lyric cap once and a row's own cap on its row.
+   */
+  heldBy?: "lyrics" | "chords";
+  /** What lifts the cap, for the end of a sentence: "5 more tracks have lyrics", "tracks 1–3 have chords of their own". */
+  heldUntil?: string;
+  /**
+   * The one thing that lifts the score, as a plain sentence, when there is one clear lever:
+   * "Write lyrics on 5 more tracks (4–8) to lift this." while the lyric cap holds it, and
+   * "Change the starter loop on tracks 1–3 to score Harmony." while written tracks have no
+   * chords of their own (held or not). Absent for an unscored report.
+   */
+  lever?: string;
+  /** The dimension's own evidence on the tracks it measured: "3 of 3 written tracks have chords of their own". */
+  signal: string;
 };
 
 export type CoherenceNextAction = {
@@ -27,15 +143,58 @@ export type CoherenceNextAction = {
   detail: string;
   target: CoherenceActionTarget;
   category: CoherenceDimension;
+  fix?: CoherenceFix;
 };
 
+/** The one-word status of the album, shared by every page that shows a score. */
+export type CoherenceVerdict = {
+  label: "Not scored yet" | "Unfinished" | "Tight" | "Solid" | "Needs polish" | "Loose";
+  /** The count behind the label, when it has one: "3 of 7 tracks written". */
+  detail?: string;
+  tone: "ok" | "neutral" | "warn" | "danger";
+};
+
+/** Score bands, lowest score for each label. Used only once every track has lyrics. */
+export const COHERENCE_BANDS = [
+  { min: 85, label: "Tight", tone: "ok" },
+  { min: 70, label: "Solid", tone: "neutral" },
+  { min: 50, label: "Needs polish", tone: "warn" },
+  { min: 0, label: "Loose", tone: "danger" },
+] as const satisfies ReadonlyArray<{ min: number; label: CoherenceVerdict["label"]; tone: CoherenceVerdict["tone"] }>;
+
 export type CoherenceReport = {
+  /**
+   * Always computed, but only meaningful when `insufficient` is false: a template scaffold
+   * with placeholder lyrics has nothing to judge yet, so pages show `missing` instead.
+   */
   score: number;
+  /**
+   * While some tracks are still unwritten (and the report is scored): the overall score of the
+   * written tracks on their own, the same weighting as `score` over each dimension's
+   * `uncapped` value. Pages lead with this and the progress ("4 of 8 tracks written") and put
+   * the capped `score` second. Null once every track is written, or before there is a score.
+   */
+  writtenScore: number | null;
   summary: string;
+  insufficient: boolean;
+  missing: CoherenceMissingPiece[];
+  /**
+   * The album's status. "Unfinished" whenever any track has no lyrics, whatever the score, so
+   * a half-written album is never called "Needs polish".
+   */
+  verdict: CoherenceVerdict;
+  /**
+   * The highest any dimension may score: the share of tracks with written lyrics, out of 100.
+   * Harmony is also capped by the share of tracks with chords of their own.
+   */
+  scoreCap: number;
   stats: {
     songCount: number;
     sectionCount: number;
+    /** Tracks with chords of their own: not empty and not only the starter loop. */
     songsWithChords: number;
+    /** Tracks whose chords are still only the starter loop (see `@/lib/chords`). */
+    songsWithStarterChords: number;
     songsWithLyrics: number;
     songsWithNarrativeSummary: number;
     songsAlignedToThemes: number;
@@ -58,6 +217,7 @@ type SongSnapshot = {
   sectionCount: number;
   sectionPattern: string;
   hasChords: boolean;
+  starterHarmony: boolean;
   hasLyrics: boolean;
   hasNarrativeSummary: boolean;
   hasChorus: boolean;
@@ -67,13 +227,21 @@ type SongSnapshot = {
   motifs: string[];
 };
 
+/**
+ * The dimensions' visible names. The track order and song structure dimension is "Flow" (its
+ * key stays `sequence`): "Sequence" is the spine's name, the album's songs in running order,
+ * and one word never names two things (the One Term Rule).
+ */
 const CATEGORY_LABELS: Record<CoherenceDimension, string> = {
   narrative: "Narrative",
   lyrics: "Lyrics",
   harmony: "Harmony",
-  sequence: "Sequence",
+  sequence: "Flow",
   motifs: "Motifs",
 };
+
+/** The section pattern the setup writes on every track: a verse, then a chorus. */
+const SETUP_SECTION_PATTERN = "verse > chorus";
 
 function uniqStrings(values: Array<string | null | undefined>) {
   const set = new Set(
@@ -89,20 +257,70 @@ function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function detectPlaceholderLyrics(lyrics: string | null | undefined) {
-  if (!lyrics) return false;
-  const normalized = lyrics.toLowerCase();
-  return (
-    normalized.includes("[add lyrics") ||
-    normalized.includes("[verse line") ||
-    normalized.includes("[chorus line")
-  );
+/** Lyrics count as written once bracketed placeholders like "[Verse line 1]" are removed. */
+export { isWrittenLyrics };
+
+/** The album's status from its lyric coverage and score. See `CoherenceReport.verdict`. */
+export function coherenceVerdict(input: {
+  insufficient: boolean;
+  score: number;
+  songCount: number;
+  songsWithLyrics: number;
+}): CoherenceVerdict {
+  if (input.insufficient) return { label: "Not scored yet", tone: "neutral" };
+  if (input.songsWithLyrics < input.songCount) {
+    // Unwritten tracks are progress, not a fault: ink, not the warning colour.
+    return {
+      label: "Unfinished",
+      detail: `${input.songsWithLyrics} of ${input.songCount} tracks written`,
+      tone: "neutral",
+    };
+  }
+  const band = COHERENCE_BANDS.find((entry) => input.score >= entry.min) ?? COHERENCE_BANDS[3];
+  return { label: band.label, tone: band.tone };
+}
+
+/** "3 of 6 tracks", "All 6 tracks", "The track": the subject of a sentence about tracks. */
+function tracksThat(count: number, total: number, one: string, many: string) {
+  if (total === 1) return `The track ${one}`;
+  if (count === total) return `${total === 2 ? "Both tracks" : `All ${total} tracks`} ${many}`;
+  return `${count} of ${total} tracks ${count === 1 ? one : many}`;
+}
+
+function plural(count: number, one: string, many = `${one}s`) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** Tracks without lyrics always lead: nothing else about an album matters as much. */
+const PINNED_FIRST = "missing_lyrics";
+
+/**
+ * Findings that are work not done yet rather than something wrong: an empty field, an
+ * unwritten track. They are guidance (`CoherenceIssue.progress`); duplicate numbers, drifting
+ * themes, motifs that never return, flat energy and weak bookends are the problems.
+ */
+const PROGRESS_FINDINGS = new Set([
+  "no_songs",
+  "missing_lyrics",
+  "missing_chords",
+  "missing_key_tempo",
+  "missing_concept",
+  "missing_narrative_summaries",
+  "no_themes",
+  "no_motifs",
+  "minimal_structure",
+  "default_tempos",
+]);
+
+function isEmptyProgression(chords: string[] | undefined) {
+  return !(chords ?? []).some((chord) => chord.trim());
 }
 
 function sortIssues(issues: CoherenceIssue[]) {
   const rank: Record<CoherenceIssueSeverity, number> = { error: 0, warning: 1, info: 2 };
+  const order = (issue: CoherenceIssue) => (issue.id === PINNED_FIRST ? -1 : rank[issue.severity]);
   return issues.slice().sort((left, right) => {
-    const bySeverity = rank[left.severity] - rank[right.severity];
+    const bySeverity = order(left) - order(right);
     if (bySeverity !== 0) return bySeverity;
     return left.title.localeCompare(right.title);
   });
@@ -117,20 +335,192 @@ function buildBreakdownItem(
   key: CoherenceDimension,
   score: number,
   summary: string,
+  extra: {
+    uncapped?: number;
+    heldBecause?: string;
+    heldBy?: "lyrics" | "chords";
+    heldUntil?: string;
+    lever?: string;
+    signal?: string;
+  } = {},
 ): CoherenceBreakdownItem {
+  const limited = clampScore(score);
   return {
     key,
     label: CATEGORY_LABELS[key],
-    score: clampScore(score),
+    score: limited,
     summary,
+    uncapped: clampScore(extra.uncapped ?? score),
+    ...(extra.heldBecause ? { heldBecause: extra.heldBecause } : {}),
+    ...(extra.heldBecause && extra.heldBy ? { heldBy: extra.heldBy } : {}),
+    ...(extra.heldBecause && extra.heldUntil ? { heldUntil: extra.heldUntil } : {}),
+    ...(extra.lever ? { lever: extra.lever } : {}),
+    signal: extra.signal ?? summary,
   };
 }
 
-function summarizeBreakdown(breakdown: CoherenceBreakdownItem[]) {
-  const weakest = breakdown.reduce((currentWeakest, item) =>
-    item.score < currentWeakest.score ? item : currentWeakest,
-  );
-  return { weakest };
+const DIMENSION_ORDER: CoherenceDimension[] = ["narrative", "lyrics", "harmony", "sequence", "motifs"];
+
+/**
+ * The dimensions weakest first, by their own (uncapped) score, so the weak spot reads first
+ * even while the cap holds every score at the same number. Ties keep the report's order.
+ */
+export function dimensionsWeakestFirst(breakdown: CoherenceBreakdownItem[]) {
+  return breakdown
+    .slice()
+    .sort(
+      (left, right) =>
+        left.uncapped - right.uncapped || DIMENSION_ORDER.indexOf(left.key) - DIMENSION_ORDER.indexOf(right.key),
+    );
+}
+
+/** The weakest dimension by its own score (see `dimensionsWeakestFirst`). */
+export function weakestDimension(report: Pick<CoherenceReport, "breakdown">) {
+  return dimensionsWeakestFirst(report.breakdown)[0];
+}
+
+/** Track-level counts a dimension score is measured on: every track, or only the written ones. */
+type TrackCounts = {
+  tracks: number;
+  withStory: number;
+  onAlbumTheme: number;
+  missingLyrics: number;
+  withoutChorus: number;
+  missingChords: number;
+  missingKeys: number;
+  missingTempo: number;
+  missingKeyOrTempo: number;
+  minimalStructure: number;
+};
+
+function countTracks(songs: SongSnapshot[], albumThemes: string[]): TrackCounts {
+  const count = (predicate: (song: SongSnapshot) => boolean) => songs.filter(predicate).length;
+  return {
+    tracks: songs.length,
+    withStory: count((song) => song.hasNarrativeSummary),
+    onAlbumTheme: count((song) =>
+      albumThemes.length ? song.themes.some((theme) => albumThemes.includes(theme)) : song.themes.length > 0,
+    ),
+    missingLyrics: count((song) => !song.hasLyrics),
+    withoutChorus: count((song) => !song.hasChorus),
+    missingChords: count((song) => !song.hasChords),
+    missingKeys: count((song) => !song.key),
+    missingTempo: count((song) => !song.tempo),
+    missingKeyOrTempo: count((song) => !song.key || !song.tempo),
+    minimalStructure: count((song) => song.sectionCount < 2),
+  };
+}
+
+/** What holds across the whole album, whichever tracks a score is measured on. */
+type AlbumFacts = {
+  songCount: number;
+  hasConcept: boolean;
+  albumThemeCount: number;
+  uniqueThemes: number;
+  uniqueMotifs: number;
+  callbackMotifs: number;
+  weakBookends: boolean;
+  duplicateTrackNumbers: boolean;
+  repeatedEnergyProfile: boolean;
+  /** No track has a tempo of its own yet: every tempo is the setup's or unset. */
+  setupTempos: boolean;
+  /** Every track has a key and they are all the same one. */
+  singleKey: boolean;
+};
+
+/** The five dimension scores before any cap, measured on `counts`. */
+function dimensionScores(counts: TrackCounts, album: AlbumFacts): Record<CoherenceDimension, number> {
+  const total = counts.tracks;
+  const themeDrift = album.albumThemeCount > 0 && counts.onAlbumTheme < Math.ceil(total / 2);
+
+  let narrative = 100;
+  if (!album.songCount) narrative -= 60;
+  if (!album.hasConcept) narrative -= 18;
+  if (!album.uniqueThemes) narrative -= 12;
+  narrative -= ratioPenalty(total - counts.withStory, total, 18);
+  if (themeDrift) narrative -= 18;
+  if (album.weakBookends) narrative -= 12;
+
+  let lyrics = 100;
+  lyrics -= ratioPenalty(counts.missingLyrics, total, 45);
+  lyrics -= ratioPenalty(counts.withoutChorus, total, 18);
+
+  let harmony = 100;
+  harmony -= ratioPenalty(counts.missingChords, total, 45);
+  harmony -= ratioPenalty(counts.missingKeys, total, 18);
+  harmony -= ratioPenalty(counts.missingTempo, total, 14);
+  if (album.singleKey) harmony -= 8;
+  // Never more than the share of these tracks with chords of their own, so the number can't
+  // disagree with its own signal ("0 of 3 written tracks have chords of their own" scores 0).
+  if (total) harmony = Math.min(harmony, ((total - counts.missingChords) / total) * 100);
+
+  let sequence = 100;
+  if (!album.songCount) sequence -= 50;
+  if (album.duplicateTrackNumbers) sequence -= 35;
+  sequence -= ratioPenalty(counts.minimalStructure, total, 28);
+  if (album.repeatedEnergyProfile) sequence -= 18;
+  if (album.weakBookends) sequence -= 10;
+  if (album.songCount > 0 && album.songCount < 4) sequence -= 12;
+
+  let motifs = 100;
+  if (!album.uniqueThemes) motifs -= 16;
+  if (!album.uniqueMotifs) motifs -= 18;
+  if (themeDrift) motifs -= 18;
+  if (album.uniqueMotifs > 0 && album.callbackMotifs === 0) motifs -= 22;
+  if (album.uniqueMotifs > 0 && album.callbackMotifs === 1) motifs -= 8;
+  // Like Harmony's, the number can't claim what its own signal says isn't there: with no motifs
+  // it stays low ("No motifs yet" beside 82 read as a bug and let an album without its motif
+  // layer score in the 90s), and motifs that never return keep it under the middle.
+  if (!album.uniqueMotifs) motifs = Math.min(motifs, 40);
+  // A single track has no second track for a motif to return on, so that ceiling waits for one.
+  else if (album.callbackMotifs === 0 && album.songCount > 1) motifs = Math.min(motifs, 60);
+
+  return {
+    narrative: clampScore(narrative),
+    lyrics: clampScore(lyrics),
+    harmony: clampScore(harmony),
+    sequence: clampScore(sequence),
+    motifs: clampScore(motifs),
+  };
+}
+
+/**
+ * Each dimension's own evidence, on the tracks it was measured on: "3 of 3 written tracks have
+ * chords of their own". `scope` is "written track" while some tracks are unwritten.
+ */
+function dimensionSignals(
+  counts: TrackCounts,
+  album: AlbumFacts,
+  scope: "track" | "written track",
+): Record<CoherenceDimension, string> {
+  const total = counts.tracks;
+  const of = (count: number, one: string, many: string) =>
+    `${count} of ${total} ${scope}${total === 1 ? "" : "s"} ${total === 1 ? one : many}`;
+  const keyOrTempo = counts.missingKeyOrTempo
+    ? `; ${counts.missingKeyOrTempo} ${counts.missingKeyOrTempo === 1 ? "has" : "have"} no key or tempo`
+    : "";
+
+  return {
+    narrative: `${album.hasConcept ? "" : "No concept summary yet; "}${of(counts.withStory, "has a story note", "have a story note")}`,
+    lyrics: of(total - counts.withoutChorus, "has a written chorus", "have a written chorus"),
+    harmony: `${of(total - counts.missingChords, "has chords of its own", "have chords of their own")}${keyOrTempo}`,
+    sequence: album.duplicateTrackNumbers
+      ? "Two tracks share a number"
+      : counts.minimalStructure
+        ? of(counts.minimalStructure, "has fewer than 2 sections", "have fewer than 2 sections")
+        : album.repeatedEnergyProfile
+          ? album.setupTempos
+            ? "No track has a tempo of its own yet"
+            : "Most tracks share one section pattern and tempo"
+          : album.weakBookends
+            ? "The opener and closer don't frame the record yet"
+            : "Track order and song structure hold",
+    motifs: !album.uniqueMotifs
+      ? "No motifs yet"
+      : album.callbackMotifs
+        ? `${plural(album.callbackMotifs, "motif")} ${album.callbackMotifs === 1 ? "comes" : "come"} back on a second track`
+        : "No motif comes back on a second track yet",
+  };
 }
 
 function buildNextActions(issues: CoherenceIssue[]): CoherenceNextAction[] {
@@ -139,8 +529,12 @@ function buildNextActions(issues: CoherenceIssue[]): CoherenceNextAction[] {
   const seenTargets = new Set<string>();
 
   for (const issue of topIssues) {
-    const target: CoherenceActionTarget =
-      issue.category === "narrative" || issue.category === "motifs" ? "bible" : "studio";
+    // Fixes live in the Studio; only an issue without a fix points at the Bible to read.
+    const target: CoherenceActionTarget = issue.fix
+      ? "studio"
+      : issue.category === "narrative" || issue.category === "motifs"
+        ? "bible"
+        : "studio";
     const dedupeKey = `${issue.category}:${target}`;
     if (seenTargets.has(dedupeKey)) continue;
 
@@ -150,6 +544,7 @@ function buildNextActions(issues: CoherenceIssue[]): CoherenceNextAction[] {
       detail: issue.suggestion ?? issue.detail,
       target,
       category: issue.category,
+      fix: issue.fix,
     });
     seenTargets.add(dedupeKey);
 
@@ -165,28 +560,40 @@ function getInvalidAlbumReport(detail: string): CoherenceReport {
       id: "invalid_album",
       severity: "error",
       category: "sequence",
-      title: "Invalid album payload",
+      title: "This album could not be read",
       detail,
       suggestion:
-        "Re-generate the project JSON from the Create page or re-import from a known-good album.json.",
+        "Save the album again in the Studio, or restore an earlier version from Version history.",
     },
   ];
 
   const breakdown = [
-    buildBreakdownItem("narrative", 0, "The album payload could not be parsed."),
-    buildBreakdownItem("lyrics", 0, "Lyrics analysis is unavailable until the project data is valid."),
-    buildBreakdownItem("harmony", 0, "Harmony analysis is unavailable until the project data is valid."),
+    buildBreakdownItem("narrative", 0, "The album could not be read."),
+    buildBreakdownItem("lyrics", 0, "Lyrics can't be checked until the album can be read."),
+    buildBreakdownItem("harmony", 0, "Harmony can't be checked until the album can be read."),
     buildBreakdownItem("sequence", 0, "Track and section ordering cannot be evaluated."),
     buildBreakdownItem("motifs", 0, "Theme and motif coverage cannot be evaluated."),
   ];
 
   return {
     score: 0,
-    summary: "This project data is not compatible with the Album schema.",
+    writtenScore: null,
+    summary: "This album could not be read, so there is nothing to score yet.",
+    insufficient: true,
+    verdict: { label: "Not scored yet", tone: "neutral" },
+    scoreCap: 0,
+    missing: [
+      {
+        id: "invalid_album",
+        label: "Album data that can be read: save the album again in the Studio",
+        fix: { focus: "song" },
+      },
+    ],
     stats: {
       songCount: 0,
       sectionCount: 0,
       songsWithChords: 0,
+      songsWithStarterChords: 0,
       songsWithLyrics: 0,
       songsWithNarrativeSummary: 0,
       songsAlignedToThemes: 0,
@@ -208,7 +615,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
   const parsed = AlbumJsonSchema.safeParse(raw);
   if (!parsed.success) {
     return getInvalidAlbumReport(
-      parsed.error.issues[0]?.message ?? "Album JSON failed validation.",
+      "Part of this album's data is in a shape the report does not understand.",
     );
   }
 
@@ -221,9 +628,10 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       id: "no_songs",
       severity: "error",
       category: "sequence",
-      title: "No songs found",
-      detail: "This album has 0 songs.",
-      suggestion: "Add a tracklist with at least 4 songs to shape the arc before exporting.",
+      title: "No tracks yet",
+      detail: "This album has no tracks yet.",
+      suggestion: "Add at least 4 tracks to the sequence to shape the arc before exporting.",
+      fix: { focus: "song" },
     });
   }
 
@@ -232,13 +640,15 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
   const seenTrackNumbers = new Set<number>();
   const duplicateTrackNumbers = new Set<number>();
   const titleCounts = new Map<string, number>();
+  // The title as the artist first wrote it, for each normalised key, so a finding quotes it.
+  const titleShown = new Map<string, string>();
   const keySet = new Set<string>();
   const tempos: number[] = [];
   const patternCounts = new Map<string, number>();
-  const motifCoverage = new Map<string, Set<number>>();
 
   let sectionCount = 0;
   let songsWithChords = 0;
+  let songsWithStarterChords = 0;
   let songsWithLyrics = 0;
   let songsWithNarrativeSummary = 0;
   let songsMissingKeys = 0;
@@ -252,15 +662,19 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     .map((song) => {
       const themes = uniqStrings(song.themes);
       const motifs = uniqStrings(song.motifs);
-      const nonPlaceholderSections = song.sections.filter(
-        (section) => !detectPlaceholderLyrics(section.lyrics ?? null),
-      );
-
-      const hasChords = song.sections.some((section) => (section.chord_progression ?? []).length > 0);
-      const hasLyrics = nonPlaceholderSections.some((section) => Boolean(section.lyrics?.trim()));
+      const hasLyrics = song.sections.some((section) => isWrittenLyrics(section.lyrics));
+      // The starter loop the setup writes is scaffolding, not a harmonic decision: it earns no
+      // harmony credit, with or without lyrics (`@/lib/chords` owns the definition).
+      const hasChords = trackHasWrittenHarmony(song.sections);
+      // Chords set, none of them written: every progression is still a starter loop.
+      const starterHarmony =
+        !hasChords && song.sections.some((section) => !isEmptyProgression(section.chord_progression));
       const hasNarrativeSummary = Boolean(song.narrative_summary?.trim());
+      // A chorus counts once its lyrics are written: every track starts with an empty one, and
+      // placeholders never count as done (CONTEXT.md, "Written").
       const hasChorus = song.sections.some(
-        (section) => section.section_type.trim().toLowerCase() === "chorus",
+        (section) =>
+          section.section_type.trim().toLowerCase() === "chorus" && isWrittenLyrics(section.lyrics),
       );
       const key = typeof song.key === "string" && song.key.trim() ? song.key.trim() : null;
       const tempo = typeof song.tempo === "number" ? song.tempo : null;
@@ -270,6 +684,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
 
       sectionCount += song.sections.length;
       if (hasChords) songsWithChords += 1;
+      if (starterHarmony) songsWithStarterChords += 1;
       if (hasLyrics) songsWithLyrics += 1;
       if (hasNarrativeSummary) songsWithNarrativeSummary += 1;
       if (!hasChorus) songsWithoutChorus += 1;
@@ -291,6 +706,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
 
       const normalizedTitle = song.title.trim().toLowerCase();
       titleCounts.set(normalizedTitle, (titleCounts.get(normalizedTitle) ?? 0) + 1);
+      if (!titleShown.has(normalizedTitle)) titleShown.set(normalizedTitle, song.title.trim());
       if (sectionPattern) {
         patternCounts.set(sectionPattern, (patternCounts.get(sectionPattern) ?? 0) + 1);
       }
@@ -300,17 +716,13 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
         : themes.length > 0;
       if (alignedToThemes) songsAlignedToThemes += 1;
 
-      for (const motif of motifs) {
-        if (!motifCoverage.has(motif)) motifCoverage.set(motif, new Set<number>());
-        motifCoverage.get(motif)?.add(song.track_number);
-      }
-
       return {
         trackNumber: song.track_number,
         title: song.title,
         sectionCount: song.sections.length,
         sectionPattern,
         hasChords,
+        starterHarmony,
         hasLyrics,
         hasNarrativeSummary,
         hasChorus,
@@ -328,24 +740,42 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     ...album.central_themes,
     ...snapshots.flatMap((song) => song.themes),
   ]).length;
-  const uniqueMotifs = uniqStrings([
-    ...album.recurring_motifs,
-    ...snapshots.flatMap((song) => song.motifs),
-  ]).length;
-  const callbackMotifs = Array.from(motifCoverage.values()).filter((tracks) => tracks.size >= 2).length;
+  // Album motifs plus track motif tags: the same source the Bible's motif index reads.
+  const motifIndex = albumMotifIndex(album);
+  const uniqueMotifs = motifIndex.length;
+  const callbackMotifs = motifIndex.filter((motif) => motif.trackNumbers.length >= 2).length;
+  const taggedMotifs = motifIndex.filter((motif) => motif.trackNumbers.length > 0);
 
   const dominantPatternCount = Math.max(0, ...patternCounts.values());
   const tempoSpread =
     tempos.length > 1 ? Math.max(...tempos) - Math.min(...tempos) : 0;
+  const sortedTempos = Array.from(new Set(tempos)).sort((left, right) => left - right);
+  // Only said once some track has a tempo of its own (see `setupTempos` below).
+  const tempoFact =
+    uniqueTempos === 1
+      ? tempos.length === songCount
+        ? `Every track has the same tempo (${sortedTempos[0]} BPM).`
+        : `Every track with a tempo is at ${sortedTempos[0]} BPM.`
+      : tempoSpread <= 10
+        ? `Tempos only range from ${sortedTempos[0]} to ${sortedTempos[sortedTempos.length - 1]} BPM.`
+        : `The record uses only two tempos (${sortedTempos[0]} and ${sortedTempos[1]} BPM).`;
   const repeatedEnergyProfile =
     songCount >= 4 &&
     dominantPatternCount >= Math.ceil(songCount * 0.75) &&
     (uniqueTempos <= 2 || tempoSpread <= 10);
+  // Every tempo is still the setup's (or unset): the tracks sharing one is the default, not a
+  // decision, so there is nothing to warn about yet, only tempos to set.
+  const setupTempos = tempos.every((tempo) => tempo === SETUP_TEMPO);
+  const setupTempoTracks = snapshots.filter((song) => song.tempo === SETUP_TEMPO).map((song) => song.trackNumber);
+  const dominantPattern =
+    Array.from(patternCounts.entries()).find(([, count]) => count === dominantPatternCount)?.[0] ?? "";
 
-  const themeDriftTracks = snapshots
-    .filter((song) => albumThemes.length > 0 && song.themes.length > 0)
-    .filter((song) => !song.themes.some((theme) => albumThemes.includes(theme)))
-    .map((song) => song.trackNumber);
+  // Every track that carries none of the album's themes, tagged or not, in sequence.
+  const themeDriftTracks = albumThemes.length
+    ? snapshots
+        .filter((song) => !song.themes.some((theme) => albumThemes.includes(theme)))
+        .map((song) => song.trackNumber)
+    : [];
 
   const opener = snapshots[0] ?? null;
   const closer = snapshots[snapshots.length - 1] ?? null;
@@ -370,6 +800,8 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
 
   const songsMissingLyrics = songCount - songsWithLyrics;
   const songsMissingChords = songCount - songsWithChords;
+  const firstTrack = (predicate: (song: SongSnapshot) => boolean) =>
+    snapshots.find(predicate)?.trackNumber;
 
   if (!album.concept_summary?.trim()) {
     issues.push({
@@ -377,8 +809,9 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       severity: "warning",
       category: "narrative",
       title: "Missing concept summary",
-      detail: "Albums feel more coherent when the project has a one-sentence premise and stakes.",
-      suggestion: "Write a 1-2 sentence logline in the album detail or Bible view.",
+      detail: "An album holds together better with a one-sentence premise and what is at stake.",
+      suggestion: "Write a one- or two-sentence concept summary in the album details.",
+      fix: { focus: "album" },
     });
   }
 
@@ -391,22 +824,25 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       detail: `Duplicate track numbers: ${Array.from(duplicateTrackNumbers)
         .sort((left, right) => left - right)
         .join(", ")}.`,
-      suggestion: "Ensure each song has a unique track_number before sequencing the album.",
+      suggestion: "Give each track its own number before sequencing the album.",
       relatedTracks: Array.from(duplicateTrackNumbers).sort((left, right) => left - right),
+      trackFocus: "song",
+      fix: { focus: "song", trackNumber: Math.min(...duplicateTrackNumbers) },
     });
   }
 
   const duplicatedTitles = Array.from(titleCounts.entries())
     .filter(([, count]) => count > 1)
-    .map(([title]) => title);
+    .map(([title]) => `“${titleShown.get(title) ?? title}”`);
   if (duplicatedTitles.length) {
     issues.push({
       id: "duplicate_titles",
       severity: "warning",
       category: "sequence",
-      title: "Duplicate song titles",
+      title: "Duplicate track titles",
       detail: `Some titles repeat: ${duplicatedTitles.slice(0, 4).join(", ")}${duplicatedTitles.length > 4 ? "…" : ""}.`,
-      suggestion: "Rename duplicates so the tracklist feels intentional and memorable.",
+      suggestion: "Rename duplicates so the sequence feels intentional and memorable.",
+      fix: { focus: "song" },
     });
   }
 
@@ -415,47 +851,74 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       id: "minimal_structure",
       severity: minimalStructureSongs > Math.ceil(songCount / 2) ? "warning" : "info",
       category: "sequence",
-      title: "Several tracks still have minimal structure",
-      detail: `${minimalStructureSongs}/${songCount} tracks have fewer than 2 sections.`,
-      suggestion: "Add at least Verse + Chorus to the weakest songs before doing another export pass.",
+      title:
+        minimalStructureSongs === 1
+          ? "One track still has minimal structure"
+          : `${minimalStructureSongs} tracks still have minimal structure`,
+      detail: `${tracksThat(minimalStructureSongs, songCount, "has", "have")} fewer than 2 sections.`,
+      suggestion: "Add at least a verse and a chorus to the thinnest tracks before another export.",
       relatedTracks: snapshots
         .filter((song) => song.sectionCount < 2)
         .map((song) => song.trackNumber),
+      trackFocus: "song",
+      fix: { focus: "song", trackNumber: firstTrack((song) => song.sectionCount < 2) },
     });
   }
 
   if (songsMissingChords > 0) {
+    const starterOnly = songsWithStarterChords === songsMissingChords;
     issues.push({
       id: "missing_chords",
       severity: songsMissingChords > Math.ceil(songCount / 2) ? "warning" : "info",
       category: "harmony",
-      title: "Chord coverage is still thin",
-      detail: `${songsMissingChords}/${songCount} tracks do not have usable chord progressions yet.`,
-      suggestion: "Fill in 4-8 bar loops on the weakest songs so the harmonic arc can be assessed.",
+      title:
+        songsMissingChords === songCount
+          ? songCount === 1
+            ? "The track has no chords of its own yet"
+            : "No track has chords of its own yet"
+          : songsMissingChords === 1
+            ? `Track ${firstTrack((song) => !song.hasChords)} has no chords of its own yet`
+            : `${songsMissingChords} of ${songCount} tracks have no chords of their own yet`,
+      detail: songsWithStarterChords
+        ? `${
+            starterOnly
+              ? tracksThat(songsMissingChords, songCount, "is", "are")
+              : tracksThat(songsWithStarterChords, songCount, "is", "are")
+          } still on the starter loop, which doesn't count until you change it.`
+        : `${tracksThat(songsMissingChords, songCount, "has", "have")} no chords yet.`,
+      suggestion: "Write a 4 to 8 bar progression for each of them so the harmonic arc can be judged.",
       relatedTracks: snapshots.filter((song) => !song.hasChords).map((song) => song.trackNumber),
+      trackFocus: "song",
+      fix: { focus: "song", trackNumber: firstTrack((song) => !song.hasChords) },
     });
   }
 
   if (songsMissingLyrics > 0) {
+    // An empty track is the biggest gap an album can have: an error as soon as more than one
+    // is empty, or any is in a short album, and always the first finding (see sortIssues).
+    const emptyIsError = songsMissingLyrics > 1 || songCount <= 3;
+    const emptyTracks = snapshots.filter((song) => !song.hasLyrics).map((song) => song.trackNumber);
     issues.push({
       id: "missing_lyrics",
-      severity: songsMissingLyrics > Math.ceil(songCount / 2) ? "warning" : "info",
+      severity: emptyIsError ? "error" : "warning",
       category: "lyrics",
-      title: "Several tracks are still lyric-light",
-      detail: `${songsMissingLyrics}/${songCount} tracks still have placeholders or empty lyrics.`,
-      suggestion: "Draft at least one verse and one hook on the weakest tracks so callbacks can emerge.",
-      relatedTracks: snapshots.filter((song) => !song.hasLyrics).map((song) => song.trackNumber),
-    });
-  }
-
-  if (placeholderLyricsSongs > 0) {
-    issues.push({
-      id: "placeholder_lyrics",
-      severity: "info",
-      category: "lyrics",
-      title: "Placeholder lyrics are still carrying too much of the project",
-      detail: `${placeholderLyricsSongs} track(s) only have template lyric text so far.`,
-      suggestion: "Replace placeholders on the songs most likely to become singles or anchor moments.",
+      title:
+        songsMissingLyrics === songCount
+          ? songCount === 1
+            ? "The track still needs lyrics"
+            : `All ${songCount} tracks still need lyrics`
+          : songsMissingLyrics === 1
+            ? `Track ${emptyTracks[0]} still needs lyrics`
+            : `${songsMissingLyrics} of ${songCount} tracks still need lyrics`,
+      detail: `${tracksThat(songsMissingLyrics, songCount, "has", "have")} only placeholders or no lyrics.${
+        placeholderLyricsSongs
+          ? ` Placeholder lines like “[Verse line 1]” don't count as written.`
+          : ""
+      }`,
+      suggestion: "Draft at least one verse and one hook on each of them, so callbacks and hooks can be judged.",
+      relatedTracks: emptyTracks,
+      trackFocus: "lyrics",
+      fix: { focus: "lyrics", trackNumber: emptyTracks[0] },
     });
   }
 
@@ -470,10 +933,26 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
           ? "warning"
           : "info",
       category: "harmony",
-      title: "Too many songs are missing tempo or key",
-      detail: `${songsMissingKeys}/${songCount} tracks lack a key and ${songsMissingTempo}/${songCount} lack a tempo.`,
-      suggestion: "Set a home key and rough tempo map so transitions between songs feel designed.",
+      title:
+        songsMissingKeys && songsMissingTempo
+          ? "Some tracks have no key or tempo"
+          : songsMissingKeys
+            ? songsMissingKeys === 1
+              ? "One track has no key"
+              : `${songsMissingKeys} tracks have no key`
+            : songsMissingTempo === 1
+              ? "One track has no tempo"
+              : `${songsMissingTempo} tracks have no tempo`,
+      detail: `${[
+        songsMissingKeys ? `${tracksThat(songsMissingKeys, songCount, "has", "have")} no key` : null,
+        songsMissingTempo ? `${tracksThat(songsMissingTempo, songCount, "has", "have")} no tempo` : null,
+      ]
+        .filter(Boolean)
+        .join("; ")}.`,
+      suggestion: "Set a home key and a rough tempo map so the moves between tracks feel designed.",
       relatedTracks: missingMetaTracks,
+      trackFocus: "song",
+      fix: { focus: "song", trackNumber: missingMetaTracks[0] },
     });
   }
 
@@ -482,9 +961,30 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       id: "no_themes",
       severity: "info",
       category: "narrative",
-      title: "No album themes are tracked yet",
-      detail: "Themes are still empty, so the app cannot judge whether songs are pulling in the same direction.",
+      title: "No album themes yet",
+      detail: "No themes are set yet, so the report can't tell whether the tracks pull in the same direction.",
       suggestion: "Add 3-5 central themes and tag each track with 1-2 of them.",
+      fix: { focus: "album" },
+    });
+  }
+
+  const songsMissingNarrative = snapshots.filter((song) => !song.hasNarrativeSummary);
+  if (songCount > 0 && songsMissingNarrative.length > 0) {
+    issues.push({
+      id: "missing_narrative_summaries",
+      severity: songsMissingNarrative.length > Math.ceil(songCount / 2) ? "warning" : "info",
+      category: "narrative",
+      title:
+        songsMissingNarrative.length === 1
+          ? "One track has no story note"
+          : `${songsMissingNarrative.length} tracks have no story note`,
+      detail: `${tracksThat(songsMissingNarrative.length, songCount, "has", "have")} no story note, so ${
+        songsMissingNarrative.length === 1 ? "its" : "their"
+      } place in the arc can't be checked.`,
+      suggestion: "Write one or two sentences on what happens in each track.",
+      relatedTracks: songsMissingNarrative.map((song) => song.trackNumber),
+      trackFocus: "story",
+      fix: { focus: "story", trackNumber: songsMissingNarrative[0]?.trackNumber },
     });
   }
 
@@ -494,9 +994,13 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       severity: "warning",
       category: "narrative",
       title: "Theme drift is starting to show",
-      detail: `Only ${songsAlignedToThemes}/${songCount} tracks align to the album's declared themes.`,
-      suggestion: "Retag songs that belong, then rewrite outliers so the arc feels intentional.",
+      detail: songsAlignedToThemes
+        ? `Only ${songsAlignedToThemes} of ${songCount} tracks carry one of the album's themes.`
+        : "No track carries one of the album's themes yet.",
+      suggestion: "Tag the tracks that belong, then rewrite the outliers so the arc feels intentional.",
       relatedTracks: themeDriftTracks,
+      trackFocus: "song-themes",
+      fix: { focus: "song-themes", trackNumber: themeDriftTracks[0] },
     });
   }
 
@@ -505,18 +1009,37 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       id: "no_motifs",
       severity: "info",
       category: "motifs",
-      title: "No recurring motifs are tracked yet",
-      detail: "Motifs are what make concept albums feel intentionally interconnected.",
-      suggestion: "Pick 1-3 recurring lyrical or sonic motifs and plant them on multiple songs.",
+      title: "No motifs yet",
+      detail: "The album has no motifs and no track carries a motif tag. Motifs are what make a concept album feel connected.",
+      suggestion: "Name 1 to 3 motifs for the album (a sound, a symbol, a phrase) and tag them on several tracks.",
+      fix: { focus: "album-motifs" },
     });
   } else if (callbackMotifs === 0) {
+    // Bring the motif doing the most work back where a callback lands hardest: the opener, the
+    // closer, the midpoint. Those are suggestions, not tracks with a problem.
+    const topMotif = motifIndex[0];
+    const topKey = topMotif?.name.toLowerCase();
+    const anchors = [snapshots[0], snapshots[snapshots.length - 1], snapshots[Math.floor(snapshots.length / 2)]]
+      .filter((song): song is SongSnapshot => Boolean(song))
+      .filter((song, index, list) => list.findIndex((other) => other.trackNumber === song.trackNumber) === index)
+      .filter((song) => !topKey || !song.motifs.includes(topKey))
+      .map((song) => song.trackNumber);
+    const untagged = taggedMotifs.length === 0;
+    const named = motifIndex.slice(0, 3).map((motif) => `“${motif.name}”`);
     issues.push({
       id: "missing_callbacks",
       severity: "warning",
       category: "motifs",
-      title: "Motifs are not coming back yet",
-      detail: "The project has motif tags, but none of them currently recur across multiple tracks.",
-      suggestion: "Reintroduce at least one motif on the opener, midpoint, and closer so callbacks land.",
+      title: untagged ? "The album's motifs aren't on any track yet" : "Motifs are not coming back yet",
+      detail: untagged
+        ? `The album names ${plural(motifIndex.length, "motif")} (${named.join(", ")}${motifIndex.length > 3 ? "…" : ""}), but no track is tagged with ${motifIndex.length === 1 ? "it" : "one"} yet.`
+        : `${plural(taggedMotifs.length, "motif")} ${taggedMotifs.length === 1 ? "is" : "are"} tagged on tracks, but none comes back on a second track yet.`,
+      suggestion: topMotif
+        ? `${untagged ? "Tag" : "Bring back"} “${topMotif.name}” on the opener, the closer or the midpoint so the callback lands.`
+        : "Bring one motif back on the opener, the closer or the midpoint so the callback lands.",
+      suggestedTracks: anchors.slice().sort((left, right) => left - right),
+      trackFocus: "motifs",
+      fix: anchors.length ? { focus: "motifs", trackNumber: anchors[0] } : { focus: "album-motifs" },
     });
   }
 
@@ -526,20 +1049,42 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       severity: "info",
       category: "lyrics",
       title: "Hook structure is still under-defined",
-      detail: `${songsWithoutChorus}/${songCount} tracks do not have a chorus section yet.`,
-      suggestion: "Add chorus sections where appropriate so the album has memorable anchors.",
+      detail: `${tracksThat(songsWithoutChorus, songCount, "has", "have")} no written chorus yet.`,
+      suggestion: "Add chorus sections where they fit so the album has memorable anchors.",
       relatedTracks: snapshots.filter((song) => !song.hasChorus).map((song) => song.trackNumber),
+      trackFocus: "song",
+      fix: { focus: "song", trackNumber: firstTrack((song) => !song.hasChorus) },
     });
   }
 
-  if (repeatedEnergyProfile) {
+  if (repeatedEnergyProfile && setupTempos) {
+    // Unset tempos are already "no tempo" in missing_key_tempo; this names the tracks still on
+    // the setup's tempo, as work to do rather than a fault.
+    if (setupTempoTracks.length) {
+      const template = dominantPattern === SETUP_SECTION_PATTERN;
+      issues.push({
+        id: "default_tempos",
+        severity: "info",
+        category: "sequence",
+        title: "Set each track's tempo",
+        detail: `${tracksThat(setupTempoTracks.length, songCount, "is", "are")} still at the setup's ${SETUP_TEMPO} BPM${
+          template ? ", on the verse–chorus template," : ""
+        } so the album's flow can't be judged yet.`,
+        suggestion: "Give each track the tempo it wants; the contrast between tracks is what keeps the middle of the record moving.",
+        relatedTracks: setupTempoTracks,
+        trackFocus: "song",
+        fix: { focus: "song", trackNumber: setupTempoTracks[0] },
+      });
+    }
+  } else if (repeatedEnergyProfile) {
     issues.push({
       id: "repeated_energy_profile",
       severity: "warning",
       category: "sequence",
       title: "The album's section energy repeats too often",
-      detail: `Most songs share the same section pattern and the tempo spread is only ${tempoSpread} BPM.`,
-      suggestion: "Vary tempo, section order, or track pacing so the middle of the record does not flatten out.",
+      detail: `Most tracks share the same section pattern. ${tempoFact}`,
+      suggestion: "Vary tempo, section order or pacing so the middle of the record doesn't flatten out.",
+      fix: { focus: "song" },
     });
   }
 
@@ -550,88 +1095,142 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       category: "sequence",
       title: "The opener and closer do not frame the record strongly yet",
       detail: "The first and last tracks are not sharing enough narrative or motif signals to feel like intentional bookends.",
-      suggestion: "Use the Bible to give the opener and closer a shared callback, motif, or narrative echo.",
+      suggestion: "In the opener's and closer's story notes, give them a shared callback, motif or narrative echo.",
       relatedTracks: [opener?.trackNumber, closer?.trackNumber].filter(
         (trackNumber): trackNumber is number => typeof trackNumber === "number",
       ),
+      trackFocus: "story",
+      fix: { focus: "story", trackNumber: opener?.trackNumber },
     });
   }
 
-  const sortedIssues = sortIssues(issues);
+  const sortedIssues = sortIssues(issues).map((issue) =>
+    PROGRESS_FINDINGS.has(issue.id) ? { ...issue, progress: true } : issue,
+  );
 
-  let narrativeScore = 100;
-  if (!songCount) narrativeScore -= 60;
-  if (!album.concept_summary?.trim()) narrativeScore -= 18;
-  if (!uniqueThemes) narrativeScore -= 12;
-  narrativeScore -= ratioPenalty(songCount - songsWithNarrativeSummary, songCount, 18);
-  if (albumThemes.length > 0 && songsAlignedToThemes < Math.ceil(songCount / 2)) {
-    narrativeScore -= 18;
-  }
-  if (weakBookends) narrativeScore -= 12;
+  const albumFacts: AlbumFacts = {
+    songCount,
+    hasConcept: Boolean(album.concept_summary?.trim()),
+    albumThemeCount: albumThemes.length,
+    uniqueThemes,
+    uniqueMotifs,
+    callbackMotifs,
+    weakBookends,
+    duplicateTrackNumbers: duplicateTrackNumbers.size > 0,
+    repeatedEnergyProfile,
+    setupTempos,
+    singleKey: songCount >= 4 && uniqueKeys <= 1 && songsMissingKeys === 0,
+  };
+  const rawScores = dimensionScores(countTracks(snapshots, albumThemes), albumFacts);
+  // The same measures on the written tracks alone: what each dimension scores on its own
+  // while the cap holds them all at the share of written tracks. Once every track is written
+  // (or none is) this is the whole album again.
+  const writtenSongs = snapshots.filter((song) => song.hasLyrics);
+  const partlyWritten = writtenSongs.length > 0 && writtenSongs.length < songCount;
+  const measuredCounts = countTracks(partlyWritten ? writtenSongs : snapshots, albumThemes);
+  const uncapped = partlyWritten ? dimensionScores(measuredCounts, albumFacts) : rawScores;
+  const signals = dimensionSignals(measuredCounts, albumFacts, partlyWritten ? "written track" : "track");
 
-  let lyricsScore = 100;
-  lyricsScore -= ratioPenalty(songsMissingLyrics, songCount, 45);
-  lyricsScore -= ratioPenalty(placeholderLyricsSongs, songCount, 16);
-  lyricsScore -= ratioPenalty(songsWithoutChorus, songCount, 18);
+  // A score needs lyrics to judge. A one-track album needs only its one track written.
+  const requiredWrittenTracks = Math.max(1, Math.min(MIN_WRITTEN_TRACKS_FOR_SCORE, songCount));
+  const insufficient = songsWithLyrics < requiredWrittenTracks;
 
-  let harmonyScore = 100;
-  harmonyScore -= ratioPenalty(songsMissingChords, songCount, 45);
-  harmonyScore -= ratioPenalty(songsMissingKeys, songCount, 18);
-  harmonyScore -= ratioPenalty(songsMissingTempo, songCount, 14);
-  if (songCount >= 4 && uniqueKeys <= 1 && songsMissingKeys === 0) harmonyScore -= 8;
-
-  let sequenceScore = 100;
-  if (!songCount) sequenceScore -= 50;
-  if (duplicateTrackNumbers.size) sequenceScore -= 35;
-  sequenceScore -= ratioPenalty(minimalStructureSongs, songCount, 28);
-  if (repeatedEnergyProfile) sequenceScore -= 18;
-  if (weakBookends) sequenceScore -= 10;
-  if (songCount > 0 && songCount < 4) sequenceScore -= 12;
-
-  let motifsScore = 100;
-  if (!uniqueThemes) motifsScore -= 16;
-  if (!uniqueMotifs) motifsScore -= 18;
-  if (albumThemes.length > 0 && songsAlignedToThemes < Math.ceil(songCount / 2)) motifsScore -= 18;
-  if (uniqueMotifs > 0 && callbackMotifs === 0) motifsScore -= 22;
-  if (uniqueMotifs > 0 && callbackMotifs === 1) motifsScore -= 8;
+  // No dimension may score above the share of tracks that are written: a report can't call
+  // the lyrics 74/100 while half the tracks have none. Harmony is also held to the share of
+  // tracks with chords of their own, so the starter loop never earns it credit.
+  const scoreCap = songCount ? clampScore((songsWithLyrics / songCount) * 100) : 0;
+  const harmonyCap = songCount ? Math.min(scoreCap, clampScore((songsWithChords / songCount) * 100)) : 0;
+  const writtenFact = `only ${songsWithLyrics} of ${songCount} tracks ${songsWithLyrics === 1 ? "is" : "are"} written`;
+  // The lever while the lyric cap holds a dimension: the unwritten tracks.
+  const unwritten = snapshots.filter((song) => !song.hasLyrics).map((song) => song.trackNumber);
+  const lyricsLever =
+    unwritten.length === 1
+      ? `Write lyrics on track ${unwritten[0]} to lift this.`
+      : `Write lyrics on ${unwritten.length} more tracks (${formatTrackRuns(unwritten)}) to lift this.`;
+  const lyricsUntil =
+    unwritten.length === 1 ? `track ${unwritten[0]} has lyrics` : `${unwritten.length} more tracks have lyrics`;
+  // The lever while the chords cap holds Harmony: the written tracks without chords of their
+  // own (that cap is below the lyric cap only when some written track lacks them).
+  const writtenWithoutChords = writtenSongs.filter((song) => !song.hasChords);
+  const harmonyVerb = songsWithChords ? "lift" : "score";
+  const harmonyTracks = tracksPhrase(writtenWithoutChords.map((song) => song.trackNumber));
+  const harmonyUntil = `${harmonyTracks} ${writtenWithoutChords.length === 1 ? "has chords of its own" : "have chords of their own"}`;
+  const harmonyLever = writtenWithoutChords.every((song) => song.starterHarmony)
+    ? `Change the starter loop on ${harmonyTracks} to ${harmonyVerb} Harmony.`
+    : writtenWithoutChords.every((song) => !song.starterHarmony)
+      ? `Write chords on ${harmonyTracks} to ${harmonyVerb} Harmony.`
+      : `Write chords of their own on ${harmonyTracks} to ${harmonyVerb} Harmony.`;
+  const capped = (
+    key: CoherenceDimension,
+    summary: string,
+    cap = scoreCap,
+    capReason = writtenFact,
+    heldLever = lyricsLever,
+    ownLever?: string,
+    heldBy: "lyrics" | "chords" = "lyrics",
+  ) => {
+    const limited = Math.min(rawScores[key], cap);
+    // Unscored reports show what each dimension needs, not a cap nobody can see.
+    const held = limited < uncapped[key] && !insufficient;
+    return buildBreakdownItem(key, limited, summary, {
+      uncapped: uncapped[key],
+      heldBecause: held ? capReason : undefined,
+      heldBy,
+      heldUntil: heldBy === "chords" ? harmonyUntil : lyricsUntil,
+      lever: insufficient ? undefined : held ? heldLever : ownLever,
+      signal: signals[key],
+    });
+  };
 
   const breakdown = [
-    buildBreakdownItem(
+    capped(
       "narrative",
-      narrativeScore,
       !album.concept_summary?.trim()
-        ? "Concept and track-level story cues still need definition."
-        : weakBookends
-          ? "The arc exists, but the opener and closer are not framing it strongly yet."
-          : "Narrative signals are mostly present across the record.",
+        ? "The album has no concept summary yet, and the tracks' story notes have nothing to answer to."
+        : songsWithNarrativeSummary < songCount
+          ? `${songsWithNarrativeSummary} of ${songCount} tracks have a story note.`
+          : weakBookends
+            ? "The arc exists, but the opener and closer are not framing it strongly yet."
+            : "The concept and every track's story note are in place.",
     ),
-    buildBreakdownItem(
+    capped(
       "lyrics",
-      lyricsScore,
       songsMissingLyrics
-        ? "Lyrics still need to replace placeholders on the weakest tracks."
-        : "Lyrics are present enough to start judging callbacks and hooks.",
+        ? `${songsWithLyrics} of ${songCount} tracks have lyrics written; the rest are placeholders or empty.`
+        : "Every track has lyrics written, so callbacks and hooks can be judged.",
     ),
-    buildBreakdownItem(
+    capped(
       "harmony",
-      harmonyScore,
-      songsMissingChords || songsMissingKeys || songsMissingTempo
-        ? "Key, tempo, and chord coverage still need tightening."
-        : "Harmony metadata is strong enough for export and sequencing decisions.",
+      songsMissingChords
+        ? `${songsWithChords} of ${songCount} tracks have chords of their own${
+            songsWithStarterChords ? `; ${plural(songsWithStarterChords, "track")} still ${songsWithStarterChords === 1 ? "has" : "have"} the starter loop` : ""
+          }.`
+        : songsMissingKeys || songsMissingTempo
+          ? "Every track has chords of its own; some still need a key or tempo."
+          : "Every track has chords of its own, a key and a tempo.",
+      harmonyCap,
+      harmonyCap < scoreCap
+        ? `only ${songsWithChords} of ${songCount} tracks ${songsWithChords === 1 ? "has" : "have"} chords of ${songsWithChords === 1 ? "its" : "their"} own`
+        : writtenFact,
+      harmonyCap < scoreCap && writtenWithoutChords.length ? harmonyLever : lyricsLever,
+      writtenWithoutChords.length ? harmonyLever : undefined,
+      harmonyCap < scoreCap && writtenWithoutChords.length ? "chords" : "lyrics",
     ),
-    buildBreakdownItem(
+    capped(
       "sequence",
-      sequenceScore,
       repeatedEnergyProfile
-        ? "Tempo and section energy need more contrast across the record."
+        ? setupTempos
+          ? "No track has a tempo of its own yet, so the record's pacing can't be judged."
+          : "Tempo and section energy need more contrast across the record."
         : "Track order and internal song structure are mostly holding together.",
     ),
-    buildBreakdownItem(
+    capped(
       "motifs",
-      motifsScore,
-      callbackMotifs
-        ? "At least one motif is recurring across the album."
-        : "Motifs and callbacks need to recur on multiple songs to make the record feel connected.",
+      !uniqueMotifs
+        ? "No motifs yet, on the album or on any track."
+        : callbackMotifs
+          ? `${plural(callbackMotifs, "motif")} ${callbackMotifs === 1 ? "comes" : "come"} back on more than one track.`
+          : "Motifs need to come back on more than one track to make the record feel connected.",
     ),
   ];
 
@@ -642,19 +1241,75 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     breakdown[3].score * 0.18 +
     breakdown[4].score * 0.16;
   const score = clampScore(weightedScore);
-  const { weakest } = summarizeBreakdown(breakdown);
+  // What the written tracks score on their own, by the same weights, while some are unwritten.
+  const writtenScore =
+    !insufficient && partlyWritten
+      ? clampScore(
+          breakdown[0].uncapped * 0.28 +
+            breakdown[1].uncapped * 0.2 +
+            breakdown[2].uncapped * 0.18 +
+            breakdown[3].uncapped * 0.18 +
+            breakdown[4].uncapped * 0.16,
+        )
+      : null;
+  const weakest = weakestDimension({ breakdown });
   const topIssue = sortedIssues[0];
-  const summary = topIssue
-    ? `${score}/100 overall. Weakest area: ${weakest.label} (${weakest.score}/100). Top issue: ${topIssue.title}.`
-    : `${score}/100 overall. The album is structurally coherent across the current draft.`;
+
+  const missing: CoherenceMissingPiece[] = [];
+  if (insufficient) {
+    if (!songCount) {
+      missing.push({ id: "tracks", label: "A sequence: add the first tracks", fix: { focus: "song" } });
+    } else {
+      const needed = requiredWrittenTracks - songsWithLyrics;
+      missing.push({
+        id: "lyrics",
+        label: `Lyrics on ${needed === 1 ? "one more track" : `${needed} more tracks`} (${songsWithLyrics} of ${requiredWrittenTracks} written)`,
+        fix: { focus: "lyrics", trackNumber: firstTrack((song) => !song.hasLyrics) },
+      });
+    }
+    if (!album.concept_summary?.trim()) {
+      missing.push({ id: "concept", label: "A concept summary for the album", fix: { focus: "album" } });
+    }
+    if (songCount && !snapshots.some((song) => song.themes.length > 0)) {
+      missing.push({
+        id: "themes",
+        label: "Themes tagged on at least one track",
+        fix: { focus: "song-themes", trackNumber: snapshots[0]?.trackNumber },
+      });
+    }
+    if (songCount && !songsWithNarrativeSummary) {
+      missing.push({
+        id: "narrative",
+        label: "A story note on at least one track",
+        fix: { focus: "story", trackNumber: snapshots[0]?.trackNumber },
+      });
+    }
+  }
+
+  const verdict = coherenceVerdict({ insufficient, score, songCount, songsWithLyrics });
+  const summary = insufficient
+    ? requiredWrittenTracks === 1
+      ? "A first score comes once this track has lyrics."
+      : "A first score comes once two tracks have lyrics."
+    : songsMissingLyrics
+      ? `${songsWithLyrics} of ${songCount} tracks written. The written ${songsWithLyrics === 1 ? "track scores" : "tracks score"} ${writtenScore ?? score}; the whole album scores ${score}/100 until the rest are written, since no dimension counts above ${scoreCap} yet. On the written ${songsWithLyrics === 1 ? "one" : "ones"}, ${weakest.label} is weakest.`
+      : topIssue
+        ? `${score}/100 overall. Weakest area: ${weakest.label} (${weakest.score}/100). Top issue: ${topIssue.title}.`
+        : `${score}/100 overall. The album is structurally coherent across the current draft.`;
 
   return {
     score,
+    writtenScore,
     summary,
+    insufficient,
+    missing,
+    verdict,
+    scoreCap,
     stats: {
       songCount,
       sectionCount,
       songsWithChords,
+      songsWithStarterChords,
       songsWithLyrics,
       songsWithNarrativeSummary,
       songsAlignedToThemes,

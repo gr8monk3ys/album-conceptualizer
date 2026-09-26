@@ -1,66 +1,61 @@
 import type { ReactNode } from "react";
-import { headers } from "next/headers";
 
+import { AppSkipLink } from "@/components/app-skip-link";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
-import { getCreditsStatus } from "@/server/credits";
+import { getCredits } from "@/server/credits";
 import { requireUser } from "@/server/identity";
 import { getUnreadNotificationCount } from "@/server/notifications";
+import { effectivePlan } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  // This layout is protected by NextAuth middleware, but we still resolve session/workspace
-  // here so child pages can stay focused on their content.
-  const [requestHeaders, { session, userId }] = await Promise.all([headers(), requireUser()]);
+  const { session, userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
-  const plan = workspace.subscription?.plan ?? "free";
-  const currentPath = requestHeaders.get("x-pathname") ?? "/app";
-  const credits = await getCreditsStatus({ workspaceId: workspace.id, plan });
-  const unreadNotifications = await getUnreadNotificationCount({
-    workspaceId: workspace.id,
-    userId,
-  });
+  const plan = effectivePlan(workspace.subscription);
+  const [credits, unreadNotifications] = await Promise.all([
+    getCredits({ workspaceId: workspace.id, plan }),
+    getUnreadNotificationCount({ workspaceId: workspace.id, userId }),
+  ]);
 
   return (
-    <div className="relative px-3 py-3 md:px-4 md:py-4">
-      <a
-        href="#app-main-content"
-        className="sr-only absolute left-4 top-4 z-50 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.35)]"
-      >
-        Skip to content
-      </a>
-      <div className="mx-auto flex max-w-[1600px] gap-4">
-        <Sidebar
-          className="hidden md:flex"
-          currentPath={currentPath}
-          workspaceName={workspace.name}
-          userName={session.user?.name}
-          plan={plan}
-          credits={credits}
-          unreadNotifications={unreadNotifications}
-        />
-
-        <div className="flex min-h-[calc(100vh-28px)] flex-1 flex-col gap-4">
-          <header className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.025)] px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.24)]">
+    <div className="flex min-h-screen">
+      {/* The page's one skip link, named for where it lands ("Skip to the Overview"). */}
+      <AppSkipLink />
+      <Sidebar
+        className="hidden md:flex"
+        workspaceName={workspace.name}
+        userName={session.user?.name}
+        plan={plan}
+        credits={credits}
+        unreadNotifications={unreadNotifications}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Sticky only where the window has height to spare: at least 31.3125em, which is
+            501px at the default text size and grows with the reader's text size (a media query's
+            em is the browser's default font size), so a phone held sideways, or a phone at 200%
+            text, gets the header scrolling away instead of covering half the window. The
+            Studio's save bar uses the same breakpoint; globals.css counts the header in the
+            page's scroll padding (--header-offset) only while it sticks. The side padding gives
+            way a little on a narrow phone so the three header controls fit at 200% text. */}
+        <header className="z-30 flex h-header items-center border-b border-line bg-ground px-[min(1rem,5vw)] md:px-8 [@media(min-height:31.3125em)]:sticky [@media(min-height:31.3125em)]:top-0">
+          {/* A size container: the search field and New album collapse to icons by the room
+              the header actually has, not by the window. */}
+          <div className="@container w-full min-w-0">
             <Topbar
-              title={workspace.name}
-              currentPath={currentPath}
-              user={session.user}
+              workspaceName={workspace.name}
+              userName={session.user?.name}
               plan={plan}
               credits={credits}
               unreadNotifications={unreadNotifications}
             />
-          </header>
-
-          <main
-            id="app-main-content"
-            className="flex-1 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.018)] p-4 shadow-[0_10px_32px_rgba(0,0,0,0.22)]"
-          >
-            {children}
-          </main>
-        </div>
+          </div>
+        </header>
+        <main id="app-main-content" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">
+          {children}
+        </main>
       </div>
     </div>
   );

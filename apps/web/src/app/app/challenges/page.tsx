@@ -1,16 +1,24 @@
 import Link from "next/link";
 
 import { DailyChallengeCard } from "@/components/daily-challenge-card";
-import { getPrisma } from "@/server/db";
+import { PageHeader, Section } from "@/components/ui";
+import { trackHasLyrics } from "@/lib/lyrics";
+import { asList } from "@/lib/snapshot-values";
+import { getAlbumSongOptions } from "@/server/album-songs";
+import { recordLyricsBaselines } from "@/server/challenge-verification";
 import { getDailyChallenge } from "@/server/challenges";
+import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { effectivePlan, planMonthlyCredits } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Challenges",
-  description: "Complete daily songwriting challenges and earn workspace credits.",
+  description: "A short songwriting prompt each day. Writing it into an album earns workspace credits.",
 };
+
+const PLAN_NAME = { free: "Free", pro: "Pro", team: "Team" } as const;
 
 function addDaysUtc(day: string, delta: number) {
   const [y, m, d] = day.split("-").map((v) => Number(v));
@@ -29,32 +37,65 @@ function computeStreak(today: string, completedDays: Set<string>) {
   return streak;
 }
 
+/** The track numbers that already have written lyrics, so the prompt suggests a fresh one. */
+function writtenTracks(data: unknown): Set<number> {
+  const songs = asList((data as { songs?: unknown } | null)?.songs);
+  const written = new Set<number>();
+  for (const song of songs) {
+    const raw = song as { track_number?: unknown; sections?: unknown } | null;
+    if (typeof raw?.track_number === "number" && trackHasLyrics(raw.sections)) written.add(raw.track_number);
+  }
+  return written;
+}
+
 export default async function ChallengesPage() {
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
+  const plan = effectivePlan(workspace.subscription);
   const prisma = getPrisma();
 
+  const now = new Date();
   const { day, challenge } = getDailyChallenge();
 
-  const completion = await prisma.challengeCompletion.findFirst({
-    where: {
-      workspaceId: workspace.id,
-      challengeKey: challenge.key,
-      challengeDay: day,
-    },
-    select: {
-      id: true,
-      notes: true,
-      creditsEarned: true,
-      createdAt: true,
-    },
-  });
+  // Opening the challenge records where each album's lyrics stand before today's writing, so
+  // the entry's credits are paid for what is written after (see challenge-verification).
+  await recordLyricsBaselines(prisma, workspace.id, now);
+
+  const [completion, albums] = await Promise.all([
+    prisma.challengeCompletion.findFirst({
+      where: {
+        workspaceId: workspace.id,
+        challengeKey: challenge.key,
+        challengeDay: day,
+      },
+      select: {
+        id: true,
+        notes: true,
+        albumId: true,
+        trackNumber: true,
+        creditsEarned: true,
+        createdAt: true,
+      },
+    }),
+    // For the "Write it in" choice, and to link a finished entry back to its album.
+    prisma.album.findMany({
+      where: { workspaceId: workspace.id },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+      select: { id: true, title: true, data: true },
+    }),
+  ]);
+  const completionLink = completion?.albumId
+    ? { albumId: completion.albumId, trackNumber: completion.trackNumber }
+    : null;
 
   const since = addDaysUtc(day, -30);
   const recentCompletions = await prisma.challengeCompletion.findMany({
     where: {
       workspaceId: workspace.id,
       challengeDay: { gte: since },
+      // A note saved without credits (the writing didn't show) doesn't count toward the run.
+      creditsEarned: { gt: 0 },
     },
     orderBy: { challengeDay: "desc" },
     select: { challengeDay: true, creditsEarned: true },
@@ -62,75 +103,75 @@ export default async function ChallengesPage() {
 
   const completedDays = new Set(recentCompletions.map((row) => row.challengeDay));
   const streak = computeStreak(day, completedDays);
-  const earnedLast30 = recentCompletions.reduce((sum, row) => sum + (row.creditsEarned ?? 0), 0);
+  const earned = recentCompletions.reduce((sum, row) => sum + (row.creditsEarned ?? 0), 0);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xs text-[var(--muted2)]">Challenges</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-            Earn credits by writing daily
-          </div>
-          <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
-            Tiny prompts that push you forward. Credits can be spent on exports and project
-            creation.
+    <div className="flex flex-col gap-10">
+      <PageHeader
+        title="Challenges"
+        size="page"
+        description="One short writing prompt a day, the same for everyone. Take it into one of your tracks: the Studio keeps the prompt above the lyrics, and the credits come once the track shows lyrics written today."
+      />
+
+      {/* Rem-sized container query: with enlarged text the side column folds under the prompt. */}
+      <div className="@container">
+        <div className="grid grid-cols-1 items-start gap-10 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
+          <DailyChallengeCard
+            day={day}
+            challenge={challenge}
+            completion={
+              completion
+                ? {
+                    note: completion.notes ?? "",
+                    link: completionLink,
+                    time: completion.createdAt.toISOString(),
+                    creditsEarned: completion.creditsEarned,
+                  }
+                : null
+            }
+            albums={albums.map((album) => {
+              const written = writtenTracks(album.data);
+              return {
+                id: album.id,
+                title: album.title,
+                tracks: getAlbumSongOptions(album.data).map((song) => ({
+                  number: song.trackNumber,
+                  title: song.title,
+                  written: written.has(song.trackNumber),
+                })),
+              };
+            })}
+          />
+
+          <div className="flex min-w-0 flex-col gap-8">
+            <Section title="Your run">
+              <dl className="grid grid-cols-2 divide-x divide-line">
+                <div className="pr-4">
+                  <dt className="type-catalog text-xs text-ink-2">Streak</dt>
+                  <dd className="type-figure mt-1 text-3xl font-semibold text-ink">{streak}</dd>
+                  <dd className="text-xs text-ink-3">{streak === 1 ? "day" : "days"} in a row</dd>
+                </div>
+                <div className="pl-4">
+                  <dt className="type-catalog text-xs text-ink-2">Earned</dt>
+                  <dd className="type-figure mt-1 text-3xl font-semibold text-ink">{earned}</dd>
+                  <dd className="text-xs text-ink-3">credits, past 30 days</dd>
+                </div>
+              </dl>
+            </Section>
+
+            <Section
+              title="What credits are for"
+              description={`Some actions spend credits. Each calendar month your ${PLAN_NAME[plan]} plan tops your balance up to ${planMonthlyCredits(plan)}; credits earned here are kept on top of that. Writing, saving, the Story bible and the Coherence report never cost credits.`}
+            >
+              <Link
+                href="/app/settings/billing#credits-title"
+                className="inline-flex min-h-11 items-center text-sm text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
+              >
+                What each action costs, on every plan
+              </Link>
+            </Section>
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/app/studio"
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Open Studio
-          </Link>
-          <Link
-            href="/app/create"
-            className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-5 py-3 text-sm font-semibold text-black hover:brightness-110"
-          >
-            New project
-          </Link>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
-        <DailyChallengeCard
-          day={day}
-          challenge={challenge}
-          completed={Boolean(completion)}
-          completionNote={completion?.notes ?? null}
-          completionTime={completion?.createdAt?.toISOString() ?? null}
-        />
-
-        <aside className="space-y-3">
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Streak</div>
-            <div className="mt-1 text-2xl font-semibold text-[var(--text)]">{streak} days</div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
-              Based on completions in the last 30 days (UTC day boundaries).
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Earned (30d)</div>
-            <div className="mt-1 text-2xl font-semibold text-[var(--text)]">
-              +{earnedLast30} credits
-            </div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
-              Complete today&apos;s prompt to keep momentum.
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">How it works</div>
-            <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
-              <div>1. Draft a section in Studio.</div>
-              <div>2. Mark the challenge complete with a quick note.</div>
-              <div>3. Spend credits on exports and new projects.</div>
-            </div>
-          </div>
-        </aside>
       </div>
     </div>
   );

@@ -1,46 +1,66 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
-import { getAuthSession } from "@/server/auth";
+import { updateAlbumSnapshot } from "@/server/album-sync";
+import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
+import { applyAcceptedTags, proposeTagsFromLyrics } from "@/server/autotag";
 import { getPrisma } from "@/server/db";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
-import { applyAutoTagsFromLyrics } from "@/server/autotag";
-import { buildAlbumMutationData } from "@/server/album-sync";
 
 export const runtime = "nodejs";
 
-export async function POST(
-  _request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+const UNREADABLE = "This album's data can't be read, so no tags can be suggested. Save it again in the Studio.";
 
-  const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
+/**
+ * "Tag from lyrics", step one: what the lyrics suggest, per track, without writing anything.
+ * The artist reviews these on the Bible and sends back the ones they accept.
+ */
+export const GET = apiHandler(
+  async (_request: Request, { params }: { params: Promise<{ albumId: string }> }) => {
+    const { workspaceId } = await requireWorkspace();
+    const { albumId } = await params;
+    const album = await requireAlbum(workspaceId, albumId, { id: true, data: true });
 
-  const album = await prisma.album.findFirst({
-    where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true, data: true },
-  });
-  if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
+    const result = proposeTagsFromLyrics(album.data);
+    if (!result) throw new ApiError(400, UNREADABLE);
+    return NextResponse.json(result);
+  },
+);
 
-  const updated = applyAutoTagsFromLyrics(album.data);
-  if (!updated) return NextResponse.json({ error: "Album data is invalid." }, { status: 400 });
+const TagList = z.array(z.string().trim().min(1).max(80)).max(64).default([]);
+const BodySchema = z.object({
+  accept: z
+    .array(
+      z.object({
+        trackNumber: z.number().int().min(1),
+        themes: TagList,
+        motifs: TagList,
+        characters: TagList,
+      }),
+    )
+    .min(1)
+    .max(200),
+});
 
-  const mutation = buildAlbumMutationData(updated);
+/**
+ * Step two: add only the tags the artist accepted. Answers with exactly what was added, so the
+ * confirmation can name it ("Added tide to 04").
+ */
+export const POST = apiHandler(
+  async (request: Request, { params }: { params: Promise<{ albumId: string }> }) => {
+    const { workspaceId } = await requireWorkspace();
+    const { albumId } = await params;
+    const { accept } = await parseJsonBody(request, BodySchema, "Choose at least one tag to add.");
+    const album = await requireAlbum(workspaceId, albumId, { id: true });
 
-  await prisma.$transaction(async (tx) => {
-    // Keep relational tables in sync with the new JSON snapshot.
-    await tx.song.deleteMany({ where: { albumId: album.id } });
-    await tx.album.update({
-      where: { id: album.id },
-      data: { ...mutation },
-      select: { id: true },
-    });
-  });
+    const { added } = await getPrisma().$transaction((tx) =>
+      updateAlbumSnapshot(tx, album.id, (stored) => {
+        const result = applyAcceptedTags(stored, accept);
+        if (!result) throw new ApiError(400, UNREADABLE);
+        // Nothing new to add: leave the album (and its updated_at) as it is.
+        return { ...result, album: result.added.length ? result.album : null };
+      }),
+    );
 
-  return NextResponse.json({ ok: true });
-}
-
+    return NextResponse.json({ added });
+  },
+);

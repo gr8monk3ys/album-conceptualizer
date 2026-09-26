@@ -1,61 +1,242 @@
 @import "tailwindcss";
+@import "./font-fallbacks.css";
 
+/*
+ * Label identity program: a warm graphite field, bone-white type and a single signal color
+ * (saffron) reserved for primary actions, current location and focus. One grotesk family
+ * with a width axis carries display (expanded), catalog lines (condensed) and UI (normal).
+ * Every text token clears WCAG AA on every surface token, including the selected state.
+ */
 :root {
-  --bg: #0b0b10;
-  --bg2: #0e1020;
-  --panel: rgba(255, 255, 255, 0.05);
-  --panel2: rgba(255, 255, 255, 0.035);
-  --border: rgba(255, 255, 255, 0.08);
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.62);
-  --muted2: rgba(255, 255, 255, 0.45);
-  --accent: #ff3ea5;
-  --accent2: #6d5efc;
-  --ok: #32d583;
-  --warn: #f79009;
-  --bad: #ff6b6b;
+  --ground: #151412;
+  --raised: #1d1c19;
+  --sunken: #100f0d;
+  --hover: #26241f;
+  --selected: #2e2b24;
+
+  --ink: #efede7;
+  --ink-2: #bdb8ad;
+  --ink-3: #9b968b;
+
+  --line: #34322d;
+  --line-strong: #57534b;
+  /* Boundaries of form controls: 3:1 against the surfaces they sit on. */
+  --line-control: #77726a;
+
+  --accent: #f5c542;
+  --accent-ink: #1a1400;
+  --accent-hover: #ffd666;
+
+  --danger: #ff8a7a;
+  --danger-soft: #2c1b18;
+  --ok: #86d6a0;
+  --warn: #f39a5c;
+
+  /* Height of the app header. */
+  --header-h: 4.3125rem;
+  /* How much of the top of the window the app header covers: its height where it sticks,
+     nothing on a short screen (under 31.3125em: 500px or less at the default text size, a
+     phone held sideways, or a phone at 200% text), where it scrolls away with the page
+     instead of taking a third of the window. Scroll padding and anything sticky below the
+     header read this, never --header-h. */
+  --header-offset: 0px;
+
+  /* The sidebar's rendered width: none below 768px (it is a sheet there), 16rem capped at a
+     third of the window from 768px. The sidebar is set from it, and anything fixed that must
+     start where the content column starts (the docked preview player) reads it too. */
+  --sidebar-w: 0px;
+}
+
+@media (width >= 48rem) {
+  :root {
+    --sidebar-w: min(16rem, 33vw);
+  }
+}
+
+/* The same breakpoint as the header's own `[@media(min-height:31.3125em)]:sticky`. In em,
+   because it exists for text size: a media query's em is the reader's default font size, so
+   at 200% text the header needs a window twice as tall before it sticks. */
+@media (min-height: 31.3125em) {
+  :root {
+    --header-offset: var(--header-h);
+  }
 }
 
 @theme inline {
-  --color-background: var(--bg);
-  --color-foreground: var(--text);
+  --color-ground: var(--ground);
+  --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-control: var(--line-control);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-hover: var(--accent-hover);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-background: var(--ground);
+  --color-foreground: var(--ink);
+
+  /* Height of the app header (`h-header`), and what it covers while it sticks
+     (`top-header-offset`: anything sticky below it lines up; 0 on short screens). */
+  --spacing-header: var(--header-h);
+  --spacing-header-offset: var(--header-offset);
+  /* The sidebar's width (`w-sidebar`, `md:left-sidebar`); 0 below 768px. */
+  --spacing-sidebar: var(--sidebar-w);
+
+  /*
+   * Display sizes for the expanded cut. Fluid, so a long title in the widest cut never
+   * overflows a 320px viewport, and capped so it stays a title rather than a poster.
+   * The page title (`display-md`) and the release title (`display-release`) also step down
+   * in a narrow container (their header is a size container): at most 12% (13%) of its
+   * width, never under 1rem, which still grows with the reader's text size. At normal
+   * text size the container never binds, so 320px and up read exactly as before; at 320px
+   * with 200% text a title sets near 31px (33px) in the 256px column, so a nine-letter word
+   * ("Lighthouse") stays whole (the old 1.5rem floor held it at 48px and broke it).
+   * `display-lg` (sign-in, error and not-found screens) steps down the same way.
+   */
+  --text-display-md: clamp(max(1rem, min(1.75rem, 12cqi)), min(1.2rem + 2.4vw, 12cqi), 2.75rem);
+  --text-display-md--line-height: 1.02;
+  --text-display-lg: clamp(max(1rem, min(1.625rem, 12cqi)), min(0.9rem + 4.4vw, 12cqi), 3rem);
+  --text-display-lg--line-height: 1.02;
+  /* The landing headline and a shared album's title. Inside a narrow container (the landing's
+     hero column) it stays under 11% of the container, so a phrase like "concept album" keeps
+     to one line, and the floor steps down with it like the release title's (2rem, but never
+     over 11% of the container, and never under 1rem): at 320px with 200% text the column is
+     256px and the headline sets at 28px, so "concept" stays whole (the old 2rem floor held it
+     at 64px and broke it as "conce / pt"). At normal text size it reads as before (at 320px,
+     31.7px instead of 32px). */
+  --text-display-xl: clamp(max(1rem, min(2rem, 11cqi)), min(1.1rem + 3.9vw, 11cqi), 3.5rem);
+  --text-display-xl--line-height: 1.02;
+  /* The album title in the release header on every album screen: 2.25rem on a phone,
+     growing to 3.75rem on a wide screen, and never above 13% of a narrow header. Its floor is
+     1rem, not 1.5rem: at 320px with 200% text the header is 256px wide, and at the old 48px
+     floor a nine-letter word ("Lighthouse") was wider than that and broke inside itself; at
+     13% (33px) it fits. From 320px at normal text size nothing changes (36px). */
+  --text-display-release: clamp(max(1rem, min(2.25rem, 13cqi)), min(1.35rem + 2.6vw, 13cqi), 3.75rem);
+  --text-display-release--line-height: 1.02;
+  /* An album title in a catalog row (AlbumCard): 1.125rem, 1.25rem from md, and never above
+     12% of its row (a size container), with the same 1rem floor. At normal text size the row
+     never binds; at 320px with 200% text the row's text column is 240px, and at 12% (floored at
+     32px) an eleven-letter word ("Frequencies", 7.4em) stays whole where 36px broke it
+     ("Frequenci|es"), so the title breaks between words. */
+  --text-display-card: min(1.125rem, max(1rem, 12cqi));
+  --text-display-card--line-height: 1.02;
+  --text-display-card-lg: min(1.25rem, max(1rem, 12cqi));
+  --text-display-card-lg--line-height: 1.02;
+
+  /* Archivo is self-hosted by next/font (app/layout.tsx); latin-ext loads only when needed.
+     Until it arrives, text is set in a local face sized to the same cut (font-fallbacks.css),
+     so nothing moves when it swaps in. */
   --font-sans:
-    "Avenir Next", Avenir, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-mono:
-    "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
-    monospace;
+    var(--font-archivo-ext), var(--font-archivo), "Archivo Local Arial", "Archivo Local Roboto",
+    "Archivo Local DejaVu", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
-html {
-  color-scheme: dark;
+/*
+ * Base element styles live in the base layer, under Tailwind's utilities, so a component can
+ * adjust them (an inset focus ring inside a scroller, a forced-colors treatment) with a
+ * utility class instead of fighting an unlayered rule.
+ */
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--ground);
+    /* Anchors and focused fields scroll clear of everything sticky at the top (WCAG 2.4.11):
+       the app header while it sticks, plus the Studio's save bar, which sets --sticky-offset
+       (both measured, and only while they stick) while mounted. */
+    scroll-padding-top: calc(var(--sticky-offset, var(--header-offset)) + 1rem);
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "kern", "liga", "tnum" 0;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  /*
+   * One focus treatment everywhere: a saffron ring clear of the control's own edge. Every
+   * element carries the ring's colour before it is focused, so `transition-colors` (which
+   * animates outline-color) has nothing to fade: the ring appears at once, in saffron.
+   * Rows and tabs inside a scroller or a tight list draw it inside themselves instead
+   * (`focus-visible:-outline-offset-2`) so it is never clipped or painted over.
+   */
+  * {
+    outline-color: var(--accent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  :focus:not(:focus-visible) {
+    outline-style: none;
+  }
+  /* A landing, not a control: a line that takes focus on arrival so reading starts there
+     (tabindex -1, never a Tab stop: the welcome line, an arrival line) shows no ring. The ring
+     marks what can be operated; the next Tab goes on from the line as usual. */
+  [data-focus-landing]:focus {
+    outline-style: none;
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: var(--accent);
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
 }
 
-body {
-  background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
-  color: var(--text);
+/* Album titles and page titles: the expanded cut, the label's display voice. */
+.type-display {
+  font-stretch: 125%;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  text-wrap: balance;
 }
 
-::selection {
-  background: rgba(255, 62, 165, 0.35);
+/* Catalog lines under a title (artist · tracks · status): condensed caps. */
+.type-catalog {
+  font-stretch: 75%;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-/* Subtle scrollbar, Suno-style */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+/* Track numbers and any figures that line up in a column. */
+.type-figure {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-*::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.24);
-  border: 2px solid transparent;
-  background-clip: content-box;
+
+/* Forced colors: Chromium doesn't force an SVG's `color`, so a Lucide icon given an ink,
+   accent or state colour kept it on the system's Canvas (a saffron nav icon at 1.6:1 on white,
+   a role check near invisible). Unlayered, so it outranks those utilities: every icon takes
+   the forced colour of the text around it (CanvasText, LinkText, ButtonText, GrayText). */
+@media (forced-colors: active) {
+  svg.lucide {
+    color: inherit;
+  }
 }

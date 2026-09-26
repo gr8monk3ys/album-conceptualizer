@@ -1,70 +1,95 @@
+"use client";
+
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, CircleDashed } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Check } from "lucide-react";
 
-import type { AlbumOnboardingSummary } from "@/server/onboarding";
+import type { AlbumNextStep } from "@/server/album-songs";
+import type { AlbumOnboardingStep, AlbumOnboardingSummary } from "@/server/onboarding";
+import { cn } from "@/lib/utils";
 
+const DISCLOSURE =
+  "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:bg-hover";
+
+function StepRows({ steps, idPrefix }: { steps: AlbumOnboardingStep[]; idPrefix: string }) {
+  return (
+    <ul className="@container divide-y divide-line border-y border-line">
+      {steps.map((step) => {
+        const detailId = `${idPrefix}-${step.key}-detail`;
+        return (
+          <li key={step.key}>
+            <Link
+              href={step.href}
+              aria-describedby={detailId}
+              className="group flex min-h-11 items-start gap-3 py-3 pr-1 transition-colors hover:bg-hover"
+            >
+              <span
+                className={cn(
+                  "mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-sm border",
+                  step.complete ? "border-ok/60 text-ok" : "border-line-strong text-transparent",
+                )}
+              >
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1 wrap-break-word">
+                <span className={cn("text-sm", step.complete ? "text-ink-2" : "font-semibold text-ink")}>
+                  {step.label}
+                  <span className="sr-only">{step.complete ? " (done)" : " (to do)"}</span>
+                </span>
+                <span id={detailId} className="mt-0.5 block max-w-[65ch] text-xs leading-relaxed text-ink-3">
+                  {step.description}
+                </span>
+              </span>
+              <ArrowRight
+                className="mt-0.5 hidden h-4 w-4 shrink-0 text-ink-3 @[12rem]:block transition-colors group-hover:text-ink motion-safe:transition-[color,transform] motion-safe:group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * The album's "What's next": ONE next step, the same one the release header's button takes
+ * (`nextAlbumStep`), so the Overview never offers two different "next" things. The whole path
+ * from blueprint to handoff sits behind "Show all 7 steps" ("Hide the steps" while open, and
+ * its expanded state said), each step ticked from the album
+ * itself; the blueprint is saved by the time the album exists, so it heads the list instead of
+ * counting as a step.
+ */
 export function FirstProjectChecklist({
   summary,
-  title,
+  step,
 }: {
   summary: AlbumOnboardingSummary;
-  title?: string;
+  /** The album's next step, stated; left out where a banner above already says it. */
+  step?: Pick<AlbumNextStep, "statement" | "trackTitle"> | null;
 }) {
-  const percent = Math.round((summary.completeCount / Math.max(summary.totalCount, 1)) * 100);
-
+  const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.04)] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-[var(--muted2)]">First project</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-            {title ? `${title}: next milestones` : "Next milestones"}
-          </div>
-          <div className="mt-1 text-xs text-[var(--muted)]">
-            {summary.completeCount} of {summary.totalCount} complete
-          </div>
+    <div className="flex flex-col gap-4">
+      {step ? (
+        <p className="max-w-[65ch] break-words text-base text-ink">
+          {step.statement}
+          {step.trackTitle ? <span className="text-ink-2">{` · “${step.trackTitle}”`}</span> : null}
+        </p>
+      ) : null}
+      <p className="text-sm text-ink-2">
+        Blueprint saved ·{" "}
+        <span className="type-figure font-semibold text-ink">{summary.completeCount}</span> of{" "}
+        <span className="type-figure">{summary.totalCount}</span> steps done
+      </p>
+      <details onToggle={(event) => setOpen(event.currentTarget.open)}>
+        <summary className={DISCLOSURE} aria-expanded={open}>
+          {open ? "Hide the steps" : `Show all ${summary.totalCount} steps`}
+        </summary>
+        <div className="mt-3">
+          <StepRows steps={summary.steps} idPrefix="step-all" />
         </div>
-        <div className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-3 py-1 text-xs font-semibold text-[var(--text)]">
-          {percent}%
-        </div>
-      </div>
-
-      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
-        <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,var(--accent2),var(--accent))]"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {summary.steps.map((step, index) => (
-          <Link
-            key={step.key}
-            href={step.href}
-            className="group flex items-start gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-3 py-3 hover:bg-[rgba(255,255,255,0.05)]"
-          >
-            <div className="mt-0.5">
-              {step.complete ? (
-                <CheckCircle2 className="h-4 w-4 text-[var(--ok)]" />
-              ) : (
-                <CircleDashed className="h-4 w-4 text-[var(--muted2)]" />
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted2)]">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className="text-sm font-semibold text-[var(--text)]">{step.label}</span>
-              </div>
-              <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                {step.description}
-              </div>
-            </div>
-            <ArrowRight className="mt-0.5 h-4 w-4 text-[var(--muted2)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--text)]" />
-          </Link>
-        ))}
-      </div>
+      </details>
     </div>
   );
 }

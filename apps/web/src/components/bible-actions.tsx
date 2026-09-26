@@ -1,70 +1,371 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Download, Sparkles } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Download, Tags } from "lucide-react";
 
-export function BibleActions({ albumId }: { albumId: string }) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+import { useUndoWindow } from "@/components/studio/undo-window";
+import { Button, LiveStatus, buttonClass } from "@/components/ui";
+import { useReturnFocus } from "@/components/use-return-focus";
+import { andList } from "@/lib/and-list";
+import {
+  TAG_KINDS,
+  countTags,
+  describeAddedTags,
+  isAlbumMatch,
+  type TagKind,
+  type TrackTagProposal,
+  type TrackTags,
+} from "@/lib/tag-proposals";
 
-  async function autotag() {
-    setLoading(true);
-    setStatus(null);
-    try {
-      const res = await fetch(`/api/albums/${albumId}/autotag`, { method: "POST" });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Autotag failed (${res.status}).`);
-      }
-      setStatus("Tags applied.");
-      router.refresh();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Autotag failed.";
-      setStatus(message);
-    } finally {
-      setLoading(false);
-    }
-  }
+type Status = { tone: "ok" | "danger" | "neutral"; text: string } | null;
 
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        disabled={loading}
-        onClick={() => void autotag()}
-        className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
-        title="Auto-tag themes, motifs, and characters from lyrics"
-      >
-        <Sparkles className="h-4 w-4" />
-        {loading ? "Tagging…" : "Auto-tag"}
-      </button>
+const KIND_LABEL: Record<TagKind, { many: string; one: string }> = {
+  themes: { many: "Themes", one: "theme" },
+  motifs: { many: "Motifs", one: "motif" },
+  characters: { many: "Characters", one: "character" },
+};
 
-      <a
-        href={`/api/albums/${albumId}/bible/markdown`}
-        className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-        title="Download bible as Markdown"
-      >
-        <Download className="h-4 w-4" />
-        Markdown
-      </a>
+function pad(trackNumber: number) {
+  return String(trackNumber).padStart(2, "0");
+}
 
-      <a
-        href={`/api/albums/${albumId}/bible/pdf`}
-        className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-        title="Download bible as PDF"
-      >
-        <Download className="h-4 w-4" />
-        PDF
-      </a>
+function tagKey(trackNumber: number, kind: TagKind, tag: string) {
+  return `${trackNumber}\u0000${kind}\u0000${tag}`;
+}
 
-      {status ? (
-        <div className="text-xs text-[var(--muted2)]" aria-live="polite">
-          {status}
-        </div>
-      ) : null}
-    </div>
+function allKeys(proposals: TrackTagProposal[]) {
+  return new Set(
+    proposals.flatMap((track) => TAG_KINDS.flatMap((kind) => track[kind].map((tag) => tagKey(track.trackNumber, kind, tag)))),
   );
 }
 
+/** The proposals that are the album's own themes, motifs and characters: ticked to start with. */
+function albumMatchKeys(proposals: TrackTagProposal[]) {
+  return new Set(
+    proposals.flatMap((track) =>
+      TAG_KINDS.flatMap((kind) =>
+        track[kind].filter((tag) => isAlbumMatch(track, kind, tag)).map((tag) => tagKey(track.trackNumber, kind, tag)),
+      ),
+    ),
+  );
+}
+
+/** "Undone: took tide off 04 and static off 05." Past six tags it counts them. */
+function describeRemovedTags(tracks: TrackTags[]) {
+  const total = countTags(tracks);
+  if (!total) return "Nothing to undo: those tags were already gone.";
+  if (total > 6) {
+    return `Undone: took the ${total} tags off ${tracks.length === 1 ? "track" : "tracks"} ${andList(tracks.map((track) => pad(track.trackNumber)))}.`;
+  }
+  const parts = tracks.map((track) => `${andList(TAG_KINDS.flatMap((kind) => track[kind]))} off ${pad(track.trackNumber)}`);
+  return `Undone: took ${parts.join(", ")}.`;
+}
+
+async function errorFrom(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof body?.error === "string" && body.error ? body.error : fallback;
+}
+
+/**
+ * Suggest tags from the lyrics, or take the Bible away as Markdown or PDF. Tagging never
+ * writes on its own: it lists what the lyrics suggest per track as dashed suggestions (the
+ * album's own themes, motifs and characters the lyrics mention come first and ticked; any other
+ * word is marked "New tag" and left unticked), adds only what the artist ticks, then says
+ * exactly what it added, with an Undo that stays at least 10 seconds and waits while it has
+ * focus or the pointer (the Studio's `useUndoWindow`). Focus goes back to "Tag from lyrics"
+ * after the review closes, once that has committed (`useReturnFocus`).
+ */
+export function BibleActions({ albumId, className }: { albumId: string; className?: string }) {
+  const router = useRouter();
+  const headingId = useId();
+  const [phase, setPhase] = useState<"idle" | "loading" | "review" | "applying">("idle");
+  const [proposals, setProposals] = useState<TrackTagProposal[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [status, setStatus] = useState<Status>(null);
+  // The tags the last apply added, while they can still be taken off again.
+  const [undo, setUndo] = useState<{ key: number; added: TrackTags[] } | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocus = useReturnFocus();
+  const undoWindow = useUndoWindow(undo?.key ?? null, (focusInside) => {
+    setUndo(null);
+    if (focusInside) {
+      // Focus was on the Undo as it lapsed: it goes back to the tagging control, and the
+      // status says why the Undo went.
+      returnFocus(() => triggerRef.current);
+      setStatus((current) =>
+        current ? { ...current, text: `${current.text} Undo has ended; the tags stay.` } : current,
+      );
+    }
+  });
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const reviewing = phase === "review" || phase === "applying";
+
+  useEffect(() => {
+    if (phase === "review") headingRef.current?.focus();
+  }, [phase]);
+
+  function close(nextStatus: Status) {
+    setPhase("idle");
+    setProposals([]);
+    setSelected(new Set());
+    setStatus(nextStatus);
+    returnFocus(() => triggerRef.current);
+  }
+
+  async function suggest() {
+    setPhase("loading");
+    setStatus(null);
+    setUndo(null);
+    try {
+      const res = await fetch(`/api/albums/${albumId}/autotag`, { cache: "no-store" });
+      if (!res.ok) throw new Error(await errorFrom(res, "No tags could be suggested. Try again in a moment."));
+      const body = (await res.json()) as { proposals: TrackTagProposal[]; writtenTracks: number };
+      // Tracks listed with no tags on them are nothing to add: never open a review whose only
+      // action would be "Add 0 tags".
+      const found = body.proposals.filter((track) => countTags([track]) > 0);
+      if (!found.length) {
+        setPhase("idle");
+        setStatus({
+          tone: "neutral",
+          text: body.writtenTracks
+            ? "No new tags found. Tags come from words and names that repeat in a track's written lyrics, and those are already tagged."
+            : "No track has lyrics of its own yet, so there's nothing to tag from. Placeholder lines don't count.",
+        });
+        return;
+      }
+      setProposals(found);
+      setSelected(albumMatchKeys(found));
+      setPhase("review");
+    } catch (err) {
+      setPhase("idle");
+      setStatus({
+        tone: "danger",
+        text: err instanceof Error ? err.message : "No tags could be suggested. Try again in a moment.",
+      });
+    }
+  }
+
+  async function apply() {
+    const accept: TrackTags[] = proposals
+      .map((track) => ({
+        trackNumber: track.trackNumber,
+        themes: track.themes.filter((tag) => selected.has(tagKey(track.trackNumber, "themes", tag))),
+        motifs: track.motifs.filter((tag) => selected.has(tagKey(track.trackNumber, "motifs", tag))),
+        characters: track.characters.filter((tag) => selected.has(tagKey(track.trackNumber, "characters", tag))),
+      }))
+      .filter((track) => countTags([track]) > 0);
+    if (!accept.length) return;
+    setPhase("applying");
+    setStatus(null);
+    try {
+      const res = await fetch(`/api/albums/${albumId}/autotag`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ accept }),
+      });
+      if (!res.ok) throw new Error(await errorFrom(res, "The tags weren't added. Try again in a moment."));
+      const body = (await res.json()) as { added: TrackTags[] };
+      close({ tone: "ok", text: describeAddedTags(body.added) });
+      setUndo(countTags(body.added) ? { key: Date.now(), added: body.added } : null);
+      // The theme map, the spine and the motif index read these tags: redraw them now.
+      router.refresh();
+    } catch (err) {
+      setPhase("review");
+      setStatus({
+        tone: "danger",
+        text: err instanceof Error ? err.message : "The tags weren't added. Try again in a moment.",
+      });
+    }
+  }
+
+  async function undoTags() {
+    if (!undo || undoing) return;
+    setUndoing(true);
+    try {
+      const res = await fetch(`/api/albums/${albumId}/autotag/undo`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ remove: undo.added }),
+      });
+      if (!res.ok) throw new Error(await errorFrom(res, "The tags are still on. Try Undo again."));
+      const body = (await res.json()) as { removed: TrackTags[] };
+      setUndo(null);
+      setStatus({ tone: "ok", text: describeRemovedTags(body.removed) });
+      // The Undo button goes; focus goes back to the tagging control.
+      returnFocus(() => triggerRef.current);
+      router.refresh();
+    } catch (err) {
+      setStatus({ tone: "danger", text: err instanceof Error ? err.message : "The tags are still on. Try Undo again." });
+    } finally {
+      setUndoing(false);
+    }
+  }
+
+  function toggle(key: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const total = countTags(proposals);
+  const matches = albumMatchKeys(proposals).size;
+  const chosen = selected.size;
+
+  return (
+    <div className={className}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          ref={triggerRef}
+          onClick={() => void suggest()}
+          busy={phase === "loading"}
+          disabled={phase === "review" || phase === "applying"}
+        >
+          <Tags className="h-4 w-4" aria-hidden="true" />
+          {phase === "loading" ? "Reading the lyrics…" : "Tag from lyrics"}
+        </Button>
+        <a href={`/api/albums/${albumId}/bible/markdown`} className={buttonClass("ghost")} download>
+          <Download className="h-4 w-4" aria-hidden="true" />
+          <span>
+            <span className="sr-only">Download the Story bible as </span>Markdown
+          </span>
+        </a>
+        <a href={`/api/albums/${albumId}/bible/pdf`} className={buttonClass("ghost")} download>
+          <Download className="h-4 w-4" aria-hidden="true" />
+          <span>
+            <span className="sr-only">Download the Story bible as </span>PDF
+          </span>
+        </a>
+      </div>
+
+      {reviewing ? (
+        <div
+          role="group"
+          aria-labelledby={headingId}
+          className="mt-4 flex flex-col gap-4 border-t border-line pt-4"
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && phase === "review") {
+              event.stopPropagation();
+              close(null);
+            }
+          }}
+        >
+          <div>
+            <h3 id={headingId} ref={headingRef} tabIndex={-1} className="text-base font-semibold text-ink">
+              Tags from the lyrics
+            </h3>
+            <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+              {total === 1 ? "1 suggestion" : `${total} suggestions`} on{" "}
+              {proposals.length === 1 ? "1 track" : `${proposals.length} tracks`}.{" "}
+              {matches
+                ? `${matches === 1 ? "1 is" : `${matches} are`} the album's own themes, motifs or characters that the lyrics mention, and ${matches === 1 ? "it is" : "they are"} ticked. `
+                : ""}
+              {matches < total
+                ? "Words marked New tag repeat in the lyrics but aren't in the album yet: tick the ones you want. "
+                : ""}
+              Nothing is added until you choose.
+            </p>
+          </div>
+
+          <ul className="divide-y divide-line border-y border-line">
+            {proposals.map((track) => (
+              <li key={track.trackNumber} className="py-3">
+                <fieldset className="min-w-0 border-0 p-0">
+                  <legend className="flex min-w-0 flex-wrap items-baseline gap-x-3 text-sm">
+                    <span className="type-figure font-semibold text-ink-3">{pad(track.trackNumber)}</span>
+                    <span className="min-w-0 break-words font-semibold text-ink">{track.title}</span>
+                  </legend>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {TAG_KINDS.filter((kind) => track[kind].length).map((kind) => (
+                      <div key={kind} className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                        <span className="type-catalog min-w-0 basis-24 text-xs text-ink-3">{KIND_LABEL[kind].many}</span>
+                        {track[kind].map((tag) => {
+                          const key = tagKey(track.trackNumber, kind, tag);
+                          const isNew = !isAlbumMatch(track, kind, tag);
+                          return (
+                            <label
+                              key={key}
+                              className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-sm border border-dashed border-line-strong px-3 text-sm text-ink-2 transition-colors hover:bg-hover has-[:checked]:text-ink"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selected.has(key)}
+                                onChange={() => toggle(key)}
+                                disabled={phase === "applying"}
+                                className="h-4 w-4 shrink-0 accent-ink"
+                              />
+                              {/* One text node run for the name: "tally, new theme for track 2", never a
+                                  stray space before the comma between flex items. */}
+                              <span className="min-w-0 break-words">
+                                {tag}
+                                <span className="sr-only">{`, ${isNew ? "new " : ""}${KIND_LABEL[kind].one} for track ${track.trackNumber}`}</span>
+                              </span>
+                              {isNew ? (
+                                <span aria-hidden="true" className="type-catalog text-xs text-ink-3">
+                                  New tag
+                                </span>
+                              ) : null}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </fieldset>
+              </li>
+            ))}
+          </ul>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              tone="primary"
+              onClick={() => void apply()}
+              disabled={!chosen}
+              busy={phase === "applying"}
+            >
+              {/* The count is what will be added; with nothing ticked the button is disabled and
+                  says only "Add tags" (never "Add 0 tags"), and the line beside it says why. */}
+              {phase === "applying"
+                ? "Adding…"
+                : !chosen
+                  ? "Add tags"
+                  : chosen === 1
+                    ? "Add 1 tag"
+                    : `Add ${chosen} tags`}
+            </Button>
+            <Button
+              tone="ghost"
+              onClick={() => setSelected(chosen === total ? new Set() : allKeys(proposals))}
+              disabled={phase === "applying"}
+            >
+              {chosen === total ? "Untick all" : "Tick all"}
+            </Button>
+            <Button tone="ghost" onClick={() => close(null)} disabled={phase === "applying"}>
+              Cancel
+            </Button>
+            {!chosen ? <p className="min-w-0 text-sm text-ink-3">Tick at least one tag to add it.</p> : null}
+          </div>
+        </div>
+      ) : null}
+
+      {/* The live region is always mounted, so each result is announced when it arrives; the
+          Undo sits beside it while the tags can still come off. */}
+      <div
+        {...undoWindow.groupProps}
+        className={status || undo ? "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1" : undefined}
+      >
+        <LiveStatus message={status?.text ?? null} tone={status?.tone} className="min-w-0 max-w-[65ch]" />
+        {undo ? (
+          <Button tone="ghost" busy={undoing} onClick={() => void undoTags()}>
+            {undoing ? "Undoing…" : "Undo"}
+            <span className="sr-only"> adding these tags</span>
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}

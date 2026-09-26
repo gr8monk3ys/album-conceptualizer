@@ -282,7 +282,7 @@ function buildReview(album: AlbumJson, demo: AlbumRoughDemoRecord): RoughDemoRev
         ? `Try this against Track ${recommendedTrack.trackNumber}: ${recommendedTrack.title}.`
         : "",
       targetMode === "unassigned"
-        ? "Assign a track target once the hook or narrative role is clearer."
+        ? "Assign a track target once the hook or the track's role is clearer."
         : "",
       !demo.lyrical_fragments.length ? "Capture one memorable lyric fragment before export." : "",
       !demo.next_actions.length ? "Write down one production or rewrite move before leaving this page." : "",

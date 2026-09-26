@@ -1,20 +1,34 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { AlbumStyleBibleWorkspace } from "@/components/album-style-bible-workspace";
+import { SoundNav } from "@/components/sound-nav";
 import { getAlbum } from "@/server/albums";
 import { requireUser } from "@/server/identity";
 import { listAlbumReferences } from "@/server/references";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Voice / Style Bible",
-  description: "Define the vocal identity, sonic palette, and production rules for your album.",
-};
+/** "Sound bible · <album title>" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  if (!albumTitle) return { title: "Page not found" };
+  return {
+    title: albumPageTitle("Sound bible", albumTitle),
+    description: "The Sound bible: how this album should sound, from the lead voice to the mix.",
+  };
+}
 
+// The album layout renders the title, catalog line, album tabs and spine above this page;
+// the Sound sub-navigation comes first in the page itself.
 export default async function AlbumStyleBiblePage({
   params,
 }: {
@@ -31,52 +45,13 @@ export default async function AlbumStyleBiblePage({
   const summary = summarizeStyleBible(styleBible, references);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
+      <SoundNav albumId={album.id} current="style" />
       <AlbumPageViewTracker
         albumId={album.id}
         event="album_style_bible_viewed"
         path={`/app/albums/${album.id}/style`}
       />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-[var(--muted2)]">Voice / Style Bible</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-            {album.title}
-          </div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
-            {album.artist ? `by ${album.artist}` : "Artist not set"}
-            {album.primaryGenre ? ` · ${album.primaryGenre}` : ""}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/app/albums/${album.id}`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Back
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/bible`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Bible
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/references`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            References
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/studio`}
-            className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90"
-          >
-            Studio
-          </Link>
-        </div>
-      </div>
-
       <AlbumStyleBibleWorkspace
         albumId={album.id}
         initialStyleBible={styleBible}

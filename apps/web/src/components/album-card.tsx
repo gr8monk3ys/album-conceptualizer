@@ -1,85 +1,223 @@
-"use client";
-
-import Image from "next/image";
 import Link from "next/link";
-import { Play } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { isValidElement, type ReactNode } from "react";
 
+import { RelativeTime } from "@/components/relative-time";
+import type { ScoreStory } from "@/lib/score-story";
+import { Chip } from "@/components/ui";
+import { softHyphens } from "@/lib/soft-hyphens";
 import { cn } from "@/lib/utils";
 
 export type AlbumListItem = {
   id: string;
   title: string;
-  subtitle: string;
-  tag?: string;
-  duration?: string;
-  cover?: string;
+  artist: string | null;
+  trackCount: number;
+  status: string;
+  isPublic?: boolean;
+  /** ISO timestamp of the last edit. */
+  updatedAt: string;
+  /**
+   * How far the album has come (server/album-progress.ts): tracks with lyrics written, the
+   * Coherence verdict label and the score story every page tells (`@/lib/score-story`). Rows
+   * show the story when the page loaded it.
+   */
+  progress?: {
+    tracks: number;
+    lyricsWritten: number;
+    verdict: string;
+    story: Pick<ScoreStory, "headline" | "scoreLine">;
+    /** Set on a remix: the catalog line says "Remix of <title> by <artist>", as the release header does. */
+    remixOf?: { title: string; artist: string | null } | null;
+  };
 };
 
-export function AlbumCard({
-  album,
-  className,
-  href,
-}: {
-  album: AlbumListItem;
-  className?: string;
-  href?: string;
-}) {
-  const content = (
-    <>
-      <div className="relative h-16 w-16 flex-none overflow-hidden rounded-xl bg-[rgba(255,255,255,0.06)]">
-        {album.cover ? (
-          <Image
-            src={album.cover}
-            alt=""
-            fill
-            className="object-cover"
-            sizes="64px"
-            priority={false}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(255,62,165,0.35),rgba(109,94,252,0.25),rgba(255,255,255,0.04))]" />
-        )}
-        <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100">
-          <div className="absolute inset-0 bg-black/35" />
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-white text-black">
-              <Play className="h-4 w-4" aria-hidden="true" />
-            </div>
-          </div>
-        </div>
-        {album.duration ? (
-          <div className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white/90">
-            {album.duration}
-          </div>
-        ) : null}
-      </div>
+const STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  published: "Published",
+  archived: "Archived",
+};
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <div className="truncate text-sm font-semibold text-[var(--text)]">
-            {album.title}
-          </div>
-          {album.tag ? (
-            <div className="rounded-full bg-[rgba(255,62,165,0.18)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
-              {album.tag}
-            </div>
+/** The album's status in words ("Draft"), never the raw enum. */
+export function albumStatusLabel(status: string) {
+  return STATUS_LABEL[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+export function toAlbumListItem(album: {
+  id: string;
+  title: string;
+  artist: string | null;
+  trackCount: number;
+  status: string;
+  isPublic?: boolean;
+  updatedAt: Date;
+}): AlbumListItem {
+  return {
+    id: album.id,
+    title: album.title,
+    artist: album.artist,
+    trackCount: album.trackCount,
+    status: album.status,
+    isPublic: album.isPublic,
+    updatedAt: album.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * A catalog item with classes for its whole cell, separator included, e.g. one that a narrow
+ * line leaves out (`hidden @min-[30rem]:inline`). Hide only an item that isn't the last: the
+ * item before it keeps its separator for the item after.
+ */
+export type CatalogItem = { content: ReactNode; className: string };
+
+function isCatalogItem(item: ReactNode | CatalogItem): item is CatalogItem {
+  return typeof item === "object" && item !== null && !isValidElement(item) && "content" in item && "className" in item;
+}
+
+function toCatalogItem(item: ReactNode | CatalogItem): { content: ReactNode; className?: string } {
+  return isCatalogItem(item) ? item : { content: item };
+}
+
+/**
+ * A catalog line (artist · tracks · edited) whose separators end the item before them, so a
+ * wrapped line never starts with a dot ("· On Discover"): each separator is inside the item it
+ * follows, held to the item's last word by a word joiner (no break opportunity, even after an
+ * inline-block link). A line may end on its dot, which reads as "more follows". Items may wrap
+ * inside themselves, so a long artist name still fits a narrow screen or 200% text. Use it for
+ * every catalog line, including the release header's.
+ */
+export function CatalogItems({ items }: { items: Array<ReactNode | CatalogItem> }) {
+  const shown = items.filter(Boolean).map(toCatalogItem);
+  return (
+    <>
+      {shown.map((item, index) => (
+        <span key={index} className={cn("min-w-0 break-words", item.className)}>
+          {item.content}
+          {index < shown.length - 1 ? (
+            <>
+              {"\u2060"}
+              <span aria-hidden="true" className="ml-2">
+                ·
+              </span>
+            </>
           ) : null}
-        </div>
-        <div className="truncate text-xs text-[var(--muted2)]">{album.subtitle}</div>
-      </div>
+        </span>
+      ))}
     </>
   );
+}
 
-  const wrapperClassName = cn(
-    "group flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.15)] transition-colors hover:bg-[rgba(255,255,255,0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.35)]",
-    className,
+/**
+ * The One Score Story, as the Coherence report tells it: "Coherence 3 of 8 tracks written ·
+ * Unfinished", then "Written tracks 65/100 · Whole album 25/100" (one score once finished).
+ */
+/** The One Score Story as a catalog line: "Coherence" over the headline, then the scores. */
+export function ProgressLine({
+  story,
+  className = "mt-1.5",
+}: {
+  story: NonNullable<AlbumListItem["progress"]>["story"];
+  className?: string;
+}) {
+  const { headline, scoreLine } = story;
+  return (
+    <dl className={cn("flex min-w-0 flex-wrap items-baseline gap-x-2", className)}>
+      <dt className="type-catalog text-xs text-ink-3">Coherence</dt>
+      <dd className="type-figure min-w-0 text-sm text-ink">
+        <span className="font-semibold">{headline}</span>
+        {scoreLine ? <span className="block text-ink-2">{scoreLine}</span> : null}
+      </dd>
+    </dl>
   );
+}
 
-  return href ? (
-    <Link href={href} className={wrapperClassName}>
-      {content}
+/**
+ * One album as a catalog row: the title in the display cut, a catalog line beneath it
+ * (artist · tracks · edited), how far it has come when the page knows (the Coherence score
+ * story), and its status. The whole row is a single link.
+ *
+ * The row is a size container: with 20rem or more the status sits at the row's end and the
+ * title keeps at least 12rem; with less (a narrow phone, 200% text) the status and chevron
+ * drop below the catalog line and the title has the whole width.
+ */
+export function AlbumCard({
+  album,
+  href,
+  hint,
+  className,
+}: {
+  album: AlbumListItem;
+  href: string;
+  /** Where the row leads, e.g. "Open Bible". Shown at the row's end on wider screens. */
+  hint?: ReactNode;
+  className?: string;
+}) {
+  const tracks = `${album.trackCount} ${album.trackCount === 1 ? "track" : "tracks"}`;
+  return (
+    <Link
+      href={href}
+      className={cn("group @container block min-h-11 px-1 py-3 transition-colors hover:bg-hover", className)}
+    >
+      <div className="flex flex-col gap-2 @min-[20rem]:flex-row @min-[20rem]:items-center @min-[20rem]:gap-4">
+        <div className="min-w-0 flex-1">
+          {/* Sized by the row (a size container) so an ordinary long word fits whole at 320px
+              with 200% text; breaking inside a word is only the last resort. */}
+          <p className="type-display break-words text-display-card text-ink hyphens-auto md:text-display-card-lg">
+            {/* Break points in long words, so a title that must break shows a hyphen
+                (`hyphens-auto` gave none in Chromium without a dictionary). */}
+            {softHyphens(album.title)}
+          </p>
+          <p className="type-catalog mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
+            <CatalogItems
+              items={[
+                album.artist || "No artist yet",
+                <span key="tracks" className="type-figure">{tracks}</span>,
+                album.progress?.remixOf ? (
+                  <span key="remix">
+                    Remix of {album.progress.remixOf.title}
+                    {album.progress.remixOf.artist ? ` by ${album.progress.remixOf.artist}` : ""}
+                  </span>
+                ) : null,
+                <span key="edited">
+                  Edited <RelativeTime date={album.updatedAt} />
+                </span>,
+              ]}
+            />
+          </p>
+          {album.progress?.tracks ? <ProgressLine story={album.progress.story} /> : null}
+        </div>
+        <div className="flex items-center justify-between gap-3 @min-[20rem]:justify-end">
+          <span className="flex min-w-0 flex-wrap items-center gap-3">
+            {/* One badge per fact: publishing sets both the status and Discover visibility. */}
+            <Chip>{album.isPublic ? "On Discover" : albumStatusLabel(album.status)}</Chip>
+            {hint ? <span className="hidden text-sm text-ink-2 group-hover:text-ink md:inline">{hint}</span> : null}
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+        </div>
+      </div>
     </Link>
-  ) : (
-    <div className={wrapperClassName}>{content}</div>
+  );
+}
+
+/** A list of album rows separated by hairlines. */
+export function AlbumList({
+  albums,
+  hrefFor,
+  hint,
+  label,
+}: {
+  albums: AlbumListItem[];
+  hrefFor: (album: AlbumListItem) => string;
+  hint?: ReactNode;
+  label?: string;
+}) {
+  return (
+    <ul aria-label={label} className="border-t border-line">
+      {albums.map((album) => (
+        <li key={album.id} className="border-b border-line">
+          <AlbumCard album={album} href={hrefFor(album)} hint={hint} />
+        </li>
+      ))}
+    </ul>
   );
 }

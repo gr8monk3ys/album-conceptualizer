@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import type { WorkspaceFunnelSummary } from "@/server/analytics";
 
 const METRICS: Array<{
@@ -8,58 +6,42 @@ const METRICS: Array<{
     "projectsCreated" | "activatedAlbums" | "exportedAlbums" | "publishedAlbums"
   >;
   label: string;
+  hint: string;
 }> = [
-  { key: "projectsCreated", label: "Created" },
-  { key: "activatedAlbums", label: "Activated" },
-  { key: "exportedAlbums", label: "Exported" },
-  { key: "publishedAlbums", label: "Published" },
+  { key: "projectsCreated", label: "Created", hint: "New albums" },
+  { key: "activatedAlbums", label: "Worked on", hint: "Opened in the Studio, Story bible or Coherence report" },
+  { key: "exportedAlbums", label: "Exported", hint: "Downloaded at least once" },
+  { key: "publishedAlbums", label: "Published", hint: "Shared on Discover" },
 ];
 
-export function WorkspaceFunnelCard({
-  summary,
-  href = "/app/settings/analytics",
-}: {
-  summary: WorkspaceFunnelSummary;
-  href?: string;
-}) {
+/**
+ * Album progress as one row of figures: how many albums reached each stage in the window.
+ * Only album stages are shown; sign-up and checkout counts are for the people who run the
+ * service, not for the artist.
+ */
+export function WorkspaceFunnelCard({ summary }: { summary: WorkspaceFunnelSummary }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-[var(--muted2)]">Workspace funnel</div>
-          <div className="mt-1 text-lg font-semibold tracking-tight text-[var(--text)]">
-            Last {summary.windowDays} days
-          </div>
-          <div className="mt-1 max-w-[62ch] text-sm text-[var(--muted)]">
-            Measure whether projects are moving from creation to meaningful activation, export, and
-            publishing.
-          </div>
-        </div>
-        <Link
-          href={href}
-          className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-        >
-          View analytics
-        </Link>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        {METRICS.map((metric) => (
-          <div
-            key={metric.key}
-            className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4"
-          >
-            <div className="text-xs text-[var(--muted2)]">{metric.label}</div>
-            <div className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)]">
-              {summary[metric.key]}
+    <section aria-labelledby="funnel-window-title" className="border-t border-line pt-6">
+      <h2 id="funnel-window-title" className="text-lg font-semibold text-ink">
+        Last {summary.windowDays} days
+      </h2>
+      {/* Columns by the room the section has (a container query in rem, so enlarged text
+          needs more): four figures side by side from 36rem, two from 16rem, one below that,
+          so a long word in a hint ("Downloaded") never runs into the next column at 320px
+          with 200% text. Should a word still be wider than its column, it wraps inside it. */}
+      <div className="@container">
+        <dl className="mt-4 grid grid-cols-1 gap-y-5 border-y border-line py-5 @[16rem]:grid-cols-2 @[36rem]:grid-cols-4 @[36rem]:divide-x @[36rem]:divide-line">
+          {METRICS.map((metric) => (
+            <div key={metric.key} className="min-w-0 pr-4 wrap-break-word @[36rem]:px-5 @[36rem]:first:pl-0">
+              <dt className="type-catalog text-xs text-ink-2">{metric.label}</dt>
+              <dd className="type-figure mt-2 text-3xl font-semibold text-ink">
+                {summary[metric.key]}
+              </dd>
+              <dd className="mt-1 text-xs text-ink-3">{metric.hint}</dd>
             </div>
-          </div>
-        ))}
+          ))}
+        </dl>
       </div>
-
-      <div className="mt-3 text-xs text-[var(--muted2)]">
-        Signups tracked: {summary.signups}. Billing checkouts started: {summary.checkoutStarts}.
-      </div>
-    </div>
+    </section>
   );
 }

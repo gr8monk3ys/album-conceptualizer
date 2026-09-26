@@ -1,98 +1,175 @@
-import { AlbumCard, type AlbumListItem } from "@/components/album-card";
-import { WorkspaceFunnelCard } from "@/components/workspace-funnel-card";
 import Link from "next/link";
 
-import { listAlbums } from "@/server/albums";
-import { getWorkspaceFunnelSummary } from "@/server/analytics";
+import { AlbumList, CatalogItems, ProgressLine, albumStatusLabel, toAlbumListItem } from "@/components/album-card";
+import { RelativeTime } from "@/components/relative-time";
+import { ButtonLink, EmptyState, PageHeader, Section } from "@/components/ui";
+import { albumCatalogStatus } from "@/lib/album-skip";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { albumProgress, albumProgressById } from "@/server/album-progress";
+import { nextAlbumStep } from "@/server/album-songs";
+import { getAlbum, listAlbums } from "@/server/albums";
+import { challengeStudioHref, getDailyChallenge } from "@/server/challenges";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Workspace Home",
-  description: "Track album progress, recent projects, and next actions in one view.",
+  title: "Home",
+  description: "Pick up the album you were working on and see what it needs next.",
 };
 
-function buildSubtitle(input: {
-  primaryGenre: string | null;
-  trackCount: number;
-  conceptSummary: string | null;
-}) {
-  const genre = input.primaryGenre || "Concept";
-  const tracks = `${input.trackCount} track${input.trackCount === 1 ? "" : "s"}`;
-  const summary = input.conceptSummary ? ` | ${input.conceptSummary}` : "";
-  return `${genre} | ${tracks}${summary}`;
-}
+/** Other albums shown under Continue; the Library has the full catalog. */
+const OTHERS_LIMIT = 4;
 
+/**
+ * Home is for picking the work back up: the album you edited last with its next step, a
+ * few other albums in progress, and today's writing challenge. The Library is the catalog;
+ * Home never lists the album it is already showing.
+ */
 export default async function AppHomePage() {
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
-  const [albums, funnel] = await Promise.all([
-    listAlbums(workspace.id),
-    getWorkspaceFunnelSummary(workspace.id),
-  ]);
+  const albums = await listAlbums(workspace.id);
+  const latest = albums[0] ? await getAlbum(workspace.id, albums[0].id) : null;
+  // Where the latest album stands, told as every catalog row and the Coherence report tell it
+  // (the One Score Story: "4 of 6 tracks written · Unfinished", then both scores).
+  const latestProgress = latest ? albumProgress(latest.data) : null;
+  // The same next step the album's release header shows, so the two never disagree.
+  const step = latest ? nextAlbumStep(latest.id, latest.data) : null;
+  const stepTitle = step?.trackTitle ?? null;
 
-  const items: AlbumListItem[] = albums.map((album) => ({
-    id: album.id,
-    title: album.title,
-    subtitle: buildSubtitle({
-      primaryGenre: album.primaryGenre,
-      trackCount: album.trackCount,
-      conceptSummary: album.conceptSummary,
-    }),
-    tag: album.status === "draft" ? "draft" : undefined,
-    cover: album.coverUrl ?? undefined,
-  }));
+  // The other albums' rows carry the same progress figures as the Library's.
+  const otherAlbums = albums.slice(1, 1 + OTHERS_LIMIT);
+  const otherProgress = await albumProgressById(
+    workspace.id,
+    otherAlbums.map((album) => album.id),
+  );
+  const others = otherAlbums.map((album) => ({ ...toAlbumListItem(album), progress: otherProgress.get(album.id) }));
+  const { challenge } = getDailyChallenge();
+  // The challenge is written in the Studio: with an obvious track to write in (the one the
+  // latest album's next step names), it opens there with the prompt pinned above the lyrics;
+  // otherwise the Challenges page asks where to write it.
+  const challengeTrack = latest && step?.trackNumber ? { album: latest, trackNumber: step.trackNumber } : null;
+  const challengeHref = challengeTrack
+    ? challengeStudioHref(challengeTrack.album.id, challenge.key, challengeTrack.trackNumber)
+    : "/app/challenges";
+
+  const total = latestProgress?.tracks ?? 0;
+  const story = latestProgress?.story ?? null;
 
   return (
-    <div className="flex flex-col gap-5">
-      <WorkspaceFunnelCard summary={funnel} />
+    <div className="flex flex-col gap-10">
+      <PageHeader
+        size="page"
+        title="Home"
+        description={
+          latest
+            ? "Pick up where you left off. The next step comes from what each track still needs."
+            : "Start with a one-paragraph idea. You will shape it into a sequence of tracks, a narrative arc and a Story bible, then write it track by track."
+        }
+      />
 
-      <div className="flex flex-col gap-2">
-        <div className="text-xs text-[var(--muted2)]">For you</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-          Recent projects
-        </div>
-        {items.length ? (
-          <div className="max-w-[64ch] text-sm text-[var(--muted)]">
-            Pick up where you left off. Projects are synced to Neon (Postgres) and your Stripe
-            plan.
+      {latest && step ? (
+        // A size container, so the album title below steps down in a narrow column (320px at
+        // 200% text) instead of breaking inside a word.
+        <section aria-labelledby="continue-title" className="@container border-t border-line pt-6">
+          <h2 id="continue-title" className="text-lg font-semibold text-ink">
+            Continue
+          </h2>
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
+            <div className="min-w-0 max-w-[68ch]">
+              <Link
+                href={`/app/albums/${latest.id}`}
+                className="type-display inline-block min-h-11 max-w-full break-words py-2 text-[length:max(1rem,min(1.5rem,11cqi))] leading-tight text-ink hyphens-auto underline-offset-4 hover:underline md:text-[length:max(1rem,min(2.25rem,11cqi))]"
+              >
+                {latest.title}
+              </Link>
+              <p className="type-catalog mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
+                <CatalogItems
+                  items={[
+                    latest.artist || "No artist yet",
+                    <span key="tracks" className="type-figure">
+                      {total} {total === 1 ? "track" : "tracks"}
+                    </span>,
+                    // "On Discover" for a published album, as the Library row and the album's
+                    // own catalog line say it.
+                    albumCatalogStatus(latest, albumStatusLabel),
+                    <span key="edited">
+                      Edited <RelativeTime date={latest.updatedAt.toISOString()} />
+                    </span>,
+                  ]}
+                />
+              </p>
+              {/* The One Score Story, in the words and order of the Library rows below. */}
+              {total && story ? (
+                <ProgressLine story={story} className="mt-4" />
+              ) : null}
+              <p className="mt-4 max-w-[65ch] break-words text-base text-ink">
+                {step.statement}
+                {stepTitle ? <span className="text-ink-2">{` · “${stepTitle}”`}</span> : null}
+              </p>
+            </div>
+            {/* Continuing the record is Home's one primary action. */}
+            <ButtonLink tone="primary" href={step.href}>
+              {step.action}
+            </ButtonLink>
           </div>
-        ) : (
-          <div className="max-w-[64ch] text-sm text-[var(--muted)]">
-            Your library is empty. Create your first concept album and export it to your DAW.
-          </div>
-        )}
-      </div>
-
-      {items.length ? (
-        <div className="grid grid-cols-1 gap-3">
-          {items.map((album) => (
-            <AlbumCard key={album.id} album={album} href={`/app/albums/${album.id}`} />
-          ))}
-        </div>
+        </section>
       ) : (
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-6">
-          <div className="text-sm font-semibold text-[var(--text)]">Start here</div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
-            Generate an `album.json` scaffold, save it, then iterate track by track.
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Link
-              href="/app/create"
-              className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-5 py-3 text-sm font-semibold text-black hover:brightness-110"
-            >
-              Create album
-            </Link>
-            <Link
-              href="/app/settings/billing"
-              className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-            >
-              View plans
-            </Link>
-          </div>
-        </div>
+        <EmptyState
+          title="No albums yet"
+          action={
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <ButtonLink tone="primary" href="/app/create">
+                Start your first album
+              </ButtonLink>
+              <Link
+                href="/app/help"
+                className="inline-flex min-h-11 items-center text-sm text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink hover:decoration-ink"
+              >
+                How an album comes together
+              </Link>
+            </div>
+          }
+        >
+          The guided setup asks for a title, an artist and a concept, then drafts a sequence
+          you can rewrite. Creating an album uses {CREDIT_COSTS.albumCreate} credits.
+        </EmptyState>
       )}
+
+      {others.length ? (
+        <Section
+          id="recent"
+          title="Recent albums"
+          description="Your other albums, most recently edited first."
+          actions={
+            albums.length > 1 + OTHERS_LIMIT ? (
+              <ButtonLink tone="ghost" href="/app/library">
+                All {albums.length} albums
+              </ButtonLink>
+            ) : null
+          }
+        >
+          <AlbumList albums={others} hrefFor={(album) => `/app/albums/${album.id}`} />
+        </Section>
+      ) : null}
+
+      <Section
+        id="challenge"
+        title="Today’s writing challenge"
+        description={`${challenge.title}: ${challenge.description}`}
+        actions={
+          <ButtonLink tone="secondary" href={challengeHref}>
+            Take the challenge · earn {challenge.credits} credits
+          </ButtonLink>
+        }
+      >
+        <p className="max-w-[65ch] break-words text-sm text-ink-3">
+          {challengeTrack
+            ? `Opens track ${String(challengeTrack.trackNumber).padStart(2, "0")} of ${challengeTrack.album.title} in the Studio, with the prompt above the lyrics. The credits are yours once you write lyrics there today.`
+            : "A short prompt to write against, in the Studio. The credits are yours once you write lyrics today."}
+        </p>
+      </Section>
     </div>
   );
 }

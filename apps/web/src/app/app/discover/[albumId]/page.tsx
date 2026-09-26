@@ -1,32 +1,65 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { CatalogItems } from "@/components/album-card";
 import { DiscoverAlbumActions } from "@/components/discover-album-actions";
-import { analyzeAlbumCoherence } from "@/server/coherence";
+import { RelativeTime } from "@/components/relative-time";
+import { ReadOnlySpine } from "@/components/read-only-spine";
+import { ButtonLink, Chip, PageHeader, Section } from "@/components/ui";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { lyricExcerptsByTrack, writtenSummaryItems } from "@/lib/discover";
+import { softHyphens } from "@/lib/soft-hyphens";
+import { dimensionFigure, scoreStory, wholeAlbumCapLine } from "@/lib/score-story";
+import { getSpineRows, getSpineThemes } from "@/server/album-songs";
+import {
+  analyzeAlbumCoherence,
+  dimensionsWeakestFirst,
+  MIN_WRITTEN_TRACKS_FOR_SCORE,
+} from "@/server/coherence";
+import { getCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { effectivePlan } from "@/server/plan";
+import { publishedAlbumTitle } from "@/server/page-titles";
+import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Discover Album",
-  description: "Explore a published album and remix it into your workspace.",
-};
 
-function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; title: string }> {
-  if (!data || typeof data !== "object") return [];
-  const songs = (data as { songs?: unknown }).songs;
-  if (!Array.isArray(songs)) return [];
+const DESCRIPTION = "Read a published album's sequence and lyrics, then remix it into your workspace.";
 
-  return songs
-    .map((song) => {
-      if (!song || typeof song !== "object") return null;
-      const track_number = (song as { track_number?: unknown }).track_number;
-      const title = (song as { title?: unknown }).title;
-      if (typeof track_number !== "number" || typeof title !== "string") return null;
-      return { track_number, title };
-    })
-    .filter((song): song is { track_number: number; title: string } => Boolean(song))
-    .sort((a, b) => a.track_number - b.track_number);
+/** "<album title> · Discover" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  const title = await publishedAlbumTitle(albumId);
+  return { title: title ? `${title} · Discover` : "Discover", description: DESCRIPTION };
+}
+
+/** Each track's Story note (its narrative summary), keyed by track number. */
+function readStoryNotes(data: unknown): Map<number, string> {
+  const notes = new Map<number, string>();
+  const songs = (data as { songs?: unknown } | null)?.songs;
+  if (!Array.isArray(songs)) return notes;
+  for (const raw of songs) {
+    if (!raw || typeof raw !== "object") continue;
+    const song = raw as Record<string, unknown>;
+    if (typeof song.track_number !== "number") continue;
+    if (typeof song.narrative_summary === "string" && song.narrative_summary.trim()) {
+      notes.set(song.track_number, song.narrative_summary.trim());
+    }
+  }
+  return notes;
+}
+
+function trackAnchor(trackNumber: number) {
+  return `track-${trackNumber}`;
+}
+
+function pad(trackNumber: number) {
+  return String(trackNumber).padStart(2, "0");
 }
 
 export default async function DiscoverAlbumPage({
@@ -36,140 +69,251 @@ export default async function DiscoverAlbumPage({
 }) {
   const { albumId } = await params;
   const { userId } = await requireUser();
+  const workspace = await getActiveWorkspaceForUser(userId);
 
   const prisma = getPrisma();
-  const album = await prisma.album.findFirst({
-    where: { id: albumId, isPublic: true },
-    select: {
-      id: true,
-      title: true,
-      artist: true,
-      conceptSummary: true,
-      primaryGenre: true,
-      trackCount: true,
-      data: true,
-      publishedAt: true,
-      _count: { select: { likes: true } },
-      likes: { where: { userId }, select: { id: true } },
-    },
-  });
+  const [album, credits] = await Promise.all([
+    prisma.album.findFirst({
+      where: { id: albumId, isPublic: true },
+      select: {
+        id: true,
+        workspaceId: true,
+        title: true,
+        artist: true,
+        conceptSummary: true,
+        primaryGenre: true,
+        data: true,
+        publishedAt: true,
+        _count: { select: { likes: true } },
+        likes: { where: { userId }, select: { id: true } },
+      },
+    }),
+    getCredits({ workspaceId: workspace.id, plan: effectivePlan(workspace.subscription) }),
+  ]);
   if (!album) notFound();
 
-  const songs = getSongsFromAlbumData(album.data);
+  const isOwn = album.workspaceId === workspace.id;
+  const rows = getSpineRows(album.data);
+  const themes = getSpineThemes(album.data);
+  const storyNotes = readStoryNotes(album.data);
+  const excerpts = lyricExcerptsByTrack(album.data);
   const coherence = analyzeAlbumCoherence(album.data);
+  const story = scoreStory(coherence);
+  // The lyric cap the whole album's figures share, said once under the dimensions.
+  const capLine = wholeAlbumCapLine(coherence);
+  const written = writtenSummaryItems({
+    tracks: rows.length,
+    withLyrics: rows.filter((row) => row.lyricSections > 0).length,
+  });
+  // Tracks with something to read below the sequence: a story note or written lyrics.
+  const readable = new Set(
+    rows
+      .filter((row) => storyNotes.has(row.trackNumber) || (excerpts.get(row.trackNumber) ?? []).length)
+      .map((row) => row.trackNumber),
+  );
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-xs text-[var(--muted2)]">Discover</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-            {album.title}
-          </div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
-            {album.artist ? `by ${album.artist}` : "Artist not set"} ·{" "}
-            {album.primaryGenre || "Concept"} · {album.trackCount} tracks
-          </div>
-          {album.publishedAt ? (
-            <div className="mt-2 text-xs text-[var(--muted2)]">
-              Published {album.publishedAt.toLocaleString()}
-            </div>
-          ) : null}
-          {album.conceptSummary ? (
-            <div className="mt-3 max-w-[80ch] text-sm leading-relaxed text-[var(--muted)]">
-              {album.conceptSummary}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/app/discover"
-              className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-            >
-              Back
-            </Link>
-            <DiscoverAlbumActions
-              albumId={album.id}
-              initialLiked={Boolean(album.likes.length)}
-              initialLikes={album._count.likes}
+    <div className="flex flex-col gap-10">
+      <PageHeader
+        // The display-md size, but with a 1rem floor (as the release title has) against the
+        // header's size container: at 320px with 200% text a word like "Lighthouse" stays whole.
+        title={
+          <span className="block text-[length:clamp(max(1rem,min(1.75rem,12cqi)),min(1.2rem_+_2.4vw,12cqi),2.75rem)] leading-[1.02]">
+            {softHyphens(album.title)}
+          </span>
+        }
+        catalog={
+          <span className="flex flex-wrap gap-x-2 gap-y-0.5">
+            <CatalogItems
+              items={[
+                album.artist || "Artist not named",
+                album.primaryGenre,
+                ...written.map((item) => (
+                  <span key={item} className="type-figure">
+                    {item}
+                  </span>
+                )),
+                isOwn ? "Your album" : null,
+                album.publishedAt ? (
+                  <span key="published">
+                    Published <RelativeTime date={album.publishedAt.toISOString()} />
+                  </span>
+                ) : null,
+              ]}
             />
+          </span>
+        }
+        description={album.conceptSummary || undefined}
+        actions={
+          <DiscoverAlbumActions
+            albumId={album.id}
+            initialLiked={Boolean(album.likes.length)}
+            initialLikes={album._count.likes}
+            creditsRemaining={credits.remaining}
+            isOwn={isOwn}
+          />
+        }
+      />
+
+      {/* Rem-sized container query: with enlarged text the side column folds under the sequence. */}
+      <div className="@container">
+        <div className="grid grid-cols-1 gap-10 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
+          <div className="flex min-w-0 flex-col gap-10">
+            <section aria-labelledby="sequence-title" className="min-w-0">
+              <h2 id="sequence-title" className="mb-2 text-lg font-semibold text-ink">
+                Sequence
+              </h2>
+              {rows.length ? (
+                <ReadOnlySpine
+                  rows={rows}
+                  themes={themes}
+                  anchorFor={(trackNumber) => (readable.has(trackNumber) ? trackAnchor(trackNumber) : null)}
+                />
+              ) : (
+                <p className="max-w-[65ch] text-sm text-ink-2">
+                  This album was published before any tracks were added.
+                </p>
+              )}
+            </section>
+
+            {readable.size ? (
+              <Section
+                title="Lyrics"
+                description="Each track's story note and the first lines written for it. Select a title in the sequence to jump to it."
+              >
+                {/* A size container: below 20rem (a phone at 200% text) the number column shrinks
+                    to its figures and the excerpt drops its indent, so the words keep room to
+                    stay whole ("understand", "Lighthouse"). */}
+                <ol className="@container border-t border-line">
+                  {rows
+                    .filter((row) => readable.has(row.trackNumber))
+                    .map((row) => {
+                      const excerpt = excerpts.get(row.trackNumber) ?? [];
+                      const story = storyNotes.get(row.trackNumber);
+                      return (
+                        <li
+                          key={row.trackNumber}
+                          id={trackAnchor(row.trackNumber)}
+                          className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 border-b border-line py-4 @max-[20rem]:grid-cols-[auto_minmax(0,1fr)] @max-[20rem]:gap-x-2"
+                        >
+                          <span className="type-figure pt-0.5 text-sm font-semibold text-ink-3">
+                            <span className="sr-only">Track </span>
+                            {pad(row.trackNumber)}
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="break-words text-base font-semibold text-ink hyphens-auto">{row.title}</h3>
+                            {story ? (
+                              <p className="mt-1 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
+                                {story}
+                              </p>
+                            ) : null}
+                            {excerpt.length ? (
+                              <figure className="mt-3">
+                                <blockquote className="max-w-[65ch] border-l border-line-strong pl-3 text-sm leading-relaxed text-ink @max-[20rem]:border-l-0 @max-[20rem]:pl-0">
+                                  {excerpt.map((line, index) => (
+                                    <p key={index} className="break-words">
+                                      {line}
+                                      {index === excerpt.length - 1 ? " …" : null}
+                                    </p>
+                                  ))}
+                                </blockquote>
+                                <figcaption className="mt-1 pl-3 text-xs text-ink-3 @max-[20rem]:pl-0">
+                                  Excerpt: the first written lines
+                                </figcaption>
+                              </figure>
+                            ) : (
+                              <p className="mt-1 text-sm text-ink-3">No lyrics written yet.</p>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                </ol>
+              </Section>
+            ) : null}
           </div>
-          <div className="text-xs text-[var(--muted2)]">
-            Forking creates a private copy in your workspace.
+
+          <div className="flex min-w-0 flex-col gap-8">
+            <Section
+              title="How it holds together"
+              headingLevel={2}
+              description={
+                story.progress && !coherence.insufficient
+                  ? "The Coherence report: what the artist's written tracks score on each dimension, out of 100, weakest first."
+                  : "The Coherence report, scored out of 100 from what the artist has written so far, weakest dimension first."
+              }
+            >
+              {coherence.insufficient ? (
+                <>
+                  <p className="type-figure text-sm font-semibold text-ink">{story.headline}</p>
+                  <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+                    Not enough written to score yet: a score needs lyrics on at least{" "}
+                    {MIN_WRITTEN_TRACKS_FOR_SCORE} tracks.
+                  </p>
+                </>
+              ) : (
+                <>
+                  {/* The One Score Story, as the artist reads it on the Coherence report: the
+                      progress first while tracks are unwritten, then the written tracks' score
+                      and the whole album's, in that order (lib/score-story). */}
+                  <div className="border-b border-line-strong pb-2">
+                    <p className="type-figure text-sm font-semibold text-ink">
+                      {story.progress ? (
+                        <>
+                          {story.progress}
+                          <span className="font-normal text-ink-2"> · {story.verdict}</span>
+                        </>
+                      ) : (
+                        <Chip tone={story.tone}>{story.verdict}</Chip>
+                      )}
+                    </p>
+                    <dl className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
+                      {story.scores.map((figure) => (
+                        <div key={figure.label ?? "overall"} className="flex min-w-0 items-baseline gap-2">
+                          <dt className="text-sm text-ink-2">{figure.label ?? "Overall"}</dt>
+                          <dd className="type-figure text-sm text-ink-2">
+                            <span className="text-lg font-semibold text-ink">{figure.value}</span>/100
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                  {/* The same order and figures as the owner's Coherence report ("By dimension"):
+                      weakest first, and while tracks are unwritten each figure is what the written
+                      tracks score, with the whole album's cap said once under the list. */}
+                  <dl>
+                    {dimensionsWeakestFirst(coherence.breakdown).map((item) => {
+                      const figure = dimensionFigure(item, coherence);
+                      return (
+                        <div key={item.key} className="flex items-baseline justify-between gap-3 border-b border-line py-2">
+                          <dt className="text-sm text-ink-2">{item.label}</dt>
+                          <dd className="type-figure text-sm font-semibold text-ink">
+                            {figure?.label ? <span className="sr-only">{figure.label} </span> : null}
+                            {figure?.value ?? item.score}
+                          </dd>
+                        </div>
+                      );
+                    })}
+                  </dl>
+                  {capLine ? (
+                    <p className="type-figure mt-2 max-w-[65ch] text-xs leading-relaxed text-ink-3">{capLine}</p>
+                  ) : null}
+                </>
+              )}
+            </Section>
+
+            <Section title={isOwn ? "Your album" : "Remixing"}>
+              <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
+                {isOwn
+                  ? "This is how other artists see your album on Discover. Open it in the Studio to keep writing; changes show here as you save them."
+                  : `A remix copies this album's concept, sequence, lyrics and chords into your workspace as a new private album credited to you, opened in the Studio; it keeps a note of the album it came from. It costs ${CREDIT_COSTS.albumFork} credits. The original and its artist are not affected.`}
+              </p>
+              <ButtonLink tone="ghost" href="/app/discover" className="mt-3 -ml-4">
+                Back to Discover
+              </ButtonLink>
+            </Section>
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
-        <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs text-[var(--muted2)]">Tracklist</div>
-              <div className="text-sm font-semibold text-[var(--text)]">Songs</div>
-            </div>
-            <div className="text-xs text-[var(--muted)]">{songs.length} items</div>
-          </div>
-
-          <div className="mt-3 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.08)]">
-            <div className="max-h-[520px] overflow-auto">
-              {songs.length ? (
-                <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
-                  {songs.map((song) => (
-                    <li key={`${song.track_number}-${song.title}`} className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 text-xs tabular-nums text-[var(--muted2)]">
-                          {String(song.track_number).padStart(2, "0")}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold text-[var(--text)]">
-                            {song.title}
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="px-4 py-10 text-center text-sm text-[var(--muted)]">
-                  No songs found in this project.
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <aside className="space-y-3">
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Coherence</div>
-            <div className="mt-1 text-2xl font-semibold text-[var(--text)]">
-              {coherence.score}/100
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {coherence.breakdown.slice(0, 3).map((item) => (
-                <div
-                  key={item.key}
-                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
-                >
-                  {item.label} {item.score}
-                </div>
-              ))}
-            </div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
-              {coherence.nextActions[0]?.title ?? coherence.issues[0]?.title ?? "No issues detected."}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Why publish?</div>
-            <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
-              <div>1. Get feedback signals (likes).</div>
-              <div>2. Let others fork remixes safely.</div>
-              <div>3. Build a catalog of reusable ideas.</div>
-            </div>
-          </div>
-        </aside>
       </div>
     </div>
   );

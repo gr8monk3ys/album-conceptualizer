@@ -2,107 +2,67 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
-import { getAuthSession } from "@/server/auth";
-import { getPrisma } from "@/server/db";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { AlbumJsonSchema } from "@/server/album-json";
-import { buildAlbumMutationData } from "@/server/album-sync";
+import { keepFieldsTheStudioDoesNotEdit, updateAlbumSnapshot } from "@/server/album-sync";
 import { trackProductEventSafe } from "@/server/analytics";
+import { apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
+import { getPrisma } from "@/server/db";
 
 export const runtime = "nodejs";
+
+type Context = { params: Promise<{ albumId: string }> };
 
 const PatchBodySchema = z.object({
   album: AlbumJsonSchema,
   versionMessage: z.string().trim().min(1).max(200).optional(),
 });
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
+export const DELETE = apiHandler(async (_request: Request, { params }: Context) => {
+  const { workspaceId } = await requireWorkspace();
   const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
+  const existing = await requireAlbum(workspaceId, albumId, { id: true });
 
-  const existing = await prisma.album.findFirst({
-    where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true },
-  });
-  if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
-
-  await prisma.album.delete({ where: { id: existing.id } });
+  await getPrisma().album.delete({ where: { id: existing.id } });
   return NextResponse.json({ ok: true });
-}
+});
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
-  const payload = PatchBodySchema.safeParse(await request.json().catch(() => null));
-  if (!payload.success) {
-    return NextResponse.json({ error: "Invalid album payload." }, { status: 400 });
-  }
-
+export const PATCH = apiHandler(async (request: Request, { params }: Context) => {
+  const { userId, workspaceId } = await requireWorkspace();
+  const payload = await parseJsonBody(request, PatchBodySchema, "Invalid album payload.");
   const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
+  const existing = await requireAlbum(workspaceId, albumId, { id: true });
 
-  const existing = await prisma.album.findFirst({
-    where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true },
-  });
-  if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
-
-  // Update updated_at in the JSON snapshot so exports carry correct metadata.
-  const album = {
-    ...payload.data.album,
-    updated_at: new Date().toISOString(),
-  };
-
-  const mutation = buildAlbumMutationData(album);
-
-  await prisma.$transaction(async (tx) => {
-    await tx.song.deleteMany({ where: { albumId: existing.id } });
-    await tx.album.update({
-      where: { id: existing.id },
-      data: {
-        ...mutation,
-      },
-      select: { id: true },
-    });
-
-    if (payload.data.versionMessage) {
+  const album = await getPrisma().$transaction(async (tx) => {
+    // The Studio's copy replaces the album, except the parts it never edits (Sound bible, demos),
+    // which keep what is stored now. The written snapshot carries a fresh updated_at for exports.
+    const { album: saved } = await updateAlbumSnapshot(tx, existing.id, (stored) => ({
+      album: keepFieldsTheStudioDoesNotEdit(stored, payload.album),
+    }));
+    if (payload.versionMessage) {
       await tx.albumVersion.create({
         data: {
           albumId: existing.id,
           createdByUserId: userId,
-          message: payload.data.versionMessage,
-          data: album as Prisma.InputJsonValue,
+          message: payload.versionMessage,
+          data: saved as Prisma.InputJsonValue,
         },
         select: { id: true },
       });
     }
+    return saved;
   });
 
   await trackProductEventSafe({
     name: "album_saved",
-    workspaceId: workspace.id,
+    workspaceId,
     userId,
     albumId: existing.id,
     path: `/api/albums/${existing.id}`,
     metadata: {
-      withVersion: Boolean(payload.data.versionMessage),
+      withVersion: Boolean(payload.versionMessage),
       trackCount: album.songs.length,
     },
   });
 
   return NextResponse.json({ ok: true });
-}
+});

@@ -1,1058 +1,2602 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ComponentProps } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Download, Play, Plus, Save, Trash2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  ArrowUpDown,
+  Check,
+  CircleHelp,
+  Copy,
+  Download,
+  History,
+  Loader2,
+  Play,
+  Plus,
+  RotateCcw,
+  Save,
+  Trash2,
+} from "lucide-react";
 
-import type { AlbumJson } from "@/server/album-json";
+import { CatalogItems } from "@/components/album-card";
+import { previewErrorMessage, usePlayerControls } from "@/components/player/player-provider";
+import { previewFailureMessage } from "@/components/player/preview-errors";
+import { RelativeTime } from "@/components/relative-time";
 import { SectionComments } from "@/components/section-comments";
+import { LeavePrompt } from "@/components/sound-nav";
 import { SongDevelopmentAi } from "@/components/song-development-ai";
-import { usePlayer } from "@/components/player/player-provider";
+import {
+  ALBUM_CONCEPT_INPUT_ID,
+  ALBUM_MOTIFS_INPUT_ID,
+  ALBUM_THEMES_INPUT_ID,
+  ALBUM_TITLE_INPUT_ID,
+  AlbumDetails,
+  albumFocusTarget,
+} from "@/components/studio/album-details";
+import { CHALLENGE_PROMPT_ID, ChallengeBand } from "@/components/studio/challenge-band";
+import { previewBlockedMessage } from "@/components/studio/input-checks";
+import { DeleteConfirm, deleteSectionQuestion, deleteTrackQuestion } from "@/components/studio/delete-confirm";
+import { MoreMenu } from "@/components/studio/more-menu";
+import { MoveTrackForm } from "@/components/studio/move-track-form";
+import { ShortcutsDisclosure } from "@/components/studio/shortcuts-disclosure";
+import { OwnAddresses, addressKey } from "@/components/studio/own-addresses";
+import { TRACKS_TOGGLE_ID, useTracksOpen } from "@/components/studio/tracks-disclosure";
+import { ChordField, TempoField } from "@/components/studio/musical-fields";
+import {
+  SongStoryEditor,
+  SongStoryFields,
+  STORY_FOCUS_TARGETS,
+  StoryFieldsFold,
+  storyFieldsSummary,
+} from "@/components/studio/song-story-editor";
+import {
+  STICKY_MIN_HEIGHT_QUERY,
+  frameWithTarget,
+  saveBarSticks,
+  visibleBelowSticky,
+} from "@/components/studio/sticky-stack";
+import {
+  MOVE_TRACK_DOWN_KEYSHORTCUTS,
+  MOVE_TRACK_UP_KEYSHORTCUTS,
+  SECTION_KEYSHORTCUTS,
+  studioShortcut,
+} from "@/components/studio/studio-shortcuts";
+import {
+  KEY_OPTIONS,
+  SECTION_TYPES,
+  albumFrameKey,
+  albumProblem,
+  albumProblemField,
+  versionSavedText,
+  applyProgressionToType,
+  batchChordsSummary,
+  buildNewSection,
+  buildNewSong,
+  chordsOf,
+  clampIndex,
+  clampTempo,
+  firstUnwrittenSection,
+  isStarterLoopSection,
+  isWritten,
+  mergeRenames,
+  moveItem,
+  moveTrackTo,
+  moveAnnouncement,
+  moveUndoLabel,
+  nextToWrite,
+  normalizeKey,
+  normalizeOrders,
+  removeTrack,
+  renumberTracks,
+  restoreTrack,
+  parseInitialAlbum,
+  readApiError,
+  restoreProgressions,
+  sameTypeTargets,
+  sectionChordSummary,
+  sectionLabels,
+  sectionMoveAnnouncement,
+  sectionMoveUndoLabel,
+  sectionTypeLabel,
+  saveStatusParts,
+  studioDocumentTitle,
+  toggleTheme,
+  trackRenames,
+  tracksSharingTitle,
+  undoTrackMove,
+  unreadableChordsOnAlbum,
+  unreadableChordsStatus,
+  type ChordSnapshot,
+  type TrackRename,
+  type SaveMode,
+  type StudioAlbum,
+  type StudioSection,
+  type StudioSong,
+} from "@/components/studio/studio-model";
+import {
+  MAX_THEME_COLUMNS,
+  STUDIO_GRID_BASE,
+  STUDIO_GRID_COLUMNS,
+  TrackList,
+  TrackThemeToggles,
+  pad2,
+} from "@/components/studio/track-list";
+import { albumPatchBody, sendAlbumPatch, type AlbumPatch } from "@/components/studio/save-transport";
+import { TrackTitle, TRACK_TITLE_ID } from "@/components/studio/track-title";
+import { useUndoWindow } from "@/components/studio/undo-window";
+import { sameKeys, useStableEvent } from "@/components/studio/use-stable-event";
+import { Button, EmptyState, Field, inputClass, selectClass, textareaClass } from "@/components/ui";
+import { andList } from "@/lib/and-list";
+import { invalidChords } from "@/lib/chords";
+import { lyricProgress } from "@/lib/lyrics";
+import { useLeaveGuard } from "@/lib/use-autosave";
+import { cn } from "@/lib/utils";
+import { browserFocusEnv, holdFocus } from "@/lib/focus-hold";
+import { prefersReducedMotion } from "@/lib/motion";
+import { CHALLENGE_PARAM, challengeByKey } from "@/server/challenges";
 
 type SelectionInput = {
   song?: string;
   section?: string;
   sid?: string;
   q?: string;
+  /**
+   * Deep-link focus, always with `song=<trackNumber>` for the track-level ones:
+   * story (Story note) | role: focus that field, under the track title.
+   * song-themes | motifs | characters: open the track's "Themes and motifs", focus that field.
+   * album (the first empty album field) | album-motifs: open Album details, focus that field.
+   * lyrics: select the song's first unwritten section and focus its lyrics.
+   * Older links keep working: themes = song-themes, position = role, album-themes, album-concept.
+   */
+  focus?: string;
 };
-
-function clampIndex(value: number, max: number) {
-  if (max <= 0) return 0;
-  return Math.min(max - 1, Math.max(0, value));
-}
-
-function newId() {
-  // Keep generated ids export-safe even in older browsers and test environments.
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
-      const random = Math.floor(Math.random() * 16);
-      const value = char === "x" ? random : (random & 0x3) | 0x8;
-      return value.toString(16);
-    });
-  }
-}
-
-function parseChordProgression(raw: string): string[] {
-  const tokens = raw
-    .split(/[\n,]+/g)
-    .flatMap((chunk) => chunk.split(/\s+/g))
-    .map((token) => token.trim())
-    .filter(Boolean);
-  return tokens;
-}
-
-function stringifyChordProgression(values: unknown): string {
-  if (!Array.isArray(values)) return "";
-  return values.filter((v) => typeof v === "string").join(" ");
-}
-
-function parseCentralThemes(raw: string): string[] {
-  return raw
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .slice(0, 32);
-}
-
-function buildNewSection(order: number) {
-  return {
-    id: newId(),
-    section_type: "verse",
-    order,
-    lyrics: "",
-    chord_progression: [],
-    notes: "",
-  };
-}
-
-function buildNewSong(trackNumber: number) {
-  return {
-    id: newId(),
-    title: `Track ${trackNumber}`,
-    track_number: trackNumber,
-    key: null,
-    tempo: null,
-    narrative_summary: null,
-    themes: [],
-    motifs: [],
-    characters: [],
-    genre_tags: [],
-    mood_tags: [],
-    reference_tracks: [],
-    instrumentation: [],
-    sections: [buildNewSection(0)],
-  };
-}
-
-function normalizeOrders<T extends { order: number }>(sections: T[]): T[] {
-  return sections.map((section, index) => ({ ...section, order: index }));
-}
-
-function normalizeTrackNumbers<T extends { track_number: number }>(songs: T[]): T[] {
-  return songs.map((song, index) => ({ ...song, track_number: index + 1 }));
-}
 
 type AlbumStudioProps = {
   albumId: string;
   initialAlbum: unknown;
   initialSelection?: SelectionInput;
+  /** From `getAgentAvailability()`: false when AI drafts can't run on this server. */
+  aiAvailable?: boolean;
+  /** The workspace's credit balance, so an AI draft can confirm "You'll have N left." */
+  creditsRemaining?: number;
+  /**
+   * How the artist got here, when the Studio should say so once (`?remixed=1`, set by Remix):
+   * "Remixed into your workspace · 45 credits left" in the save bar until the first edit.
+   */
+  arrival?: "remixed" | null;
 };
 
-function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: AlbumStudioProps) {
-  const initialParsed = useMemo((): { album: AlbumJson; idsWereMissing: boolean } => {
-    const fallback: AlbumJson = {
-      id: newId(),
-      title: "Untitled",
-      artist: null,
-      concept_summary: null,
-      primary_genre: null,
-      secondary_genres: [],
-      era_influence: null,
-      release_year: null,
-      central_themes: [],
-      recurring_motifs: [],
-      reference_albums: [],
-      visual_inspiration: [],
-      rough_demos: [],
-      songs: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+type UndoEntry =
+  | { kind: "track"; song: StudioSong; index: number; label: string; key: number }
+  | { kind: "section"; songId: string; section: StudioSection; index: number; label: string; key: number }
+  /**
+   * A track moved (one place or several, by the menu, Move to position or the shortcut): Undo
+   * puts it back at `from`, where it was before the first of a run of moves, with every name
+   * the moves changed (`renamed`) as it was. `fromTitle` is what it was called there; `label`
+   * is the line beside Undo.
+   */
+  | { kind: "move"; songId: string; from: number; fromTitle: string; renamed: TrackRename[]; label: string; key: number }
+  /**
+   * A section moved (one place or several in a row): Undo puts it back at `from`, where the run
+   * started, and `fromLabel` is what it was called there ("Verse 2").
+   */
+  | { kind: "section-move"; songId: string; sectionId: string; from: number; fromLabel: string; label: string; key: number }
+  | {
+      kind: "chords";
+      songId: string;
+      /** The section whose chords were copied, reselected (and its button refocused) on Undo. */
+      sourceIndex: number;
+      previous: ChordSnapshot[];
+      /** The changed sections' labels, for the announcement when Undo puts them back. */
+      targets: string[];
+      /** What changed, said in the save bar beside Undo ("Set Verse 2 and Verse 3 to C G Am F."). */
+      label: string;
+      key: number;
     };
 
-    if (!initialAlbum || typeof initialAlbum !== "object") {
-      return { album: fallback, idsWereMissing: false };
+/**
+ * The save bar's line beside Undo: what the undoable change did. A track is named by its title,
+ * in quotes (the artist's words); a section by its label, bare ("Deleted Verse 2.").
+ */
+function undoText(entry: UndoEntry) {
+  if (entry.kind === "track") return `Deleted “${entry.label}”.`;
+  if (entry.kind === "section") return `Deleted ${entry.label}.`;
+  return entry.label;
+}
+
+/** "Remixed into your workspace · 45 credits left". */
+function arrivalText(arrival: AlbumStudioProps["arrival"], credits: number | undefined) {
+  if (arrival !== "remixed") return null;
+  if (typeof credits !== "number") return "Remixed into your workspace";
+  return `Remixed into your workspace · ${credits} ${credits === 1 ? "credit" : "credits"} left`;
+}
+
+/** The save bar's Retry, after a failed save. */
+const RETRY_SAVE_ID = "studio-retry-save";
+
+/** A preview's status, shown beside the control that asked for it (the track's or the section's). */
+type PreviewNote = {
+  scope: "track" | "section";
+  tone: "neutral" | "ok" | "danger";
+  text: string;
+  retry?: () => void;
+  /** The Retry button's accessible name, unique on the page ("Retry preview", "Retry MP3"). */
+  retryLabel?: string;
+};
+
+/** The Retry button beside each scope's preview status. */
+const RETRY_IDS: Record<PreviewNote["scope"], string> = {
+  track: "preview-retry-track",
+  section: "preview-retry-section",
+};
+
+function focusedId() {
+  return typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement.id : "";
+}
+
+/**
+ * Where focus goes next and how the page may move to show it. "start" brings `scrollTo` (or
+ * the target) to the top of the view, under the sticky bar, e.g. the section's heading above
+ * its lyrics. `frame` names what should be seen with the target when both fit below the
+ * sticky layers (the track's header above its lyrics); then the frame goes to the top instead.
+ */
+type PendingFocus = {
+  id: string;
+  scroll: "center" | "nearest" | "start" | "none";
+  scrollTo?: string;
+  frame?: string;
+};
+
+/** One empty list for every "not set yet", so memoized children see the same value each render. */
+const NO_ITEMS: string[] = [];
+
+// Every keystroke re-renders the Studio (it owns the album). These parts don't change with the
+// lyrics, so they skip those renders: the AI draft panel (plain props) and the section's
+// comments (the section is compared by what they show of it).
+const SongDevelopmentAiMemo = memo(SongDevelopmentAi);
+type SectionCommentsProps = ComponentProps<typeof SectionComments>;
+const SectionCommentsMemo = memo(
+  SectionComments,
+  (prev: SectionCommentsProps, next: SectionCommentsProps) =>
+    sameKeys(prev, next, ["albumId", "defaultOpen"]) &&
+    sameKeys(prev.section, next.section, ["id", "songTrackNumber", "songTitle", "sectionType", "sectionOrder", "label"]),
+);
+
+/** The track's header ("01 Track 1", Preview song, More, the catalog line). */
+const TRACK_HEADER_ID = "studio-track";
+
+/** Arriving at the lyrics (a "Write track" link, Write next): shown with the track's header. */
+function lyricsArrival(scroll: PendingFocus["scroll"]): PendingFocus {
+  return { id: "section-lyrics", scroll, frame: TRACK_HEADER_ID };
+}
+
+/** A deep link's field, centred; the lyrics (`focus=lyrics`) come with their track's header. */
+function arrivalFocus(target: FocusTarget): PendingFocus {
+  return target.id === "section-lyrics" ? lyricsArrival("center") : { id: target.id, scroll: "center" };
+}
+
+/** The Studio's in-page targets: the editor column, and the current section's editor. */
+const EDITOR_ID = "studio-editor";
+const SECTION_EDITOR_ID = "studio-section-editor";
+const BATCH_CHORDS_ID = "use-chords-everywhere";
+const SECTION_MENU_ID = "section-more";
+const TRACK_MENU_ID = "track-more";
+const DELETE_CONFIRM_ID = "studio-delete-confirm";
+const MOVE_FORM_ID = "studio-move-track";
+const ADD_TRACK_ID = "studio-add-track";
+const ADD_SECTION_ID = "studio-add-section";
+const VERSION_TOGGLE_ID = "save-version-toggle";
+const VERSION_FORM_ID = "studio-version-form";
+const PREVIEW_CHORD_LIMIT = 128;
+
+const AUTOSAVE_DELAY_MS = 2000;
+/**
+ * Adding, deleting or moving a track or section saves at once (on the next task, so a run of
+ * edits in one event is one save): the header and spine follow, and a reload a moment later
+ * already finds the change on the server instead of racing the page's own last-chance save.
+ */
+const STRUCTURAL_SAVE_DELAY_MS = 0;
+
+/** How long "Saved." stays after an explicit save before the relative time returns. */
+const SAVED_FLASH_MS = 4000;
+
+function resolveSelection(album: StudioAlbum, selection: SelectionInput | undefined) {
+  const songs = album.songs;
+  // A section id names one section wherever its track now sits: comment, task and notification
+  // links keep the track number from when they were made, and tracks move.
+  const sidFirst = selection?.sid?.trim();
+  if (sidFirst) {
+    for (let i = 0; i < songs.length; i += 1) {
+      const at = (songs[i]?.sections ?? []).findIndex((s) => s.id === sidFirst);
+      if (at >= 0) return { song: i, section: at };
     }
+  }
+  let song = 0;
+  const track = selection?.song && /^\d+$/.test(selection.song) ? Number(selection.song) : null;
+  if (track != null) {
+    const found = songs.findIndex((s) => s.track_number === track);
+    if (found >= 0) song = found;
+  }
+  const sections = songs[song]?.sections ?? [];
+  let section = 0;
+  const sid = selection?.sid?.trim();
+  if (sid) {
+    const found = sections.findIndex((s) => s.id === sid);
+    if (found >= 0) section = found;
+  } else if (selection?.section && /^\d+$/.test(selection.section)) {
+    const order = Number(selection.section);
+    const found = sections.findIndex((s) => s.order === order);
+    if (found >= 0) section = found;
+  } else if (selection?.focus === "lyrics") {
+    section = Math.max(0, firstUnwrittenSection(sections));
+  }
+  return { song, section };
+}
 
-    const obj = initialAlbum as Partial<AlbumJson>;
-    const rawSongs = Array.isArray(obj.songs) ? obj.songs : [];
-    let idsWereMissing = false;
+type FocusTarget = { id: string; opens: "fields" | "story" | "details" | null };
 
-    const songs = rawSongs
-      .map((song, songIndex) => {
-        const sectionsRaw = Array.isArray(song?.sections) ? song.sections : [];
-        const songId =
-          typeof song?.id === "string" && song.id.trim().length > 0
-            ? song.id
-            : (() => {
-                return newId();
-              })();
+/** A deep-link `focus` value → the field to focus and the disclosure that holds it. */
+function focusTargetFor(focus: string | undefined | null, album: StudioAlbum): FocusTarget | null {
+  switch (focus) {
+    // Story note and Role sit under the track title (folded below 42rem, so they open it).
+    case "story":
+      return { id: STORY_FOCUS_TARGETS.story, opens: "fields" };
+    case "role":
+    case "position":
+      return { id: STORY_FOCUS_TARGETS.role, opens: "fields" };
+    case "themes":
+    case "song-themes":
+      return { id: STORY_FOCUS_TARGETS.themes, opens: "story" };
+    case "motifs":
+      return { id: STORY_FOCUS_TARGETS.motifs, opens: "story" };
+    case "characters":
+      return { id: STORY_FOCUS_TARGETS.characters, opens: "story" };
+    case "album":
+      return { id: albumFocusTarget(album), opens: "details" };
+    case "album-themes":
+      return { id: ALBUM_THEMES_INPUT_ID, opens: "details" };
+    case "album-concept":
+      return { id: ALBUM_CONCEPT_INPUT_ID, opens: "details" };
+    case "album-motifs":
+      return { id: ALBUM_MOTIFS_INPUT_ID, opens: "details" };
+    case "lyrics":
+      return { id: "section-lyrics", opens: null };
+    default:
+      return null;
+  }
+}
 
-        const sections = normalizeOrders(
-          sectionsRaw
-            .map((section, sectionIndex) => {
-              const sectionId =
-                typeof section?.id === "string" && section.id.trim().length > 0
-                  ? section.id
-                  : (() => {
-                    idsWereMissing = true;
-                    return newId();
-                  })();
+/**
+ * After the page has scrolled to show a target's surroundings (the skip link brings the
+ * section's heading to the top), make sure the focused target itself can be seen below the
+ * sticky layers: at 320px with 200% text the heading row alone can fill the window. Checked
+ * once the scroll has settled (`scrollend`, or a timeout where no scroll happened).
+ */
+function revealWhenSettled(el: HTMLElement) {
+  let done = false;
+  let timer = 0;
+  const check = () => {
+    if (done) return;
+    done = true;
+    window.clearTimeout(timer);
+    window.removeEventListener("scrollend", check);
+    const offset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sticky-offset")) || 0;
+    const rect = el.getBoundingClientRect();
+    if (visibleBelowSticky(rect, offset, window.innerHeight)) return;
+    // Taller than the room under the sticky layers: its top, under them; otherwise all of it.
+    const room = window.innerHeight - offset;
+    el.scrollIntoView({ block: rect.height > room ? "start" : "nearest", behavior: "auto" });
+  };
+  window.addEventListener("scrollend", check);
+  timer = window.setTimeout(check, prefersReducedMotion() ? 50 : 900);
+}
 
-              const chordProgression = Array.isArray(section?.chord_progression)
-                ? section.chord_progression
-                : [];
+/** The page's scroll padding in px (globals.css: --sticky-offset plus 1rem). */
+function pageScrollPadding() {
+  const root = document.documentElement;
+  const padding = parseFloat(getComputedStyle(root).scrollPaddingTop);
+  if (Number.isFinite(padding)) return padding;
+  return parseFloat(getComputedStyle(root).getPropertyValue("--sticky-offset")) || 0;
+}
 
-              return {
-                ...section,
-                id: sectionId,
-                order: typeof section?.order === "number" ? section.order : sectionIndex,
-                chord_progression: chordProgression,
-              };
-            })
-            .sort((a, b) => a.order - b.order),
-        );
+/** "Track 4, " when the next section to write is on another track. */
+function trackPrefix(song: StudioSong | undefined) {
+  return song ? `Track ${song.track_number}, ` : "";
+}
 
-        return {
-          ...song,
-          id: songId,
-          track_number:
-            typeof song?.track_number === "number" ? song.track_number : songIndex + 1,
-          themes: Array.isArray(song?.themes) ? song.themes : [],
-          motifs: Array.isArray(song?.motifs) ? song.motifs : [],
-          characters: Array.isArray(song?.characters) ? song.characters : [],
-          genre_tags: Array.isArray(song?.genre_tags) ? song.genre_tags : [],
-          mood_tags: Array.isArray(song?.mood_tags) ? song.mood_tags : [],
-          reference_tracks: Array.isArray(song?.reference_tracks) ? song.reference_tracks : [],
-          instrumentation: Array.isArray(song?.instrumentation) ? song.instrumentation : [],
-          sections,
-        };
-      })
-      .sort((a, b) => a.track_number - b.track_number);
+function useAlbumStudioRender({
+  albumId,
+  initialAlbum,
+  initialSelection,
+  aiAvailable = false,
+  creditsRemaining,
+  arrival = null,
+}: AlbumStudioProps) {
+  const router = useRouter();
+  const player = usePlayerControls();
+  const initialParsed = useMemo(() => parseInitialAlbum(initialAlbum), [initialAlbum]);
+  const initialTarget = focusTargetFor(initialSelection?.focus, initialParsed.album);
 
-    const albumIdFromJson =
-      typeof obj.id === "string" && obj.id.trim().length > 0
-        ? obj.id
-        : (() => {
-            return newId();
-          })();
-
-    return {
-      idsWereMissing,
-      album: {
-        ...fallback,
-        ...obj,
-        id: albumIdFromJson,
-        songs: normalizeTrackNumbers(songs),
-        central_themes: Array.isArray(obj.central_themes) ? obj.central_themes : [],
-        secondary_genres: Array.isArray(obj.secondary_genres) ? obj.secondary_genres : [],
-        recurring_motifs: Array.isArray(obj.recurring_motifs) ? obj.recurring_motifs : [],
-        reference_albums: Array.isArray(obj.reference_albums) ? obj.reference_albums : [],
-        visual_inspiration: Array.isArray(obj.visual_inspiration) ? obj.visual_inspiration : [],
-        rough_demos: Array.isArray(obj.rough_demos) ? obj.rough_demos : [],
-      },
-    };
-  }, [initialAlbum]);
-
-  const [album, setAlbum] = useState<AlbumJson>(initialParsed.album);
-  const [selectedSong, setSelectedSong] = useState(0);
-  const [selectedSection, setSelectedSection] = useState(0);
-  const [centralThemesText, setCentralThemesText] = useState(() =>
-    (initialParsed.album.central_themes ?? []).join(", "),
-  );
+  const [album, setAlbum] = useState<StudioAlbum>(initialParsed.album);
+  const [selection, setSelection] = useState(() => resolveSelection(initialParsed.album, initialSelection));
   const [versionMessage, setVersionMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(
+    typeof initialParsed.album.updated_at === "string" ? initialParsed.album.updated_at : null,
+  );
+  const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [stableIdsPersisted, setStableIdsPersisted] = useState(!initialParsed.idsWereMissing);
   const [previewing, setPreviewing] = useState(false);
-  const [previewStatus, setPreviewStatus] = useState<string | null>(null);
+  const [previewNote, setPreviewNote] = useState<PreviewNote | null>(null);
+  const [undo, setUndo] = useState<UndoEntry | null>(null);
+  // The inline "Delete … and its written lyrics?" question, for the track or section it was
+  // asked about (`at`: the selection it belongs to; moving elsewhere drops it).
+  const [confirmDelete, setConfirmDelete] = useState<{ kind: "track" | "section"; at: string; question: string } | null>(
+    null,
+  );
+  // "Move to position…" open under the track header, for the track it was opened on (its id).
+  const [moveFormFor, setMoveFormFor] = useState<string | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<PendingFocus | null>(() =>
+    initialTarget ? arrivalFocus(initialTarget) : null,
+  );
+  // In one column the track list folds into "Sequence · 04 of 10 · …" (remembered for the session).
+  const [tracksOpen, setTracksOpen] = useTracksOpen();
+  // Below 42rem the track's Role and Story note fold into one line under its title.
+  const [storyFieldsOpen, setStoryFieldsOpen] = useState(() => initialTarget?.opens === "fields");
+  const [storyOpen, setStoryOpen] = useState(() => initialTarget?.opens === "story");
+  const [detailsOpen, setDetailsOpen] = useState(() => initialTarget?.opens === "details");
+  // "Save version…" in the save bar opens its name field inline, in the bar.
+  const [versionOpen, setVersionOpen] = useState(false);
+  // Save version pressed with no note: the bar says what it needs.
+  const [versionNeedsName, setVersionNeedsName] = useState(false);
+  // The save bar sticks only while it and the header leave most of the window for writing.
+  const [barSticks, setBarSticks] = useState(true);
+  // A link to one section (`sid`, e.g. from Comments and tasks) opens its comments.
+  const [commentsOpenAtStart] = useState(() => Boolean(initialSelection?.sid));
+  const [navAnnouncement, setNavAnnouncement] = useState("");
+  // The Undo whose delete was just announced: its first focus leaves out the same words.
+  const [quietUndoKey, setQuietUndoKey] = useState<number | null>(null);
+  // Said once on arrival (read from the first render's props, since the URL is cleaned below)
+  // and dismissed by the first edit.
+  const [arrivalNote, setArrivalNote] = useState(() => arrivalText(arrival, creditsRemaining));
+  // The arrival line is written into the save bar's live region after the page has mounted (a
+  // region that is already filled when it appears is never announced), so it is said once.
+  const [arrivalLive, setArrivalLive] = useState(false);
+  // When the arrival left focus nowhere (Remix's confirm is gone), the line takes it, as the
+  // restore and create arrivals' lines do (ArrivalStatus `takeFocus`); then focus is what reads
+  // it, and the live region stays out of it, so it is heard once.
+  const [arrivalTakesFocus, setArrivalTakesFocus] = useState(false);
+  const arrivalLineRef = useRef<HTMLSpanElement | null>(null);
 
-  const player = usePlayer();
+  // Today's challenge, pinned above the lyrics while `?challenge=<key>` is in the address (the
+  // Challenges page's "Take the challenge"). It stays through track changes (the address sync
+  // below keeps the parameter); Hide drops it, for this key.
+  const challengeKey = useSearchParams().get(CHALLENGE_PARAM);
+  const [hiddenChallenge, setHiddenChallenge] = useState<string | null>(null);
+  const pinnedChallenge = challengeKey && challengeKey !== hiddenChallenge ? challengeByKey(challengeKey) : null;
 
-  const songs = useMemo(() => album.songs ?? [], [album.songs]);
-  const activeSong = songs[selectedSong];
+  const albumRef = useRef(album);
+  const revisionRef = useRef(0);
+  const savingRef = useRef(false);
+  const queuedRef = useRef<SaveMode | null>(null);
+  // The save in flight, so leaving the Studio can wait for it before saving what's left.
+  const inFlightRef = useRef<Promise<boolean> | null>(null);
+  // The save in flight and the revision it carries: when it went with keepalive, leaving then
+  // needs no second copy of it.
+  const patchInFlightRef = useRef<{ revision: number; patch: AlbumPatch } | null>(null);
+  const dirtyRef = useRef(false);
+  const frameKeyRef = useRef(albumFrameKey(album));
+  const structuralRef = useRef(false);
+  const saveRef = useRef<(mode: SaveMode) => Promise<boolean>>(async () => false);
+  const stepRef = useRef<(what: "track" | "section", dir: -1 | 1) => void>(() => {});
+  const moveKeyRef = useRef<(dir: -1 | 1) => void>(() => {});
+  const saveBarRef = useRef<HTMLDivElement | null>(null);
+
+  // Deep links (?song=N&section=M&sid=…&focus=…) select a track and section. They are applied
+  // on first render and again whenever the link itself changes, never on ordinary edits. The
+  // addresses the Studio writes itself (below) come back as props after a layout refresh that
+  // started on a track the writer has since left: those leave the selection where it is.
+  const [ownAddresses] = useState(() => new OwnAddresses());
+  // The layout refresh after a save that changed the album's frame, pending until it commits.
+  const [refreshing, startRefresh] = useTransition();
+  // Where the page was scrolled as a layout refresh commits (read in a layout effect below).
+  const refreshCommitRef = useRef(false);
+  const selectionKey = [initialSelection?.song, initialSelection?.section, initialSelection?.sid, initialSelection?.focus].join("|");
+  const [appliedSelectionKey, setAppliedSelectionKey] = useState(selectionKey);
+  if (appliedSelectionKey !== selectionKey) {
+    setAppliedSelectionKey(selectionKey);
+    if (!ownAddresses.isEcho(initialSelection ?? {})) {
+      if (initialSelection?.song) setSelection(resolveSelection(album, initialSelection));
+      const target = focusTargetFor(initialSelection?.focus, album);
+      if (target) {
+        setPendingFocus(arrivalFocus(target));
+        if (target.opens === "fields") setStoryFieldsOpen(true);
+        else if (target.opens === "story") setStoryOpen(true);
+        else if (target.opens === "details") setDetailsOpen(true);
+      }
+    }
+  }
+
+  const songs = album.songs;
+  const songIndex = clampIndex(selection.song, songs.length);
+  const activeSong: StudioSong | undefined = songs[songIndex];
   const sections = useMemo(() => activeSong?.sections ?? [], [activeSong?.sections]);
-  const activeSection = sections[selectedSection];
+  const sectionIndex = clampIndex(selection.section, sections.length);
+  const activeSection: StudioSection | undefined = sections[sectionIndex];
+  const labels = useMemo(() => sectionLabels(sections), [sections]);
+  const activeLabel = labels[sectionIndex] ?? "Section";
+  const confirmAt = `${activeSong?.id ?? ""}|${activeSection?.id ?? ""}`;
+  if (confirmDelete && confirmDelete.at !== confirmAt) setConfirmDelete(null);
+  if (moveFormFor && moveFormFor !== activeSong?.id) setMoveFormFor(null);
 
   useEffect(() => {
-    const desiredTrack =
-      initialSelection?.song && /^\d+$/.test(initialSelection.song)
-        ? Number(initialSelection.song)
-        : null;
-    if (!desiredTrack) return;
+    albumRef.current = album;
+  }, [album]);
 
-    const index = songs.findIndex((song) => song.track_number === desiredTrack);
-    if (index >= 0) setSelectedSong(index);
-  }, [initialSelection?.song, songs]);
-
+  // The sticky stack (app header + save bar) is measured, not assumed, and published as
+  // --sticky-offset on <html> while the Studio is mounted: the page's scroll padding reads it,
+  // so a focused field never hides under the bar, and the track list sticks just below it. It
+  // follows the bar's real height (it grows while the version field is open; Undo and Retry lie
+  // over the status, so they never change it). The bar sticks only on a window at least
+  // 31.3125em tall (em, so it follows the text size) and only while header + bar cover less than
+  // 35% of it; otherwise it scrolls away with the page and only the header (while it sticks) is
+  // counted.
   useEffect(() => {
-    const desiredSid = initialSelection?.sid?.trim();
-    if (!desiredSid) return;
-    const index = sections.findIndex((section) => section.id === desiredSid);
-    if (index >= 0) setSelectedSection(index);
-  }, [initialSelection?.sid, sections]);
-
-  useEffect(() => {
-    if (initialSelection?.sid) return;
-    const desiredOrder =
-      initialSelection?.section && /^\d+$/.test(initialSelection.section)
-        ? Number(initialSelection.section)
-        : null;
-    if (desiredOrder == null) return;
-
-    const index = sections.findIndex((section) => section.order === desiredOrder);
-    if (index >= 0) setSelectedSection(index);
-  }, [initialSelection?.section, initialSelection?.sid, sections]);
-
-  useEffect(() => {
-    if (!dirty) return;
-    const handler = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
+    const bar = saveBarRef.current;
+    if (!bar) return;
+    const root = document.documentElement;
+    const header = bar.closest("main")?.previousElementSibling;
+    const appHeader = header instanceof HTMLElement && header.tagName === "HEADER" ? header : null;
+    const stuck = (el: HTMLElement) => /^(sticky|fixed)$/.test(getComputedStyle(el).position);
+    const tall = window.matchMedia(STICKY_MIN_HEIGHT_QUERY);
+    // The docked preview player (playerbar.tsx) is fixed to the bottom and counts toward the
+    // same share. It publishes its height as the page's bottom scroll padding whenever it docks,
+    // resizes or leaves, so a change to <html>'s style is when to look at it again.
+    let player: Element | null = null;
+    const measure = () => {
+      const docked = document.getElementById("preview-player");
+      if (docked !== player) {
+        if (player) observer.unobserve(player);
+        if (docked) observer.observe(docked);
+        player = docked;
+      }
+      const headerHeight = appHeader && stuck(appHeader) ? appHeader.getBoundingClientRect().height : 0;
+      const barHeight = bar.getBoundingClientRect().height;
+      const sticks = saveBarSticks({
+        tallEnough: tall.matches,
+        headerHeight,
+        barHeight,
+        playerHeight: player ? player.getBoundingClientRect().height : 0,
+        viewportHeight: window.innerHeight,
+      });
+      setBarSticks(sticks);
+      const offset = `${Math.round(headerHeight + (sticks ? barHeight : 0))}px`;
+      // Written only when it changes: the write is itself a style change the observer sees.
+      if (root.style.getPropertyValue("--sticky-offset") !== offset) root.style.setProperty("--sticky-offset", offset);
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    const observer = new ResizeObserver(measure);
+    const styleWatch = new MutationObserver(measure);
+    measure();
+    observer.observe(bar);
+    if (appHeader) observer.observe(appHeader);
+    styleWatch.observe(root, { attributes: true, attributeFilter: ["style"] });
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      styleWatch.disconnect();
+      window.removeEventListener("resize", measure);
+      root.style.removeProperty("--sticky-offset");
+    };
+  }, []);
+
+  // Moves focus once the target exists: a deep-linked field, a restored row, Undo. Once there,
+  // it is held for a moment (`holdFocus`: only while focus is lost, never taken from where the
+  // writer moved it), because a layout refresh that lands after it (every outline change saves
+  // and refreshes) can drop focus to the page body: seen once after Undo of a track move.
+  const focusHoldRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => focusHoldRef.current?.(), []);
+  useEffect(() => {
+    if (!pendingFocus) return;
+    focusHoldRef.current?.();
+    focusHoldRef.current = null;
+    const frame = requestAnimationFrame(() => {
+      let el = document.getElementById(pendingFocus.id);
+      // A track's row inside the folded list (one column) can't take focus: its summary can.
+      if (el && pendingFocus.id.startsWith("track-row-") && !el.getClientRects().length) {
+        el = document.getElementById(TRACKS_TOGGLE_ID) ?? el;
+      }
+      if (el) {
+        el.focus({ preventScroll: true });
+        const heldId = el.id;
+        focusHoldRef.current = holdFocus(() => document.getElementById(heldId), browserFocusEnv());
+        // "none" keeps the page still unless the target is out of sight (e.g. Undo in the
+        // save bar on a short screen, where the bar scrolls away with the page).
+        const rect = el.getBoundingClientRect();
+        const offScreen = rect.bottom < 0 || rect.top > window.innerHeight;
+        const frameEl = pendingFocus.frame ? document.getElementById(pendingFocus.frame) : null;
+        const framing =
+          frameEl && pendingFocus.scroll !== "none"
+            ? frameWithTarget(frameEl.getBoundingClientRect(), rect, pageScrollPadding(), window.innerHeight)
+            : null;
+        if (framing === "stay") {
+          // The header and the lyrics are both in view already.
+        } else if (framing === "frame" && frameEl) {
+          // The header just under the save bar, the lyrics below it: the page's scroll padding
+          // (--sticky-offset plus 1rem) places it; nothing here adds an offset of its own.
+          frameEl.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+        } else if (pendingFocus.scroll !== "none" || offScreen) {
+          const scrollEl = (pendingFocus.scrollTo && document.getElementById(pendingFocus.scrollTo)) || el;
+          // The page's scroll padding (globals.css, from --sticky-offset) keeps it clear of
+          // the header and save bar; nothing here adds its own offset.
+          scrollEl.scrollIntoView({
+            block: pendingFocus.scroll === "none" ? "nearest" : pendingFocus.scroll,
+            behavior: prefersReducedMotion() ? "auto" : "smooth",
+          });
+          // Scrolled to the surroundings: the focused field itself must end up in view too.
+          if (scrollEl !== el) revealWhenSettled(el);
+        }
+      }
+      setPendingFocus(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingFocus, songIndex]);
+
+  useEffect(() => {
+    dirtyRef.current = dirty;
   }, [dirty]);
 
+  // The arrival line is said once: drop `?remixed=1` from the address (keeping the rest), so a
+  // reload or a shared link doesn't announce the remix again. In place, like the address sync
+  // below: a navigation would re-render from the server with the address it started from.
   useEffect(() => {
-    setCentralThemesText((album.central_themes ?? []).join(", "));
-  }, [album.central_themes]);
+    if (!arrival) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("remixed")) return;
+    url.searchParams.delete("remixed");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [arrival]);
 
-  function markDirty() {
+  // A layout refresh keeps the focused field on screen. Next.js scrolls a refreshed page when
+  // the address's query differs from the one the page was rendered for (to its top, or to the
+  // refreshed segment, and not always in the same frame), and the Studio keeps `?song=…&sid=…`
+  // in step with the screen, so a refresh after an outline change (add, move, delete, Undo)
+  // could leave the field that had just been focused below the fold. So once the refresh has
+  // committed, for a moment after it, the field that has focus is brought back into view if it
+  // was pushed off screen, unless the writer has scrolled or typed since (then it's theirs).
+  useLayoutEffect(() => {
+    if (refreshing) {
+      refreshCommitRef.current = true;
+      return;
+    }
+    if (!refreshCommitRef.current) return;
+    refreshCommitRef.current = false;
+    const target = document.activeElement;
+    if (!(target instanceof HTMLElement) || target === document.body) return;
+    let writerMoved = false;
+    const mark = () => {
+      writerMoved = true;
+    };
+    const listen = { capture: true, passive: true } as const;
+    window.addEventListener("wheel", mark, listen);
+    window.addEventListener("touchmove", mark, listen);
+    window.addEventListener("keydown", mark, listen);
+    const keepInView = () => {
+      if (writerMoved || document.activeElement !== target || !target.isConnected) return;
+      const box = target.getBoundingClientRect();
+      // Off screen, or with no line of it showing above the bottom edge.
+      if (box.top > window.innerHeight - 48 || box.bottom < 48) {
+        target.scrollIntoView({ block: "center", behavior: "instant" });
+      }
+    };
+    const stopListening = () => {
+      window.removeEventListener("wheel", mark, listen);
+      window.removeEventListener("touchmove", mark, listen);
+      window.removeEventListener("keydown", mark, listen);
+    };
+    const frame = requestAnimationFrame(keepInView);
+    const timers = [
+      window.setTimeout(keepInView, 150),
+      window.setTimeout(() => {
+        keepInView();
+        stopListening();
+      }, 400),
+    ];
+    return () => {
+      cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      stopListening();
+    };
+  }, [refreshing]);
+
+  // A hidden challenge leaves the address too, so a reload doesn't pin it again. In place, and
+  // never while a layout refresh is on its way (see the address sync below).
+  useEffect(() => {
+    if (!hiddenChallenge || refreshing) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get(CHALLENGE_PARAM) !== hiddenChallenge) return;
+    url.searchParams.delete(CHALLENGE_PARAM);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [hiddenChallenge, refreshing]);
+
+  // The address follows the track and section on screen (?song=N&sid=…), so a reload, Back or a
+  // copied link opens what the writer was looking at, even after a move renumbers the track.
+  // History is replaced in place, not navigated: nothing re-renders from the server. Never while
+  // a layout refresh is on its way: Next.js takes an address changed under it for another page
+  // and loads the Studio afresh, dropping the words typed meanwhile. It follows once it lands.
+  const shownTrack = activeSong?.track_number;
+  const shownSection = activeSection?.id;
+  useEffect(() => {
+    if (shownTrack == null || refreshing) return;
+    const url = new URL(window.location.href);
+    const song = String(shownTrack);
+    ownAddresses.wrote(addressKey(song, shownSection));
+    // One-shot hints (`section`, `focus`) go once applied, even when the track and section match.
+    const oneShot = url.searchParams.has("section") || url.searchParams.has("focus");
+    if (!oneShot && url.searchParams.get("song") === song && url.searchParams.get("sid") === (shownSection ?? null)) return;
+    url.searchParams.set("song", song);
+    if (shownSection) url.searchParams.set("sid", shownSection);
+    else url.searchParams.delete("sid");
+    // One-shot hints that described the arrival, not where the writer is now.
+    url.searchParams.delete("section");
+    url.searchParams.delete("focus");
+    // `null` state, as Next.js documents: it syncs the router, so a later refresh keeps it.
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    // Again after every link applied, so its one-shot hints go too.
+  }, [shownTrack, shownSection, appliedSelectionKey, ownAddresses, refreshing]);
+
+  // The tab names the track on screen, once the selection has settled. The page's own title
+  // (Next.js metadata) streams in after the page and comes again with a layout refresh: the
+  // track goes back into it, only while the Studio is on screen, so the next page's is its own.
+  const documentTitle = studioDocumentTitle(activeSong, album.title);
+  useEffect(() => {
+    const apply = () => {
+      if (document.title !== documentTitle) document.title = documentTitle;
+    };
+    apply();
+    const studio = saveBarRef.current;
+    const observer = new MutationObserver(() => {
+      if (studio?.isConnected) apply();
+    });
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [documentTitle]);
+
+  useEffect(() => {
+    if (!arrival) return;
+    const timer = window.setTimeout(() => {
+      // Decided before the line moves, so its words go to exactly one place.
+      const active = document.activeElement;
+      setArrivalTakesFocus(!active || active === document.body);
+      setArrivalLive(true);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [arrival]);
+
+  useLayoutEffect(() => {
+    if (!arrivalLive || !arrivalTakesFocus) return;
+    const active = document.activeElement;
+    if (!active || active === document.body) arrivalLineRef.current?.focus({ preventScroll: true });
+  }, [arrivalLive, arrivalTakesFocus]);
+
+  // Leaving the Studio never drops words. An in-app link click saves first (waiting for any
+  // save in flight) and then navigates; only if that save fails does the viewer choose.
+  // Closing or reloading the tab still asks, and sends a last keepalive save.
+  const leaveGuard = useLeaveGuard({
+    when: dirty || saving,
+    beforeLeave: saveBeforeLeave,
+    onUnload: sendKeepaliveSave,
+  });
+
+  // Exits the link guard can't intercept (Back/Forward, a programmatic navigation) unmount
+  // the Studio: send whatever is unsaved with keepalive so it survives the page going away.
+  useEffect(() => {
+    return () => {
+      if (dirtyRef.current) sendKeepaliveSave();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, on unmount
+  }, []);
+
+  // Undo waits for people (WCAG 2.2.1): its 10 s clock stops while it has focus or the pointer,
+  // and restarts in full when both leave. Should it lapse with focus inside, focus moves to the
+  // row the change was about and the page says Undo is gone, never leaving focus on nothing.
+  const undoWindow = useUndoWindow(undo?.key ?? null, (focusInside) => {
+    const lapsed = undo;
+    setUndo(null);
+    if (!focusInside || !lapsed) return;
+    setPendingFocus({ id: undoLapseFocusId(lapsed), scroll: "nearest" });
+    setNavAnnouncement("Undo is no longer available.");
+  });
+
+  // Below 22em an offer lies over the save bar's actions, which hide under it. Should one of
+  // them hold focus then (Save now, whose save just failed), focus moves to the offer's own
+  // button before the frame is painted, so it is never left on nothing.
+  const saveActionsRef = useRef<HTMLDivElement>(null);
+  const retryOffered = Boolean(saveError && !saving);
+  const anyOffer = retryOffered || Boolean(undo);
+  useLayoutEffect(() => {
+    const group = saveActionsRef.current;
+    const active = document.activeElement;
+    if (!anyOffer || !group || !(active instanceof HTMLElement) || !group.contains(active)) return;
+    if (getComputedStyle(group).visibility !== "hidden") return;
+    document.getElementById(retryOffered ? RETRY_SAVE_ID : "studio-undo")?.focus();
+  }, [anyOffer, retryOffered]);
+
+  /** Where focus goes when Undo lapses under it: the affected track's or section's row. */
+  function undoLapseFocusId(entry: UndoEntry): string {
+    if (entry.kind === "track") {
+      const song = songs[songIndex];
+      return song?.id ? `track-row-${song.id}` : ADD_TRACK_ID;
+    }
+    if (entry.kind === "move") return `track-row-${entry.songId}`;
+    if (entry.kind === "section-move") return `section-row-${entry.sectionId}`;
+    const owner = songs.find((song) => song.id === entry.songId);
+    const list = owner?.sections ?? [];
+    const section = entry.kind === "chords" ? list[entry.sourceIndex] : list[Math.min(entry.index, list.length - 1)];
+    return section?.id ? `section-row-${section.id}` : ADD_SECTION_ID;
+  }
+
+  useEffect(() => {
+    if (!savedFlash) return;
+    const timer = window.setTimeout(() => setSavedFlash(null), SAVED_FLASH_MS);
+    return () => window.clearTimeout(timer);
+  }, [savedFlash]);
+
+  // ------------------------------------------------------------------ saving
+
+  /** Refresh the album's frame (release header, credits meter) from the server, in place. */
+  function refreshFrame() {
+    startRefresh(() => router.refresh());
+  }
+
+  /** Save before leaving: wait for a save in flight, then save anything still unsaved. */
+  async function saveBeforeLeave(): Promise<boolean> {
+    if (inFlightRef.current) await inFlightRef.current;
+    if (!dirtyRef.current) return true;
+    return saveRef.current("auto");
+  }
+
+  /**
+   * A last-chance save that outlives the page (keepalive), in the room a save in flight leaves
+   * it. Best effort: a body keepalive can't carry goes without it and may not survive the page
+   * going, which is why in-app navigation saves normally first.
+   */
+  function sendKeepaliveSave() {
+    const snapshot = albumRef.current;
+    if (albumProblem(snapshot)) return;
+    // A save already on its way with these very edits outlives the page by itself.
+    const inFlight = patchInFlightRef.current;
+    if (inFlight?.revision === revisionRef.current && inFlight.patch.keepalive()) return;
+    void sendAlbumPatch(albumId, albumPatchBody(snapshot), "last-chance").response.catch(() => undefined);
+  }
+
+  /** Focus on the title a save is waiting for: the album's, or the first untitled track's. */
+  function focusMissingTitle(snapshot: StudioAlbum) {
+    const at = albumProblemField(snapshot);
+    if (at?.field === "album-title") {
+      openAlbumField(ALBUM_TITLE_INPUT_ID);
+    } else if (at?.field === "track-title") {
+      if (at.index !== songIndex) setSelection({ song: at.index, section: 0 });
+      setPendingFocus({ id: TRACK_TITLE_ID, scroll: "center" });
+    }
+  }
+
+  /** Save the album. Resolves true once this album state is on the server. */
+  function save(mode: SaveMode): Promise<boolean> {
+    if (savingRef.current) {
+      // Never two saves at once: an explicit save waits for the one in flight, then runs.
+      if (mode !== "auto") queuedRef.current = mode;
+      return inFlightRef.current ?? Promise.resolve(false);
+    }
+    const run = runSave(mode);
+    inFlightRef.current = run;
+    void run.finally(() => {
+      if (inFlightRef.current === run) inFlightRef.current = null;
+    });
+    return run;
+  }
+
+  async function runSave(mode: SaveMode): Promise<boolean> {
+    const snapshot = albumRef.current;
+    const problem = albumProblem(snapshot);
+    if (problem) {
+      setSaveError(problem);
+      // A save the writer asked for goes to the title it needs; an autosave never moves focus.
+      if (mode !== "auto") focusMissingTitle(snapshot);
+      return false;
+    }
+    const revision = revisionRef.current;
+    const message = mode === "version" ? versionMessage.trim() || undefined : undefined;
+
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError(null);
+    if (mode !== "auto") setSavedFlash(null);
+    // Sent with keepalive when it leaves room for a last-chance save, so a reload or a closed
+    // tab while it is on its way doesn't cancel it (a delete, then an at-once reload).
+    const patch = sendAlbumPatch(albumId, albumPatchBody(snapshot, message), "routine");
+    patchInFlightRef.current = { revision, patch };
+    try {
+      const response = await patch.response;
+      if (!response.ok) {
+        throw new Error(await readApiError(response, "Something went wrong on our side."));
+      }
+      setLastSavedAt(new Date().toISOString());
+      setStableIdsPersisted(true);
+      if (revisionRef.current === revision) setDirty(false);
+      if (mode === "version") setVersionMessage("");
+      if (mode !== "auto") {
+        // Saved, but honestly: chords the exports can't read are said with it.
+        const unreadable = unreadableChordsOnAlbum(snapshot.songs).count;
+        const saved = mode === "version" ? versionSavedText(message) : "Saved.";
+        setSavedFlash(unreadable ? `${saved} ${unreadableChordsStatus(unreadable)}.` : saved);
+      }
+      // The album's shared frame (release header, track count, spine on the other tabs) is
+      // rendered by the layout; refresh it whenever this save changed something it shows.
+      const frameKey = albumFrameKey(snapshot);
+      if (frameKey !== frameKeyRef.current) {
+        frameKeyRef.current = frameKey;
+        refreshFrame();
+      }
+      return true;
+    } catch (err) {
+      // Only an unreachable server: a keepalive the browser refused was already sent again.
+      const offline = err instanceof TypeError;
+      setSaveError(
+        offline
+          ? "The server can't be reached. Your edits are still here."
+          : err instanceof Error && err.message
+            ? err.message
+            : "Something went wrong on our side.",
+      );
+      return false;
+    } finally {
+      if (patchInFlightRef.current?.patch === patch) patchInFlightRef.current = null;
+      savingRef.current = false;
+      setSaving(false);
+      const queued = queuedRef.current;
+      queuedRef.current = null;
+      if (queued) void saveRef.current(queued);
+    }
+  }
+
+  useEffect(() => {
+    saveRef.current = save;
+  });
+
+  // Autosave ~2s after the last edit (sooner after a structural change), only when there is
+  // something to save and nothing in flight.
+  useEffect(() => {
+    if (!dirty || saving || saveError) return;
+    const delay = structuralRef.current ? STRUCTURAL_SAVE_DELAY_MS : AUTOSAVE_DELAY_MS;
+    const timer = window.setTimeout(() => {
+      structuralRef.current = false;
+      void saveRef.current("auto");
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [album, dirty, saving, saveError]);
+
+  // Ctrl/⌘+S saves; Alt+PageUp/PageDown (anywhere) and Alt+↑/↓ (outside text fields) move
+  // between tracks, with Shift between sections; Ctrl+Alt+Shift with the same keys moves the
+  // selected track one place. See studio-shortcuts.ts for the rules.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const shortcut = studioShortcut(event, event.target instanceof Element ? (event.target as HTMLElement) : null);
+      if (!shortcut) return;
+      event.preventDefault();
+      if (shortcut.kind === "save") void saveRef.current("manual");
+      else if (shortcut.kind === "move") moveKeyRef.current(shortcut.dir);
+      else stepRef.current(shortcut.what, shortcut.dir);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // ------------------------------------------------------------------ editing
+
+  function edit(updater: (prev: StudioAlbum) => StudioAlbum) {
+    setAlbum(updater);
+    revisionRef.current += 1;
     setDirty(true);
-    setStatus(null);
+    setSaveError(null);
+    setSavedFlash(null);
+    setArrivalNote(null);
   }
 
   function selectSong(index: number) {
-    setSelectedSong(clampIndex(index, songs.length));
-    setSelectedSection(0);
+    setSelection({ song: clampIndex(index, songs.length), section: 0 });
   }
 
+  /**
+   * Choosing a section (its row or chip): focus stays on it, so the page says what is now in
+   * the editor, as stepping with Alt+Shift+PageUp/PageDown does ("Chorus 1, section 2 of 2").
+   */
   function selectSection(index: number) {
-    setSelectedSection(clampIndex(index, sections.length));
+    const next = clampIndex(index, sections.length);
+    setSelection({ song: songIndex, section: next });
+    if (sections[next]) announce(`${labels[next] ?? "Section"}, section ${next + 1} of ${sections.length}`);
   }
 
-  async function previewFromChords(chords: string[], opts: { title: string; subtitle: string }) {
-    setPreviewing(true);
-    setPreviewStatus(null);
+  /** Keyboard stepping: keeps focus on the equivalent control of the newly selected item. */
+  function step(what: "track" | "section", dir: -1 | 1) {
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const activeId = active?.id ?? "";
+    if (what === "track") {
+      const next = songIndex + dir;
+      const song = songs[next];
+      if (!song) return;
+      setSelection({ song: next, section: 0 });
+      setNavAnnouncement(`Track ${pad2(song.track_number)}: ${song.title || "Untitled"}`);
+      if (activeId.startsWith("track-row-")) setPendingFocus({ id: `track-row-${song.id}`, scroll: "none" });
+      else if (activeId) setPendingFocus({ id: activeId, scroll: "none" });
+    } else {
+      const next = sectionIndex + dir;
+      const section = sections[next];
+      if (!section) return;
+      setSelection({ song: songIndex, section: next });
+      setNavAnnouncement(`${labels[next] ?? "Section"}, section ${next + 1} of ${sections.length}`);
+      if (activeId.startsWith("section-row-")) setPendingFocus({ id: `section-row-${section.id}`, scroll: "none" });
+      else if (activeId) setPendingFocus({ id: activeId, scroll: "none" });
+    }
+  }
 
-    // Best-effort: unlock audio on this click. If it fails, we can still load the preview and
-    // the user can press Play in the playerbar to start audio.
-    void player.arm().catch(() => null);
+  useEffect(() => {
+    stepRef.current = step;
+    moveKeyRef.current = moveByKey;
+  });
 
-    try {
-      const response = await fetch("/api/midi/preview", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          chords,
-          tempo: activeSong?.tempo ?? 120,
-          barsPerChord: 1,
-          title: opts.title,
-        }),
-      });
+  function updateSongField<K extends keyof StudioSong>(key: K, value: StudioSong[K]) {
+    edit((prev) => ({
+      ...prev,
+      songs: prev.songs.map((song, i) => (i === songIndex ? { ...song, [key]: value } : song)),
+    }));
+  }
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `Preview failed (${response.status}).`);
+  function updateSections(songId: string | undefined, fn: (sections: StudioSection[]) => StudioSection[]) {
+    edit((prev) => ({
+      ...prev,
+      songs: prev.songs.map((song, i) =>
+        (songId ? song.id === songId : i === songIndex) ? { ...song, sections: normalizeOrders(fn(song.sections ?? [])) } : song,
+      ),
+    }));
+  }
+
+  function updateSectionField<K extends keyof StudioSection>(key: K, value: StudioSection[K]) {
+    updateSections(activeSong?.id, (list) => list.map((s, i) => (i === sectionIndex ? { ...s, [key]: value } : s)));
+  }
+
+  /**
+   * Selecting from the track list. In one column (a phone, enlarged text) the editor sits below
+   * the whole list, so the page brings up the track's lyrics: the current section's heading
+   * and its Lyrics draft, just under the save bar, which names the track. Focus stays on the
+   * row, so no keyboard opens on a phone.
+   */
+  function openTrack(index: number) {
+    selectSong(index);
+    requestAnimationFrame(() => {
+      const editor = document.getElementById(EDITOR_ID);
+      const list = document.getElementById("studio-tracks-title")?.closest("section");
+      if (!editor || !list) return;
+      const stacked = editor.getBoundingClientRect().top >= list.getBoundingClientRect().bottom - 1;
+      if (!stacked) return;
+      const target = document.getElementById(SECTION_EDITOR_ID) ?? document.getElementById("studio-track");
+      target?.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    });
+  }
+
+  /** The Studio's skip link: straight to the current section's lyrics (or the track's title). */
+  function skipToLyrics() {
+    if (activeSection) setPendingFocus({ id: "section-lyrics", scroll: "start", scrollTo: SECTION_EDITOR_ID });
+    else if (activeSong) setPendingFocus({ id: TRACK_TITLE_ID, scroll: "start", scrollTo: "studio-track" });
+    else setPendingFocus({ id: EDITOR_ID, scroll: "start" });
+  }
+
+  function addTrack() {
+    const index = songs.length;
+    structuralRef.current = true;
+    edit((prev) => ({ ...prev, songs: renumberTracks([...prev.songs, buildNewSong(prev.songs.length + 1)]) }));
+    setSelection({ song: index, section: 0 });
+    setPendingFocus({ id: TRACK_TITLE_ID, scroll: "nearest" });
+  }
+
+  /**
+   * Says `text` in the page's polite line, even when it is the same words as the last thing
+   * said there (deleting "Track 3", then the track that became "Track 3"): a trailing no-break
+   * space alternates, so the region's text changes and is read again.
+   */
+  function announce(text: string) {
+    setNavAnnouncement((prev) => (text && prev === text ? `${text}\u00a0` : text));
+  }
+
+  /**
+   * A delete, said once: "Deleted “Track 3”." in the polite line, while focus goes to Undo
+   * (in the sticky save bar). That first focus leaves out Undo's description (the same words),
+   * so it is heard as "Undo, button"; once focus has left it, Undo is described again.
+   */
+  function announceDeleted(entry: UndoEntry) {
+    announce(undoText(entry));
+    setQuietUndoKey(entry.key);
+    setPendingFocus({ id: "studio-undo", scroll: "none" });
+  }
+
+  // Deleting never moves the page: the next item is selected in place and focus goes to Undo,
+  // which sits in the sticky save bar.
+  function deleteTrack(index: number) {
+    const song = songs[index];
+    if (!song) return;
+    structuralRef.current = true;
+    // Renumbered, and default names ("Track 3") follow their new numbers.
+    edit((prev) => ({ ...prev, songs: removeTrack(prev.songs, index) }));
+    const entry: UndoEntry = { kind: "track", song, index, label: song.title || `Track ${song.track_number}`, key: Date.now() };
+    setUndo(entry);
+    setSelection({ song: Math.max(0, Math.min(index, songs.length - 2)), section: 0 });
+    announceDeleted(entry);
+  }
+
+  /**
+   * "Delete track" from the track's More menu. A track holding written lyrics asks first, inline,
+   * naming what goes; an empty or starter-only track goes at once, with Undo.
+   */
+  function requestDeleteTrack() {
+    const song = songs[songIndex];
+    if (!song) return;
+    setMoveFormFor(null);
+    const written = (song.sections ?? []).filter((section) => isWritten(section.lyrics)).length;
+    if (!written) {
+      deleteTrack(songIndex);
+      return;
+    }
+    setConfirmDelete({ kind: "track", at: confirmAt, question: deleteTrackQuestion(song.title, song.track_number, written) });
+  }
+
+  /** "Delete section": asks first when the section's lyrics are written. */
+  function requestDeleteSection() {
+    const section = sections[sectionIndex];
+    if (!section) return;
+    if (!isWritten(section.lyrics)) {
+      deleteSection(sectionIndex);
+      return;
+    }
+    setConfirmDelete({ kind: "section", at: confirmAt, question: deleteSectionQuestion(activeLabel) });
+  }
+
+  /** The confirmed delete: as the instant one (Undo, focus to Undo) once the artist said yes. */
+  function confirmDeleteNow() {
+    const kind = confirmDelete?.kind;
+    setConfirmDelete(null);
+    if (kind === "track") deleteTrack(songIndex);
+    else if (kind === "section") deleteSection(sectionIndex);
+  }
+
+  /** Cancel or Escape: nothing deleted, focus back on the "More" button that asked. */
+  function cancelDelete() {
+    const kind = confirmDelete?.kind;
+    setConfirmDelete(null);
+    setPendingFocus({ id: kind === "section" ? SECTION_MENU_ID : TRACK_MENU_ID, scroll: "none" });
+  }
+
+  function deleteConfirm(kind: "track" | "section") {
+    return confirmDelete?.kind === kind ? (
+      <DeleteConfirm
+        id={DELETE_CONFIRM_ID}
+        question={confirmDelete.question}
+        onConfirm={confirmDeleteNow}
+        onCancel={cancelDelete}
+      />
+    ) : null;
+  }
+
+  /** Adds a verse at the end of the track, selects it and puts focus in its lyrics, and says so. */
+  function addSection() {
+    const index = sections.length;
+    const added = buildNewSection(index);
+    structuralRef.current = true;
+    updateSections(activeSong?.id, (list) => [...list, added]);
+    setSelection({ song: songIndex, section: index });
+    setPendingFocus({ id: "section-lyrics", scroll: "nearest" });
+    const label = sectionLabels([...sections, added])[index] ?? "Section";
+    setNavAnnouncement(`${label} added, section ${index + 1} of ${index + 1}.`);
+  }
+
+  function deleteSection(index: number) {
+    const section = sections[index];
+    if (!activeSong?.id || !section) return;
+    structuralRef.current = true;
+    updateSections(activeSong.id, (list) => list.filter((_, i) => i !== index));
+    const entry: UndoEntry = { kind: "section", songId: activeSong.id, section, index, label: labels[index] ?? "Section", key: Date.now() };
+    setUndo(entry);
+    setSelection({ song: songIndex, section: Math.max(0, Math.min(index, sections.length - 2)) });
+    announceDeleted(entry);
+  }
+
+  function restoreDeleted() {
+    if (!undo) return;
+    if (undo.kind === "track") {
+      const { song, index } = undo;
+      structuralRef.current = true;
+      edit((prev) => ({ ...prev, songs: restoreTrack(prev.songs, song, index) }));
+      setSelection({ song: index, section: 0 });
+      setPendingFocus({ id: `track-row-${song.id}`, scroll: "nearest" });
+      setNavAnnouncement(`Put back “${undo.label}”.`);
+    } else if (undo.kind === "move") {
+      // Back to where the run of moves started, in one step, every name as it was then.
+      const { songId, from, renamed } = undo;
+      const at = songs.findIndex((s) => s.id === songId);
+      if (at >= 0) {
+        const to = clampIndex(from, songs.length);
+        structuralRef.current = true;
+        edit((prev) => ({ ...prev, songs: undoTrackMove(prev.songs, songId, from, renamed) ?? prev.songs }));
+        setSelection({ song: to, section: sectionIndex });
+        setNavAnnouncement(`Moved back to track ${to + 1} of ${songs.length}.`);
       }
+      setPendingFocus({ id: `track-row-${songId}`, scroll: "nearest" });
+    } else if (undo.kind === "section-move") {
+      // Back to where the run of moves started, in one step.
+      const { songId, sectionId, from } = undo;
+      const owner = songs.findIndex((s) => s.id === songId);
+      const list = songs[owner]?.sections ?? [];
+      const at = list.findIndex((s) => s.id === sectionId);
+      const to = clampIndex(from, list.length);
+      const back = moveItem(list, at, to);
+      if (owner >= 0 && back) {
+        updateSections(songId, (current) => moveItem(current, at, to) ?? current);
+        setSelection({ song: owner, section: to });
+        setNavAnnouncement(`Moved ${sectionLabels(back)[to] ?? "the section"} back to section ${to + 1} of ${list.length}.`);
+      }
+      setPendingFocus({ id: `section-row-${sectionId}`, scroll: "nearest" });
+    } else if (undo.kind === "section") {
+      const { songId, section, index } = undo;
+      const owner = songs.findIndex((s) => s.id === songId);
+      updateSections(songId, (list) => {
+        const next = [...list];
+        next.splice(Math.min(index, next.length), 0, section);
+        return next;
+      });
+      if (owner >= 0) setSelection({ song: owner, section: index });
+      setPendingFocus({ id: `section-row-${section.id}`, scroll: "nearest" });
+      setNavAnnouncement(`Put back ${undo.label}.`);
+    } else {
+      const { songId, previous, sourceIndex, targets } = undo;
+      const owner = songs.findIndex((s) => s.id === songId);
+      updateSections(songId, (list) => restoreProgressions(list, previous));
+      if (owner >= 0) setSelection({ song: owner, section: sourceIndex });
+      // The sections differ again, so the batch button is back: focus returns to it.
+      setPendingFocus({ id: BATCH_CHORDS_ID, scroll: "nearest" });
+      setNavAnnouncement(`Put the earlier chords back on ${andList(targets)}.`);
+    }
+    setUndo(null);
+  }
 
+  /**
+   * Batch harmony: this section's chords on every other section of its type on this track, at
+   * once, with a 10-second Undo in the save bar that names what changed. Focus goes to Undo
+   * (the button that asked disappears, since nothing is left to apply).
+   */
+  function applyChordsToType() {
+    const songId = activeSong?.id;
+    if (!songId) return;
+    const result = applyProgressionToType(sections, sectionIndex);
+    if (!result) return;
+    const changedLabels = result.changed.map((i) => labels[i] ?? "Section");
+    updateSections(songId, () => result.sections);
+    setUndo({
+      kind: "chords",
+      songId,
+      sourceIndex: sectionIndex,
+      previous: result.previous,
+      targets: changedLabels,
+      label: batchChordsSummary(changedLabels, chordsOf(activeSection)),
+      key: Date.now(),
+    });
+    setPendingFocus({ id: "studio-undo", scroll: "none" });
+  }
+
+  /**
+   * Moves the current section one place, named by its label ("Moved Chorus 1 to section 1 of
+   * 2."), and shows the move with Undo like a track's; moves of one section in a row share one
+   * Undo, which puts it back where the run started.
+   */
+  function moveSection(index: number, dir: -1 | 1) {
+    const target = index + dir;
+    const section = sections[index];
+    const moved = moveItem(sections, index, target);
+    const songId = activeSong?.id;
+    if (!section || !moved || !songId) return;
+    updateSections(songId, (list) => moveItem(list, index, target) ?? list);
+    setSelection({ song: songIndex, section: target });
+    const before = labels[index] ?? "Section";
+    const after = sectionLabels(moved)[target] ?? before;
+    setNavAnnouncement(sectionMoveAnnouncement(before, after, target, sections.length));
+    if (!section.id) return;
+    const prior = undo?.kind === "section-move" && undo.sectionId === section.id ? undo : null;
+    const from = prior ? prior.from : index;
+    const fromLabel = prior ? prior.fromLabel : before;
+    if (from === target) {
+      // Back where the run started: nothing is left to undo.
+      setUndo(null);
+      return;
+    }
+    setUndo({
+      kind: "section-move",
+      songId,
+      sectionId: section.id,
+      from,
+      fromLabel,
+      label: sectionMoveUndoLabel(fromLabel, after, from, target),
+      key: Date.now(),
+    });
+  }
+
+  /**
+   * Moves the track at `index` to `to` (one place or many) and renumbers the album; the moved
+   * track stays selected. Said like any move: announced, and shown in the save bar with Undo.
+   * Moves of the same track in a row share one Undo, which takes it back to where the first
+   * started (moving it down three times, then Undo, puts it back where it was). Returns
+   * whether it moved, and "back" when it is back where the run of moves started.
+   */
+  function moveTrackToIndex(index: number, to: number): "moved" | "back" | null {
+    const song = songs[index];
+    const moved = moveTrackTo(songs, index, to);
+    if (!moved || !song?.id) return null;
+    const songId = song.id;
+    structuralRef.current = true;
+    edit((prev) => ({ ...prev, songs: moveTrackTo(prev.songs, index, to) ?? prev.songs }));
+    setSelection({ song: to, section: sectionIndex });
+    // Named as the writer knew it; a default name follows its new number ("Track 1" becomes
+    // "Track 2"), so such a track is named by its place and its new name follows.
+    setNavAnnouncement(moveAnnouncement(song.title, moved[to]?.title ?? "", index, to, songs.length));
+    // Sighted writers see the move too, where a delete is shown, with Undo: a default name
+    // changes with its number, so the line says where the track came from.
+    const prior = undo?.kind === "move" && undo.songId === songId ? undo : null;
+    const from = prior ? prior.from : index;
+    const fromTitle = prior ? prior.fromTitle : song.title;
+    const renamed = mergeRenames(prior?.renamed ?? [], trackRenames(songs, moved));
+    if (from === to) {
+      // Moved back to where it started: nothing is left to undo.
+      setUndo(null);
+      return "back";
+    }
+    setUndo({
+      kind: "move",
+      songId,
+      from,
+      fromTitle,
+      renamed,
+      label: moveUndoLabel(fromTitle, moved[to]?.title ?? "", from, to),
+      key: Date.now(),
+    });
+    return "moved";
+  }
+
+  function moveTrackBy(index: number, dir: -1 | 1) {
+    moveTrackToIndex(index, index + dir);
+  }
+
+  /**
+   * Ctrl+Alt+Shift+PageUp/PageDown (or ↑/↓ outside text fields): the selected track one place.
+   * Focus stays where it was (a track row follows its track); at either end it says so.
+   */
+  function moveByKey(dir: -1 | 1) {
+    const song = songs[songIndex];
+    if (!song) return;
+    const activeId = focusedId();
+    const result = moveTrackToIndex(songIndex, songIndex + dir);
+    if (!result) {
+      const name = song.title.trim() || "Untitled";
+      setNavAnnouncement(dir < 0 ? `“${name}” is already the first track.` : `“${name}” is already the last track.`);
+      return;
+    }
+    // The row is re-inserted in its new place, and Undo is replaced, which can drop focus: put
+    // it back (on the track's row when the Undo it was on is gone).
+    const undoGone = activeId === "studio-undo" && result === "back";
+    if (activeId) setPendingFocus({ id: undoGone ? `track-row-${song.id}` : activeId, scroll: "none" });
+  }
+
+  /** "Move to position…" from the track's More menu: the inline form, focus on its select. */
+  function openMoveForm() {
+    if (!activeSong?.id) return;
+    setConfirmDelete(null);
+    setMoveFormFor(activeSong.id);
+  }
+
+  /** The form's Move: one step to the chosen place, then focus back to More. */
+  function moveFromForm(to: number) {
+    setMoveFormFor(null);
+    moveTrackToIndex(songIndex, to);
+    setPendingFocus({ id: TRACK_MENU_ID, scroll: "none" });
+  }
+
+  /** Cancel or Escape: nothing moved, focus back on the "More" button that asked. */
+  function cancelMoveForm() {
+    setMoveFormFor(null);
+    setPendingFocus({ id: TRACK_MENU_ID, scroll: "none" });
+  }
+
+  /** The track list's theme toggles: tag or untag one track with one central theme. */
+  function toggleTrackTheme(index: number, theme: string) {
+    edit((prev) => ({
+      ...prev,
+      songs: prev.songs.map((song, i) => (i === index ? { ...song, themes: toggleTheme(song.themes, theme) } : song)),
+    }));
+  }
+
+  const upNext = activeSong ? nextToWrite(songs, songIndex, sectionIndex) : null;
+
+  function writeNext() {
+    if (!upNext) return;
+    const song = songs[upNext.song];
+    setSelection(upNext);
+    setPendingFocus(lyricsArrival("nearest"));
+    const label = sectionLabels(song?.sections ?? [])[upNext.section] ?? "Section";
+    setNavAnnouncement(upNext.song === songIndex ? label : `Track ${song?.track_number}: ${song?.title || "Untitled"}, ${label}`);
+  }
+
+  /** Saves a named version from the save bar's inline field, then closes it (focus to its trigger). */
+  async function saveVersion() {
+    if (!versionMessage.trim()) {
+      // Unavailable without a note, but never silent: said beside the button, like Post comment.
+      setVersionNeedsName(true);
+      return;
+    }
+    const ok = await save("version");
+    if (ok) closeVersion();
+  }
+
+  function openVersion() {
+    setVersionOpen(true);
+    setPendingFocus({ id: "version-message", scroll: "none" });
+  }
+
+  function closeVersion() {
+    setVersionOpen(false);
+    setVersionNeedsName(false);
+    setPendingFocus({ id: VERSION_TOGGLE_ID, scroll: "none" });
+  }
+
+  const unreadable = useMemo(() => unreadableChordsOnAlbum(songs), [songs]);
+
+  /** "Saved · 2 chords won't export" goes to the first chord field that has one. */
+  function goToUnreadableChords() {
+    const first = unreadable.first;
+    if (!first) return;
+    setSelection(first);
+    setPendingFocus({ id: "section-chords", scroll: "center" });
+    const song = songs[first.song];
+    const label = sectionLabels(song?.sections ?? [])[first.section] ?? "Section";
+    setNavAnnouncement(`Track ${song?.track_number}: ${song?.title || "Untitled"}, ${label}, chord progression`);
+  }
+
+  /** The first save turns comments on; focus moves from the button that goes to the thread. */
+  async function saveToTurnOnComments() {
+    const fromButton = focusedId() === "save-for-comments";
+    const ok = await save("manual");
+    if (ok && fromButton && activeSection?.id) {
+      setPendingFocus({ id: `comments-${activeSection.id}-toggle`, scroll: "none" });
+    }
+  }
+
+  function openAlbumField(id: string) {
+    setDetailsOpen(true);
+    setPendingFocus({ id, scroll: "center" });
+  }
+
+  // ------------------------------------------------------------------ previews
+
+  const songTitle = activeSong ? activeSong.title || `Track ${activeSong.track_number}` : "";
+
+  /**
+   * Renders the chords on the server and loads them into the player. Every failure is said
+   * where the preview was asked for, with its cause and Retry; the docked player only opens
+   * for a preview that loaded.
+   */
+  async function previewFromChords(chords: string[], subtitle: string, scope: PreviewNote["scope"], openerId: string) {
+    const retry = () => {
+      // Retry leaves while the preview renders; hand focus back to Preview (busy, so it keeps
+      // it) so a second failure can bring it to the new Retry.
+      if (focusedId() === RETRY_IDS[scope]) document.getElementById(openerId)?.focus({ preventScroll: true });
+      void previewFromChords(chords, subtitle, scope, openerId);
+    };
+    const fail = (text: string) => {
+      setPreviewNote({ scope, tone: "danger", text, retry });
+      // Focus follows to Retry only from the Preview button that asked: never away from a
+      // field the artist went back to while it rendered.
+      if (focusedId() === openerId) setPendingFocus({ id: RETRY_IDS[scope], scroll: "none" });
+    };
+    const clipped = chords.length > PREVIEW_CHORD_LIMIT;
+    setPreviewing(true);
+    setPreviewNote({ scope, tone: "neutral", text: "Rendering preview…" });
+    // Best effort: unlock audio on this click so playback can start right away.
+    void player.arm().catch(() => null);
+    try {
+      let response: Response;
+      try {
+        response = await fetch("/api/midi/preview", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            chords: chords.slice(0, PREVIEW_CHORD_LIMIT),
+            tempo: clampTempo(activeSong?.tempo),
+            barsPerChord: 1,
+            title: songTitle,
+          }),
+        });
+      } catch {
+        fail(previewFailureMessage("offline"));
+        return;
+      }
+      if (!response.ok) {
+        fail(
+          await readApiError(
+            response,
+            "Couldn't render this preview: the server couldn't turn these chords into sound. Retry in a minute.",
+          ),
+        );
+        return;
+      }
       const midi = await response.arrayBuffer();
-      await player.loadMidi({ midi, title: opts.title, subtitle: opts.subtitle });
-
+      try {
+        await player.loadMidi({ midi, title: songTitle, subtitle, returnFocusId: openerId });
+      } catch (err) {
+        fail(previewErrorMessage(err));
+        return;
+      }
+      setPreviewNote(
+        clipped
+          ? { scope, tone: "neutral", text: `Previewing the first ${PREVIEW_CHORD_LIMIT} chords of this track.` }
+          : null,
+      );
       try {
         await player.play();
       } catch {
-        setPreviewStatus("Preview loaded. Press Play in the playerbar to start audio.");
+        setPreviewNote({ scope, tone: "neutral", text: "Preview loaded. Press Play in the player to start it." });
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Preview failed.";
-      setPreviewStatus(message);
     } finally {
       setPreviewing(false);
     }
   }
 
-  async function downloadMp3FromChords(chords: string[], opts: { title: string; subtitle: string }) {
+  async function downloadMp3(chords: string[], subtitle: string) {
+    const retry = () => {
+      // Retry leaves while the MP3 renders: focus goes back to the menu it came from.
+      if (focusedId() === RETRY_IDS.section) document.getElementById(SECTION_MENU_ID)?.focus({ preventScroll: true });
+      void downloadMp3(chords, subtitle);
+    };
+    const failed = "Couldn't make an MP3 of these chords. Preview still plays them here.";
     setPreviewing(true);
-    setPreviewStatus(null);
+    setPreviewNote({ scope: "section", tone: "neutral", text: "Rendering MP3…" });
     try {
       const response = await fetch("/api/audio/preview/mp3", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          chords,
-          tempo: activeSong?.tempo ?? 120,
-          barsPerChord: 1,
-          title: opts.title,
-        }),
+        body: JSON.stringify({ chords, tempo: clampTempo(activeSong?.tempo), barsPerChord: 1, title: songTitle }),
       });
-
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `MP3 render failed (${response.status}).`);
+        setPreviewNote({ scope: "section", tone: "danger", text: await readApiError(response, failed), retry, retryLabel: "Retry MP3" });
+        return;
       }
-
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const safe = `${opts.title} ${opts.subtitle}`.trim() || "preview";
-      const filename = `${safe.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_")}.mp3`;
+      const safe = `${songTitle} ${subtitle}`.trim() || "preview";
       const a = document.createElement("a");
       a.href = url;
-      a.download = filename;
+      a.download = `${safe.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_")}.mp3`;
       a.rel = "noreferrer";
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      setPreviewStatus("MP3 downloaded.");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "MP3 render failed.";
-      setPreviewStatus(message);
+      setPreviewNote({ scope: "section", tone: "ok", text: "MP3 downloaded." });
+    } catch {
+      setPreviewNote({ scope: "section", tone: "danger", text: previewFailureMessage("offline"), retry, retryLabel: "Retry MP3" });
     } finally {
       setPreviewing(false);
     }
   }
 
-  async function previewSection() {
-    if (!activeSong || !activeSection) return;
-    const chords = Array.isArray(activeSection.chord_progression)
-      ? activeSection.chord_progression.map((c) => String(c).trim()).filter(Boolean)
-      : [];
+  /** Chords the exports can't read stop a preview before it starts, naming them. */
+  function blockedBy(list: StudioSection[], scope: PreviewNote["scope"]) {
+    const flagged = list.filter((section) => invalidChords(section.chord_progression).length);
+    if (!flagged.length) return false;
+    const bad = flagged.flatMap((section) => invalidChords(section.chord_progression));
+    // The whole-track preview says which sections to fix; a section's own preview needn't.
+    const where = scope === "track" ? flagged.map((section) => labels[sections.indexOf(section)] ?? "Section") : [];
+    setPreviewNote({ scope, tone: "danger", text: previewBlockedMessage(bad, where) });
+    return true;
+  }
+
+  function previewSection() {
+    const chords = chordsOf(activeSection);
     if (!chords.length) {
-      setPreviewStatus("Add a chord progression to preview.");
+      setPreviewNote({ scope: "section", tone: "neutral", text: "Add a chord progression to preview this section." });
       return;
     }
-    await previewFromChords(chords, {
-      title: activeSong.title || `Track ${activeSong.track_number}`,
-      subtitle: `${activeSection.section_type} #${activeSection.order + 1}`,
-    });
+    if (activeSection && blockedBy([activeSection], "section")) return;
+    void previewFromChords(chords, activeLabel, "section", "preview-section");
   }
 
-  async function previewSong() {
-    if (!activeSong) return;
-    const chords = Array.isArray(activeSong.sections)
-      ? activeSong.sections.flatMap((section) =>
-          Array.isArray(section.chord_progression)
-            ? section.chord_progression.map((c) => String(c).trim()).filter(Boolean)
-            : [],
-        )
-      : [];
+  function previewSong() {
+    const chords = sections.flatMap((section) => chordsOf(section));
     if (!chords.length) {
-      setPreviewStatus("Add chord progressions to preview this track.");
+      setPreviewNote({ scope: "track", tone: "neutral", text: "Add chord progressions to the sections to preview this track." });
       return;
     }
-    await previewFromChords(chords, {
-      title: activeSong.title || `Track ${activeSong.track_number}`,
-      subtitle: "Full track preview",
-    });
+    if (blockedBy(sections, "track")) return;
+    void previewFromChords(chords, "Whole track", "track", "preview-song");
   }
 
-  async function downloadSectionMp3() {
-    if (!activeSong || !activeSection) return;
-    const chords = Array.isArray(activeSection.chord_progression)
-      ? activeSection.chord_progression.map((c) => String(c).trim()).filter(Boolean)
-      : [];
+  function downloadSectionMp3() {
+    const chords = chordsOf(activeSection);
     if (!chords.length) {
-      setPreviewStatus("Add a chord progression to render MP3.");
+      setPreviewNote({ scope: "section", tone: "neutral", text: "Add a chord progression to render an MP3." });
       return;
     }
-    await downloadMp3FromChords(chords, {
-      title: activeSong.title || `Track ${activeSong.track_number}`,
-      subtitle: `${activeSection.section_type} #${activeSection.order + 1}`,
-    });
+    if (activeSection && blockedBy([activeSection], "section")) return;
+    void downloadMp3(chords, activeLabel);
   }
 
-  async function save(opts?: { withVersion?: boolean }) {
-    setSaving(true);
-    setStatus(null);
-    try {
-      const body = {
-        album: {
-          ...album,
-          central_themes: parseCentralThemes(centralThemesText),
-        },
-        versionMessage: opts?.withVersion ? versionMessage.trim() || undefined : undefined,
-      };
+  // ------------------------------------------------------------------ render
 
-      const response = await fetch(`/api/albums/${albumId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
+  const progress = lyricProgress(sections);
+  const batchTargets = activeSection ? sameTypeTargets(sections, sectionIndex) : [];
+  // Shorthand keys ("C", "Am") read as the select's own spelling, so both agree.
+  const keyValue = normalizeKey(activeSong?.key) ?? "";
+  const sectionType = activeSection?.section_type ?? "verse";
+  const sectionTypeKnown = SECTION_TYPES.some((t) => t.value === sectionType);
+  const themeColumns = Math.min(MAX_THEME_COLUMNS, (album.central_themes ?? []).filter((t) => t.trim()).length);
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `Save failed (${response.status}).`);
-      }
+  // Saving has one live region, and it speaks only for results: a save the artist asked for,
+  // once it is done ("Saved."), and a save that failed. "Saving…" (a Save now's too), autosave's
+  // quiet cycle and the ticking "Saved · 3 minutes ago" sit beside it, shown but never announced.
+  // The remix arrival is the one exception: said once, through the live region, after mount.
+  const status = saveStatusParts({ saving, error: saveError, flash: savedFlash, dirty, lastSavedAt });
+  const settled = status.quiet === "saved-at" || status.quiet === "no-changes";
+  const arrivalShown = Boolean(arrivalNote && settled);
+  const arrivalFocused = arrivalShown && arrivalLive && arrivalTakesFocus;
+  const arrivalSpoken = arrivalShown && arrivalLive && !status.live && !arrivalFocused;
+  const liveStatus = status.live || (arrivalSpoken ? arrivalNote : "");
+  const quietStatus =
+    status.quiet === "saving" ? (
+      "Saving…"
+    ) : status.quiet === "unsaved" ? (
+      "Unsaved changes"
+    ) : arrivalShown ? (
+      // Until the first edit, the arrival line stands where "Saved · …" would; before the
+      // page has mounted it sits here, then moves into the live region to be announced.
+      arrivalSpoken ? null : (
+        <span
+          ref={arrivalLineRef}
+          tabIndex={arrivalFocused ? -1 : undefined}
+          data-focus-landing=""
+          className="text-ink"
+        >
+          {arrivalNote}
+        </span>
+      )
+    ) : settled && unreadable.count ? (
+      // Saved, but not everything will export: say so, and go to the first field that has one.
+      <>
+        Saved ·{" "}
+        <button
+          type="button"
+          onClick={goToUnreadableChords}
+          title="Go to the first chord the exports can't read"
+          className="relative ml-1 text-left text-warn underline decoration-warn/50 underline-offset-4 after:absolute after:-inset-y-3 after:inset-x-0 after:content-[''] hover:decoration-warn"
+        >
+          {unreadableChordsStatus(unreadable.count)}
+        </button>
+      </>
+    ) : status.quiet === "saved-at" && lastSavedAt ? (
+      <>
+        Saved · <RelativeTime date={lastSavedAt} />
+      </>
+    ) : status.quiet === "no-changes" ? (
+      "No changes yet"
+    ) : null;
 
-      setAlbum((prev) => ({
-        ...prev,
-        updated_at: new Date().toISOString(),
-        central_themes: parseCentralThemes(centralThemesText),
-      }));
-      setDirty(false);
-      setStableIdsPersisted(true);
-      setVersionMessage("");
-      setStatus(opts?.withVersion ? "Saved + versioned." : "Saved.");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Save failed.";
-      setStatus(message);
-    } finally {
-      setSaving(false);
-    }
+  const writeNextLabel = upNext
+    ? `${upNext.song === songIndex ? "" : trackPrefix(songs[upNext.song])}${
+        sectionLabels(songs[upNext.song]?.sections ?? [])[upNext.section] ?? "Section"
+      }`
+    : "";
+
+  const currentTrack = activeSong ? `${pad2(activeSong.track_number)} · ${activeSong.title.trim() || "Untitled"}` : null;
+
+  // One quiet row: the current track (so a phone writer knows where they are while typing) and
+  // the save status, with Undo or Retry laid over them while offered (so the bar never reflows),
+  // keyboard hints (only with a fine pointer and room for them), then the actions: Help,
+  // "Save version…" (its name field opens inline, below) and a ghost "Save now", as one group
+  // with short visible names below 48em. One row at every width: "Write next", the screen's one
+  // primary, follows the writing in the editor, never in the bar, so what sticks on a phone
+  // is the header and this row, and the lyrics come a row sooner.
+  // Autosave does the saving; the saffron on this screen belongs to the next step of the
+  // writing. The bar sticks only where it leaves most of the window for writing (see the
+  // measurement above); otherwise it scrolls with the page.
+  const saveBar = (
+    <div
+      ref={saveBarRef}
+      className={cn(
+        "z-20 -mx-4 border-b border-line bg-ground px-4 py-0.5 md:-mx-8 md:px-8",
+        barSticks && "[@media(min-height:31.3125em)]:sticky [@media(min-height:31.3125em)]:top-header-offset",
+      )}
+    >
+      {/* Below 22em the status shares its row with the actions' icons and is too narrow for
+          an offer's sentence, so there Undo and Retry lie over the whole row (see below). */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 max-[22em]:relative">
+        {/* The status and the keyboard hints share one box, `relative` so Undo and Retry can
+            lie over both (below) and never reflow the bar. It is a size container: the hints
+            show only where the box holds them beside a readable status (rem, so enlarged text
+            counts), so they never squeeze the status or push the actions to another row. */}
+        <div className="@container relative flex min-h-11 min-w-0 flex-1 basis-40 items-center gap-x-3 max-[48em]:basis-32 max-[22em]:static max-[22em]:@container-normal">
+          <div className="flex min-w-0 flex-1 flex-col justify-center">
+            {currentTrack ? (
+              <p className="type-figure truncate text-sm font-semibold text-ink" title={currentTrack}>
+                <span className="sr-only">Track </span>
+                {currentTrack}
+              </p>
+            ) : null}
+            {/* The live and the quiet status never both hold text, so no gap between them. */}
+            <p className={cn("flex min-w-0 flex-wrap items-center text-sm", saveError ? "text-danger" : "text-ink-2")}>
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 flex-none animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              ) : null}
+              <span
+                role="status"
+                className={cn(
+                  "min-w-0 break-words",
+                  savedFlash && !saving && !saveError && "text-ok",
+                  arrivalSpoken && "text-ink",
+                )}
+              >
+                {liveStatus}
+              </span>
+              {quietStatus ? <span className="min-w-0 break-words">{quietStatus}</span> : null}
+            </p>
+          </div>
+          {/* The keyboard shortcuts, behind one quiet "Shortcuts" button (a disclosure whose
+              list lies over the page) rather than a standing legend of keys: only with a fine
+              pointer, and only where the box holds it beside a status of about 13rem (Help
+              lists every shortcut too). While Undo or Retry is offered it gives the offer its
+              room: hidden, but still holding its place, so the bar keeps its height and
+              nothing moves. */}
+          <div className="contents pointer-coarse:hidden">
+            <ShortcutsDisclosure
+              className="hidden flex-none @min-[23rem]:block"
+              concealed={anyOffer}
+              concealedFocusId={retryOffered ? RETRY_SAVE_ID : "studio-undo"}
+            />
+          </div>
+          {anyOffer ? (
+            // Undo (and Retry after a failed save) are laid over the status and the hints, in
+            // the box's own space, so the bar keeps its height and nothing beside it moves when
+            // one appears or lapses. The line beside them says what they are about: the failed
+            // save's reason (already spoken by the status above, so hidden from it here), or
+            // what Undo would put back, in full: never clamped, so a track's name is never cut.
+            // It has the status's and the hints' width, one line on a laptop (below 22em, the
+            // whole row's, the actions hidden under it meanwhile); where a narrow bar needs a
+            // third line the overlay grows down over the page rather than cutting it (still
+            // without moving anything).
+            <div
+              {...undoWindow.groupProps}
+              className="absolute inset-x-0 top-0 flex min-h-full min-w-0 items-center gap-x-2 bg-ground text-sm max-[22em]:min-h-11"
+            >
+              <span
+                id={retryOffered ? undefined : "studio-undo-text"}
+                className={cn("min-w-0 break-words", retryOffered ? "text-danger" : "text-ink")}
+                aria-hidden={retryOffered ? true : undefined}
+              >
+                {retryOffered ? saveError : undo ? undoText(undo) : null}
+              </span>
+              {retryOffered && undo ? (
+                <span id="studio-undo-text" className="sr-only">
+                  {undoText(undo)}
+                </span>
+              ) : null}
+              {retryOffered ? (
+                <Button
+                  id={RETRY_SAVE_ID}
+                  tone="secondary"
+                  className="flex-none"
+                  onClick={() => void save("manual")}
+                  aria-label="Retry save"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  Retry
+                </Button>
+              ) : null}
+              {undo ? (
+                <Button
+                  id="studio-undo"
+                  key={undo.key}
+                  tone="secondary"
+                  className="flex-none"
+                  onClick={restoreDeleted}
+                  // Just announced by the polite line ("Deleted “Track 3”."): not said again
+                  // as its description until focus has left it once.
+                  aria-describedby={quietUndoKey === undo.key ? undefined : "studio-undo-text"}
+                  onBlur={() => setQuietUndoKey(null)}
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  Undo
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        {/* Help, Save version and Save now stay together as one group, never one left alone on
+            a row. Below 48em their names shorten to "Version" and "Save" (the full names kept
+            for assistive technology), and the group sits beside the status; below 22em
+            (320px, or enlarged text on a phone) only their 44px icons fit, names kept. On a
+            phone (coarse pointer) below 48em, Help, which opens the keyboard shortcuts, gives
+            its room to them; Help stays in the app's navigation. */}
+        <div ref={saveActionsRef} className={cn("flex flex-none items-center gap-x-1", anyOffer && "max-[22em]:invisible")}>
+          <Link
+            href="/app/help#keyboard-title"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded px-3 text-sm font-semibold text-ink-2 transition-colors hover:bg-hover hover:text-ink max-[48em]:px-2.5 max-[48em]:pointer-coarse:hidden"
+          >
+            <CircleHelp className="h-4 w-4 flex-none" aria-hidden="true" />
+            <span className="max-[22em]:sr-only">Help</span>
+            <span className="sr-only"> with the Studio and its shortcuts</span>
+          </Link>
+          <Button
+            id={VERSION_TOGGLE_ID}
+            tone="ghost"
+            className="min-w-11 max-[48em]:px-2.5"
+            aria-label="Save version…"
+            aria-expanded={versionOpen}
+            aria-controls={VERSION_FORM_ID}
+            onClick={() => (versionOpen ? closeVersion() : openVersion())}
+          >
+            <History className="h-4 w-4 flex-none" aria-hidden="true" />
+            <span className="max-[48em]:hidden">Save version…</span>
+            <span aria-hidden="true" className="hidden max-[48em]:inline max-[22em]:hidden">
+              Version
+            </span>
+          </Button>
+          <Button
+            tone="ghost"
+            className="min-w-11 max-[48em]:px-2.5"
+            onClick={() => void save("manual")}
+            busy={saving}
+            aria-keyshortcuts="Control+S Meta+S"
+          >
+            <Save className="h-4 w-4 flex-none" aria-hidden="true" />
+            <span className="max-[22em]:sr-only">
+              Save<span className="max-[48em]:sr-only"> now</span>
+            </span>
+          </Button>
+        </div>
+      </div>
+      {/* A named snapshot, kept in version history: an occasional act, so it opens here, in
+          the bar, only when asked for. Escape closes it and focus returns to its trigger. */}
+      <div
+        id={VERSION_FORM_ID}
+        role="group"
+        aria-label="Save a version"
+        hidden={!versionOpen}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeVersion();
+          }
+        }}
+        className="max-w-[40rem] flex-col gap-2 pb-3 pt-1 [&:not([hidden])]:flex"
+      >
+        <Field
+          label="Version note"
+          htmlFor="version-message"
+          hint={<span className="block max-w-[65ch]">For example: tightened chorus, new bridge chords.</span>}
+        >
+          <input
+            id="version-message"
+            value={versionMessage}
+            onChange={(e) => {
+              setVersionMessage(e.target.value);
+              if (e.target.value.trim()) setVersionNeedsName(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void saveVersion();
+              }
+            }}
+            maxLength={200}
+            className={inputClass}
+          />
+        </Field>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Busy while saving and unavailable without a note, but never natively disabled, so
+              focus stays on it when the saved version clears the note. */}
+          <Button
+            tone="secondary"
+            onClick={() => void saveVersion()}
+            busy={saving}
+            {...(versionMessage.trim() ? {} : { "aria-disabled": true })}
+          >
+            Save version
+          </Button>
+          <Button tone="ghost" onClick={closeVersion}>
+            Cancel
+          </Button>
+          <p role="status" className="min-w-0 max-w-[65ch] text-sm text-ink-2 empty:absolute">
+            {versionNeedsName ? "Name the version first, then save it." : ""}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  /**
+   * A preview's status and Retry, on their own line under the heading row that holds Preview,
+   * so a long message never pushes the row's buttons around. Both scopes keep their live
+   * region mounted (empty, without height) so the first message is announced.
+   */
+  function previewStatus(scope: PreviewNote["scope"]) {
+    const note = previewNote?.scope === scope ? previewNote : null;
+    return (
+      <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1", note?.text && "mt-2")}>
+        <p
+          role="status"
+          className={cn(
+            "min-w-0 max-w-[65ch] text-sm",
+            note?.tone === "danger" ? "text-danger" : note?.tone === "ok" ? "text-ok" : "text-ink-2",
+          )}
+        >
+          {note?.text ?? ""}
+        </p>
+        {note?.retry && !previewing ? (
+          <Button id={RETRY_IDS[scope]} tone="secondary" onClick={note.retry} aria-label={note.retryLabel ?? "Retry preview"}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Retry
+          </Button>
+        ) : null}
+      </div>
+    );
   }
 
-  function addTrack() {
-    setAlbum((prev) => {
-      const nextTrackNumber = (prev.songs?.length ?? 0) + 1;
-      const nextSongs = [...(prev.songs ?? []), buildNewSong(nextTrackNumber)];
-      return { ...prev, songs: nextSongs };
-    });
-    markDirty();
-    setSelectedSong(songs.length);
-    setSelectedSection(0);
-  }
+  // Stable handlers for the memoized parts (track list, story editor, album details): the same
+  // function every render, running the latest code.
+  const onSelectTrack = useStableEvent(openTrack);
+  const onToggleTrackTheme = useStableEvent(toggleTrackTheme);
+  const onToggleActiveTheme = (theme: string) => toggleTrackTheme(songIndex, theme);
+  const onAddTrack = useStableEvent(addTrack);
+  // The pinned challenge: its claim saves first (waiting for a save in flight), a paid claim
+  // refreshes the frame's credits meter, and Hide returns focus to the lyrics.
+  const saveBeforeClaim = useStableEvent(saveBeforeLeave);
+  const onChallengeClaimed = useStableEvent(refreshFrame);
+  const hideChallenge = useStableEvent(() => {
+    if (!challengeKey) return;
+    setHiddenChallenge(challengeKey);
+    setPendingFocus({ id: "section-lyrics", scroll: "none" });
+  });
+  const onAddThemes = useStableEvent(() => openAlbumField(ALBUM_THEMES_INPUT_ID));
+  const onStoryChange = useStableEvent(updateSongField) as typeof updateSongField;
+  const onAlbumDetailsChange = useStableEvent((patch: Partial<StudioAlbum>) => edit((prev) => ({ ...prev, ...patch })));
+  const centralThemes = album.central_themes ?? NO_ITEMS;
+  const albumMotifs = album.recurring_motifs ?? NO_ITEMS;
 
-  function deleteTrack(index: number) {
-    setAlbum((prev) => {
-      const nextSongs = [...(prev.songs ?? [])];
-      nextSongs.splice(index, 1);
-      const normalized = normalizeTrackNumbers(nextSongs);
-      return { ...prev, songs: normalized };
-    });
-    markDirty();
-    selectSong(Math.max(0, index - 1));
-  }
+  const trackList = (
+    <TrackList
+      songs={songs}
+      centralThemes={centralThemes}
+      activeIndex={songIndex}
+      onSelect={onSelectTrack}
+      onToggleTheme={onToggleTrackTheme}
+      onAddTrack={onAddTrack}
+      onAddThemes={onAddThemes}
+      open={tracksOpen}
+      onOpenChange={setTracksOpen}
+    />
+  );
 
-  function updateSongField<K extends keyof NonNullable<AlbumJson["songs"]>[number]>(
-    key: K,
-    value: NonNullable<AlbumJson["songs"]>[number][K],
-  ) {
-    setAlbum((prev) => {
-      const nextSongs = [...(prev.songs ?? [])];
-      const current = nextSongs[selectedSong];
-      if (!current) return prev;
-      nextSongs[selectedSong] = { ...current, [key]: value };
-      return { ...prev, songs: nextSongs };
-    });
-    markDirty();
-  }
+  // Whether deleting this track asks first (it holds written lyrics).
+  const trackWritten = sections.some((section) => isWritten(section.lyrics));
 
-  function updateSectionField<K extends keyof NonNullable<
-    NonNullable<AlbumJson["songs"]>[number]["sections"]
-  >[number]>(
-    key: K,
-    value: NonNullable<NonNullable<AlbumJson["songs"]>[number]["sections"]>[number][K],
-  ) {
-    setAlbum((prev) => {
-      const nextSongs = [...(prev.songs ?? [])];
-      const song = nextSongs[selectedSong];
-      if (!song) return prev;
-      const nextSections = [...(song.sections ?? [])];
-      const section = nextSections[selectedSection];
-      if (!section) return prev;
-      nextSections[selectedSection] = { ...section, [key]: value };
-      nextSongs[selectedSong] = { ...song, sections: nextSections };
-      return { ...prev, songs: nextSongs };
-    });
-    markDirty();
-  }
+  const catalog = activeSong
+    ? [
+        `${sections.length} ${sections.length === 1 ? "section" : "sections"}`,
+        `${progress.written} written`,
+        activeSong.key || null,
+        activeSong.tempo ? `${activeSong.tempo} bpm` : null,
+      ].filter((part): part is string => Boolean(part))
+    : [];
 
-  function addSection() {
-    setAlbum((prev) => {
-      const nextSongs = [...(prev.songs ?? [])];
-      const song = nextSongs[selectedSong];
-      if (!song) return prev;
-      const nextSections = [...(song.sections ?? []), buildNewSection(song.sections?.length ?? 0)];
-      nextSongs[selectedSong] = { ...song, sections: normalizeOrders(nextSections) };
-      return { ...prev, songs: nextSongs };
-    });
-    markDirty();
-    setSelectedSection(sections.length);
-  }
+  // Other tracks with this title (trimmed, any casing), named under the title field.
+  const sharedTitle = useMemo(() => tracksSharingTitle(songs, songIndex), [songs, songIndex]);
 
-  function deleteSection(index: number) {
-    setAlbum((prev) => {
-      const nextSongs = [...(prev.songs ?? [])];
-      const song = nextSongs[selectedSong];
-      if (!song) return prev;
-      const nextSections = [...(song.sections ?? [])];
-      nextSections.splice(index, 1);
-      nextSongs[selectedSong] = { ...song, sections: normalizeOrders(nextSections) };
-      return { ...prev, songs: nextSongs };
-    });
-    markDirty();
-    selectSection(Math.max(0, index - 1));
-  }
+  const trackHeader = activeSong ? (
+    <section id="studio-track" aria-labelledby="studio-song-title" className="flex min-w-0 flex-col gap-4">
+      <div>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 @max-2xl/studio:gap-x-3">
+        {/* The heading is the track's title, edited in place (TrackTitle): renaming happens
+            where the name is read. Named "Track 01: Storm Warning" once, set outright. It
+            takes the row's room; Preview song and More wrap below it when there is none.
+            Below 42rem they are 44px icons (names kept) and the title needs only 12rem, so on
+            a phone they share its row and the lyrics start a row sooner. */}
+        <div className="min-w-0 flex-1 basis-48 @2xl/studio:basis-64">
+          <TrackTitle
+            headingId="studio-song-title"
+            trackNumber={activeSong.track_number}
+            title={activeSong.title ?? ""}
+            sharedWith={sharedTitle}
+            onChange={(title) => updateSongField("title", title)}
+          />
+          {/* The release header's rule: each separator ends the item before it, so a wrapped
+              line never starts with a dot. */}
+          <p className="type-catalog type-figure mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">
+            <CatalogItems items={catalog} />
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            id="preview-song"
+            tone="secondary"
+            className="min-w-11 @max-2xl/studio:px-2.5"
+            onClick={previewSong}
+            busy={previewing}
+          >
+            <Play className="h-4 w-4 flex-none" aria-hidden="true" />
+            <span className="@max-2xl/studio:sr-only">Preview song</span>
+          </Button>
+          <MoreMenu
+            label="track actions"
+            triggerId={TRACK_MENU_ID}
+            compactClassName="@max-2xl/studio"
+            items={[
+              {
+                key: "up",
+                label: "Move track up",
+                icon: <ArrowUp className="h-4 w-4" aria-hidden="true" />,
+                disabled: songIndex === 0,
+                keyshortcuts: MOVE_TRACK_UP_KEYSHORTCUTS,
+                onSelect: () => moveTrackBy(songIndex, -1),
+              },
+              {
+                key: "down",
+                label: "Move track down",
+                icon: <ArrowDown className="h-4 w-4" aria-hidden="true" />,
+                disabled: songIndex >= songs.length - 1,
+                keyshortcuts: MOVE_TRACK_DOWN_KEYSHORTCUTS,
+                onSelect: () => moveTrackBy(songIndex, 1),
+              },
+              {
+                key: "position",
+                label: "Move to position…",
+                hint: "Any place in the sequence, in one step.",
+                icon: <ArrowUpDown className="h-4 w-4" aria-hidden="true" />,
+                disabled: songs.length < 2,
+                onSelect: openMoveForm,
+              },
+              {
+                key: "delete",
+                label: "Delete track",
+                hint: trackWritten
+                  ? "Removes the track and its sections. Asks first, since it has written lyrics; you can undo for 10 seconds."
+                  : "Removes the track and its sections. You can undo for 10 seconds.",
+                icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                danger: true,
+                onSelect: requestDeleteTrack,
+              },
+            ]}
+          />
+        </div>
+      </div>
+      {previewStatus("track")}
+      {deleteConfirm("track")}
+      {moveFormFor === activeSong.id ? (
+        <MoveTrackForm
+          id={MOVE_FORM_ID}
+          songs={songs}
+          current={songIndex}
+          onMove={moveFromForm}
+          onCancel={cancelMoveForm}
+        />
+      ) : null}
+      </div>
 
-  function moveSection(index: number, dir: -1 | 1) {
-    setAlbum((prev) => {
-      const nextSongs = [...(prev.songs ?? [])];
-      const song = nextSongs[selectedSong];
-      if (!song) return prev;
-      const nextSections = [...(song.sections ?? [])];
-      const target = index + dir;
-      if (target < 0 || target >= nextSections.length) return prev;
-      const temp = nextSections[index];
-      nextSections[index] = nextSections[target];
-      nextSections[target] = temp;
-      nextSongs[selectedSong] = { ...song, sections: normalizeOrders(nextSections) };
-      return { ...prev, songs: nextSongs };
-    });
-    markDirty();
-    setSelectedSection((prev) => clampIndex(prev + dir, sections.length));
-  }
+      {/* The track's Role and Story note: Coherence asks every track for them. In view from
+          42rem; below it (one column) they fold into one line that says what they hold. */}
+      <StoryFieldsFold
+        summary={storyFieldsSummary(activeSong, centralThemes)}
+        open={storyFieldsOpen}
+        onOpenChange={setStoryFieldsOpen}
+      >
+        <SongStoryFields song={activeSong} onChange={updateSongField} />
+        {/* Where the track list has no theme columns (a phone, enlarged text), this track's
+            album themes are toggled here instead, inside the fold. From 42rem they are in
+            Track details, after the writing, so the lyrics keep the first screen. */}
+        <TrackThemeToggles
+          className="@2xl/studio:hidden"
+          place="story"
+          song={activeSong}
+          centralThemes={centralThemes}
+          onToggle={onToggleActiveTheme}
+        />
+      </StoryFieldsFold>
+    </section>
+  ) : null;
 
-  const showEmpty = !songs.length;
+  // The track's key and tempo: set once and rarely changed, so they follow the writing rather
+  // than stand between the track's title and its lyrics (the catalog line under the title
+  // already shows them). The title is edited in the track's heading. From 42rem until the
+  // track list grows theme columns (64rem), the track's album-theme toggles sit here too.
+  const trackDetails = activeSong ? (
+    <section aria-labelledby="studio-track-details-title" className="border-t border-line pt-5">
+      <h2 id="studio-track-details-title" className="text-lg font-semibold text-ink">
+        Track details
+      </h2>
+      {/* Key and Tempo share a row only while each column holds the longest key whole
+          ("G# minor" needs 6.5rem, in rem so enlarged text needs more room); narrower (390px
+          with 200% text) they stack, so the select never reads "C m". */}
+      <div className="mt-4 grid max-w-[36rem] grid-cols-1 gap-4 @min-[14.5rem]:grid-cols-2">
+        <Field label="Key" htmlFor="song-key" className="min-w-0">
+          <select
+            id="song-key"
+            value={keyValue}
+            onChange={(e) => updateSongField("key", e.target.value || null)}
+            className={selectClass}
+          >
+            <option value="">Not set</option>
+            {/* A key outside the list ("D dorian") stays selectable as written. */}
+            {keyValue && !KEY_OPTIONS.includes(keyValue) ? <option value={keyValue}>{keyValue}</option> : null}
+            <optgroup label="Major">
+              {KEY_OPTIONS.filter((k) => k.endsWith("major")).map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Minor">
+              {KEY_OPTIONS.filter((k) => k.endsWith("minor")).map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </Field>
+        <TempoField
+          key={`tempo-${activeSong.id}`}
+          id="song-tempo"
+          className="min-w-0"
+          value={activeSong.tempo}
+          onChange={(next) => updateSongField("tempo", next)}
+          onClamped={setNavAnnouncement}
+        />
+      </div>
+      <TrackThemeToggles
+        className="mt-5 hidden @2xl/studio:flex @5xl/studio:hidden"
+        place="details"
+        song={activeSong}
+        centralThemes={centralThemes}
+        onToggle={onToggleActiveTheme}
+      />
+    </section>
+  ) : null;
+
+  // "Sections" heads the list's own column, and Add section follows the list, so the heading
+  // shares a row with the current section's heading and the lyrics start one row sooner.
+  const sectionsHeading = (
+    <h2 id="studio-sections-title" className="flex min-h-11 items-center text-lg font-semibold text-ink @max-xl:mb-2 @max-xl:mr-3 @max-xl:inline-flex @max-xl:align-top">
+      Sections
+    </h2>
+  );
+  const sectionEditor = activeSong ? (
+    <section aria-labelledby="studio-sections-title" className="border-t border-line pt-5">
+      {sections.length ? (
+        <div className="grid grid-cols-1 gap-x-6 gap-y-6 @xl:grid-cols-[12rem_minmax(0,1fr)]">
+          {/* Beside the editor (from 36rem) the sections are a list of rows. Narrower (a phone,
+              enlarged text) they are 44px chips set in one line of text with the heading and
+              Add section (a 44px icon), wrapping like words: each names its section, with a
+              check once its lyrics are written (the rows' status line is read out only), so
+              the lyrics start rows sooner and the reading order stays heading, sections, Add. */}
+          <div className="flex min-w-0 flex-col gap-3 self-start @max-xl:-mb-2 @max-xl:block">
+            {sectionsHeading}
+            <ol
+              aria-label={`Sections of ${songTitle}`}
+              className="min-w-0 border-t border-line @max-xl:inline @max-xl:border-t-0"
+            >
+              {sections.map((section, index) => {
+                const isActive = index === sectionIndex;
+                return (
+                  <li
+                    key={section.id ?? `${section.section_type}-${section.order}`}
+                    className="min-w-0 border-b border-line @max-xl:mb-2 @max-xl:mr-2 @max-xl:inline-block @max-xl:max-w-full @max-xl:align-top @max-xl:border-b-0"
+                  >
+                    <button
+                      id={`section-row-${section.id}`}
+                      type="button"
+                      onClick={() => selectSection(index)}
+                      aria-current={isActive ? "true" : undefined}
+                      aria-keyshortcuts={SECTION_KEYSHORTCUTS}
+                      className={cn(
+                        // A transparent 1px border like every button's, drawn in forced colors;
+                        // as a chip it takes a colour of its own (below).
+                        "relative flex min-h-11 w-full items-center justify-between gap-2 border border-transparent px-2 py-1.5 text-left transition-colors",
+                        "@max-xl:w-auto @max-xl:max-w-full @max-xl:rounded @max-xl:px-3",
+                        // The current row's fill and weight vanish in forced colors (High
+                        // Contrast), so it also carries a transparent frame drawn there in Highlight.
+                        isActive
+                          ? "bg-selected text-ink after:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-transparent after:content-[''] forced-colors:after:border-[color:Highlight] @max-xl:border-ink-3"
+                          : "text-ink-2 hover:bg-hover hover:text-ink @max-xl:border-line-strong",
+                      )}
+                    >
+                      <span className="min-w-0">
+                        <span className={cn("block break-words text-sm", isActive && "font-semibold")}>{labels[index]}</span>{" "}
+                        <span className="type-figure block break-words text-xs text-ink-3 @max-xl:sr-only">
+                          {isWritten(section.lyrics) ? "Lyrics written" : "No lyrics yet"} ·{" "}
+                          {sectionChordSummary(sections, index)}
+                        </span>
+                      </span>
+                      {/* As a chip, a written section is marked with a check (the words are
+                          still read out above). */}
+                      {isWritten(section.lyrics) ? (
+                        <Check className="hidden h-4 w-4 flex-none text-ink-2 @max-xl:block" aria-hidden="true" />
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+            <Button
+              id={ADD_SECTION_ID}
+              tone="secondary"
+              className="min-w-11 self-start @max-xl:mb-2 @max-xl:px-2.5 @max-xl:align-top"
+              onClick={addSection}
+            >
+              <Plus className="h-4 w-4 flex-none" aria-hidden="true" />
+              <span className="@max-xl:sr-only">Add section</span>
+            </Button>
+            {/* "Delete Verse 1 and its written lyrics?" asks here, with the section it is about
+                (the list), not over the lyrics: the Writing Path Rule. */}
+            {deleteConfirm("section")}
+          </div>
+
+          {activeSection ? (
+            <div id={SECTION_EDITOR_ID} className="flex min-w-0 flex-col gap-4">
+              <div>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                    <h3 className="text-base font-semibold text-ink">{activeLabel}</h3>
+                    <p className="type-figure text-xs text-ink-3">
+                      {sectionIndex + 1} of {sections.length}
+                    </p>
+                    {/* In one column the track list is far above the lyrics (a phone): a way
+                        back to it, landing on this track's row. Beside the editor it's in view. */}
+                    <a
+                      href={`#track-row-${activeSong.id}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        // The list may be folded here (one column): open it on this track.
+                        setTracksOpen(true);
+                        setPendingFocus({ id: `track-row-${activeSong.id}`, scroll: "center" });
+                      }}
+                      className="-mx-1 inline-flex min-h-11 items-center gap-1 self-center rounded px-1 text-xs text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink hover:decoration-ink @2xl/studio:hidden"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="sr-only">Back to </span>Tracks
+                    </a>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-1">
+                  {/* 44px icons where the sections are chips (names kept), so the row fits
+                      beside the section's heading and the lyrics start a row sooner. Quieter
+                      than the track's own Preview song (ghost, not outlined) and named by the
+                      section it plays ("Preview Verse 1"), so the two pairs never read alike. */}
+                  <Button
+                    id="preview-section"
+                    tone="ghost"
+                    className="min-w-11 @max-xl:px-2.5"
+                    onClick={previewSection}
+                    busy={previewing}
+                  >
+                    <Play className="h-4 w-4 flex-none" aria-hidden="true" />
+                    <span className="min-w-0 break-words @max-xl:sr-only">Preview {activeLabel}</span>
+                  </Button>
+                  <MoreMenu
+                    label="section actions"
+                    triggerId={SECTION_MENU_ID}
+                    compactClassName="always"
+                    items={[
+                      {
+                        key: "mp3",
+                        label: "Download MP3",
+                        hint: "An audio file of these chords to keep. If it can’t be made, Preview still plays them here.",
+                        icon: <Download className="h-4 w-4" aria-hidden="true" />,
+                        disabled: previewing,
+                        onSelect: downloadSectionMp3,
+                      },
+                      {
+                        key: "up",
+                        label: "Move section up",
+                        icon: <ArrowUp className="h-4 w-4" aria-hidden="true" />,
+                        disabled: sectionIndex === 0,
+                        onSelect: () => moveSection(sectionIndex, -1),
+                      },
+                      {
+                        key: "down",
+                        label: "Move section down",
+                        icon: <ArrowDown className="h-4 w-4" aria-hidden="true" />,
+                        disabled: sectionIndex >= sections.length - 1,
+                        onSelect: () => moveSection(sectionIndex, 1),
+                      },
+                      {
+                        key: "delete",
+                        label: "Delete section",
+                        hint: isWritten(activeSection.lyrics)
+                          ? "Asks first, since its lyrics are written. You can undo for 10 seconds."
+                          : "You can undo for 10 seconds.",
+                        icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                        danger: true,
+                        onSelect: requestDeleteSection,
+                      },
+                    ]}
+                  />
+                </div>
+              </div>
+              {previewStatus("section")}
+              </div>
+
+              {pinnedChallenge ? (
+                <ChallengeBand
+                  challenge={pinnedChallenge}
+                  albumId={albumId}
+                  trackNumber={activeSong.track_number}
+                  trackWritten={progress.written > 0}
+                  beforeClaim={saveBeforeClaim}
+                  onClaimed={onChallengeClaimed}
+                  onHide={hideChallenge}
+                />
+              ) : null}
+
+              <Field label="Lyrics draft" htmlFor="section-lyrics">
+                <textarea
+                  id="section-lyrics"
+                  // The pinned prompt is part of what the lyrics are for, so it is read with them.
+                  aria-describedby={pinnedChallenge ? CHALLENGE_PROMPT_ID : undefined}
+                  value={activeSection.lyrics ?? ""}
+                  onChange={(e) => updateSectionField("lyrics", e.target.value)}
+                  rows={10}
+                  className={cn(textareaClass, "min-h-52 resize-y")}
+                  placeholder="Write lyrics for this section…"
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 gap-4 @lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                <Field label="Section type" htmlFor="section-type">
+                  <select
+                    id="section-type"
+                    value={sectionType}
+                    onChange={(e) => updateSectionField("section_type", e.target.value)}
+                    className={selectClass}
+                  >
+                    {!sectionTypeKnown ? <option value={sectionType}>{sectionTypeLabel(sectionType)}</option> : null}
+                    {SECTION_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <ChordField
+                  key={activeSection.id}
+                  id="section-chords"
+                  value={activeSection.chord_progression}
+                  onChange={(chords) => updateSectionField("chord_progression", chords)}
+                  starterLoop={isStarterLoopSection(sections, sectionIndex)}
+                />
+              </div>
+              {batchTargets.length ? (
+                // Batch harmony: reuse this progression across the track's sections of this
+                // type, with an Undo in the save bar. The hint names what it will change.
+                <div className="-mt-1 flex flex-wrap items-center gap-x-3">
+                  <Button
+                    id={BATCH_CHORDS_ID}
+                    tone="ghost"
+                    className="-ml-2 px-2"
+                    onClick={applyChordsToType}
+                    aria-describedby="use-chords-everywhere-hint"
+                  >
+                    <Copy className="h-4 w-4" aria-hidden="true" />
+                    Use these chords on every {sectionTypeLabel(activeSection.section_type)}
+                  </Button>
+                  <p id="use-chords-everywhere-hint" className="min-w-0 max-w-[65ch] text-xs text-ink-3">
+                    Changes {andList(batchTargets.map((i) => labels[i] ?? "Section"))} on
+                    this track. You can undo for 10 seconds.
+                  </p>
+                </div>
+              ) : null}
+              {upNext ? (
+                // The one "Write next", at every width: after the writing it follows, in the
+                // page's flow. On a phone it once rode in the sticky save bar, where its full-width
+                // row held a sixth of the screen above the lyrics all the time.
+                <div>
+                  <Button tone="primary" onClick={writeNext} className="max-w-full">
+                    <span className="min-w-0 break-words">Write next: {writeNextLabel}</span>
+                    <ArrowRight className="h-4 w-4 flex-none" aria-hidden="true" />
+                  </Button>
+                </div>
+              ) : null}
+
+              {stableIdsPersisted && activeSection.id ? (
+                <SectionCommentsMemo
+                  albumId={albumId}
+                  section={{
+                    id: activeSection.id,
+                    songTrackNumber: activeSong.track_number,
+                    songTitle: activeSong.title,
+                    sectionType: activeSection.section_type,
+                    sectionOrder: activeSection.order,
+                    label: activeLabel,
+                  }}
+                  defaultOpen={commentsOpenAtStart}
+                />
+              ) : (
+                <section aria-labelledby="comments-pending-title" className="border-t border-line pt-3">
+                  <h3 id="comments-pending-title" className="text-base font-semibold text-ink">
+                    Comments
+                  </h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3">
+                    <p className="min-w-0 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+                      Comments and section links turn on after the first save.
+                    </p>
+                    <Button
+                      id="save-for-comments"
+                      tone="ghost"
+                      className="max-w-full justify-start text-left"
+                      onClick={() => void saveToTurnOnComments()}
+                      busy={saving}
+                    >
+                      <Save className="h-4 w-4 flex-none" aria-hidden="true" />
+                      <span className="min-w-0 break-words">Save to turn on comments</span>
+                    </Button>
+                  </div>
+                </section>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          {sectionsHeading}
+          <div className="mt-3">
+            <EmptyState
+              title="This track has no sections yet"
+              action={
+                // The screen's one primary: with no sections there is no Write next here, and
+                // adding the first section is the next step of the work.
+                <Button tone="primary" onClick={addSection}>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Add section
+                </Button>
+              }
+            >
+              Start with a verse or a chorus. Each section gets its own lyrics, chords and comments.
+            </EmptyState>
+          </div>
+        </>
+      )}
+    </section>
+  ) : null;
+
+  const storyAndAi = activeSong ? (
+    <div className="flex min-w-0 flex-col gap-6">
+      <SongStoryEditor
+        key={`story-${activeSong.id}`}
+        song={activeSong}
+        albumThemes={centralThemes}
+        albumMotifs={albumMotifs}
+        onChange={onStoryChange}
+        open={storyOpen}
+        onOpenChange={setStoryOpen}
+      />
+      {/* AI drafting takes no room here when this server can't run it: Help and Billing say
+          so, once. When it can, the panel is as it always was. */}
+      {aiAvailable ? (
+        <SongDevelopmentAiMemo
+          key={`ai-${activeSong.id}`}
+          albumId={albumId}
+          songTitle={songTitle}
+          trackNumber={activeSong.track_number}
+          aiAvailable={aiAvailable}
+          creditsRemaining={creditsRemaining}
+        />
+      ) : null}
+    </div>
+  ) : null;
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr_360px]">
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <div className="text-xs text-[var(--muted2)]">Tracks</div>
-            <div className="text-sm font-semibold text-[var(--text)]">Song list</div>
-          </div>
-          <button
-            type="button"
-            onClick={addTrack}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)]"
-          >
-            <Plus className="h-4 w-4" />
-            Add
-          </button>
-        </div>
-
-        <div className="mt-3 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.08)]">
-          {songs.length ? (
-            <div className="max-h-[560px] overflow-auto">
-              <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
-                {songs.map((song, index) => {
-                  const isActive = index === selectedSong;
-                  return (
-                    <li key={song.id ?? `${song.track_number}-${song.title}`}>
-                      <button
-                        type="button"
-                        onClick={() => selectSong(index)}
-                        className={[
-                          "w-full px-4 py-3 text-left",
-                          isActive
-                            ? "bg-[linear-gradient(90deg,rgba(109,94,252,0.18),rgba(255,62,165,0.10))]"
-                            : "hover:bg-[rgba(255,255,255,0.04)]",
-                        ].join(" ")}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 text-xs tabular-nums text-[var(--muted2)]">
-                            {String(song.track_number).padStart(2, "0")}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-semibold text-[var(--text)]">
-                              {song.title}
-                            </div>
-                            <div className="truncate text-xs text-[var(--muted2)]">
-                              {song.sections?.length ?? 0} sections
-                            </div>
-                          </div>
-                          <div className="text-xs text-[var(--muted2)]">
-                            {song.tempo ? `${song.tempo} bpm` : ""}
-                          </div>
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ) : (
-            <div className="px-4 py-10 text-center text-sm text-[var(--muted)]">
-              No songs yet. Add a track to start writing.
-            </div>
+    <div className="@container/studio-top flex min-w-0 flex-col gap-4">
+      {/* The first stop inside the album content: past the save bar and the whole track list,
+          straight to the current section's lyrics. In one column (a phone, enlarged text: the
+          same 42rem at which the track list folds) the lyrics are screens down, so it is a
+          visible link, an ink link like any other, that a touch can take; with the columns
+          side by side it is hidden, and the app's skip link (the page's first stop) does its
+          work by clicking it. */}
+      {songs.length ? (
+        <a
+          href={`#${EDITOR_ID}`}
+          onClick={(event) => {
+            event.preventDefault();
+            skipToLyrics();
+          }}
+          className={cn(
+            "inline-flex min-h-11 items-center gap-2 self-start rounded text-sm text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
+            // From 42rem the app's own skip link (the page's first stop, named "Skip to the
+            // lyrics") is the only one: it clicks this link, which stays in the DOM for it.
+            "@min-[42rem]/studio-top:hidden",
           )}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-        {showEmpty ? (
-          <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-6 text-sm text-[var(--muted)]">
-            Add a track on the left to begin.
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-xs text-[var(--muted2)]">Editing</div>
-                <div className="text-sm font-semibold text-[var(--text)]">
-                  Track {activeSong?.track_number}: {activeSong?.title}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <SongDevelopmentAi
-                  albumId={albumId}
-                  songTitle={activeSong?.title ?? `Track ${activeSong?.track_number ?? 1}`}
-                  trackNumber={activeSong?.track_number ?? 1}
-                />
-                <button
-                  type="button"
-                  onClick={() => void previewSong()}
-                  disabled={previewing}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Play className="h-4 w-4" />
-                  Preview song
-                </button>
-                <Link
-                  href={`/app/albums/${albumId}`}
-                  className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-                >
-                  Details
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => deleteTrack(selectedSong)}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,62,165,0.12)]"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete track
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--muted2)]">Title</span>
-                <input
-                  value={activeSong?.title ?? ""}
-                  onChange={(e) => updateSongField("title", e.target.value)}
-                  className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-[var(--muted2)]">Key</span>
-                  <input
-                    value={activeSong?.key ?? ""}
-                    onChange={(e) => updateSongField("key", e.target.value || null)}
-                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                    placeholder="C minor"
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-[var(--muted2)]">Tempo</span>
-                  <input
-                    value={activeSong?.tempo ?? ""}
-                    onChange={(e) => {
-                      const next = e.target.value.trim();
-                      updateSongField("tempo", next ? Number(next) : null);
-                    }}
-                    inputMode="numeric"
-                    className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                    placeholder="120"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-xs text-[var(--muted2)]">Sections</div>
-                  <div className="text-sm font-semibold text-[var(--text)]">
-                    Structure + drafts
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={addSection}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)]"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add section
-                </button>
-              </div>
-
-              <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[240px_1fr]">
-                <div className="overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]">
-                  {sections.length ? (
-                    <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
-                      {sections.map((section, index) => {
-                        const isActive = index === selectedSection;
-                        return (
-                          <li key={section.id ?? `${section.section_type}-${section.order}`}>
-                            <button
-                              type="button"
-                              onClick={() => selectSection(index)}
-                              className={[
-                                "w-full px-3 py-2 text-left text-sm",
-                                isActive
-                                  ? "bg-[rgba(109,94,252,0.16)] text-[var(--text)]"
-                                  : "text-[var(--muted)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text)]",
-                              ].join(" ")}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="truncate">
-                                  {section.section_type} {section.order + 1}
-                                </span>
-                                <span className="text-xs text-[var(--muted2)]">
-                                  {Array.isArray(section.chord_progression) &&
-                                  section.chord_progression.length
-                                    ? `${section.chord_progression.length} chords`
-                                    : "no chords"}
-                                </span>
-                              </div>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <div className="px-3 py-6 text-center text-sm text-[var(--muted)]">
-                      No sections yet.
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-xs text-[var(--muted2)]">
-                      {activeSection ? (
-                        <>
-                          Editing {activeSection.section_type} #{activeSection.order + 1}
-                        </>
-                      ) : (
-                        "Select a section"
-                      )}
-                    </div>
-                    {activeSection ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void previewSection()}
-                          disabled={previewing}
-                          className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.07)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.10)] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Play className="h-4 w-4" />
-                          Preview
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void downloadSectionMp3()}
-                          disabled={previewing}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
-                          title="Render and download an MP3 (requires server configuration)"
-                        >
-                          <Download className="h-4 w-4" />
-                          MP3
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveSection(selectedSection, -1)}
-                          className="inline-flex items-center gap-1 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-2 py-2 text-xs text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-                          aria-label="Move section up"
-                        >
-                          <ArrowUp className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveSection(selectedSection, 1)}
-                          className="inline-flex items-center gap-1 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-2 py-2 text-xs text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-                          aria-label="Move section down"
-                        >
-                          <ArrowDown className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteSection(selectedSection)}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,62,165,0.12)]"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {previewStatus ? (
-                    <div className="text-xs text-[var(--muted2)]">{previewStatus}</div>
-                  ) : null}
-
-                  {activeSection ? (
-                    <>
-                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                        <label className="flex flex-col gap-1">
-                          <span className="text-xs text-[var(--muted2)]">Section type</span>
-                          <input
-                            value={activeSection.section_type ?? ""}
-                            onChange={(e) =>
-                              updateSectionField("section_type", e.target.value.trim() || "verse")
-                            }
-                            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                            placeholder="verse"
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="text-xs text-[var(--muted2)]">Chord progression</span>
-                          <input
-                            value={stringifyChordProgression(activeSection.chord_progression)}
-                            onChange={(e) =>
-                              updateSectionField(
-                                "chord_progression",
-                                parseChordProgression(e.target.value),
-                              )
-                            }
-                            className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                            placeholder="C Am F G"
-                          />
-                        </label>
-                      </div>
-
-                      <label className="flex flex-col gap-1">
-                        <span className="text-xs text-[var(--muted2)]">Lyrics draft</span>
-                        <textarea
-                          value={activeSection.lyrics ?? ""}
-                          onChange={(e) => updateSectionField("lyrics", e.target.value)}
-                          rows={10}
-                          className="min-h-[240px] w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                          placeholder="Write lyrics for this section…"
-                        />
-                      </label>
-                    </>
-                  ) : (
-                    <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-6 text-sm text-[var(--muted)]">
-                      Select a section to edit lyrics + chords.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+        >
+          <ArrowDown className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
+          Skip to the lyrics
+        </a>
+      ) : null}
+      {saveBar}
+      <LeavePrompt
+        guard={{
+          ...leaveGuard,
+          // "Leave without saving" means it: no last keepalive save on the way out.
+          leaveAnyway: () => {
+            dirtyRef.current = false;
+            leaveGuard.leaveAnyway();
+          },
+        }}
+        message={`Your latest changes couldn't be saved${saveError ? `: ${saveError.replace(/[.\s]+$/, "")}` : ""}. Stay to retry, or leave without them.`}
+      />
+      <p className="sr-only" aria-live="polite">
+        {navAnnouncement}
+      </p>
+      {/* The columns follow the room the Studio has (rem container queries), so enlarged text
+          folds it to one column. Fields keep clear of the sticky header and save bar through
+          the page's scroll padding alone (globals.css reads --sticky-offset, set above). */}
+      <div className="@container/studio min-w-0">
+      <div
+        className={cn(
+          // In one column (a phone) the folded Sequence and the editor sit 1.5rem apart, not 2:
+          // the lyrics come that much sooner.
+          "grid min-w-0 grid-cols-1 items-start gap-x-8 gap-y-6 @2xl:gap-y-8",
+          STUDIO_GRID_BASE,
+          STUDIO_GRID_COLUMNS[themeColumns],
         )}
-      </section>
+      >
+        {trackList}
 
-      <aside className="space-y-3">
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Album</div>
-          <div className="mt-2 grid grid-cols-1 gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Title</span>
-              <input
-                value={album.title ?? ""}
-                onChange={(e) => {
-                  setAlbum((prev) => ({ ...prev, title: e.target.value }));
-                  markDirty();
-                }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Artist</span>
-              <input
-                value={album.artist ?? ""}
-                onChange={(e) => {
-                  setAlbum((prev) => ({ ...prev, artist: e.target.value || null }));
-                  markDirty();
-                }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                placeholder="Artist name"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Primary genre</span>
-              <input
-                value={album.primary_genre ?? ""}
-                onChange={(e) => {
-                  setAlbum((prev) => ({ ...prev, primary_genre: e.target.value || null }));
-                  markDirty();
-                }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                placeholder="Alt pop"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Concept summary</span>
-              <textarea
-                value={album.concept_summary ?? ""}
-                onChange={(e) => {
-                  setAlbum((prev) => ({ ...prev, concept_summary: e.target.value || null }));
-                  markDirty();
-                }}
-                rows={5}
-                className="w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                placeholder="One paragraph describing the album concept…"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--muted2)]">Central themes</span>
-              <input
-                value={centralThemesText}
-                onChange={(e) => {
-                  setCentralThemesText(e.target.value);
-                  markDirty();
-                }}
-                className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                placeholder="identity, memory, change"
-              />
-              <div className="text-xs text-[var(--muted2)]">
-                Comma-separated (used by coherence analyzer).
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="text-xs text-[var(--muted2)]">Save</div>
-              <div className="text-sm font-semibold text-[var(--text)]">
-                {dirty ? "Unsaved changes" : "All changes saved"}
-              </div>
-            </div>
-            <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
-              {saving ? "saving…" : "ready"}
-            </div>
-          </div>
-
-          <label className="mt-3 flex flex-col gap-1">
-            <span className="text-xs text-[var(--muted2)]">Version message (optional)</span>
-            <input
-              value={versionMessage}
-              onChange={(e) => setVersionMessage(e.target.value)}
-              className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-              placeholder="e.g., tightened chorus + added chords"
-            />
-          </label>
-
-          <div className="mt-3 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => save({ withVersion: false })}
-              disabled={saving}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Save className="h-4 w-4" />
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={() => save({ withVersion: true })}
-              disabled={saving || !versionMessage.trim()}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-5 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Save version
-            </button>
-          </div>
-
-          {status ? <div className="mt-3 text-xs text-[var(--muted)]">{status}</div> : null}
-        </div>
-
-        {activeSong && activeSection ? (
-          stableIdsPersisted ? (
-            <SectionComments
-              albumId={albumId}
-              section={{
-                id: activeSection.id!,
-                songTrackNumber: activeSong.track_number,
-                sectionType: activeSection.section_type,
-                sectionOrder: activeSection.order,
-              }}
-            />
+        <div id={EDITOR_ID} className="@container flex min-w-0 flex-col gap-6">
+          {songs.length ? (
+            <>
+              {trackHeader}
+              {sectionEditor}
+              {trackDetails}
+              {storyAndAi}
+            </>
           ) : (
-            <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="text-xs text-[var(--muted2)]">Collaboration</div>
-                  <div className="mt-1 text-sm font-semibold text-[var(--text)]">Comments</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => save({ withVersion: false })}
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Save className="h-4 w-4" />
-                  Save to enable
-                </button>
-              </div>
-              <div className="mt-2 text-xs leading-relaxed text-[var(--muted2)]">
-                This project was imported without stable section IDs. Save once to enable comments and
-                shareable deep links.
-              </div>
-            </div>
-          )
-        ) : (
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Collaboration</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">Comments</div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
-              Select a section to leave feedback.
-            </div>
-          </div>
-        )}
+            <EmptyState
+              title="Start the record with its first track"
+              action={
+                // The one primary on an album with no tracks: its first track is the next step.
+                <Button id={ADD_TRACK_ID} tone="primary" onClick={addTrack}>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Add track
+                </Button>
+              }
+            >
+              Each track gets a story, a key and tempo, and sections with lyrics and chords.
+            </EmptyState>
+          )}
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-          <div className="text-xs text-[var(--muted2)]">Tips</div>
-          <ul className="mt-2 space-y-2 text-sm text-[var(--muted)]">
-            <li>Keep chord loops short (4-8 chords) for clean MIDI exports.</li>
-            <li>Use section types like `verse`, `chorus`, `bridge` for better tooling.</li>
-            <li>
-              Jump here from deep links: `song=track_number&section=order` or
-              `song=track_number&sid=section_id`.
-            </li>
-          </ul>
+          <AlbumDetails
+            album={album}
+            open={detailsOpen}
+            onOpenChange={setDetailsOpen}
+            onChange={onAlbumDetailsChange}
+          />
         </div>
-      </aside>
+      </div>
+      </div>
     </div>
   );
 }

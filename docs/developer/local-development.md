@@ -9,7 +9,6 @@ Before you run anything, decide which part of the product you are touching:
 - web app only
 - Python API only
 - full stack, including export
-- legacy Gradio UI
 
 For most feature work, you want the full stack.
 
@@ -125,7 +124,6 @@ make lint
 make type-check
 make test-cov
 make api-dev
-make ui
 ```
 
 ### Web

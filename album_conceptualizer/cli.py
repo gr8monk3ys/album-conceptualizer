@@ -19,7 +19,6 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  album-conceptualizer ui                    Launch the web interface
   album-conceptualizer new "My Album"        Create a new album project
   album-conceptualizer export album.json     Export an album to various formats
 
@@ -28,17 +27,6 @@ For more information, visit: https://github.com/gr8monk3ys/album-conceptualizer
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
-
-    # UI command
-    ui_parser = subparsers.add_parser("ui", help="Launch the web interface")
-    ui_parser.add_argument("--port", type=int, default=7860, help="Port to run the server on")
-    ui_parser.add_argument(
-        "--host",
-        default="127.0.0.1",
-        help="Host/interface to bind (use 0.0.0.0 for containers)",
-    )
-    ui_parser.add_argument("--share", action="store_true", help="Create a public share link")
-    ui_parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
     # New album command
     new_parser = subparsers.add_parser("new", help="Create a new album project")
@@ -73,9 +61,7 @@ For more information, visit: https://github.com/gr8monk3ys/album-conceptualizer
 
     args = parser.parse_args()
 
-    if args.command == "ui":
-        cmd_ui(args)
-    elif args.command == "new":
+    if args.command == "new":
         cmd_new(args)
     elif args.command == "export":
         cmd_export(args)
@@ -97,29 +83,6 @@ def show_welcome() -> None:
         )
     )
     console.print()
-
-
-def cmd_ui(args: argparse.Namespace) -> None:
-    """Launch the web UI."""
-    console.print("[bold]Launching Album Conceptualizer UI...[/bold]")
-    console.print(f"Server will be available at: http://{args.host}:{args.port}")
-
-    if args.share:
-        console.print("[yellow]Creating public share link...[/yellow]")
-
-    try:
-        from album_conceptualizer.ui.app import launch_app
-
-        launch_app(
-            server_port=args.port,
-            server_name=args.host,
-            share=args.share,
-            debug=args.debug,
-        )
-    except ImportError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        console.print("Make sure Gradio is installed: pip install gradio")
-        sys.exit(1)
 
 
 def cmd_new(args: argparse.Namespace) -> None:

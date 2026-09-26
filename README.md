@@ -6,7 +6,6 @@ It currently includes:
 
 - a Next.js web app for planning, editing, sharing, billing, analytics, and publishing
 - a Python FastAPI engine for export, theory, identity, billing, and experience endpoints
-- a legacy Gradio UI for local workflows and smoke coverage
 
 The product is strongest at album-level coherence, structure, collaboration, and export handoff. It is not positioned as a one-prompt finished-audio generator.
 

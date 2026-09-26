@@ -1,11 +1,27 @@
 import { AlbumJsonSchema } from "@/server/album-json";
 import { normalizeStyleBible } from "@/server/style-bible";
 import type { AlbumStyleBible } from "@/server/album-json";
+import { formatTrackList, type CoherenceFix } from "@/server/coherence";
+import { trackHasLyrics } from "@/lib/lyrics";
 
 export type BibleIssue = {
   level: "info" | "warn";
+  /**
+   * `structure`: how themes, characters and story order hang together across the album, which
+   * only the Bible checks. `coverage`: per-track gaps the Coherence report also lists.
+   * `style`: Sound bible fields, shown in the Bible's Sound bible section.
+   */
+  scope: "structure" | "coverage" | "style";
   title: string;
   detail: string;
+  /** Where the artist fixes it; build the link with `coherenceFixHref`. */
+  fix?: CoherenceFix;
+  /**
+   * A next step, not a failure: while any track is still unwritten, a theme or character on
+   * one track (or none) is work still to come, so it is phrased and marked as "To do" (the
+   * Warn For Problems rule). Once every track is written the same thread is a loose one.
+   */
+  progress?: boolean;
 };
 
 export type BibleCoverageRow = {
@@ -55,6 +71,84 @@ export type AlbumBible = {
   motifIndex: Array<{ name: string; trackNumbers: number[] }>;
   issues: BibleIssue[];
 };
+
+/** A track number as the spine prints it: "01". */
+function padTrack(trackNumber: number) {
+  return String(trackNumber).padStart(2, "0");
+}
+
+function tracksWord(count: number) {
+  return `${count} ${count === 1 ? "track" : "tracks"}`;
+}
+
+/**
+ * Which tracks carry a theme, as one phrase for a row of the theme map, so a screen reader
+ * hears the row once instead of a "yes" or "no" per track: "on tracks 1, 4 and 7".
+ */
+export function themeTracksPhrase(trackNumbers: number[], totalTracks: number): string {
+  const unique = Array.from(new Set(trackNumbers));
+  if (!unique.length) return "on no track yet";
+  if (unique.length === totalTracks && totalTracks > 2) return `on all ${totalTracks} tracks`;
+  return `on ${unique.length === 1 ? "track" : "tracks"} ${formatTrackList(unique)}`;
+}
+
+
+const ARC_LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
+
+/**
+ * What the spine can't show about a theme: where it enters, where it leaves and where it drops
+ * out in between, read along `sequence` (the map's track order, which may be the story order):
+ * "first on 02, last on 07, missing from 04–05", "only on 03", "on every track". Empty when no
+ * track carries it.
+ */
+export function themeArc(carrying: number[], sequence: number[]): string {
+  const carried = new Set(carrying);
+  const positions = sequence.flatMap((trackNumber, index) => (carried.has(trackNumber) ? [index] : []));
+  if (!positions.length) return "";
+  if (positions.length === 1) return `only on ${padTrack(sequence[positions[0]])}`;
+  if (positions.length === sequence.length) return "on every track";
+  const first = positions[0];
+  const last = positions[positions.length - 1];
+  const gaps: string[] = [];
+  for (let index = first + 1; index < last; ) {
+    if (carried.has(sequence[index])) {
+      index += 1;
+      continue;
+    }
+    let end = index;
+    while (end + 1 < last && !carried.has(sequence[end + 1])) end += 1;
+    gaps.push(index === end ? padTrack(sequence[index]) : `${padTrack(sequence[index])}–${padTrack(sequence[end])}`);
+    index = end + 1;
+  }
+  const span = `first on ${padTrack(sequence[first])}, last on ${padTrack(sequence[last])}`;
+  return gaps.length ? `${span}, missing from ${ARC_LIST.format(gaps)}` : `${span}, unbroken`;
+}
+
+/**
+ * The Loose threads line. It never claims the album holds together over tracks that aren't
+ * written: an empty track has nothing loose because it has nothing yet.
+ */
+export function looseThreadsSummary(input: { warnings: number; writtenTracks: number; totalTracks: number }): string {
+  const { warnings, writtenTracks, totalTracks } = input;
+  const unwritten = Math.max(0, totalTracks - writtenTracks);
+  const notWritten = unwritten
+    ? `${tracksWord(unwritten)} ${unwritten === 1 ? "isn't" : "aren't"} written yet`
+    : "";
+  if (warnings && unwritten) {
+    // Early, a thread that doesn't hold yet is one to pick up in the tracks still to write.
+    const threads = warnings === 1 ? "1 thread" : `${warnings} threads`;
+    const rest = writtenTracks ? `the other ${tracksWord(unwritten)}` : "the tracks";
+    return `${threads} to pick up as you write ${rest}. Each opens where it's done.`;
+  }
+  if (warnings) {
+    const threads = warnings === 1 ? "1 thread doesn't" : `${warnings} threads don't`;
+    return `${threads} hold across the album yet. Each links to where it's fixed.`;
+  }
+  if (!totalTracks) return "Nothing to check until the album has tracks.";
+  if (!unwritten) return "Every theme, character and story order holds across the album.";
+  if (!writtenTracks) return `Nothing loose so far, but no track is written yet, so there's little to check.`;
+  return `Nothing loose on the ${writtenTracks} written ${writtenTracks === 1 ? "track" : "tracks"}; ${notWritten}.`;
+}
 
 function normalizeToken(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -124,8 +218,10 @@ export function buildAlbumBible(data: unknown): AlbumBible {
       issues: [
         {
           level: "warn",
+          scope: "structure",
           title: "Album data is invalid",
-          detail: "This project data could not be parsed. Re-save the project from Studio and try again.",
+          detail: "This album's data could not be read. Save the album again in the Studio and try again.",
+          fix: { focus: "song" },
         },
       ],
     };
@@ -133,6 +229,8 @@ export function buildAlbumBible(data: unknown): AlbumBible {
 
   const album = parsed.data;
   const issues: BibleIssue[] = [];
+  // While a track is still unwritten, a theme or character on one track is work to come.
+  const early = album.songs.some((song) => !trackHasLyrics(song.sections));
   const styleBible = normalizeStyleBible(album.style_bible);
 
   const tracks: BibleTrack[] = album.songs
@@ -177,10 +275,12 @@ export function buildAlbumBible(data: unknown): AlbumBible {
     const topThemes = tally(allThemes).slice(0, 6).map((row) => row.label);
     issues.push({
       level: "warn",
+      scope: "structure",
       title: "No album-level themes set",
       detail: topThemes.length
         ? `Consider promoting key themes: ${topThemes.join(", ")}.`
-        : "Add 3-6 central themes to guide consistency across tracks.",
+        : "Add 3 to 6 central themes to keep the tracks pulling in one direction.",
+      fix: { focus: "album" },
     });
   }
 
@@ -188,34 +288,42 @@ export function buildAlbumBible(data: unknown): AlbumBible {
     const topMotifs = tally(allMotifs).slice(0, 6).map((row) => row.label);
     issues.push({
       level: "info",
+      scope: "coverage",
       title: "No recurring motifs set",
       detail: topMotifs.length
-        ? `Motifs detected in tracks: ${topMotifs.join(", ")}. Consider elevating 1-3 to album-level motifs.`
-        : "Add 1-3 recurring motifs to tighten cohesion (sonic texture, symbols, chord devices).",
+        ? `Motifs tagged on tracks: ${topMotifs.join(", ")}. Consider making 1 to 3 of them album motifs.`
+        : "Add 1 to 3 recurring motifs to tie the album together: a sound, a symbol or a chord device.",
+      fix: { focus: "album-motifs" },
     });
   }
 
   if (!styleBible.lead_voice) {
     issues.push({
       level: "info",
+      scope: "style",
       title: "No lead voice brief set",
       detail: "Define the vocal identity so collaborators and reference packs aim at the same singer perspective.",
+      fix: { focus: "style" },
     });
   }
 
   if (!styleBible.sonic_palette.length) {
     issues.push({
       level: "info",
+      scope: "style",
       title: "No sonic palette locked yet",
       detail: "Add 3-6 palette anchors so arrangement and production choices stay consistent across tracks.",
+      fix: { focus: "style" },
     });
   }
 
   if (!styleBible.mix_priorities.length) {
     issues.push({
       level: "info",
+      scope: "style",
       title: "Mix priorities are still blank",
       detail: "Call out what should stay forward, wide, or restrained before export or handoff.",
+      fix: { focus: "style" },
     });
   }
 
@@ -223,15 +331,19 @@ export function buildAlbumBible(data: unknown): AlbumBible {
     if (!track.narrativeSummary) {
       issues.push({
         level: "info",
-        title: `Track ${track.trackNumber} is missing a narrative summary`,
-        detail: "Add a 1-2 sentence summary so the arc can be validated across the album.",
+        scope: "coverage",
+        title: `Track ${padTrack(track.trackNumber)} has no story note`,
+        detail: "Add a story note of a sentence or two so the arc can be checked across the album.",
+        fix: { focus: "story", trackNumber: track.trackNumber },
       });
     }
     if (!track.themes.length) {
       issues.push({
         level: "info",
-        title: `Track ${track.trackNumber} has no themes`,
-        detail: "Add at least 1 theme tag so coverage checks can detect gaps.",
+        scope: "coverage",
+        title: `Track ${padTrack(track.trackNumber)} has no themes`,
+        detail: "Tag at least one theme so the theme map can show where it sits.",
+        fix: { focus: "song-themes", trackNumber: track.trackNumber },
       });
     }
   }
@@ -245,17 +357,43 @@ export function buildAlbumBible(data: unknown): AlbumBible {
     const entry = themeIndex.find((row) => normKey(row.name) === normKey(theme));
     const appears = entry?.trackNumbers ?? [];
     if (!appears.length) {
-      issues.push({
-        level: "warn",
-        title: `Theme "${theme}" never appears in track tags`,
-        detail: "Either remove it from album-level themes or tag the tracks where it should show up.",
-      });
+      issues.push(
+        early
+          ? {
+              level: "warn",
+              scope: "structure",
+              progress: true,
+              title: `Tag “${theme}” on the tracks that carry it`,
+              detail: "No track carries it yet. Tag it as you write, or drop it from the album's themes.",
+              fix: { focus: "album" },
+            }
+          : {
+              level: "warn",
+              scope: "structure",
+              title: `Theme “${theme}” isn't on any track`,
+              detail: "Tag the tracks where it shows up, or remove it from the album's themes.",
+              fix: { focus: "album" },
+            },
+      );
     } else if (appears.length === 1) {
-      issues.push({
-        level: "warn",
-        title: `Theme "${theme}" only appears in Track ${appears[0]}`,
-        detail: "Consider weaving it into at least one more track to make it feel intentional.",
-      });
+      issues.push(
+        early
+          ? {
+              level: "warn",
+              scope: "structure",
+              progress: true,
+              title: `Bring “${theme}” into another track`,
+              detail: `It's on track ${padTrack(appears[0])} so far. Carry it into another track as you write, so it reads as intentional.`,
+              fix: { focus: "song-themes", trackNumber: appears[0] },
+            }
+          : {
+              level: "warn",
+              scope: "structure",
+              title: `Theme “${theme}” only appears on track ${padTrack(appears[0])}`,
+              detail: "Weave it into at least one more track so it feels intentional.",
+              fix: { focus: "song-themes", trackNumber: appears[0] },
+            },
+      );
     }
   }
 
@@ -263,19 +401,34 @@ export function buildAlbumBible(data: unknown): AlbumBible {
     if (!centralSet.has(normKey(row.name)) && row.trackNumbers.length >= 2) {
       issues.push({
         level: "info",
-        title: `Theme "${row.name}" recurs across ${row.trackNumbers.length} tracks`,
-        detail: "Consider adding it to album-level themes if it is intentional.",
+        scope: "structure",
+        title: `Theme “${row.name}” recurs across ${row.trackNumbers.length} tracks`,
+        detail: "If it's intentional, add it to the album's themes.",
+        fix: { focus: "album" },
       });
     }
   }
 
   for (const character of characterIndex) {
     if (character.trackNumbers.length === 1) {
-      issues.push({
-        level: "warn",
-        title: `Character "${character.name}" only appears once`,
-        detail: `Currently only tagged in Track ${character.trackNumbers[0]}. Either bring them back or remove to avoid a dangling thread.`,
-      });
+      issues.push(
+        early
+          ? {
+              level: "warn",
+              scope: "structure",
+              progress: true,
+              title: `Bring “${character.name}” back on another track`,
+              detail: `On track ${padTrack(character.trackNumbers[0])} so far. Bring them back as you write, or leave them out, so the thread doesn't dangle.`,
+              fix: { focus: "story", trackNumber: character.trackNumbers[0] },
+            }
+          : {
+              level: "warn",
+              scope: "structure",
+              title: `Character “${character.name}” only appears once`,
+              detail: `Tagged only on track ${padTrack(character.trackNumbers[0])}. Bring them back or remove them, so the thread doesn't dangle.`,
+              fix: { focus: "story", trackNumber: character.trackNumbers[0] },
+            },
+      );
     }
   }
 
@@ -284,8 +437,13 @@ export function buildAlbumBible(data: unknown): AlbumBible {
   if (chronoCount > 0 && chronoCount < tracks.length) {
     issues.push({
       level: "warn",
+      scope: "structure",
       title: "Chronological order is only partially set",
-      detail: "Either set chronological_order for every track (for story albums) or rely on track order only.",
+      detail: "Set a story order on every track for a story album, or clear it and rely on the sequence.",
+      fix: {
+        focus: "story",
+        trackNumber: tracks.find((t) => typeof t.chronologicalOrder !== "number")?.trackNumber,
+      },
     });
   }
 

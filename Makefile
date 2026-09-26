@@ -1,7 +1,6 @@
-.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down ui api docs billing-smoke billing-lifecycle-smoke staging-e2e ui-playwright-smoke ui-e2e email-smoke backup-data restore-backup web-db-backup web-db-restore web-lighthouse-public web-lighthouse-auth web-e2e-backstop
+.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down api docs billing-smoke billing-lifecycle-smoke staging-e2e email-smoke backup-data restore-backup web-db-backup web-db-restore web-lighthouse-public web-lighthouse-auth web-e2e-backstop
 
 PY_DEV = uv run --python 3.11 --with '.[dev,music]'
-PY_UI = uv run --python 3.11 --with '.[dev,ui,music]'
 
 # Default target
 help:
@@ -25,13 +24,10 @@ help:
 	@echo "Application:"
 	@echo "  make api           Start FastAPI server"
 	@echo "  make api-dev       Start FastAPI with hot reload"
-	@echo "  make ui            Launch Gradio UI"
 	@echo "  make cli           Show CLI help"
 	@echo "  make billing-smoke Run billing/subscription smoke test"
 	@echo "  make billing-lifecycle-smoke Run simulated subscription lifecycle smoke"
 	@echo "  make staging-e2e   Run end-to-end API staging smoke flow"
-	@echo "  make ui-playwright-smoke  Run Playwright UI smoke check"
-	@echo "  make ui-e2e        Run Playwright UI E2E assertions"
 	@echo "  make email-smoke   Send onboarding email smoke test"
 	@echo "  make web-lighthouse-public  Run the public Lighthouse 100/100 audit"
 	@echo "  make web-lighthouse-auth  Run the authenticated Lighthouse 100/100 audit"
@@ -44,7 +40,7 @@ help:
 	@echo "Docker:"
 	@echo "  make docker        Build Docker image"
 	@echo "  make docker-api    Start API container"
-	@echo "  make docker-up     Start UI container"
+	@echo "  make docker-up     Start API container"
 	@echo "  make docker-down   Stop containers"
 	@echo "  make docker-dev    Start development container"
 	@echo "  make docker-test   Run tests in container"
@@ -160,9 +156,6 @@ api:
 api-dev:
 	$(PY_DEV) uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000 --reload
 
-ui:
-	$(PY_UI) python3 -m album_conceptualizer.cli ui
-
 cli:
 	$(PY_DEV) python3 -m album_conceptualizer.cli --help
 
@@ -193,7 +186,7 @@ docker-dev:
 	docker build -t album-conceptualizer:dev --target development .
 
 docker-up:
-	docker compose up -d app
+	docker compose up -d api
 
 docker-api-up:
 	docker compose up -d api
@@ -248,12 +241,6 @@ billing-lifecycle-smoke:
 
 staging-e2e:
 	$(PY_DEV) python3 scripts/staging-e2e.py
-
-ui-playwright-smoke:
-	bash scripts/ui-playwright-smoke.sh
-
-ui-e2e:
-	bash scripts/ui-e2e-playwright.sh
 
 email-smoke:
 	.venv/bin/python scripts/email-smoke.py
