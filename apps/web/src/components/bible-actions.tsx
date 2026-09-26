@@ -123,18 +123,21 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
       const res = await fetch(`/api/albums/${albumId}/autotag`, { cache: "no-store" });
       if (!res.ok) throw new Error(await errorFrom(res, "No tags could be suggested. Try again in a moment."));
       const body = (await res.json()) as { proposals: TrackTagProposal[]; writtenTracks: number };
-      if (!body.proposals.length) {
+      // Tracks listed with no tags on them are nothing to add: never open a review whose only
+      // action would be "Add 0 tags".
+      const found = body.proposals.filter((track) => countTags([track]) > 0);
+      if (!found.length) {
         setPhase("idle");
         setStatus({
           tone: "neutral",
           text: body.writtenTracks
-            ? "Nothing new to suggest. Tags come from words and names that repeat in a track's written lyrics, and those are already tagged."
+            ? "No new tags found. Tags come from words and names that repeat in a track's written lyrics, and those are already tagged."
             : "No track has lyrics of its own yet, so there's nothing to tag from. Placeholder lines don't count.",
         });
         return;
       }
-      setProposals(body.proposals);
-      setSelected(albumMatchKeys(body.proposals));
+      setProposals(found);
+      setSelected(albumMatchKeys(found));
       setPhase("review");
     } catch (err) {
       setPhase("idle");
@@ -325,7 +328,15 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
               disabled={!chosen}
               busy={phase === "applying"}
             >
-              {phase === "applying" ? "Adding…" : chosen === 1 ? "Add 1 tag" : `Add ${chosen} tags`}
+              {/* The count is what will be added; with nothing ticked the button is disabled and
+                  says only "Add tags" (never "Add 0 tags"), and the line beside it says why. */}
+              {phase === "applying"
+                ? "Adding…"
+                : !chosen
+                  ? "Add tags"
+                  : chosen === 1
+                    ? "Add 1 tag"
+                    : `Add ${chosen} tags`}
             </Button>
             <Button
               tone="ghost"

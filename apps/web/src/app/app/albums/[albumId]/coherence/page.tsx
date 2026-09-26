@@ -91,27 +91,37 @@ const TRACK_LINK_SUFFIX: Record<string, string> = {
 const TRACK_LINK =
   "type-figure inline-grid min-h-11 min-w-11 place-items-center rounded-sm text-sm font-semibold text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:bg-hover hover:text-ink";
 
-/** Track numbers as links in a catalog line: "1 · 4 · 7". */
+/**
+ * Track numbers as links in a catalog line: "1 · 4 · 7". Like every catalog line, each separator
+ * stays with the number after it, and the last two numbers never part, so a wrap never leaves a
+ * lone number (or a dangling dot) on a line of its own.
+ */
 function TrackLinks({ albumId, issue, tracks }: { albumId: string; issue: CoherenceIssue; tracks: number[] }) {
   const suffix = TRACK_LINK_SUFFIX[issue.trackFocus ?? "song"] ?? "";
+  const item = (trackNumber: number, index: number) => (
+    <span key={trackNumber} className="inline-flex items-center whitespace-nowrap">
+      {/* Each number is a 44px target, so a comma would float in the gap; a catalog dot sits
+          in it naturally. Screen readers hear "Track 1, Track 4" from the links. */}
+      {index > 0 ? (
+        <span aria-hidden="true" className="text-ink-3">
+          ·
+        </span>
+      ) : null}
+      <Link href={coherenceTrackHref(albumId, issue, trackNumber)} className={TRACK_LINK}>
+        <span className="sr-only">Track </span>
+        {trackNumber}
+        {suffix ? <span className="sr-only">{suffix}</span> : null}
+      </Link>
+    </span>
+  );
+  const head = tracks.length > 2 ? tracks.slice(0, -2) : [];
+  const tail = tracks.length > 2 ? tracks.slice(-2) : tracks;
   return (
     <>
-      {tracks.map((trackNumber, index) => (
-        <span key={trackNumber} className="inline-flex items-center">
-          <Link href={coherenceTrackHref(albumId, issue, trackNumber)} className={TRACK_LINK}>
-            <span className="sr-only">Track </span>
-            {trackNumber}
-            {suffix ? <span className="sr-only">{suffix}</span> : null}
-          </Link>
-          {/* Each number is a 44px target, so a comma would float in the gap; a catalog dot
-              sits in it naturally. Screen readers hear "Track 1, Track 4" from the links. */}
-          {index < tracks.length - 1 ? (
-            <span aria-hidden="true" className="text-ink-3">
-              ·
-            </span>
-          ) : null}
-        </span>
-      ))}
+      {head.map((trackNumber, index) => item(trackNumber, index))}
+      <span className="inline-flex items-center whitespace-nowrap">
+        {tail.map((trackNumber, index) => item(trackNumber, head.length + index))}
+      </span>
     </>
   );
 }

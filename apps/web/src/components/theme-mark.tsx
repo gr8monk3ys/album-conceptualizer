@@ -1,3 +1,4 @@
+import { themeHeadLines } from "@/lib/theme-keys";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,5 +25,35 @@ export function ThemeMark({ carries, label }: { carries: boolean; label?: string
       />
       {label ? <span className="sr-only">{label}</span> : null}
     </>
+  );
+}
+
+/**
+ * A theme's name heading its column, whole: on one line when it fits the slot, otherwise on
+ * two (broken at a space, or hyphenated at a syllable), from `themeHeadLines`. Only a name
+ * that not even two lines hold truncates, and the table shows its legend for it. Each line
+ * still truncates as a safety net. Visual only: the table names its themes in full for
+ * screen readers, so this is hidden from them.
+ *
+ * `widthRem` is the room inside the slot (its width less padding), in rem.
+ */
+export function ThemeHeadName({
+  theme,
+  widthRem,
+  className,
+}: {
+  theme: string;
+  widthRem: number;
+  className?: string;
+}) {
+  const { lines } = themeHeadLines(theme, widthRem);
+  return (
+    <span aria-hidden="true" title={theme} className={cn("type-catalog text-xs leading-tight text-ink-3", className)}>
+      {lines.map((line, index) => (
+        <span key={index} className="block truncate">
+          {line}
+        </span>
+      ))}
+    </span>
   );
 }

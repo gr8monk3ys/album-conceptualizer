@@ -90,7 +90,7 @@ export function ChordField({
           autoComplete="off"
           spellCheck={false}
           className={cn(inputClass, problem && "border-danger/60")}
-          placeholder="C Am F G"
+          placeholder="e.g. C Am F G"
         />
       )}
     </Field>
@@ -170,7 +170,7 @@ export function TempoField({
           onClamped?.(message);
         }}
         className={cn(inputClass, "type-figure", error && "border-danger/60")}
-        placeholder="120"
+        placeholder="e.g. 120"
       />
     </Field>
   );

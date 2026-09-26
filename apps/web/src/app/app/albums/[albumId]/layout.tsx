@@ -41,18 +41,23 @@ export default async function AlbumLayout({
   const remix = remixSource(album.data);
   const remixHref = await remixSourceHref(remix);
 
+  // On the Studio (the page that renders #studio-editor) the release header compresses so the
+  // lyrics reach the first viewport ("Writing comes first"): the title steps down to 1.875rem,
+  // the catalog line sits beside it on its baseline, and the frame's gaps tighten. Pure CSS
+  // (`:has()`), so it applies on the server render and nothing moves after hydration; every
+  // other album screen keeps the full release header.
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="group/album flex min-w-0 flex-col gap-6 has-[#studio-editor]:gap-4">
       {/* A size container, so the release title steps down in a narrow header (a phone at
           200% text) instead of breaking inside words (--text-display-release). */}
       <header className="@container flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-        <div className="flex min-w-0 max-w-full flex-col gap-3">
+        <div className="flex min-w-0 max-w-full flex-col gap-3 group-has-[#studio-editor]/album:flex-row group-has-[#studio-editor]/album:flex-wrap group-has-[#studio-editor]/album:items-baseline group-has-[#studio-editor]/album:gap-x-4 group-has-[#studio-editor]/album:gap-y-1">
           {/* 18.75em is 24ch of the display cut, set in em so the measure is the same before
               and after Archivo loads (the fallback's "0" is narrower). The page's h1, except
               under an address the album has no page for, where the not-found heading is. */}
           <ReleaseTitle
             albumId={album.id}
-            className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto"
+            className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto group-has-[#studio-editor]/album:min-w-0 group-has-[#studio-editor]/album:text-3xl"
           >
             {album.title}
           </ReleaseTitle>

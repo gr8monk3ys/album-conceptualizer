@@ -21,6 +21,15 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const returnFocus = useReturnFocus();
 
+  function cancel() {
+    if (busy) return;
+    setConfirming(false);
+    setTyped("");
+    setError(null);
+    // Cancel goes with the form; focus goes back to the button that opened it.
+    returnFocus(() => triggerRef.current);
+  }
+
   async function remove() {
     if (!matches || busy) return;
     setBusy(true);
@@ -54,6 +63,13 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
           onSubmit={(event) => {
             event.preventDefault();
             void remove();
+          }}
+          onKeyDown={(event) => {
+            // Escape cancels, like every other inline confirm (Confirm Spend).
+            if (event.key === "Escape" && !event.defaultPrevented) {
+              event.preventDefault();
+              cancel();
+            }
           }}
         >
           <div>
@@ -92,13 +108,7 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
             <Button
               tone="ghost"
               disabled={busy}
-              onClick={() => {
-                setConfirming(false);
-                setTyped("");
-                setError(null);
-                // Cancel goes with the form; focus goes back to the button that opened it.
-                returnFocus(() => triggerRef.current);
-              }}
+              onClick={cancel}
             >
               Cancel
             </Button>

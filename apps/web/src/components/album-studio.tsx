@@ -85,7 +85,7 @@ import {
   pad2,
 } from "@/components/studio/track-list";
 import { useUndoWindow } from "@/components/studio/undo-window";
-import { Button, EmptyState, Field, Section, inputClass, selectClass, textareaClass } from "@/components/ui";
+import { Button, EmptyState, Field, inputClass, selectClass, textareaClass } from "@/components/ui";
 import { invalidChords } from "@/lib/chords";
 import { lyricProgress } from "@/lib/lyrics";
 import { useLeaveGuard } from "@/lib/use-autosave";
@@ -378,10 +378,11 @@ function useAlbumStudioRender({
   // The sticky stack (app header + save bar) is measured, not assumed, and published as
   // --sticky-offset on <html> while the Studio is mounted: the page's scroll padding reads it,
   // so a focused field never hides under the bar, and the track list sticks just below it. It
-  // follows the bar's real height (it grows while Undo or the version field is open). The bar
-  // sticks only on a window at least 31.3125em tall (em, so it follows the text size) and only
-  // while header + bar cover less than 35% of it; otherwise it scrolls away with the page and
-  // only the header (while it sticks) is counted.
+  // follows the bar's real height (it grows while the version field is open; Undo and Retry lie
+  // over the status, so they never change it). The bar sticks only on a window at least
+  // 31.3125em tall (em, so it follows the text size) and only while header + bar cover less than
+  // 35% of it; otherwise it scrolls away with the page and only the header (while it sticks) is
+  // counted.
   useEffect(() => {
     const bar = saveBarRef.current;
     if (!bar) return;
@@ -1111,6 +1112,10 @@ function useAlbumStudioRender({
       "No changes yet"
     ) : null;
 
+  // Undo, and Retry after a failed save, lie over the save status (see the save bar).
+  const retryShown = Boolean(saveError && !saving);
+  const offerShown = retryShown || Boolean(undo);
+
   const writeNextLabel = upNext
     ? `${upNext.song === songIndex ? "" : trackPrefix(songs[upNext.song])}${
         sectionLabels(songs[upNext.song]?.sections ?? [])[upNext.section] ?? "Section"
@@ -1119,14 +1124,15 @@ function useAlbumStudioRender({
 
   const currentTrack = activeSong ? `${pad2(activeSong.track_number)} · ${activeSong.title.trim() || "Untitled"}` : null;
 
-  // One quiet row: the current track (so a phone writer knows where they are while typing), the
-  // save status, Undo while it is offered, keyboard hints (only with a fine pointer and room for
-  // them), then the quiet actions: on a small screen the next section to write (ghost; the
-  // in-page "Write next" stays the saffron primary), Help, "Save version…" (its name field
-  // opens inline, below) and a ghost "Save now". Below 48em (a phone, or enlarged text) the
-  // last three are 44px icons with their names kept, so the bar stays two rows at most. Autosave does the saving; the saffron on this
-  // screen belongs to the next step of the writing. The bar sticks only where it leaves most of
-  // the window for writing (see the measurement above); otherwise it scrolls with the page.
+  // One quiet row: the current track (so a phone writer knows where they are while typing) and
+  // the save status, with Undo or Retry laid over them while offered (so the bar never reflows),
+  // keyboard hints (only with a fine pointer and room for them), then the actions: on a small
+  // screen "Write next" (the screen's one primary there; from 48em it sits in the editor),
+  // Help, "Save version…" (its name field opens inline, below) and a ghost "Save now". Below
+  // 48em (a phone, or enlarged text) the last three are 44px icons with their names kept.
+  // Autosave does the saving; the saffron on this screen belongs to the next step of the
+  // writing. The bar sticks only where it leaves most of the window for writing (see the
+  // measurement above); otherwise it scrolls with the page.
   const saveBar = (
     <div
       ref={saveBarRef}
@@ -1136,7 +1142,8 @@ function useAlbumStudioRender({
       )}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-        <div className="flex min-h-11 min-w-0 flex-1 basis-40 flex-col justify-center">
+        {/* `relative`: Undo and Retry lie over this column (below), so they never reflow the bar. */}
+        <div className="relative flex min-h-11 min-w-0 flex-1 basis-40 flex-col justify-center">
           {currentTrack ? (
             <p className="type-figure truncate text-sm font-semibold text-ink" title={currentTrack}>
               <span className="sr-only">Track </span>
@@ -1158,24 +1165,48 @@ function useAlbumStudioRender({
             </span>
             {quietStatus ? <span className="min-w-0 break-words">{quietStatus}</span> : null}
           </p>
+          {offerShown ? (
+            // Undo (and Retry after a failed save) are laid over the track and status lines, in
+            // the column's own box, so the bar keeps its height and nothing beside it moves when
+            // one appears or lapses. The line beside them says what they are about: the failed
+            // save's reason (already spoken by the status above, so hidden from it here), or
+            // what Undo would put back.
+            <div {...undoWindow.groupProps} className="absolute inset-0 flex min-w-0 items-center gap-x-2 bg-ground text-sm">
+              <span
+                id={retryShown ? undefined : "studio-undo-text"}
+                className={cn("line-clamp-2 min-w-0 flex-1 break-words", retryShown ? "text-danger" : "text-ink")}
+                title={retryShown ? (saveError ?? undefined) : undo ? undoText(undo) : undefined}
+                aria-hidden={retryShown ? true : undefined}
+              >
+                {retryShown ? saveError : undo ? undoText(undo) : null}
+              </span>
+              {retryShown && undo ? (
+                <span id="studio-undo-text" className="sr-only">
+                  {undoText(undo)}
+                </span>
+              ) : null}
+              {retryShown ? (
+                <Button tone="secondary" className="flex-none" onClick={() => void save("manual")} aria-label="Retry save">
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  Retry
+                </Button>
+              ) : null}
+              {undo ? (
+                <Button
+                  id="studio-undo"
+                  key={undo.key}
+                  tone="secondary"
+                  className="flex-none"
+                  onClick={restoreDeleted}
+                  aria-describedby="studio-undo-text"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  Undo
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
-        {saveError && !saving ? (
-          <Button tone="secondary" onClick={() => void save("manual")} aria-label="Retry save">
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            Retry
-          </Button>
-        ) : null}
-        {undo ? (
-          <span {...undoWindow.groupProps} className="flex min-w-0 items-center gap-x-2 text-sm text-ink">
-            <span id="studio-undo-text" className="line-clamp-2 min-w-0 max-w-[36ch] break-words" title={undoText(undo)}>
-              {undoText(undo)}
-            </span>
-            <Button id="studio-undo" key={undo.key} tone="secondary" onClick={restoreDeleted} aria-describedby="studio-undo-text">
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
-              Undo
-            </Button>
-          </span>
-        ) : null}
         <div className="contents pointer-coarse:hidden">
           <p className="hidden min-w-0 text-xs text-ink-3 lg:block">
             <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
@@ -1183,9 +1214,10 @@ function useAlbumStudioRender({
         </div>
         <div className="flex flex-wrap items-center gap-x-1">
           {upNext ? (
-            // Small screens only (em, so enlarged text counts as small): the in-page primary
-            // can be a long way down the page there.
-            <Button tone="ghost" onClick={writeNext} className="min-[48em]:hidden">
+            // Small screens only (em, so enlarged text counts as small), where the editor can
+            // be a long way down the page: the one "Write next" there, and the screen's primary.
+            // From 48em it sits in the editor instead (below); never both at once.
+            <Button tone="primary" onClick={writeNext} className="min-[48em]:hidden">
               Write next: {writeNextLabel}
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -1378,7 +1410,28 @@ function useAlbumStudioRender({
       {previewStatus("track")}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 @lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      {/* The track's Role and Story note, always in view: Coherence asks every track for them. */}
+      <SongStoryFields song={activeSong} onChange={updateSongField} />
+      {/* Where the track list has no theme columns (a phone, enlarged text), this track's
+          album themes are toggled here instead. */}
+      <TrackThemeToggles
+        className="@5xl/studio:hidden"
+        song={activeSong}
+        centralThemes={album.central_themes ?? []}
+        onToggle={(theme) => toggleTrackTheme(songIndex, theme)}
+      />
+    </section>
+  ) : null;
+
+  // The track's title, key and tempo: set once and rarely changed, so they follow the writing
+  // rather than stand between the track's title and its lyrics (the catalog line under the
+  // title already shows the key and tempo).
+  const trackDetails = activeSong ? (
+    <section aria-labelledby="studio-track-details-title" className="border-t border-line pt-5">
+      <h2 id="studio-track-details-title" className="text-lg font-semibold text-ink">
+        Track details
+      </h2>
+      <div className="mt-4 grid grid-cols-2 gap-4 @lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <Field
           label="Track title"
           htmlFor="song-title"
@@ -1430,65 +1483,59 @@ function useAlbumStudioRender({
           onClamped={setNavAnnouncement}
         />
       </div>
-      {/* The track's Role and Story note, always in view: Coherence asks every track for them. */}
-      <SongStoryFields song={activeSong} onChange={updateSongField} />
-      {/* Where the track list has no theme columns (a phone, enlarged text), this track's
-          album themes are toggled here instead. */}
-      <TrackThemeToggles
-        className="@5xl/studio:hidden"
-        song={activeSong}
-        centralThemes={album.central_themes ?? []}
-        onToggle={(theme) => toggleTrackTheme(songIndex, theme)}
-      />
     </section>
   ) : null;
 
+  // "Sections" heads the list's own column, and Add section follows the list, so the heading
+  // shares a row with the current section's heading and the lyrics start one row sooner.
+  const sectionsHeading = (
+    <h2 id="studio-sections-title" className="flex min-h-11 items-center text-lg font-semibold text-ink">
+      Sections
+    </h2>
+  );
   const sectionEditor = activeSong ? (
-    <Section
-      id="studio-sections"
-      title="Sections"
-      className="pt-5"
-      actions={
-        <Button id={ADD_SECTION_ID} tone="secondary" onClick={addSection}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Add section
-        </Button>
-      }
-    >
+    <section aria-labelledby="studio-sections-title" className="border-t border-line pt-5">
       {sections.length ? (
-        <div className="grid grid-cols-1 gap-6 @xl:grid-cols-[12rem_minmax(0,1fr)]">
-          <ol aria-label={`Sections of ${songTitle}`} className="self-start border-t border-line">
-            {sections.map((section, index) => {
-              const isActive = index === sectionIndex;
-              return (
-                <li key={section.id ?? `${section.section_type}-${section.order}`} className="border-b border-line">
-                  <button
-                    id={`section-row-${section.id}`}
-                    type="button"
-                    onClick={() => selectSection(index)}
-                    aria-current={isActive ? "true" : undefined}
-                    aria-keyshortcuts={SECTION_KEYSHORTCUTS}
-                    className={cn(
-                      "relative flex min-h-11 w-full items-center justify-between gap-2 px-2 py-1.5 text-left transition-colors",
-                      // The current row's fill and weight vanish in forced colors (High
-                      // Contrast), so it also carries a transparent frame drawn there in Highlight.
-                      isActive
-                        ? "bg-selected text-ink after:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-transparent after:content-[''] forced-colors:after:border-[color:Highlight]"
-                        : "text-ink-2 hover:bg-hover hover:text-ink",
-                    )}
-                  >
-                    <span className="min-w-0">
-                      <span className={cn("block break-words text-sm", isActive && "font-semibold")}>{labels[index]}</span>
-                      <span className="type-figure block break-words text-xs text-ink-3">
-                        {isWritten(section.lyrics) ? "Lyrics written" : "No lyrics yet"} ·{" "}
-                        {sectionChordSummary(sections, index)}
+        <div className="grid grid-cols-1 gap-x-6 gap-y-6 @xl:grid-cols-[12rem_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-3 self-start">
+            {sectionsHeading}
+            <ol aria-label={`Sections of ${songTitle}`} className="border-t border-line">
+              {sections.map((section, index) => {
+                const isActive = index === sectionIndex;
+                return (
+                  <li key={section.id ?? `${section.section_type}-${section.order}`} className="border-b border-line">
+                    <button
+                      id={`section-row-${section.id}`}
+                      type="button"
+                      onClick={() => selectSection(index)}
+                      aria-current={isActive ? "true" : undefined}
+                      aria-keyshortcuts={SECTION_KEYSHORTCUTS}
+                      className={cn(
+                        "relative flex min-h-11 w-full items-center justify-between gap-2 px-2 py-1.5 text-left transition-colors",
+                        // The current row's fill and weight vanish in forced colors (High
+                        // Contrast), so it also carries a transparent frame drawn there in Highlight.
+                        isActive
+                          ? "bg-selected text-ink after:pointer-events-none after:absolute after:inset-0 after:border-2 after:border-transparent after:content-[''] forced-colors:after:border-[color:Highlight]"
+                          : "text-ink-2 hover:bg-hover hover:text-ink",
+                      )}
+                    >
+                      <span className="min-w-0">
+                        <span className={cn("block break-words text-sm", isActive && "font-semibold")}>{labels[index]}</span>
+                        <span className="type-figure block break-words text-xs text-ink-3">
+                          {isWritten(section.lyrics) ? "Lyrics written" : "No lyrics yet"} ·{" "}
+                          {sectionChordSummary(sections, index)}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+            <Button id={ADD_SECTION_ID} tone="secondary" className="self-start" onClick={addSection}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add section
+            </Button>
+          </div>
 
           {activeSection ? (
             <div id={SECTION_EDITOR_ID} className="flex min-w-0 flex-col gap-4">
@@ -1617,7 +1664,8 @@ function useAlbumStudioRender({
                 </div>
               ) : null}
               {upNext ? (
-                <div>
+                // From 48em only: below it, the save bar carries the one "Write next".
+                <div className="max-[48em]:hidden">
                   <Button tone="primary" onClick={writeNext}>
                     Write next: {writeNextLabel}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -1657,19 +1705,24 @@ function useAlbumStudioRender({
           ) : null}
         </div>
       ) : (
-        <EmptyState
-          title="This track has no sections yet"
-          action={
-            <Button tone="secondary" onClick={addSection}>
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Add section
-            </Button>
-          }
-        >
-          Start with a verse or a chorus. Each section gets its own lyrics, chords and comments.
-        </EmptyState>
+        <>
+          {sectionsHeading}
+          <div className="mt-3">
+            <EmptyState
+              title="This track has no sections yet"
+              action={
+                <Button tone="secondary" onClick={addSection}>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Add section
+                </Button>
+              }
+            >
+              Start with a verse or a chorus. Each section gets its own lyrics, chords and comments.
+            </EmptyState>
+          </div>
+        </>
       )}
-    </Section>
+    </section>
   ) : null;
 
   const storyAndAi = activeSong ? (
@@ -1695,7 +1748,7 @@ function useAlbumStudioRender({
   ) : null;
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4">
       {/* The first stop inside the album content: past the save bar and the whole track list,
           straight to the current section's lyrics. Visible on focus, like the app's skip link. */}
       {songs.length ? (
@@ -1738,11 +1791,12 @@ function useAlbumStudioRender({
       >
         {trackList}
 
-        <div id={EDITOR_ID} className="@container flex min-w-0 flex-col gap-8">
+        <div id={EDITOR_ID} className="@container flex min-w-0 flex-col gap-6">
           {songs.length ? (
             <>
               {trackHeader}
               {sectionEditor}
+              {trackDetails}
               {storyAndAi}
             </>
           ) : (

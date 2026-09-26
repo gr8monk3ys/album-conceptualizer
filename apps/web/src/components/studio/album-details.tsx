@@ -94,7 +94,7 @@ export function AlbumDetails({
             value={album.primary_genre ?? ""}
             onChange={(e) => onChange({ primary_genre: e.target.value || null })}
             className={inputClass}
-            placeholder="Alt pop"
+            placeholder="e.g. Alt pop"
           />
         </Field>
         <Field label="Concept summary" htmlFor={ALBUM_CONCEPT_INPUT_ID}>
@@ -113,7 +113,7 @@ export function AlbumDetails({
           noun="central theme"
           values={album.central_themes ?? []}
           onChange={(next) => onChange({ central_themes: next })}
-          placeholder="identity, memory, change"
+          placeholder="e.g. identity, memory, change"
           hint="The ideas the whole record carries. The coherence report checks each track for them."
         />
         <ChipListEditor

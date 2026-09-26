@@ -53,9 +53,11 @@ function centerTab(scroller: HTMLElement, tab: HTMLElement) {
 /**
  * One way around an album, the same on every album screen. Six tabs in one row on a hairline
  * when the album column has room (32rem, so enlarged text needs more); with less room they
- * stack as a ruled grid of three, then two, columns, so every tab stays visible on a phone
- * rather than scrolling out of sight. If a row still can't fit (an unusually wide font), the
- * strip scrolls inside itself, centres the current tab and fades the edge with more tabs.
+ * wrap into ruled rows, each tab as wide as its own name (the rows share out the spare room),
+ * so every tab is visible and whole on a phone, even "Coherence" at 320px with 200% text,
+ * rather than clipped by a fixed column or scrolled out of sight. If the one row still can't
+ * fit (an unusually wide font), the strip scrolls inside itself, centres the current tab and
+ * fades the edge with more tabs.
  */
 export function AlbumNav({ albumId }: { albumId: string }) {
   const segment = useAlbumSegment(albumId);
@@ -81,12 +83,13 @@ export function AlbumNav({ albumId }: { albumId: string }) {
         // Scrolls inside itself: min-w-0 keeps the tab strip from ever widening the page.
         className={cn("-mx-1 min-w-0 max-w-[calc(100%+0.5rem)] overflow-x-auto", edgeFadeClass(fade, "x"))}
       >
-        <ul className="grid grid-cols-2 px-1 @xs:grid-cols-3 @lg:flex @lg:min-w-max @lg:gap-1 @lg:border-b @lg:border-line">
+        <ul className="flex flex-wrap px-1 @lg:min-w-max @lg:flex-nowrap @lg:gap-1 @lg:border-b @lg:border-line">
           {TABS.map((tab) => {
             const active = (tab.covers as readonly string[]).includes(segment);
             return (
-              // In the grid each tab carries its own hairline, so both rows are ruled.
-              <li key={tab.label} className="min-w-0 border-b border-line @lg:border-b-0">
+              // Wrapped, each tab carries its own hairline, so every row is ruled; a tab grows
+              // to share its row's spare room but never shrinks below its name.
+              <li key={tab.label} className="min-w-0 flex-auto border-b border-line @lg:flex-none @lg:border-b-0">
                 <Link
                   ref={active ? activeRef : undefined}
                   href={tab.segment ? `${base}/${tab.segment}` : base}

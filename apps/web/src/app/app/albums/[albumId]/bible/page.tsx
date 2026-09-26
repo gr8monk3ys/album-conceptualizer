@@ -86,10 +86,13 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
   // scroller (`cqw`, from the @container wrapper) so it can never outgrow it at 200% text: at
   // most 12rem or 40% of the scroller. The scroller's scroll padding is the same width, so a
   // track link reached by Tab scrolls clear of the sticky column instead of under it. Below
-  // 28rem (rem, so enlarged text reaches it sooner) there's no room for a sticky column; it
-  // scrolls with the rest.
+  // 28rem (rem, so enlarged text reaches it sooner: a phone, or 200% text) there's no room for
+  // a sticky column; it scrolls with the rest and keeps a readable 9rem instead of 40% of a
+  // narrow scroller (which broke names mid-word into a cell 440px tall), and the track
+  // columns scroll sideways beside it. Names break only between words, or inside a word too
+  // long for the whole column.
   const themeColumn =
-    "w-[min(12rem,40cqw)] min-w-[min(12rem,40cqw)] max-w-[45cqw] bg-ground pr-4 text-left sticky left-0 z-10 @max-[28rem]:static";
+    "w-[min(12rem,40cqw)] min-w-[min(12rem,40cqw)] max-w-[45cqw] bg-ground pr-4 text-left sticky left-0 z-10 @max-[28rem]:static @max-[28rem]:w-[9rem] @max-[28rem]:min-w-[9rem] @max-[28rem]:max-w-none";
   return (
     <div className="@container min-w-0 border-y border-line">
       <TableScroller label="Theme map table" className="scroll-ps-[min(12rem,40%)] @max-[28rem]:scroll-ps-0">
@@ -123,7 +126,7 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
             {rows.map((row) => (
               <tr key={row.label} className="border-b border-line last:border-b-0">
                 <th scope="row" className={cn(themeColumn, "py-2.5 font-normal")}>
-                  <span className="block font-semibold text-ink wrap-anywhere hyphens-auto">{row.label}</span>
+                  <span className="block font-semibold text-ink break-words hyphens-auto">{row.label}</span>
                   <span className="type-figure block max-w-[40ch] text-xs text-ink-3">
                     {row.trackNumbers.length
                       ? `${row.trackNumbers.length} of ${tracks.length} · ${themeArc(

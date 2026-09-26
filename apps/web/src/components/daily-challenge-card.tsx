@@ -251,28 +251,43 @@ export function DailyChallengeCard({
               </div>
             ) : null}
 
-            <Field
-              htmlFor="challenge-note"
-              label="What did you write?"
-              hint={
-                done
-                  ? "Your note for today."
-                  : remaining > 0
+            {done ? (
+              // Once the credits are paid the entry is final: the note reads as saved text, not
+              // a field that looks editable (no box, no resize handle), with a line saying so.
+              <div className="flex flex-col gap-1.5">
+                <h3 className="text-sm font-semibold text-ink">
+                  What you wrote
+                </h3>
+                <p className="max-w-[65ch] whitespace-pre-line break-words border-l-2 border-line-strong pl-3 text-sm leading-relaxed text-ink"
+                >
+                  {note}
+                </p>
+                <p className="max-w-[65ch] text-xs leading-relaxed text-ink-3">
+                  Today&apos;s entry is complete, so its note can&apos;t be changed. Tomorrow&apos;s
+                  prompt gets a fresh one.
+                </p>
+              </div>
+            ) : (
+              <Field
+                htmlFor="challenge-note"
+                label="What did you write?"
+                hint={
+                  remaining > 0
                     ? `A sentence is enough: what you drafted. ${remaining} more ${remaining === 1 ? "character" : "characters"} to go.`
                     : "A sentence is enough: what you drafted."
-              }
-            >
-              <textarea
-                id="challenge-note"
-                value={note}
-                onChange={(e) => setNoteDraft(e.target.value)}
-                rows={4}
-                maxLength={NOTE_MAX}
-                readOnly={done}
-                className={textareaClass}
-                placeholder="Drafted the chorus and locked a C–Am–F–G loop."
-              />
-            </Field>
+                }
+              >
+                <textarea
+                  id="challenge-note"
+                  value={note}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  rows={4}
+                  maxLength={NOTE_MAX}
+                  className={textareaClass}
+                  placeholder="e.g. Drafted the chorus and locked a C–Am–F–G loop."
+                />
+              </Field>
+            )}
 
             {link ? <WrittenFor ref={writtenForRef} link={link} albums={albums} /> : null}
 

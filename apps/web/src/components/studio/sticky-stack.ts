@@ -13,7 +13,7 @@ export const STICKY_MAX_SHARE = 0.35;
 /**
  * Whether the save bar should stick: only on a window tall enough for sticky layers at all,
  * and only while header + bar would cover less than 35% of it (a phone at 200% text, or the
- * bar grown by Undo or the version field, lets it scroll away instead).
+ * bar grown by the version field, lets it scroll away instead).
  */
 export function saveBarSticks({
   tallEnough,

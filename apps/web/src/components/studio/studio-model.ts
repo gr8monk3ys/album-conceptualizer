@@ -320,23 +320,30 @@ export function firstUnwrittenSection(sections: readonly { lyrics?: unknown }[] 
 }
 
 /**
- * The next section still waiting for lyrics after the current one, reading the album in
- * order and wrapping round to the start; never the current section itself. Null when every
- * other section is written.
+ * The section "Write next" goes to: the first section still waiting for lyrics, read in order,
+ * never the current one. The current track comes first (its first unwritten section, even one
+ * before the current section, such as an empty Chorus 1 while Verse 2 is being written), then
+ * the album from its first track. Placeholder lyrics ("[Verse line 1]") count as unwritten
+ * (`isWrittenLyrics`). Null when every other section is written.
  */
 export function nextToWrite(
   songs: readonly { sections?: readonly { lyrics?: unknown }[] | null }[],
   songIndex: number,
   sectionIndex: number,
 ): { song: number; section: number } | null {
-  const flat: { song: number; section: number }[] = [];
-  songs.forEach((song, s) => (song.sections ?? []).forEach((_, i) => flat.push({ song: s, section: i })));
-  if (!flat.length) return null;
-  const here = flat.findIndex((p) => p.song === songIndex && p.section === sectionIndex);
-  for (let step = 1; step <= flat.length; step += 1) {
-    const at = flat[((here < 0 ? -1 : here) + step + flat.length) % flat.length];
-    if (!at || (at.song === songIndex && at.section === sectionIndex)) continue;
-    if (!isWrittenLyrics(songs[at.song]?.sections?.[at.section]?.lyrics)) return at;
+  const isCurrent = (song: number, section: number) => song === songIndex && section === sectionIndex;
+  const firstIn = (song: number) => {
+    const found = (songs[song]?.sections ?? []).findIndex(
+      (section, i) => !isCurrent(song, i) && !isWrittenLyrics(section?.lyrics),
+    );
+    return found >= 0 ? { song, section: found } : null;
+  };
+  const here = songIndex >= 0 && songIndex < songs.length ? firstIn(songIndex) : null;
+  if (here) return here;
+  for (let song = 0; song < songs.length; song += 1) {
+    if (song === songIndex) continue;
+    const found = firstIn(song);
+    if (found) return found;
   }
   return null;
 }

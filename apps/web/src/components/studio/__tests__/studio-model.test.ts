@@ -108,6 +108,17 @@ describe("firstUnwrittenSection / nextToWrite", () => {
     expect(nextToWrite([{ sections: [empty] }], 0, 0)).toBeNull();
   });
 
+  it("picks the first unwritten section in order, never skipping an earlier empty Chorus", () => {
+    // Verse 1 written, Chorus 1 empty, Verse 2 (current) being written, Chorus 2 empty.
+    const track = { sections: [written, empty, written, empty] };
+    expect(nextToWrite([track], 0, 2)).toEqual({ song: 0, section: 1 });
+    // The current track comes first, then the album from its first track.
+    const album = [{ sections: [empty] }, { sections: [written, written] }, { sections: [written, placeholder, empty] }];
+    expect(nextToWrite(album, 2, 2)).toEqual({ song: 2, section: 1 });
+    expect(nextToWrite(album, 1, 0)).toEqual({ song: 0, section: 0 });
+    expect(nextToWrite(album, 0, 0)).toEqual({ song: 2, section: 1 });
+  });
+
   it("is null when everything else is written or there are no sections", () => {
     expect(nextToWrite([{ sections: [written, written] }], 0, 0)).toBeNull();
     expect(nextToWrite([{ sections: [] }], 0, 0)).toBeNull();

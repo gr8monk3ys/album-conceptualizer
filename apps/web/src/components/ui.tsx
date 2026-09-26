@@ -323,6 +323,11 @@ export function Field({
 /**
  * A short label for a tag, theme or state; not a button. There is no saffron tone: a chip is
  * never the primary action, the current location or focus (the One Signal Rule).
+ *
+ * Chips that aren't buttons don't look like buttons: a flat tint with no border (a Strong Rule
+ * outline is what a secondary button wears), no shadow and the default cursor. Interactive
+ * chips (the editable chip lists, suggestion chips) are drawn by their editors, 44px tall with a
+ * border and a hover, so the two never read alike.
  */
 export function Chip({
   tone = "neutral",
@@ -330,14 +335,18 @@ export function Chip({
   ...props
 }: ComponentProps<"span"> & { tone?: "neutral" | "ok" | "warn" | "danger" }) {
   const tones = {
-    neutral: "border-line-strong text-ink-2",
-    ok: "border-ok/50 text-ok",
-    warn: "border-warn/50 text-warn",
-    danger: "border-danger/50 text-danger",
+    neutral: "bg-hover text-ink-2",
+    ok: "bg-ok/10 text-ok",
+    warn: "bg-warn/10 text-warn",
+    danger: "bg-danger-soft text-danger",
   };
   return (
     <span
-      className={cn("inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-xs font-medium", tones[tone], className)}
+      className={cn(
+        "inline-flex cursor-default items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium",
+        tones[tone],
+        className,
+      )}
       {...props}
     />
   );

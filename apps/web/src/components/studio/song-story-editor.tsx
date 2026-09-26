@@ -37,7 +37,7 @@ export function storySummary(song: StudioSong): string {
 }
 
 /**
- * The track's Role and Story note, always in view under its title, key and tempo: the two
+ * The track's Role and Story note, always in view under its title (above the lyrics): the two
  * things the coherence report asks of every track first, so they are never behind a
  * disclosure. Role is defined where it is asked.
  */
@@ -61,7 +61,7 @@ export function SongStoryFields({
           onChange={(e) => onChange("narrative_position", e.target.value || null)}
           maxLength={120}
           className={inputClass}
-          placeholder="Opening"
+          placeholder="e.g. Opening"
         />
       </Field>
       <Field
@@ -78,7 +78,7 @@ export function SongStoryFields({
           value={song.narrative_summary ?? ""}
           onChange={(e) => onChange("narrative_summary", e.target.value || null)}
           className={inputClass}
-          placeholder="She leaves the city before the storm reaches it."
+          placeholder="e.g. She leaves the city before the storm reaches it."
         />
       </Field>
     </div>

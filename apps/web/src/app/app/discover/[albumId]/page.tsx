@@ -9,7 +9,12 @@ import { ButtonLink, Chip, PageHeader, Section } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { lyricExcerptsByTrack, writtenSummaryItems } from "@/lib/discover";
 import { getSpineRows, getSpineThemes } from "@/server/album-songs";
-import { analyzeAlbumCoherence, MIN_WRITTEN_TRACKS_FOR_SCORE, verdictText } from "@/server/coherence";
+import {
+  analyzeAlbumCoherence,
+  dimensionsWeakestFirst,
+  MIN_WRITTEN_TRACKS_FOR_SCORE,
+  verdictText,
+} from "@/server/coherence";
 import { getCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
@@ -219,7 +224,7 @@ export default async function DiscoverAlbumPage({
             <Section
               title="How it holds together"
               headingLevel={2}
-              description="The Coherence report, scored out of 100 from what the artist has written so far."
+              description="The Coherence report, scored out of 100 from what the artist has written so far, weakest dimension first."
             >
               {coherence.insufficient ? (
                 <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
@@ -241,8 +246,10 @@ export default async function DiscoverAlbumPage({
                       <span className="text-lg font-semibold text-ink">{coherence.score}</span> / 100
                     </p>
                   </div>
+                  {/* The same order as the owner's Coherence report ("By dimension"): weakest
+                      first, so a visitor and the artist read the dimensions alike. */}
                   <dl>
-                    {coherence.breakdown.map((item) => (
+                    {dimensionsWeakestFirst(coherence.breakdown).map((item) => (
                       <div key={item.key} className="flex items-baseline justify-between gap-3 border-b border-line py-2">
                         <dt className="text-sm text-ink-2">{item.label}</dt>
                         <dd className="type-figure text-sm font-semibold text-ink">{item.score}</dd>

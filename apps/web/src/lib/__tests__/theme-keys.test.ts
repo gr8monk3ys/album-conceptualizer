@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { carriedThemesPhrase, themeAbbreviations, themeHeadClasses, themeNamesFromRem } from "@/lib/theme-keys";
+import {
+  carriedThemesPhrase,
+  catalogWidthRem,
+  hyphenationPoints,
+  themeAbbreviations,
+  themeHeadClasses,
+  themeHeadLines,
+  themeNamesFromRem,
+} from "@/lib/theme-keys";
 
 describe("themeAbbreviations", () => {
   it("uses one letter when every theme starts differently", () => {
@@ -64,5 +72,71 @@ describe("theme heads: names, not codes", () => {
   it("clamps to one to six themes", () => {
     expect(themeHeadClasses(0)).toEqual(themeHeadClasses(1));
     expect(themeHeadClasses(9)).toEqual(themeHeadClasses(6));
+  });
+});
+
+describe("themeHeadLines: the whole name over its column", () => {
+  // The spine's 3rem slot, less its padding.
+  const SLOT = 2.75;
+
+  it("keeps a name that fits on one line", () => {
+    expect(themeHeadLines("signal", SLOT)).toEqual({ lines: ["signal"], truncated: false });
+    expect(themeHeadLines("  tide ", SLOT)).toEqual({ lines: ["tide"], truncated: false });
+  });
+
+  it("breaks a two-word name at the space", () => {
+    expect(themeHeadLines("late night", SLOT)).toEqual({ lines: ["late", "night"], truncated: false });
+  });
+
+  it("breaks after a hyphen the name already has, without adding one", () => {
+    expect(themeHeadLines("self-doubt", SLOT)).toEqual({ lines: ["self-", "doubt"], truncated: false });
+  });
+
+  it("hyphenates a long single word at a syllable, choosing the most even pair", () => {
+    expect(themeHeadLines("isolation", SLOT)).toEqual({ lines: ["isola-", "tion"], truncated: false });
+    expect(themeHeadLines("memory", SLOT)).toEqual({ lines: ["me-", "mory"], truncated: false });
+    expect(themeHeadLines("Heartbreak", SLOT)).toEqual({ lines: ["Heart-", "break"], truncated: false });
+  });
+
+  it("prefers a space to a hyphen when both fit", () => {
+    expect(themeHeadLines("new tides", 2.3).lines).toEqual(["new", "tides"]);
+  });
+
+  it("says when not even two lines hold the name, so the legend can name it", () => {
+    expect(themeHeadLines("unrequited homecomings", SLOT)).toEqual({
+      lines: ["unrequited homecomings"],
+      truncated: true,
+    });
+  });
+
+  it("fits more on one line in a wider slot", () => {
+    expect(themeHeadLines("isolation", 4.5)).toEqual({ lines: ["isolation"], truncated: false });
+  });
+});
+
+describe("hyphenationPoints", () => {
+  it("breaks before a single consonant between vowels and inside clusters", () => {
+    expect(hyphenationPoints("isolation")).toEqual([3, 5]);
+    expect(hyphenationPoints("heartbreak")).toEqual([5, 6]);
+  });
+
+  it("breaks before a common suffix", () => {
+    expect(hyphenationPoints("longing")).toEqual([4]);
+    expect(themeHeadLines("longing", 2.75).lines).toEqual(["long-", "ing"]);
+  });
+
+  it("never splits th, ch, ng or qu, and leaves two letters before and three after", () => {
+    expect(hyphenationPoints("mother")).toEqual([2]);
+    expect(hyphenationPoints("quiet")).toEqual([]);
+    expect(hyphenationPoints("quietly")).toEqual([]);
+    expect(hyphenationPoints("tide")).toEqual([]);
+  });
+});
+
+describe("catalogWidthRem", () => {
+  it("measures the uppercased name, accents on their base letter", () => {
+    expect(catalogWidthRem("i")).toBeCloseTo(0.226);
+    expect(catalogWidthRem("é")).toBeCloseTo(catalogWidthRem("E"));
+    expect(catalogWidthRem("mw")).toBeGreaterThan(catalogWidthRem("il"));
   });
 });

@@ -4,6 +4,7 @@ import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { getAlbumSongOptions } from "@/server/album-songs";
 import { getDailyChallenge } from "@/server/challenges";
 import { getPrisma } from "@/server/db";
+import { getAgentAvailability } from "@/server/engine";
 import { requireUser } from "@/server/identity";
 import { effectivePlan, planMonthlyCredits } from "@/server/plan";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
@@ -16,11 +17,11 @@ export const metadata = {
 
 const PLAN_NAME = { free: "Free", pro: "Pro", team: "Team" } as const;
 
-const CREDIT_USES: Array<{ label: string; cost: number }> = [
+const CREDIT_USES: Array<{ label: string; cost: number; ai?: boolean }> = [
   { label: "Create an album", cost: CREDIT_COSTS.albumCreate },
   { label: "Remix an album from Discover", cost: CREDIT_COSTS.albumFork },
   { label: "Download the zip export", cost: CREDIT_COSTS.exportZip },
-  { label: "An AI draft (ideas, a track or a written review)", cost: CREDIT_COSTS.agentRun },
+  { label: "An AI draft (ideas, a track or a written review)", cost: CREDIT_COSTS.agentRun, ai: true },
 ];
 
 function addDaysUtc(day: string, delta: number) {
@@ -48,7 +49,7 @@ export default async function ChallengesPage() {
 
   const { day, challenge } = getDailyChallenge();
 
-  const [completion, albums] = await Promise.all([
+  const [completion, albums, aiAvailable] = await Promise.all([
     prisma.challengeCompletion.findFirst({
       where: {
         workspaceId: workspace.id,
@@ -71,6 +72,8 @@ export default async function ChallengesPage() {
       take: 50,
       select: { id: true, title: true, data: true },
     }),
+    // AI drafts aren't offered as a way to spend credits when the server can't run them.
+    getAgentAvailability(),
   ]);
   const completionLink = completion?.albumId
     ? { albumId: completion.albumId, trackNumber: completion.trackNumber }
@@ -153,9 +156,13 @@ export default async function ChallengesPage() {
                     className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-line py-2"
                   >
                     <dt className="min-w-0 text-sm text-ink-2">{use.label}</dt>
-                    <dd className="type-figure text-sm font-semibold text-ink">
-                      {use.cost} credits
-                    </dd>
+                    {use.ai && !aiAvailable ? (
+                      <dd className="text-sm text-ink-3">Not available on this server right now</dd>
+                    ) : (
+                      <dd className="type-figure text-sm font-semibold text-ink">
+                        {use.cost} credits
+                      </dd>
+                    )}
                   </div>
                 ))}
               </dl>

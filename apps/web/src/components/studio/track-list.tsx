@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 
 import { carriedThemes, type StudioSong } from "@/components/studio/studio-model";
 import { TRACK_KEYSHORTCUTS } from "@/components/studio/studio-shortcuts";
+import { ThemeHeadName } from "@/components/theme-mark";
 import { Button, TableScroller } from "@/components/ui";
 import { lyricProgress } from "@/lib/lyrics";
 import { carriedThemesPhrase, themeAbbreviations } from "@/lib/theme-keys";
@@ -240,13 +241,13 @@ export function TrackList({
                   Lyrics
                 </th>
                 {themes.map((theme) => (
-                  // The theme's name, cut to the 44px column with an ellipsis; the full name is
-                  // the header's text (so its accessible name), its tooltip, and in the legend
-                  // below, where the theme under keyboard focus is picked out.
+                  // The theme's whole name over its 44px column, on two lines when one won't
+                  // hold it (`ThemeHeadName`: 2.75rem less padding); only a name two lines can't
+                  // hold truncates. The full name is the header's accessible name, its tooltip,
+                  // and in the legend below, where the theme under keyboard focus is picked out.
                   <th key={theme} scope="col" className={cn(HEAD, "hidden w-11 px-0 text-center @5xl:table-cell")}>
-                    <span title={theme} className="mx-auto block w-11 truncate px-0.5">
-                      {theme}
-                    </span>
+                    <span className="sr-only">{theme}</span>
+                    <ThemeHeadName theme={theme} widthRem={2.5} className="mx-auto block w-11 px-0.5" />
                   </th>
                 ))}
                 <th scope="col" className={cn(HEAD, "hidden w-32 pl-3 @7xl:table-cell")}>

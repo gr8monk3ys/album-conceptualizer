@@ -7,6 +7,7 @@ import { Check } from "lucide-react";
 import { CatalogItems } from "@/components/album-card";
 import { Button, Chip, LiveStatus, PageHeader, Section, TableScroller } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { creditUses } from "@/lib/credit-uses";
 import { cn } from "@/lib/utils";
 
 type PlanKey = "free" | "pro" | "team";
@@ -18,29 +19,6 @@ const PLANS: Array<{ key: PlanKey; name: string; price: string; rank: number }> 
 ];
 
 const PLAN_NAME: Record<string, string> = { free: "Free", pro: "Pro", team: "Team" };
-
-/**
- * What credits buy, in the product's own units. "One album, start to handoff" is a worked
- * example (its parts are listed), not a limit: the Studio, the Album Bible and the Coherence
- * report never cost credits.
- */
-const ALBUM_PASS = CREDIT_COSTS.albumCreate + 2 * CREDIT_COSTS.agentRun + CREDIT_COSTS.exportZip;
-const CREDIT_USES: Array<{ key: string; label: string; detail?: string; cost: number }> = [
-  { key: "create", label: "Create an album", cost: CREDIT_COSTS.albumCreate },
-  { key: "remix", label: "Remix an album from Discover", cost: CREDIT_COSTS.albumFork },
-  {
-    key: "ai",
-    label: "An AI draft: ideas for a new album, a track, or a written review",
-    cost: CREDIT_COSTS.agentRun,
-  },
-  { key: "zip", label: "Download the zip export", cost: CREDIT_COSTS.exportZip },
-  {
-    key: "pass",
-    label: "One album, start to handoff",
-    detail: `Create it (${CREDIT_COSTS.albumCreate}), two AI drafts (${2 * CREDIT_COSTS.agentRun}), one zip export (${CREDIT_COSTS.exportZip})`,
-    cost: ALBUM_PASS,
-  },
-];
 
 function times(credits: number, cost: number) {
   return Math.floor(credits / cost);
@@ -91,6 +69,7 @@ export function BillingPlans({
   hasCustomer,
   monthlyCredits,
   freeProjectLimit,
+  aiAvailable,
 }: {
   workspaceName: string;
   /** The plan whose entitlements apply right now. */
@@ -102,7 +81,10 @@ export function BillingPlans({
   hasCustomer: boolean;
   monthlyCredits: Record<PlanKey, number>;
   freeProjectLimit: number;
+  /** From `getAgentAvailability()` on the server: false when AI drafts can't run here. */
+  aiAvailable: boolean;
 }) {
+  const { albumPass, uses } = creditUses(aiAvailable);
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -210,7 +192,10 @@ export function BillingPlans({
               const facts = [
                 plan.key === "free" ? `Keep up to ${freeProjectLimit} albums` : "Keep as many albums as you like",
                 `${credits} credits each month`,
-                `Enough for ${plural(times(credits, CREDIT_COSTS.agentRun), "AI draft", "AI drafts")}, or any mix of creating, remixing and exporting`,
+                // Offers you can't take aren't sold: without AI the plan is counted in albums.
+                aiAvailable
+                  ? `Enough for ${plural(times(credits, CREDIT_COSTS.agentRun), "AI draft", "AI drafts")}, or any mix of creating, remixing and exporting`
+                  : `Enough to create ${plural(times(credits, CREDIT_COSTS.albumCreate), "album", "albums")}, or any mix of creating, remixing and exporting`,
               ];
               return (
                 <li
@@ -266,10 +251,17 @@ export function BillingPlans({
           </ul>
         </div>
         <p className="mt-4 max-w-[65ch] text-sm leading-relaxed text-ink-2">
-          Taking one album from start to handoff (creating it, two AI drafts and a zip export) uses{" "}
-          <span className="type-figure text-ink">{ALBUM_PASS}</span> credits. Writing, saving, the
+          Taking one album from start to handoff (creating it,{aiAvailable ? " two AI drafts" : ""}
+          {aiAvailable ? " and" : ""} a zip export) uses{" "}
+          <span className="type-figure text-ink">{albumPass}</span> credits. Writing, saving, the
           Album Bible and the Coherence report never cost credits.
         </p>
+        {aiAvailable ? null : (
+          <p className="mt-2 max-w-[65ch] text-sm leading-relaxed text-ink-2">
+            AI drafts aren&apos;t available on this server right now, so no plan includes them: its
+            credits go to creating, remixing and exporting. Everything else works without them.
+          </p>
+        )}
       </Section>
 
       <Section
@@ -311,16 +303,25 @@ export function BillingPlans({
               </tr>
             </thead>
             <tbody>
-              {CREDIT_USES.map((use) => (
+              {uses.map((use) => (
                 <tr key={use.key} className="border-b border-line align-baseline">
                   <th scope="row" className="py-2.5 pr-4 text-left font-normal text-ink-2">
-                    <span className={use.detail ? "font-semibold text-ink" : undefined}>{use.label}</span>
+                    <span className={use.detail && !use.unavailable ? "font-semibold text-ink" : undefined}>
+                      {use.label}
+                    </span>
                     {use.detail ? (
                       <span className="mt-0.5 block max-w-[65ch] text-xs text-ink-3">{use.detail}</span>
                     ) : null}
                   </th>
                   <td className="type-figure whitespace-nowrap py-2.5 pr-4 text-right font-semibold text-ink">
-                    {plural(use.cost, "credit", "credits")}
+                    {use.unavailable ? (
+                      <>
+                        <span aria-hidden="true">—</span>
+                        <span className="sr-only">Not available</span>
+                      </>
+                    ) : (
+                      plural(use.cost, "credit", "credits")
+                    )}
                   </td>
                   {PLANS.map((plan) => (
                     <td
@@ -330,8 +331,17 @@ export function BillingPlans({
                         plan.key === currentPlan ? "text-ink" : "text-ink-2",
                       )}
                     >
-                      {times(monthlyCredits[plan.key], use.cost)}
-                      <span className="sr-only"> times on {plan.name}</span>
+                      {use.unavailable ? (
+                        <>
+                          <span aria-hidden="true">—</span>
+                          <span className="sr-only">Not available on {plan.name} right now</span>
+                        </>
+                      ) : (
+                        <>
+                          {times(monthlyCredits[plan.key], use.cost)}
+                          <span className="sr-only"> times on {plan.name}</span>
+                        </>
+                      )}
                     </td>
                   ))}
                 </tr>
