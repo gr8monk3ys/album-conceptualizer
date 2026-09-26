@@ -661,14 +661,13 @@ function useAlbumStudioRender({
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   }, [arrival]);
 
-  // A layout refresh keeps the page where it was. Next.js scrolls a refreshed page to its top
-  // when the address's query differs from the one the page was rendered for, and the Studio
-  // keeps `?song=…&sid=…` in step with the screen, so every refresh after an outline change
-  // (add, move, delete, Undo) jumped to the top and left the focused field off screen. This
-  // layout effect runs in the refresh's commit before the router's own (a parent's), so it
-  // reads the position before the jump; the next frame, before anything is painted, puts it
-  // back if the router threw it to the top (only then: a fling or a smooth scroll the writer
-  // is in the middle of carries on).
+  // A layout refresh keeps the focused field on screen. Next.js scrolls a refreshed page when
+  // the address's query differs from the one the page was rendered for (to its top, or to the
+  // refreshed segment, and not always in the same frame), and the Studio keeps `?song=…&sid=…`
+  // in step with the screen, so a refresh after an outline change (add, move, delete, Undo)
+  // could leave the field that had just been focused below the fold. So once the refresh has
+  // committed, for a moment after it, the field that has focus is brought back into view if it
+  // was pushed off screen, unless the writer has scrolled or typed since (then it's theirs).
   useLayoutEffect(() => {
     if (refreshing) {
       refreshCommitRef.current = true;
@@ -676,11 +675,42 @@ function useAlbumStudioRender({
     }
     if (!refreshCommitRef.current) return;
     refreshCommitRef.current = false;
-    const before = window.scrollY;
-    const frame = requestAnimationFrame(() => {
-      if (before > 1 && window.scrollY <= 1) window.scrollTo({ top: before, behavior: "instant" });
-    });
-    return () => cancelAnimationFrame(frame);
+    const target = document.activeElement;
+    if (!(target instanceof HTMLElement) || target === document.body) return;
+    let writerMoved = false;
+    const mark = () => {
+      writerMoved = true;
+    };
+    const listen = { capture: true, passive: true } as const;
+    window.addEventListener("wheel", mark, listen);
+    window.addEventListener("touchmove", mark, listen);
+    window.addEventListener("keydown", mark, listen);
+    const keepInView = () => {
+      if (writerMoved || document.activeElement !== target || !target.isConnected) return;
+      const box = target.getBoundingClientRect();
+      // Off screen, or with no line of it showing above the bottom edge.
+      if (box.top > window.innerHeight - 48 || box.bottom < 48) {
+        target.scrollIntoView({ block: "center", behavior: "instant" });
+      }
+    };
+    const stopListening = () => {
+      window.removeEventListener("wheel", mark, listen);
+      window.removeEventListener("touchmove", mark, listen);
+      window.removeEventListener("keydown", mark, listen);
+    };
+    const frame = requestAnimationFrame(keepInView);
+    const timers = [
+      window.setTimeout(keepInView, 150),
+      window.setTimeout(() => {
+        keepInView();
+        stopListening();
+      }, 400),
+    ];
+    return () => {
+      cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      stopListening();
+    };
   }, [refreshing]);
 
   // A hidden challenge leaves the address too, so a reload doesn't pin it again. In place, and
