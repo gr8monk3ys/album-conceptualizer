@@ -31,7 +31,7 @@ async function createAlbumAndOpenStudio(page: import("@playwright/test").Page, t
   await page.getByRole("button", { name: "Save and continue", exact: true }).click();
   await page.waitForURL("**/app/albums/**");
   await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
-  await page.waitForURL("**/studio");
+  await page.waitForURL(/\/studio(\?|$)/);
 }
 
 // ---------------------------------------------------------------------------
@@ -123,7 +123,7 @@ test.describe("Studio", () => {
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Story bible", exact: true }).click();
     await page.waitForURL("**/bible");
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
-    await page.waitForURL("**/studio");
+    await page.waitForURL(/\/studio(\?|$)/);
     await expect(page.getByLabel("Lyrics draft")).toHaveValue(line);
   });
   test("focus never falls to the page after creating an album or editing chips", async ({ page }) => {
@@ -141,7 +141,7 @@ test.describe("Studio", () => {
     await expect(page.getByRole("group", { name: "Album saved" })).toBeFocused();
 
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
-    await page.waitForURL("**/studio");
+    await page.waitForURL(/\/studio(\?|$)/);
     await page.getByRole("button", { name: /Themes and motifs/ }).click();
     const themes = page.getByLabel("Themes", { exact: true });
     await themes.fill("tide");
@@ -156,6 +156,25 @@ test.describe("Studio", () => {
     await page.getByRole("button", { name: "Remove theme “salt”" }).press("Enter");
     // The last chip gone, focus returns to the field.
     await expect(themes).toBeFocused();
+  });
+  test("the address follows a moved track, so a reload opens what was on screen", async ({ page }) => {
+    await devLogin(page);
+    await createAlbumAndOpenStudio(page, `Move Reload ${randomSuffix()}`);
+    const words = "Salt on the lamp glass, the keeper counts the ships.";
+    await page.getByLabel("Lyrics draft").fill(words);
+    await page.getByRole("button", { name: "Save now", exact: true }).click();
+    await expect(page.getByText("Saved.")).toBeVisible();
+
+    await page.getByRole("button", { name: "More track actions" }).click();
+    await page.getByRole("menuitem", { name: /Move track down/ }).click();
+    // The move is shown where a delete would be, with Undo, and the address follows the track.
+    await expect(page.getByText("Moved “Track 2” to 02 (was 01).")).toBeVisible();
+    await expect(page).toHaveURL(/[?&]song=2(&|$)/);
+    await page.getByRole("button", { name: "Save now", exact: true }).click();
+    await expect(page.getByText("Saved.")).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByLabel("Lyrics draft")).toHaveValue(words);
   });
 });
 

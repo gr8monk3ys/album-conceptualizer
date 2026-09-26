@@ -32,7 +32,7 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await page.waitForURL("**/app/albums/**");
 
   await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
-  await page.waitForURL("**/studio");
+  await page.waitForURL(/\/studio(\?|$)/);
 
   await page.getByLabel("Lyrics draft").fill("This is an E2E lyrics draft.\nSecond line.");
   await page.getByRole("button", { name: "Save now", exact: true }).click();
@@ -85,5 +85,5 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await page.waitForURL("**/app/discover/**");
   await expect(page.getByRole("button", { name: /Remix/ })).toHaveCount(0);
   await page.getByRole("link", { name: /Open in Studio/ }).click();
-  await page.waitForURL("**/app/albums/**/studio");
+  await page.waitForURL(/\/app\/albums\/[^/]+\/studio(\?|$)/);
 });

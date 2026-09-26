@@ -93,7 +93,7 @@ test.describe("Album Management", () => {
     });
 
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
-    await page.waitForURL("**/studio");
+    await page.waitForURL(/\/studio(\?|$)/);
     await expect(page).toHaveURL(/studio/);
   });
 

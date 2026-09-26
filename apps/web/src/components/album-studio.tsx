@@ -130,6 +130,8 @@ type AlbumStudioProps = {
 type UndoEntry =
   | { kind: "track"; song: StudioSong; index: number; label: string; key: number }
   | { kind: "section"; songId: string; section: StudioSection; index: number; label: string; key: number }
+  /** A track moved one place: Undo moves it back. `label` is the line beside Undo. */
+  | { kind: "move"; songId: string; from: number; label: string; key: number }
   | {
       kind: "chords";
       songId: string;
@@ -145,7 +147,7 @@ type UndoEntry =
 
 /** The save bar's line beside Undo: what the undoable change did. */
 function undoText(entry: UndoEntry) {
-  return entry.kind === "chords" ? entry.label : `Deleted “${entry.label}”.`;
+  return entry.kind === "chords" || entry.kind === "move" ? entry.label : `Deleted “${entry.label}”.`;
 }
 
 /** "Remixed into your workspace · 45 credits left". */
@@ -203,6 +205,15 @@ const SAVED_FLASH_MS = 4000;
 
 function resolveSelection(album: StudioAlbum, selection: SelectionInput | undefined) {
   const songs = album.songs;
+  // A section id names one section wherever its track now sits: comment, task and notification
+  // links keep the track number from when they were made, and tracks move.
+  const sidFirst = selection?.sid?.trim();
+  if (sidFirst) {
+    for (let i = 0; i < songs.length; i += 1) {
+      const at = (songs[i]?.sections ?? []).findIndex((s) => s.id === sidFirst);
+      if (at >= 0) return { song: i, section: at };
+    }
+  }
   let song = 0;
   const track = selection?.song && /^\d+$/.test(selection.song) ? Number(selection.song) : null;
   if (track != null) {
@@ -473,6 +484,26 @@ function useAlbumStudioRender({
     router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
   }, [arrival, router]);
 
+  // The address follows the track and section on screen (?song=N&sid=…), so a reload, Back or a
+  // copied link opens what the writer was looking at, even after a move renumbers the track.
+  // History is replaced in place, not navigated: nothing re-renders from the server.
+  const shownTrack = activeSong?.track_number;
+  const shownSection = activeSection?.id;
+  useEffect(() => {
+    if (shownTrack == null) return;
+    const url = new URL(window.location.href);
+    const song = String(shownTrack);
+    if (url.searchParams.get("song") === song && url.searchParams.get("sid") === (shownSection ?? null)) return;
+    url.searchParams.set("song", song);
+    if (shownSection) url.searchParams.set("sid", shownSection);
+    else url.searchParams.delete("sid");
+    // One-shot hints that described the arrival, not where the writer is now.
+    url.searchParams.delete("section");
+    url.searchParams.delete("focus");
+    // `null` state, as Next.js documents: it syncs the router, so a later refresh keeps it.
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [shownTrack, shownSection]);
+
   useEffect(() => {
     if (!arrival) return;
     const timer = window.setTimeout(() => setArrivalLive(true), 500);
@@ -514,6 +545,7 @@ function useAlbumStudioRender({
       const song = songs[songIndex];
       return song?.id ? `track-row-${song.id}` : ADD_TRACK_ID;
     }
+    if (entry.kind === "move") return `track-row-${entry.songId}`;
     const owner = songs.find((song) => song.id === entry.songId);
     const list = owner?.sections ?? [];
     const section = entry.kind === "chords" ? list[entry.sourceIndex] : list[Math.min(entry.index, list.length - 1)];
@@ -851,6 +883,21 @@ function useAlbumStudioRender({
       edit((prev) => ({ ...prev, songs: restoreTrack(prev.songs, song, index) }));
       setSelection({ song: index, section: 0 });
       setPendingFocus({ id: `track-row-${song.id}`, scroll: "nearest" });
+    } else if (undo.kind === "move") {
+      const { songId, from } = undo;
+      const at = songs.findIndex((s) => s.id === songId);
+      if (at >= 0 && at !== from) {
+        const dir = from < at ? -1 : 1;
+        structuralRef.current = true;
+        edit((prev) => {
+          let list = prev.songs;
+          for (let i = at; i !== from; i += dir) list = moveTrack(list, i, dir) ?? list;
+          return { ...prev, songs: list };
+        });
+        setSelection({ song: from, section: sectionIndex });
+        setNavAnnouncement(`Moved back to track ${from + 1} of ${songs.length}.`);
+      }
+      setPendingFocus({ id: `track-row-${songId}`, scroll: "nearest" });
     } else if (undo.kind === "section") {
       const { songId, section, index } = undo;
       const owner = songs.findIndex((s) => s.id === songId);
@@ -914,8 +961,20 @@ function useAlbumStudioRender({
     edit((prev) => ({ ...prev, songs: moveTrack(prev.songs, index, dir) ?? prev.songs }));
     setSelection({ song: index + dir, section: sectionIndex });
     // Named as it is now: a default name follows its new number ("Track 2" → "Track 1").
-    const title = moved[index + dir]?.title.trim() || "Untitled";
+    const song = moved[index + dir];
+    const title = song?.title.trim() || "Untitled";
     setNavAnnouncement(`Moved “${title}” to track ${index + dir + 1} of ${songs.length}.`);
+    // Sighted writers see the move too, where a delete is shown, with Undo: a default name
+    // changes with its number, so the line says where the track came from.
+    if (song?.id) {
+      setUndo({
+        kind: "move",
+        songId: song.id,
+        from: index,
+        label: `Moved “${title}” to ${pad2(index + dir + 1)} (was ${pad2(index + 1)}).`,
+        key: Date.now(),
+      });
+    }
   }
 
   /** The track list's theme toggles: tag or untag one track with one central theme. */
