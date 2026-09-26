@@ -315,7 +315,7 @@ export function AlbumStyleBibleWorkspace({
               disabled={isSaving}
               className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving ? "Saving..." : "Save style bible"}
+              {isSaving ? "Saving…" : "Save style bible"}
             </button>
             {status ? <div className="text-xs text-[var(--muted2)]">{status}</div> : null}
           </div>

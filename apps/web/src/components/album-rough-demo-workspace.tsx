@@ -367,7 +367,7 @@ export function AlbumRoughDemoWorkspace({
                   setForm((current) => ({ ...current, externalUrl: event.target.value }))
                 }
                 className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
-                placeholder="https://..."
+                placeholder="https://…"
                 aria-label="External URL"
               />
             </label>
@@ -456,7 +456,7 @@ export function AlbumRoughDemoWorkspace({
               disabled={isSaving}
               className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving ? "Saving..." : editingId ? "Update demo" : "Add demo"}
+              {isSaving ? "Saving…" : editingId ? "Update demo" : "Add demo"}
             </button>
             {status ? <div className="text-xs text-[var(--muted2)]">{status}</div> : null}
           </div>
@@ -498,7 +498,7 @@ export function AlbumRoughDemoWorkspace({
                         disabled={deletingId === demo.id}
                         className="rounded-full border border-[rgba(255,120,120,0.24)] bg-[rgba(255,120,120,0.10)] px-3 py-2 text-[10px] font-semibold text-[rgba(255,210,210,0.95)] hover:bg-[rgba(255,120,120,0.16)] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {deletingId === demo.id ? "Removing..." : "Delete"}
+                        {deletingId === demo.id ? "Removing…" : "Delete"}
                       </button>
                     </div>
                   </div>

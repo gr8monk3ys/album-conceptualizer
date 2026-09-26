@@ -333,7 +333,7 @@ export function AlbumReferencesWorkspace({
                   setForm((current) => ({ ...current, sourceUrl: event.target.value }))
                 }
                 className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
-                placeholder="https://open.spotify.com/..."
+                placeholder="https://open.spotify.com/…"
               />
             </label>
 
@@ -382,7 +382,7 @@ export function AlbumReferencesWorkspace({
               onClick={() => void submitReference()}
               className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSubmitting ? "Saving..." : editingId ? "Update reference" : "Add reference"}
+              {isSubmitting ? "Saving…" : editingId ? "Update reference" : "Add reference"}
             </button>
             {statusText ? (
               <div className={`text-xs ${getStatusClassName(statusTone)}`}>{statusText}</div>
@@ -432,7 +432,7 @@ export function AlbumReferencesWorkspace({
                       onClick={() => void deleteReference(reference.id)}
                       className="rounded-full border border-[rgba(255,72,72,0.30)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-[10px] font-semibold text-[var(--bad)] hover:bg-[rgba(255,72,72,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {deletingId === reference.id ? "Removing..." : "Delete"}
+                      {deletingId === reference.id ? "Removing…" : "Delete"}
                     </button>
                   </div>
                 </div>

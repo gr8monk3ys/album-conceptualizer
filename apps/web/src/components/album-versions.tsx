@@ -66,7 +66,7 @@ export function AlbumVersions({
             }}
             className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSaving ? "Saving..." : "Save version"}
+            {isSaving ? "Saving…" : "Save version"}
           </button>
         </div>
 
@@ -123,7 +123,7 @@ export function AlbumVersions({
                       );
                       if (!ok) return;
                       setIsRestoring(version.id);
-                      setStatus("Restoring...");
+                      setStatus("Restoring…");
                       try {
                         const res = await fetch(
                           `/api/albums/${albumId}/versions/${version.id}/restore`,
@@ -148,7 +148,7 @@ export function AlbumVersions({
                     }}
                     className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isRestoring === version.id ? "Restoring..." : "Restore"}
+                    {isRestoring === version.id ? "Restoring…" : "Restore"}
                   </button>
                 </div>
               </div>

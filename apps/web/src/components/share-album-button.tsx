@@ -62,7 +62,7 @@ export function ShareAlbumButton({
         onClick={createOrRotate}
         className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isBusy ? "Working..." : "Share"}
+        {isBusy ? "Working…" : "Share"}
       </button>
 
       {link ? (

@@ -671,7 +671,7 @@ export function QuickStartComposer() {
                 disabled={!draftAlbum || isSaving}
                 className="rounded-2xl bg-[linear-gradient(90deg,var(--accent2),var(--accent))] px-4 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(255,62,165,0.15)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {isSaving ? "Saving..." : "Save and continue"}
+                {isSaving ? "Saving…" : "Save and continue"}
               </button>
             )}
           </div>

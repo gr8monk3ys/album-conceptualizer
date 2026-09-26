@@ -162,7 +162,7 @@ export function BillingPlans({
                 }}
                 className="mt-4 w-full rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {isCurrent ? "Current plan" : loadingPlan === plan.key ? "Redirecting..." : `Choose ${plan.name}`}
+                {isCurrent ? "Current plan" : loadingPlan === plan.key ? "Redirecting…" : `Choose ${plan.name}`}
               </button>
             </div>
           );
