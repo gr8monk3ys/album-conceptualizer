@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { LocalDateTime } from "@/components/local-date-time";
 
 type VersionListItem = {
   id: string;
@@ -66,7 +67,7 @@ export function AlbumVersions({
             }}
             className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSaving ? "Saving..." : "Save version"}
+            {isSaving ? "Saving…" : "Save version"}
           </button>
         </div>
 
@@ -74,10 +75,12 @@ export function AlbumVersions({
           <label className="block">
             <div className="text-xs font-semibold text-[var(--text)]">Message</div>
             <input
+              name="message"
+              autoComplete="off"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder='e.g., "Chorus rewrite + key changes"'
-              className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+              className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
               maxLength={200}
             />
           </label>
@@ -109,7 +112,7 @@ export function AlbumVersions({
                       {version.message || "Version snapshot"}
                     </div>
                     <div className="mt-1 text-xs text-[var(--muted2)]">
-                      {new Date(version.createdAt).toLocaleString()}
+                      <LocalDateTime value={version.createdAt} />
                       {version.createdBy?.email ? ` · ${version.createdBy.email}` : ""}
                     </div>
                   </div>
@@ -123,7 +126,7 @@ export function AlbumVersions({
                       );
                       if (!ok) return;
                       setIsRestoring(version.id);
-                      setStatus("Restoring...");
+                      setStatus("Restoring…");
                       try {
                         const res = await fetch(
                           `/api/albums/${albumId}/versions/${version.id}/restore`,
@@ -148,7 +151,7 @@ export function AlbumVersions({
                     }}
                     className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isRestoring === version.id ? "Restoring..." : "Restore"}
+                    {isRestoring === version.id ? "Restoring…" : "Restore"}
                   </button>
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { MarkAllReadButton, ToggleNotificationReadButton } from "@/components/notifications-actions";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -65,7 +66,7 @@ export default async function NotificationsPage() {
                 <li
                   key={n.id}
                   className={[
-                    "px-4 py-4",
+                    "px-4 py-4 [contain-intrinsic-size:auto_88px] [content-visibility:auto]",
                     isUnread
                       ? "bg-[linear-gradient(90deg,rgba(109,94,252,0.14),rgba(255,62,165,0.08))]"
                       : "bg-transparent",
@@ -85,7 +86,7 @@ export default async function NotificationsPage() {
                         ) : null}
                       </div>
                       <div className="mt-1 text-xs text-[var(--muted2)]">
-                        {meta} · {n.createdAt.toLocaleString()}
+                        {meta} · <LocalDateTime value={n.createdAt} />
                       </div>
                       {n.body ? (
                         <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">

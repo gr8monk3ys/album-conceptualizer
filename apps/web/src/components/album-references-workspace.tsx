@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { AlbumSongOption } from "@/server/album-songs";
 import type { AlbumReferenceRecord } from "@/server/references";
+import { LocalDateTime } from "@/components/local-date-time";
 
 type ReferenceFormState = {
   title: string;
@@ -251,9 +252,11 @@ export function AlbumReferencesWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Reference title</span>
               <input
+                name="title"
+                autoComplete="off"
                 value={form.title}
                 onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="Track title"
               />
             </label>
@@ -261,9 +264,11 @@ export function AlbumReferencesWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Artist</span>
               <input
+                name="artist"
+                autoComplete="off"
                 value={form.artist}
                 onChange={(event) => setForm((current) => ({ ...current, artist: event.target.value }))}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="Artist or band"
               />
             </label>
@@ -271,11 +276,13 @@ export function AlbumReferencesWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Target role</span>
               <select
+                name="target-role"
+                autoComplete="off"
                 value={form.targetRole}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, targetRole: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
               >
                 <option value="">Album-wide</option>
                 {ROLE_OPTIONS.map((role) => (
@@ -289,11 +296,13 @@ export function AlbumReferencesWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Song target</span>
               <select
+                name="song-track-number"
+                autoComplete="off"
                 value={form.songTrackNumber}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, songTrackNumber: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
               >
                 <option value="">Whole album</option>
                 {songOptions.map((song) => (
@@ -307,9 +316,11 @@ export function AlbumReferencesWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">BPM</span>
               <input
+                name="bpm"
+                autoComplete="off"
                 value={form.bpm}
                 onChange={(event) => setForm((current) => ({ ...current, bpm: event.target.value }))}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 inputMode="numeric"
                 placeholder="118"
               />
@@ -318,9 +329,11 @@ export function AlbumReferencesWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Key</span>
               <input
+                name="key"
+                autoComplete="off"
                 value={form.key}
                 onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))}
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="C minor"
               />
             </label>
@@ -328,23 +341,27 @@ export function AlbumReferencesWorkspace({
             <label className="md:col-span-2 flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Source URL</span>
               <input
+                name="source-url"
+                autoComplete="off"
                 value={form.sourceUrl}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, sourceUrl: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-                placeholder="https://open.spotify.com/..."
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
+                placeholder="https://open.spotify.com/…"
               />
             </label>
 
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Mood tags</span>
               <input
+                name="mood-tags-raw"
+                autoComplete="off"
                 value={form.moodTagsRaw}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, moodTagsRaw: event.target.value }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="cinematic, tense, urgent"
               />
             </label>
@@ -352,6 +369,8 @@ export function AlbumReferencesWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Arrangement tags</span>
               <input
+                name="arrangement-tags-raw"
+                autoComplete="off"
                 value={form.arrangementTagsRaw}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -359,7 +378,7 @@ export function AlbumReferencesWorkspace({
                     arrangementTagsRaw: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="wide drums, stacked vocals"
               />
             </label>
@@ -367,9 +386,11 @@ export function AlbumReferencesWorkspace({
             <label className="md:col-span-2 flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Why this reference matters</span>
               <textarea
+                name="notes"
+                autoComplete="off"
                 value={form.notes}
                 onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-                className="min-h-[120px] rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+                className="min-h-[120px] rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
                 placeholder="What exactly should this track teach the album?"
               />
             </label>
@@ -382,7 +403,7 @@ export function AlbumReferencesWorkspace({
               onClick={() => void submitReference()}
               className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSubmitting ? "Saving..." : editingId ? "Update reference" : "Add reference"}
+              {isSubmitting ? "Saving…" : editingId ? "Update reference" : "Add reference"}
             </button>
             {statusText ? (
               <div className={`text-xs ${getStatusClassName(statusTone)}`}>{statusText}</div>
@@ -429,10 +450,14 @@ export function AlbumReferencesWorkspace({
                     <button
                       type="button"
                       disabled={deletingId === reference.id}
-                      onClick={() => void deleteReference(reference.id)}
+                      onClick={() => {
+                        if (window.confirm("Delete this reference? This can't be undone.")) {
+                          void deleteReference(reference.id);
+                        }
+                      }}
                       className="rounded-full border border-[rgba(255,72,72,0.30)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-[10px] font-semibold text-[var(--bad)] hover:bg-[rgba(255,72,72,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {deletingId === reference.id ? "Removing..." : "Delete"}
+                      {deletingId === reference.id ? "Removing…" : "Delete"}
                     </button>
                   </div>
                 </div>
@@ -473,7 +498,7 @@ export function AlbumReferencesWorkspace({
                 ) : null}
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--muted2)]">
-                  <div>Updated {new Date(reference.updatedAt).toLocaleString()}</div>
+                  <div>Updated <LocalDateTime value={reference.updatedAt} /></div>
                   {reference.sourceUrl ? (
                     <a
                       href={reference.sourceUrl}

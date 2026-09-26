@@ -37,7 +37,7 @@ export function UserMenu({
         aria-label="Sign out"
         title="Sign out"
       >
-        <LogOut className="h-4 w-4" />
+        <LogOut className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
   );

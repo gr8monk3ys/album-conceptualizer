@@ -87,6 +87,7 @@ export function MobileAppMenu({
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-current={active ? "page" : undefined}
                     onClick={() => setOpen(false)}
                     className={cn(
                       "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.35)]",
@@ -111,7 +112,7 @@ export function MobileAppMenu({
               <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-[var(--muted2)]">Credits</div>
-                  <div className="rounded-full bg-[rgba(50,213,131,0.14)] px-2 py-0.5 text-xs font-medium text-[var(--ok)]">
+                  <div className="rounded-full bg-[rgba(50,213,131,0.14)] px-2 py-0.5 text-xs font-medium tabular-nums text-[var(--ok)]">
                     {creditsRemaining}
                   </div>
                 </div>

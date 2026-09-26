@@ -3,7 +3,11 @@
 import { useEffect, useRef } from "react";
 import { Pause, Play, Repeat2, SkipBack, SkipForward, Square, Volume2 } from "lucide-react";
 
-import { usePlayer, type PreviewInstrument } from "@/components/player/player-provider";
+import {
+  usePlayer,
+  usePlayerPosition,
+  type PreviewInstrument,
+} from "@/components/player/player-provider";
 
 function formatClock(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "0:00";
@@ -15,6 +19,7 @@ function formatClock(totalSeconds: number) {
 
 export function Playerbar() {
   const player = usePlayer();
+  const position = usePlayerPosition();
   const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const waveformRafRef = useRef<number | null>(null);
   const getWaveform = player.getWaveform;
@@ -33,7 +38,7 @@ export function Playerbar() {
           ? "Loading instrument…"
         : player.nowPlaying?.subtitle ?? "Load a section preview from Studio.";
 
-  const ratio = player.duration ? Math.min(1, Math.max(0, player.position / player.duration)) : 0;
+  const ratio = player.duration ? Math.min(1, Math.max(0, position / player.duration)) : 0;
 
   useEffect(() => {
     const canvas = waveformCanvasRef.current;
@@ -108,7 +113,7 @@ export function Playerbar() {
               aria-label="Previous (coming soon)"
               title="Previous (coming soon)"
             >
-              <SkipBack className="h-4 w-4" />
+              <SkipBack className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -122,7 +127,7 @@ export function Playerbar() {
               aria-label={playing ? "Pause" : "Play"}
               title={playing ? "Pause" : "Play"}
             >
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              {playing ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
             </button>
             <button
               type="button"
@@ -135,7 +140,7 @@ export function Playerbar() {
               aria-label="Stop"
               title="Stop"
             >
-              <Square className="h-4 w-4" />
+              <Square className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -144,7 +149,7 @@ export function Playerbar() {
               aria-label="Next (coming soon)"
               title="Next (coming soon)"
             >
-              <SkipForward className="h-4 w-4" />
+              <SkipForward className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -157,13 +162,13 @@ export function Playerbar() {
               aria-label={player.loop ? "Disable repeat" : "Enable repeat"}
               title={player.loop ? "Disable repeat" : "Enable repeat"}
             >
-              <Repeat2 className="h-4 w-4" />
+              <Repeat2 className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
 
           <div className="flex w-full max-w-[520px] items-center gap-3">
             <div className="text-[11px] tabular-nums text-[var(--muted2)]">
-              {formatClock(player.position)}
+              {formatClock(position)}
             </div>
             <button
               type="button"
@@ -197,9 +202,11 @@ export function Playerbar() {
           <label className="hidden lg:flex items-center gap-2 text-xs text-[var(--muted2)]">
             <span>Instrument</span>
             <select
+              name="instrument"
+              autoComplete="off"
               value={player.instrument}
               onChange={(e) => void player.setInstrument(e.target.value as PreviewInstrument)}
-              className="rounded-xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
+              className="rounded-xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-3 py-2 text-xs text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
               aria-label="Instrument"
               disabled={player.status === "loading"}
             >
@@ -209,8 +216,9 @@ export function Playerbar() {
               <option value="pad">Pad</option>
             </select>
           </label>
-          <Volume2 className="h-4 w-4 text-[var(--muted2)]" />
+          <Volume2 className="h-4 w-4 text-[var(--muted2)]" aria-hidden="true" />
           <input
+            name="volume"
             type="range"
             min={0}
             max={1}

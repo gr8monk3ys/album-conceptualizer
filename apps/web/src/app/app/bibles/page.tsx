@@ -3,6 +3,7 @@ import Link from "next/link";
 import { listAlbums } from "@/server/albums";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -70,7 +71,7 @@ export default async function BiblesPage() {
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[10px] text-[var(--muted2)]">
-                  Updated {album.updatedAt.toLocaleString()}
+                  Updated <LocalDateTime value={album.updatedAt} />
                 </div>
                 <div className="flex items-center gap-2">
                   <Link

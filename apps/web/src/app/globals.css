@@ -28,6 +28,54 @@
 
 html {
   color-scheme: dark;
+  /* Intentional tap feedback instead of the platform grey flash. */
+  -webkit-tap-highlight-color: rgba(109, 94, 252, 0.18);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  text-wrap: balance;
+}
+
+/* Anchor targets land below the sticky top bar. */
+[id] {
+  scroll-margin-top: 5rem;
+}
+
+/* No double-tap-to-zoom delay on controls. */
+a,
+button,
+input,
+label,
+select,
+summary,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* Native selects ignore the dark theme on Windows unless told. */
+select,
+select option {
+  background-color: var(--bg2);
+  color: var(--text);
+}
+
+/* Honor reduced motion everywhere: spinners, pulses, transitions and smooth
+   scrolling collapse to an instant change. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 body {

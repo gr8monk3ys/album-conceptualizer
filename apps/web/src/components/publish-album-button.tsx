@@ -52,7 +52,7 @@ export function PublishAlbumButton({
             : "Private (only accessible to you unless you share a link)"
         }
       >
-        {isPublic ? <Globe2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+        {isPublic ? <Globe2 className="h-4 w-4" aria-hidden="true" /> : <Lock className="h-4 w-4" aria-hidden="true" />}
         {isPublic ? "Published" : "Publish"}
       </button>
       {status ? <div className="text-[10px] text-[var(--muted2)]">{status}</div> : null}

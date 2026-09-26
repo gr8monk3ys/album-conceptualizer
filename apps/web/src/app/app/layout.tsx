@@ -17,17 +17,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const workspace = await getActiveWorkspaceForUser(userId);
   const plan = workspace.subscription?.plan ?? "free";
   const currentPath = requestHeaders.get("x-pathname") ?? "/app";
-  const credits = await getCreditsStatus({ workspaceId: workspace.id, plan });
-  const unreadNotifications = await getUnreadNotificationCount({
-    workspaceId: workspace.id,
-    userId,
-  });
+  // Independent reads (different tables, both keyed on the workspace).
+  const [credits, unreadNotifications] = await Promise.all([
+    getCreditsStatus({ workspaceId: workspace.id, plan }),
+    getUnreadNotificationCount({ workspaceId: workspace.id, userId }),
+  ]);
 
   return (
     <div className="relative px-3 py-3 md:px-4 md:py-4">
       <a
         href="#app-main-content"
-        className="sr-only absolute left-4 top-4 z-50 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.35)]"
+        className="sr-only absolute left-4 top-4 z-50 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black focus:not-sr-only focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.35)]"
       >
         Skip to content
       </a>

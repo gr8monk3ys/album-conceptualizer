@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Sparkles } from "lucide-react";
 
 import type { DailyChallenge } from "@/server/challenges";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export function DailyChallengeCard({
   day,
@@ -59,7 +60,7 @@ export function DailyChallengeCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.03)] px-3 py-1 text-xs text-[var(--muted)]">
-            <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
+            <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
             Daily challenge · {day} (UTC)
           </div>
           <div className="mt-3 text-xl font-semibold tracking-tight text-[var(--text)]">
@@ -85,19 +86,27 @@ export function DailyChallengeCard({
           What did you draft today? (Used to keep you honest and help future you.)
         </div>
         <textarea
+          name="note"
+          autoComplete="off"
           value={note}
           onChange={(e) => setNoteDraft(e.target.value)}
           rows={4}
           disabled={done}
-          className="mt-3 w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)] disabled:opacity-70"
+          className="mt-3 w-full resize-y rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-relaxed text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)] disabled:opacity-70"
           placeholder="e.g., Drafted chorus lyrics for Track 3 + locked a C–Am–F–G loop."
         />
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           {done ? (
             <div className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--ok)]">
-              <CheckCircle2 className="h-4 w-4" />
-              Completed{completionTime ? ` at ${new Date(completionTime).toLocaleTimeString()}` : ""}
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              Completed
+              {completionTime ? (
+                <>
+                  {" at "}
+                  <LocalDateTime value={completionTime} options={{ timeStyle: "short" }} />
+                </>
+              ) : null}
             </div>
           ) : (
             <div className="text-xs text-[var(--muted2)]">One completion per day.</div>

@@ -69,7 +69,7 @@ export function Topbar({
             type="search"
             autoComplete="off"
             spellCheck={false}
-            className="w-full bg-transparent text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus:outline-none"
+            className="w-full bg-transparent text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none"
             placeholder="Search albums, tracks, creators, or genres…"
             aria-label="Search workspace"
           />

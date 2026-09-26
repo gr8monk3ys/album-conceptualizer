@@ -27,7 +27,7 @@ export function ResolveCommentButton({ albumId, commentId }: { albumId: string; 
       }}
       className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-[10px] font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <CheckCircle2 className="h-4 w-4" />
+      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
       {loading ? "Resolving…" : "Resolve"}
     </button>
   );
@@ -56,7 +56,7 @@ export function CompleteTaskButton({ albumId, taskId }: { albumId: string; taskI
       }}
       className="inline-flex items-center gap-2 rounded-2xl bg-[rgba(255,255,255,0.08)] px-3 py-2 text-[10px] font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.12)] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <CheckCircle2 className="h-4 w-4" />
+      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
       {loading ? "Done…" : "Mark done"}
     </button>
   );

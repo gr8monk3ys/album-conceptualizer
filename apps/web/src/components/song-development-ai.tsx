@@ -76,7 +76,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
         className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(109,94,252,0.3)] bg-[rgba(109,94,252,0.08)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(109,94,252,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
         title="Generate lyrics, chords, and production notes with AI"
       >
-        <Sparkles className="h-4 w-4" />
+        <Sparkles className="h-4 w-4" aria-hidden="true" />
         Develop with AI
       </button>
     );
@@ -86,7 +86,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
     <div className="rounded-2xl border border-[rgba(109,94,252,0.2)] bg-[rgba(109,94,252,0.06)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[var(--text)]" />
+          <Sparkles className="h-4 w-4 text-[var(--text)]" aria-hidden="true" />
           <div>
             <div className="text-xs text-[var(--muted2)]">AI song development</div>
             <div className="text-sm font-semibold text-[var(--text)]">
@@ -110,7 +110,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
             onClick={() => void start()}
             className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
             {isStarting
               ? "Starting…"
               : isPolling
@@ -125,7 +125,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
           role="alert"
           className="mt-3 flex items-start gap-2 rounded-2xl border border-[rgba(255,72,72,0.22)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-xs text-[var(--bad)]"
         >
-          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
           <span>{error}</span>
         </div>
       ) : null}
@@ -135,7 +135,7 @@ export function SongDevelopmentAi({ albumId, songTitle, trackNumber }: SongDevel
           role="alert"
           className="mt-3 flex items-start gap-2 rounded-2xl border border-[rgba(255,72,72,0.22)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-xs text-[var(--bad)]"
         >
-          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
           <span>{failureMessage}</span>
         </div>
       ) : null}

@@ -1,6 +1,17 @@
+import { cache } from "react";
+
 import { getPrisma } from "@/server/db";
 
-export async function getActiveWorkspaceForUser(userId: string) {
+/**
+ * The user's active workspace. Deduplicated per request with React.cache: the
+ * /app layout and the page under it both resolve it, which was two identical
+ * queries per navigation and, for a brand-new user, two concurrent renders
+ * racing to create the backstop workspace. Outside a server render (route
+ * handlers) cache() is a pass-through.
+ */
+export const getActiveWorkspaceForUser = cache(async function getActiveWorkspaceForUser(
+  userId: string,
+) {
   const prisma = getPrisma();
   const workspace = await prisma.workspace.findFirst({
     where: {
@@ -40,5 +51,5 @@ export async function getActiveWorkspaceForUser(userId: string) {
     },
     include: { subscription: true },
   });
-}
+});
 

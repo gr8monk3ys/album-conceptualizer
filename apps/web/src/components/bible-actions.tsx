@@ -37,7 +37,7 @@ export function BibleActions({ albumId }: { albumId: string }) {
         className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
         title="Auto-tag themes, motifs, and characters from lyrics"
       >
-        <Sparkles className="h-4 w-4" />
+        <Sparkles className="h-4 w-4" aria-hidden="true" />
         {loading ? "Tagging…" : "Auto-tag"}
       </button>
 
@@ -46,7 +46,7 @@ export function BibleActions({ albumId }: { albumId: string }) {
         className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
         title="Download bible as Markdown"
       >
-        <Download className="h-4 w-4" />
+        <Download className="h-4 w-4" aria-hidden="true" />
         Markdown
       </a>
 
@@ -55,7 +55,7 @@ export function BibleActions({ albumId }: { albumId: string }) {
         className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
         title="Download bible as PDF"
       >
-        <Download className="h-4 w-4" />
+        <Download className="h-4 w-4" aria-hidden="true" />
         PDF
       </a>
 

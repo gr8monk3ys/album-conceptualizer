@@ -4,6 +4,7 @@ import { WorkspaceFunnelCard } from "@/components/workspace-funnel-card";
 import { getWorkspaceFunnelSummary } from "@/server/analytics";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export default async function AnalyticsPage() {
         </div>
         <div className="mt-2 max-w-[72ch] text-sm text-[var(--muted)]">
           Track whether projects move from creation into activation, export, and publishing.
-          Current window starts {summary.since.toLocaleDateString()}.
+          Current window starts <LocalDateTime value={summary.since} options={{ dateStyle: "medium" }} />.
         </div>
       </div>
 
@@ -94,7 +95,7 @@ export default async function AnalyticsPage() {
                     </div>
                   </div>
                   <div className="text-xs text-[var(--muted2)]">
-                    {event.createdAt.toLocaleString()}
+                    <LocalDateTime value={event.createdAt} />
                   </div>
                 </div>
               ))}
