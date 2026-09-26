@@ -662,7 +662,11 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                 </Link>
                 <button
                   type="button"
-                  onClick={() => deleteTrack(selectedSong)}
+                  onClick={() => {
+                    if (window.confirm("Delete this track and all of its sections?")) {
+                      deleteTrack(selectedSong);
+                    }
+                  }}
                   className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,62,165,0.12)]"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -822,7 +826,11 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                         </button>
                         <button
                           type="button"
-                          onClick={() => deleteSection(selectedSection)}
+                          onClick={() => {
+                            if (window.confirm("Delete this section?")) {
+                              deleteSection(selectedSection);
+                            }
+                          }}
                           className="inline-flex items-center gap-2 rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,62,165,0.12)]"
                         >
                           <Trash2 className="h-4 w-4" aria-hidden="true" />

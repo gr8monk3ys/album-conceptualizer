@@ -296,10 +296,14 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                           )}
                           <button
                             type="button"
-                            onClick={() => remove(comment.id)}
+                            onClick={() => {
+                              if (window.confirm("Delete this comment? This can't be undone.")) {
+                                void remove(comment.id);
+                              }
+                            }}
                             className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,62,165,0.14)]"
-                            aria-label="Delete"
-                            title="Delete"
+                            aria-label="Delete Comment"
+                            title="Delete Comment"
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </button>

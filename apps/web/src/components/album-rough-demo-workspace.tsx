@@ -511,7 +511,11 @@ export function AlbumRoughDemoWorkspace({
                       </button>
                       <button
                         type="button"
-                        onClick={() => void deleteDemo(demo.id)}
+                        onClick={() => {
+                          if (window.confirm("Delete this rough demo? This can't be undone.")) {
+                            void deleteDemo(demo.id);
+                          }
+                        }}
                         disabled={deletingId === demo.id}
                         className="rounded-full border border-[rgba(255,120,120,0.24)] bg-[rgba(255,120,120,0.10)] px-3 py-2 text-[10px] font-semibold text-[rgba(255,210,210,0.95)] hover:bg-[rgba(255,120,120,0.16)] disabled:cursor-not-allowed disabled:opacity-60"
                       >

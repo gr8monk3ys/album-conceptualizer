@@ -39,6 +39,7 @@ export function ShareAlbumButton({
   }
 
   async function revoke() {
+    if (!window.confirm("Revoke this share link? Anyone using it will lose access.")) return;
     setIsBusy(true);
     try {
       const res = await fetch(`/api/albums/${albumId}/share`, { method: "DELETE" });

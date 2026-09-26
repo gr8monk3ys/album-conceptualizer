@@ -450,7 +450,11 @@ export function AlbumReferencesWorkspace({
                     <button
                       type="button"
                       disabled={deletingId === reference.id}
-                      onClick={() => void deleteReference(reference.id)}
+                      onClick={() => {
+                        if (window.confirm("Delete this reference? This can't be undone.")) {
+                          void deleteReference(reference.id);
+                        }
+                      }}
                       className="rounded-full border border-[rgba(255,72,72,0.30)] bg-[rgba(255,72,72,0.10)] px-3 py-2 text-[10px] font-semibold text-[var(--bad)] hover:bg-[rgba(255,72,72,0.14)] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {deletingId === reference.id ? "Removing…" : "Delete"}
