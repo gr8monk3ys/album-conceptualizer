@@ -261,6 +261,7 @@ function QuickStartStepFields({
         <label className="block">
           <div className="text-xs font-semibold text-[var(--text)]">Album title</div>
           <input
+            name="title"
             value={form.title}
             onChange={(event) => setField("title", event.target.value)}
             className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
@@ -272,6 +273,7 @@ function QuickStartStepFields({
         <label className="block">
           <div className="text-xs font-semibold text-[var(--text)]">Artist</div>
           <input
+            name="artist"
             value={form.artist}
             onChange={(event) => setField("artist", event.target.value)}
             className="mt-2 w-full rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
@@ -283,6 +285,8 @@ function QuickStartStepFields({
         <label className="block">
           <div className="text-xs font-semibold text-[var(--text)]">Concept summary</div>
           <textarea
+            name="concept-summary"
+            autoComplete="off"
             value={form.conceptSummary}
             onChange={(event) => setField("conceptSummary", event.target.value)}
             className="mt-2 min-h-[130px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
@@ -325,6 +329,8 @@ function QuickStartStepFields({
         <label className="block">
           <div className="text-xs font-semibold text-[var(--text)]">Central themes</div>
           <textarea
+            name="central-themes-raw"
+            autoComplete="off"
             value={form.centralThemesRaw}
             onChange={(event) => setField("centralThemesRaw", event.target.value)}
             className="mt-2 min-h-[100px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
@@ -335,6 +341,8 @@ function QuickStartStepFields({
         <label className="block">
           <div className="text-xs font-semibold text-[var(--text)]">Reference albums</div>
           <textarea
+            name="reference-albums-raw"
+            autoComplete="off"
             value={form.referenceAlbumsRaw}
             onChange={(event) => setField("referenceAlbumsRaw", event.target.value)}
             className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
@@ -353,6 +361,7 @@ function QuickStartStepFields({
           <div className="text-xs text-[var(--muted)]">{form.trackCount}</div>
         </div>
         <input
+          name="quickstart-track-count"
           id="quickstart-track-count"
           type="range"
           min={4}
@@ -367,6 +376,8 @@ function QuickStartStepFields({
       <label className="block">
         <div className="text-xs font-semibold text-[var(--text)]">Track names (optional)</div>
         <textarea
+          name="track-names-raw"
+          autoComplete="off"
           value={form.trackNamesRaw}
           onChange={(event) => setField("trackNamesRaw", event.target.value)}
           className="mt-2 min-h-[120px] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"

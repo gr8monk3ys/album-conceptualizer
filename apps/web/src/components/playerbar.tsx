@@ -197,6 +197,8 @@ export function Playerbar() {
           <label className="hidden lg:flex items-center gap-2 text-xs text-[var(--muted2)]">
             <span>Instrument</span>
             <select
+              name="instrument"
+              autoComplete="off"
               value={player.instrument}
               onChange={(e) => void player.setInstrument(e.target.value as PreviewInstrument)}
               className="rounded-xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-3 py-2 text-xs text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
@@ -211,6 +213,7 @@ export function Playerbar() {
           </label>
           <Volume2 className="h-4 w-4 text-[var(--muted2)]" />
           <input
+            name="volume"
             type="range"
             min={0}
             max={1}

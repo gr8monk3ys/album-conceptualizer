@@ -179,6 +179,8 @@ export function AlbumStyleBibleWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
               <span className="text-xs text-[var(--muted2)]">Lead voice brief</span>
               <textarea
+                name="lead-voice"
+                autoComplete="off"
                 value={form.leadVoice}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, leadVoice: event.target.value }))
@@ -193,6 +195,8 @@ export function AlbumStyleBibleWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
               <span className="text-xs text-[var(--muted2)]">Narrator perspective</span>
               <input
+                name="narrator-perspective"
+                autoComplete="off"
                 value={form.narratorPerspective}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -209,6 +213,8 @@ export function AlbumStyleBibleWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Vocal attributes</span>
               <textarea
+                name="vocal-attributes"
+                autoComplete="off"
                 value={form.vocalAttributes}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, vocalAttributes: event.target.value }))
@@ -223,6 +229,8 @@ export function AlbumStyleBibleWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Sonic palette</span>
               <textarea
+                name="sonic-palette"
+                autoComplete="off"
                 value={form.sonicPalette}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, sonicPalette: event.target.value }))
@@ -237,6 +245,8 @@ export function AlbumStyleBibleWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Arrangement rules</span>
               <textarea
+                name="arrangement-rules"
+                autoComplete="off"
                 value={form.arrangementRules}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, arrangementRules: event.target.value }))
@@ -251,6 +261,8 @@ export function AlbumStyleBibleWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Mix priorities</span>
               <textarea
+                name="mix-priorities"
+                autoComplete="off"
                 value={form.mixPriorities}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, mixPriorities: event.target.value }))
@@ -265,6 +277,8 @@ export function AlbumStyleBibleWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Avoid list</span>
               <textarea
+                name="avoid-list"
+                autoComplete="off"
                 value={form.avoidList}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, avoidList: event.target.value }))
@@ -279,6 +293,8 @@ export function AlbumStyleBibleWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
               <span className="text-xs text-[var(--muted2)]">Emotional targets</span>
               <textarea
+                name="emotional-targets"
+                autoComplete="off"
                 value={form.emotionalTargets}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, emotionalTargets: event.target.value }))
@@ -293,6 +309,8 @@ export function AlbumStyleBibleWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
               <span className="text-xs text-[var(--muted2)]">Reference strategy</span>
               <textarea
+                name="reference-strategy"
+                autoComplete="off"
                 value={form.referenceStrategy}
                 onChange={(event) =>
                   setForm((current) => ({

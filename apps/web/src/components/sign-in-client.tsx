@@ -78,6 +78,8 @@ export function SignInClient({
                 </div>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <input
+                    name="email"
+                    spellCheck={false}
                     value={form.magicEmail}
                     onChange={(e) =>
                       setForm((prev) => ({
@@ -116,6 +118,7 @@ export function SignInClient({
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <input
+                    name="dev-email"
                     value={form.devEmail}
                     onChange={(e) =>
                       setForm((prev) => ({
@@ -128,6 +131,7 @@ export function SignInClient({
                     autoComplete="off"
                   />
                   <input
+                    name="dev-name"
                     value={form.devName}
                     onChange={(e) =>
                       setForm((prev) => ({

@@ -85,6 +85,8 @@ export function DailyChallengeCard({
           What did you draft today? (Used to keep you honest and help future you.)
         </div>
         <textarea
+          name="note"
+          autoComplete="off"
           value={note}
           onChange={(e) => setNoteDraft(e.target.value)}
           rows={4}

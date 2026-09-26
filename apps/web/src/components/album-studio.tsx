@@ -674,6 +674,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-[var(--muted2)]">Title</span>
                 <input
+                  name="title"
+                  autoComplete="off"
                   value={activeSong?.title ?? ""}
                   onChange={(e) => updateSongField("title", e.target.value)}
                   className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
@@ -683,6 +685,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-[var(--muted2)]">Key</span>
                   <input
+                    name="key"
+                    autoComplete="off"
                     value={activeSong?.key ?? ""}
                     onChange={(e) => updateSongField("key", e.target.value || null)}
                     className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
@@ -692,6 +696,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-[var(--muted2)]">Tempo</span>
                   <input
+                    name="tempo"
+                    autoComplete="off"
                     value={activeSong?.tempo ?? ""}
                     onChange={(e) => {
                       const next = e.target.value.trim();
@@ -834,6 +840,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                         <label className="flex flex-col gap-1">
                           <span className="text-xs text-[var(--muted2)]">Section type</span>
                           <input
+                            name="section_type"
+                            autoComplete="off"
                             value={activeSection.section_type ?? ""}
                             onChange={(e) =>
                               updateSectionField("section_type", e.target.value.trim() || "verse")
@@ -845,6 +853,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                         <label className="flex flex-col gap-1">
                           <span className="text-xs text-[var(--muted2)]">Chord progression</span>
                           <input
+                            name="chord_progression"
+                            autoComplete="off"
                             value={stringifyChordProgression(activeSection.chord_progression)}
                             onChange={(e) =>
                               updateSectionField(
@@ -861,6 +871,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
                       <label className="flex flex-col gap-1">
                         <span className="text-xs text-[var(--muted2)]">Lyrics draft</span>
                         <textarea
+                          name="lyrics"
+                          autoComplete="off"
                           value={activeSection.lyrics ?? ""}
                           onChange={(e) => updateSectionField("lyrics", e.target.value)}
                           rows={10}
@@ -888,6 +900,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted2)]">Title</span>
               <input
+                name="title"
+                autoComplete="off"
                 value={album.title ?? ""}
                 onChange={(e) => {
                   setAlbum((prev) => ({ ...prev, title: e.target.value }));
@@ -899,6 +913,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted2)]">Artist</span>
               <input
+                name="artist"
+                autoComplete="off"
                 value={album.artist ?? ""}
                 onChange={(e) => {
                   setAlbum((prev) => ({ ...prev, artist: e.target.value || null }));
@@ -911,6 +927,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted2)]">Primary genre</span>
               <input
+                name="primary_genre"
+                autoComplete="off"
                 value={album.primary_genre ?? ""}
                 onChange={(e) => {
                   setAlbum((prev) => ({ ...prev, primary_genre: e.target.value || null }));
@@ -923,6 +941,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted2)]">Concept summary</span>
               <textarea
+                name="concept_summary"
+                autoComplete="off"
                 value={album.concept_summary ?? ""}
                 onChange={(e) => {
                   setAlbum((prev) => ({ ...prev, concept_summary: e.target.value || null }));
@@ -936,6 +956,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--muted2)]">Central themes</span>
               <input
+                name="central-themes-text"
+                autoComplete="off"
                 value={centralThemesText}
                 onChange={(e) => {
                   setCentralThemesText(e.target.value);
@@ -967,6 +989,8 @@ function useAlbumStudioRender({ albumId, initialAlbum, initialSelection }: Album
           <label className="mt-3 flex flex-col gap-1">
             <span className="text-xs text-[var(--muted2)]">Version message (optional)</span>
             <input
+              name="version-message"
+              autoComplete="off"
               value={versionMessage}
               onChange={(e) => setVersionMessage(e.target.value)}
               className="w-full rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"

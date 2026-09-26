@@ -78,7 +78,7 @@ export function AlbumExport({ albumId }: { albumId: string }) {
                   htmlFor={inputId}
                   className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3 hover:bg-[rgba(0,0,0,0.24)]"
                 >
-                  <input
+                  <input name={`export-${fmt.key}`}
                     id={inputId}
                     type="checkbox"
                     aria-label={fmt.title}
@@ -111,6 +111,7 @@ export function AlbumExport({ albumId }: { albumId: string }) {
               className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3 hover:bg-[rgba(0,0,0,0.24)]"
             >
               <input
+                name="include-production-notes"
                 id="include-production-notes"
                 type="checkbox"
                 aria-label="Include production notes"

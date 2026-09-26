@@ -328,6 +328,8 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
           <div className="text-[10px] text-[var(--muted2)]">{body.trim().length}/2000</div>
         </div>
         <textarea
+          name="body"
+          autoComplete="off"
           value={body}
           onChange={(e) => setUi((prev) => ({ ...prev, body: e.target.value }))}
           rows={3}

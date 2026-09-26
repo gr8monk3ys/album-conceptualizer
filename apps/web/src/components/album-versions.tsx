@@ -74,6 +74,8 @@ export function AlbumVersions({
           <label className="block">
             <div className="text-xs font-semibold text-[var(--text)]">Message</div>
             <input
+              name="message"
+              autoComplete="off"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder='e.g., "Chorus rewrite + key changes"'

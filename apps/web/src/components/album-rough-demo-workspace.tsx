@@ -314,6 +314,8 @@ export function AlbumRoughDemoWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Demo title</span>
               <input
+                name="title"
+                autoComplete="off"
                 value={form.title}
                 onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
                 className="rounded-2xl border border-[rgba(255,255,255,0.10)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--muted2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(109,94,252,0.25)]"
@@ -325,6 +327,8 @@ export function AlbumRoughDemoWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Source kind</span>
               <select
+                name="source-kind"
+                autoComplete="off"
                 value={form.sourceKind}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, sourceKind: event.target.value }))
@@ -343,6 +347,8 @@ export function AlbumRoughDemoWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Song target</span>
               <select
+                name="song-track-number"
+                autoComplete="off"
                 value={form.songTrackNumber}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, songTrackNumber: event.target.value }))
@@ -362,6 +368,8 @@ export function AlbumRoughDemoWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">External URL</span>
               <input
+                name="external-url"
+                autoComplete="off"
                 value={form.externalUrl}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, externalUrl: event.target.value }))
@@ -375,6 +383,7 @@ export function AlbumRoughDemoWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
               <span className="text-xs text-[var(--muted2)]">Local rough demo file</span>
               <input
+                name="local-rough-demo-file"
                 type="file"
                 accept="audio/*"
                 onChange={(event) => void handleFileChange(event.target.files?.[0] ?? null)}
@@ -395,6 +404,8 @@ export function AlbumRoughDemoWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
               <span className="text-xs text-[var(--muted2)]">What this demo captures</span>
               <textarea
+                name="capture-notes"
+                autoComplete="off"
                 value={form.captureNotes}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, captureNotes: event.target.value }))
@@ -409,6 +420,8 @@ export function AlbumRoughDemoWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Sonic traits</span>
               <textarea
+                name="sonic-traits"
+                autoComplete="off"
                 value={form.sonicTraits}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, sonicTraits: event.target.value }))
@@ -423,6 +436,8 @@ export function AlbumRoughDemoWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
               <span className="text-xs text-[var(--muted2)]">Lyrical fragments</span>
               <textarea
+                name="lyrical-fragments"
+                autoComplete="off"
                 value={form.lyricalFragments}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, lyricalFragments: event.target.value }))
@@ -437,6 +452,8 @@ export function AlbumRoughDemoWorkspace({
             <label className="flex flex-col gap-1 text-sm text-[var(--muted)] md:col-span-2">
               <span className="text-xs text-[var(--muted2)]">Next moves</span>
               <textarea
+                name="next-actions"
+                autoComplete="off"
                 value={form.nextActions}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, nextActions: event.target.value }))
