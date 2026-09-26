@@ -120,7 +120,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                 return (
                   <div
                     key={comment.id}
-                    className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4"
+                    className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4 [contain-intrinsic-size:auto_120px] [content-visibility:auto]"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -179,7 +179,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                 return (
                   <div
                     key={task.id}
-                    className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4"
+                    className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4 [contain-intrinsic-size:auto_120px] [content-visibility:auto]"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">

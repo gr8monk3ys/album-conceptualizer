@@ -66,7 +66,7 @@ export default async function NotificationsPage() {
                 <li
                   key={n.id}
                   className={[
-                    "px-4 py-4",
+                    "px-4 py-4 [contain-intrinsic-size:auto_88px] [content-visibility:auto]",
                     isUnread
                       ? "bg-[linear-gradient(90deg,rgba(109,94,252,0.14),rgba(255,62,165,0.08))]"
                       : "bg-transparent",
