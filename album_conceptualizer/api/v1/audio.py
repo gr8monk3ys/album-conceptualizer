@@ -37,6 +37,9 @@ logger = logging.getLogger(__name__)
 
 GENERATION_TIMEOUT_SECONDS = int(os.environ.get("MUSIC_GENERATION_TIMEOUT", "420"))
 MAX_ACTIVE_RENDERS = int(os.environ.get("MUSIC_MAX_ACTIVE_RENDERS", "3"))
+# Across every caller: the owner is a client-sent header, so a per-owner cap alone could be
+# multiplied by inventing owners.
+MAX_ACTIVE_RENDERS_GLOBAL = int(os.environ.get("MUSIC_MAX_ACTIVE_RENDERS_GLOBAL", "6"))
 
 # Where inline audio lands. Providers that return bytes (Hugging Face) have
 # nothing hosting the file but us, so it is written here and served back.
@@ -229,7 +232,7 @@ async def generate(payload: GenerateRequest, request: Request) -> RenderJobRespo
             timeout_seconds=GENERATION_TIMEOUT_SECONDS,
             timeout_message=f"Generation timed out after {GENERATION_TIMEOUT_SECONDS}s.",
             expected_errors=(ProviderNotConfiguredError, ProviderRequestError),
-            max_active=MAX_ACTIVE_RENDERS if owner is None else None,
+            max_active=MAX_ACTIVE_RENDERS if owner is None else MAX_ACTIVE_RENDERS_GLOBAL,
             max_active_per_owner=MAX_ACTIVE_RENDERS if owner is not None else None,
         )
     except JobLimitError as limit:
@@ -238,6 +241,8 @@ async def generate(payload: GenerateRequest, request: Request) -> RenderJobRespo
             detail=(
                 f"You already have {limit.active} render(s) in flight. "
                 "Wait for one to finish before starting another."
+                if limit.scope == "owner" or owner is None
+                else "The render queue is full right now. Try again in a minute."
             ),
             headers={"retry-after": "30"},
         ) from limit

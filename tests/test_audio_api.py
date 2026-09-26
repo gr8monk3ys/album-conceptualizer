@@ -164,6 +164,18 @@ def test_concurrency_limit_is_per_owner(client, monkeypatch):
     )
 
 
+def test_inventing_owners_cannot_exceed_the_global_render_cap(client, monkeypatch):
+    # The owner is a client-sent header: a fresh one per request must still hit a ceiling.
+    _use(monkeypatch, FakeProvider())
+    store = audio_api._render_jobs
+    for index in range(audio_api.MAX_ACTIVE_RENDERS_GLOBAL):
+        store.create("music_generation", owner_id=f"owner-{index}")  # left PENDING
+
+    blocked = client.post("/api/v1/audio/generate", json=BRIEF, headers={"x-owner-id": "newcomer"})
+    assert blocked.status_code == 429
+    assert "queue is full" in blocked.json()["detail"]
+
+
 def test_one_owner_cannot_read_anothers_render(client, monkeypatch):
     _use(monkeypatch, FakeProvider())
     job_id = client.post(
