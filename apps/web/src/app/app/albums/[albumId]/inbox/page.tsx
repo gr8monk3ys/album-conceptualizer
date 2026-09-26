@@ -5,6 +5,7 @@ import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { CompleteTaskButton, ResolveCommentButton } from "@/components/inbox-actions";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -128,7 +129,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                           {comment.sectionOrder + 1}
                         </div>
                         <div className="mt-1 text-xs text-[var(--muted2)]">
-                          {author} · {comment.createdAt.toLocaleString()}
+                          {author} · <LocalDateTime value={comment.createdAt} />
                         </div>
                         <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
                           {excerpt(comment.body)}
@@ -195,7 +196,7 @@ export default async function AlbumInboxPage({ params }: { params: Promise<{ alb
                         </div>
                         <div className="mt-1 text-xs text-[var(--muted2)]">
                           {creator}
-                          {assignee ? ` → ${assignee}` : ""} · {task.createdAt.toLocaleString()}
+                          {assignee ? ` → ${assignee}` : ""} · <LocalDateTime value={task.createdAt} />
                         </div>
                         {task.body ? (
                           <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">

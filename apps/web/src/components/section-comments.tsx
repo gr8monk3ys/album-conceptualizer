@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, ClipboardCheck, Copy, MessageSquarePlus, RotateCcw, Trash2 } from "lucide-react";
+import { LocalDateTime } from "@/components/local-date-time";
 
 type CommentAuthor = {
   id: string;
@@ -41,11 +42,6 @@ type SectionCommentsProps = {
     sectionOrder: number;
   };
 };
-
-function formatTime(ts: string) {
-  const dt = new Date(ts);
-  return dt.toLocaleString();
-}
 
 function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
   const sectionId = section.id;
@@ -247,7 +243,7 @@ function useSectionCommentsRender({ albumId, section }: SectionCommentsProps) {
                             {comment.author.name || "User"}
                           </div>
                           <div className="text-[10px] text-[var(--muted2)]">
-                            {formatTime(comment.createdAt)}
+                            <LocalDateTime value={comment.createdAt} />
                           </div>
                           {isResolved ? (
                             <div className="inline-flex items-center gap-1 rounded-full bg-[rgba(50,213,131,0.14)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ok)]">

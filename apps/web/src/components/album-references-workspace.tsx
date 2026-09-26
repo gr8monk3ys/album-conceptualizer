@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { AlbumSongOption } from "@/server/album-songs";
 import type { AlbumReferenceRecord } from "@/server/references";
+import { LocalDateTime } from "@/components/local-date-time";
 
 type ReferenceFormState = {
   title: string;
@@ -493,7 +494,7 @@ export function AlbumReferencesWorkspace({
                 ) : null}
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--muted2)]">
-                  <div>Updated {new Date(reference.updatedAt).toLocaleString()}</div>
+                  <div>Updated <LocalDateTime value={reference.updatedAt} /></div>
                   {reference.sourceUrl ? (
                     <a
                       href={reference.sourceUrl}

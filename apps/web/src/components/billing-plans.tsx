@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LocalDateTime } from "@/components/local-date-time";
 
 type PlanKey = "free" | "pro" | "team";
 
@@ -74,7 +75,7 @@ export function BillingPlans({
             <span className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.25)] px-3 py-1 text-[var(--muted)]">
               Renews:{" "}
               <span className="font-semibold text-[var(--text)]">
-                {new Date(currentPeriodEnd).toLocaleDateString()}
+                <LocalDateTime value={currentPeriodEnd} options={{ dateStyle: "medium" }} />
               </span>
             </span>
           ) : null}

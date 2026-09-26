@@ -15,6 +15,7 @@ import { analyzeAlbumRoughDemos, summarizeRoughDemoReviews } from "@/server/roug
 import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -239,7 +240,7 @@ export default async function AlbumDetailPage({
             <div className="text-xs text-[var(--muted2)]">Status</div>
             <div className="mt-1 text-sm font-semibold text-[var(--text)]">{album.status}</div>
             <div className="mt-2 text-xs text-[var(--muted2)]">
-              Updated {album.updatedAt.toLocaleString()}
+              Updated <LocalDateTime value={album.updatedAt} />
             </div>
           </div>
 

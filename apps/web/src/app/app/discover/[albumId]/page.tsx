@@ -5,6 +5,7 @@ import { DiscoverAlbumActions } from "@/components/discover-album-actions";
 import { analyzeAlbumCoherence } from "@/server/coherence";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -72,7 +73,7 @@ export default async function DiscoverAlbumPage({
           </div>
           {album.publishedAt ? (
             <div className="mt-2 text-xs text-[var(--muted2)]">
-              Published {album.publishedAt.toLocaleString()}
+              Published <LocalDateTime value={album.publishedAt} />
             </div>
           ) : null}
           {album.conceptSummary ? (

@@ -4,6 +4,7 @@ import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 import { MarkAllReadButton, ToggleNotificationReadButton } from "@/components/notifications-actions";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -85,7 +86,7 @@ export default async function NotificationsPage() {
                         ) : null}
                       </div>
                       <div className="mt-1 text-xs text-[var(--muted2)]">
-                        {meta} · {n.createdAt.toLocaleString()}
+                        {meta} · <LocalDateTime value={n.createdAt} />
                       </div>
                       {n.body ? (
                         <div className="mt-2 text-xs leading-relaxed text-[var(--muted)]">

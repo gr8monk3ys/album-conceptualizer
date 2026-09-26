@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { LocalDateTime } from "@/components/local-date-time";
 
 type VersionListItem = {
   id: string;
@@ -111,7 +112,7 @@ export function AlbumVersions({
                       {version.message || "Version snapshot"}
                     </div>
                     <div className="mt-1 text-xs text-[var(--muted2)]">
-                      {new Date(version.createdAt).toLocaleString()}
+                      <LocalDateTime value={version.createdAt} />
                       {version.createdBy?.email ? ` · ${version.createdBy.email}` : ""}
                     </div>
                   </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Sparkles } from "lucide-react";
 
 import type { DailyChallenge } from "@/server/challenges";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export function DailyChallengeCard({
   day,
@@ -98,8 +99,14 @@ export function DailyChallengeCard({
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           {done ? (
             <div className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--ok)]">
-              <CheckCircle2 className="h-4 w-4" />
-              Completed{completionTime ? ` at ${new Date(completionTime).toLocaleTimeString()}` : ""}
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              Completed
+              {completionTime ? (
+                <>
+                  {" at "}
+                  <LocalDateTime value={completionTime} options={{ timeStyle: "short" }} />
+                </>
+              ) : null}
             </div>
           ) : (
             <div className="text-xs text-[var(--muted2)]">One completion per day.</div>

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ForkShareButton } from "@/components/fork-share-button";
 import { getAuthSession } from "@/server/auth";
 import { getPrisma } from "@/server/db";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -70,7 +71,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             <div className="truncate text-3xl font-semibold tracking-tight">{share.album.title}</div>
             <div className="mt-1 text-sm text-[var(--muted)]">
               {share.album.artist ? `by ${share.album.artist}` : "Artist not set"} · Updated{" "}
-              {share.album.updatedAt.toLocaleString()}
+              <LocalDateTime value={share.album.updatedAt} />
             </div>
           </div>
           <div className="flex items-center gap-2">
