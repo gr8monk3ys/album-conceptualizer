@@ -17,22 +17,25 @@ function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; tit
   const songs = (data as { songs?: unknown }).songs;
   if (!Array.isArray(songs)) return [];
 
+  // One pass to validate and project, then sort the fresh array.
   return songs
-    .map((song) => {
-      if (!song || typeof song !== "object") return null;
+    .flatMap((song) => {
+      if (!song || typeof song !== "object") return [];
       const track_number = (song as { track_number?: unknown }).track_number;
       const title = (song as { title?: unknown }).title;
-      if (typeof track_number !== "number" || typeof title !== "string") return null;
-      return { track_number, title };
+      if (typeof track_number !== "number" || typeof title !== "string") return [];
+      return [{ track_number, title }];
     })
-    .filter((song): song is { track_number: number; title: string } => Boolean(song))
     .sort((a, b) => a.track_number - b.track_number);
 }
 
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const prisma = getPrisma();
-  const session = await getAuthSession();
+  // The viewer's session and the share link are independent reads.
+  const sessionPromise = getAuthSession();
+  // notFound() below can throw before it is awaited; keep a rejection handled.
+  sessionPromise.catch(() => {});
 
   const share = await prisma.albumShareLink.findUnique({
     where: { token },
@@ -57,18 +60,19 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   const now = new Date();
   if (share.expiresAt && share.expiresAt.getTime() < now.getTime()) notFound();
 
+  const session = await sessionPromise;
   const songs = getSongsFromAlbumData(share.album.data);
   const callbackUrl = `/share/${token}`;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(109,94,252,0.22),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(255,62,165,0.20),transparent_45%),radial-gradient(circle_at_40%_90%,rgba(50,213,131,0.10),transparent_55%),var(--bg)] px-6 py-14 text-[var(--text)]">
-      <div className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:48px_48px]" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:48px_48px]" />
 
       <div className="relative mx-auto flex max-w-[980px] flex-col gap-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-xs text-[var(--muted2)]">Shared project</div>
-            <div className="truncate text-3xl font-semibold tracking-tight">{share.album.title}</div>
+            <h1 className="truncate text-3xl font-semibold tracking-tight">{share.album.title}</h1>
             <div className="mt-1 text-sm text-[var(--muted)]">
               {share.album.artist ? `by ${share.album.artist}` : "Artist not set"} · Updated{" "}
               <LocalDateTime value={share.album.updatedAt} />

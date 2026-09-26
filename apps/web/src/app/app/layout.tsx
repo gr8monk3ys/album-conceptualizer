@@ -17,11 +17,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const workspace = await getActiveWorkspaceForUser(userId);
   const plan = workspace.subscription?.plan ?? "free";
   const currentPath = requestHeaders.get("x-pathname") ?? "/app";
-  const credits = await getCreditsStatus({ workspaceId: workspace.id, plan });
-  const unreadNotifications = await getUnreadNotificationCount({
-    workspaceId: workspace.id,
-    userId,
-  });
+  // Independent reads (different tables, both keyed on the workspace).
+  const [credits, unreadNotifications] = await Promise.all([
+    getCreditsStatus({ workspaceId: workspace.id, plan }),
+    getUnreadNotificationCount({ workspaceId: workspace.id, userId }),
+  ]);
 
   return (
     <div className="relative px-3 py-3 md:px-4 md:py-4">

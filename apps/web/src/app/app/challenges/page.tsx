@@ -36,7 +36,10 @@ export default async function ChallengesPage() {
 
   const { day, challenge } = getDailyChallenge();
 
-  const completion = await prisma.challengeCompletion.findFirst({
+  const since = addDaysUtc(day, -30);
+  // Today's completion and the 30-day history are independent reads.
+  const [completion, recentCompletions] = await Promise.all([
+    prisma.challengeCompletion.findFirst({
     where: {
       workspaceId: workspace.id,
       challengeKey: challenge.key,
@@ -48,17 +51,16 @@ export default async function ChallengesPage() {
       creditsEarned: true,
       createdAt: true,
     },
-  });
-
-  const since = addDaysUtc(day, -30);
-  const recentCompletions = await prisma.challengeCompletion.findMany({
+    }),
+    prisma.challengeCompletion.findMany({
     where: {
       workspaceId: workspace.id,
       challengeDay: { gte: since },
     },
     orderBy: { challengeDay: "desc" },
     select: { challengeDay: true, creditsEarned: true },
-  });
+    }),
+  ]);
 
   const completedDays = new Set(recentCompletions.map((row) => row.challengeDay));
   const streak = computeStreak(day, completedDays);

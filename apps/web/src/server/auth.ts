@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { NextAuthOptions } from "next-auth";
 import { getServerSession } from "next-auth/next";
 import GitHubProvider from "next-auth/providers/github";
@@ -164,6 +165,11 @@ export function buildAuthOptions(): NextAuthOptions {
   return options;
 }
 
-export async function getAuthSession() {
+/**
+ * The current session, deduplicated per request with React.cache: the /app
+ * layout and its page both call requireUser(), which resolved the session
+ * (a cookie decode plus a database read) twice per navigation.
+ */
+export const getAuthSession = cache(async function getAuthSession() {
   return getServerSession(buildAuthOptions());
-}
+});

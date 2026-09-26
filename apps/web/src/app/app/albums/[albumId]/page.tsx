@@ -28,15 +28,15 @@ function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; tit
   const songs = (data as { songs?: unknown }).songs;
   if (!Array.isArray(songs)) return [];
 
+  // One pass to validate and project, then sort the fresh array.
   return songs
-    .map((song) => {
-      if (!song || typeof song !== "object") return null;
+    .flatMap((song) => {
+      if (!song || typeof song !== "object") return [];
       const track_number = (song as { track_number?: unknown }).track_number;
       const title = (song as { title?: unknown }).title;
-      if (typeof track_number !== "number" || typeof title !== "string") return null;
-      return { track_number, title };
+      if (typeof track_number !== "number" || typeof title !== "string") return [];
+      return [{ track_number, title }];
     })
-    .filter((song): song is { track_number: number; title: string } => Boolean(song))
     .sort((a, b) => a.track_number - b.track_number);
 }
 
