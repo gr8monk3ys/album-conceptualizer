@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCheck, MailOpen, RotateCcw } from "lucide-react";
 
 import { Button, LiveStatus } from "@/components/ui";
@@ -37,6 +37,8 @@ export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
         throw new Error(await readApiError(response, "Couldn't mark everything as read. Try again."));
       }
       setStatus({ tone: "ok", text: "All notifications marked read." });
+      // Any row's earlier "Marked unread." is out of date now: rows clear their own line.
+      window.dispatchEvent(new Event(ALL_READ_EVENT));
       router.refresh();
     } catch (err) {
       setStatus({
@@ -68,6 +70,9 @@ export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
   );
 }
 
+/** Fired when "Mark all read" succeeds, so rows drop their own now out-of-date lines. */
+const ALL_READ_EVENT = "notifications:all-read";
+
 /**
  * Marks one notification read or unread. The button stays the same element through the
  * refresh (its label turns from "Mark read" to "Mark unread"), and it is busy rather than
@@ -80,6 +85,13 @@ export function ToggleNotificationReadButton({ id, unread }: { id: string; unrea
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const returnFocus = useReturnFocus();
   const label = unread ? "Mark read" : "Mark unread";
+
+  // A row's line describes its last change only until "Mark all read" makes a newer one.
+  useEffect(() => {
+    const clear = () => setStatus((current) => (current?.tone === "ok" ? null : current));
+    window.addEventListener(ALL_READ_EVENT, clear);
+    return () => window.removeEventListener(ALL_READ_EVENT, clear);
+  }, []);
 
   async function toggle() {
     setLoading(true);

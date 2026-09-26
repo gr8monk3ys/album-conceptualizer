@@ -168,13 +168,31 @@ test.describe("Studio", () => {
     await page.getByRole("button", { name: "More track actions" }).click();
     await page.getByRole("menuitem", { name: /Move track down/ }).click();
     // The move is shown where a delete would be, with Undo, and the address follows the track.
-    await expect(page.getByText("Moved “Track 2” to 02 (was 01).")).toBeVisible();
+    await expect(page.getByText("Moved “Track 1” (now “Track 2”) from 01 to 02.")).toBeVisible();
     await expect(page).toHaveURL(/[?&]song=2(&|$)/);
     await page.getByRole("button", { name: "Save now", exact: true }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Lyrics draft")).toHaveValue(words);
+  });
+  test("after a restore, focus lands on the line that says what was restored, said once", async ({ page }) => {
+    await devLogin(page);
+    await createAlbumAndOpenStudio(page, `Restore Focus ${randomSuffix()}`);
+    const albumUrl = page.url().replace(/\/studio.*/, "");
+    await page.goto(`${albumUrl}/versions`);
+    await page.getByLabel("What's in this version").fill("First pass");
+    await page.getByRole("button", { name: "Save version", exact: true }).click();
+    await page.getByRole("button", { name: /^Restore the version "First pass"/ }).click();
+    await page.getByRole("button", { name: "Restore this version" }).click();
+    await page.waitForURL(/\/app\/albums\/[^/?]+(\?|$)/);
+    const line = page.getByText(/^Restored “First pass”/);
+    await expect(line).toBeVisible();
+    await expect(page.locator(":focus")).toContainText("Restored “First pass”");
+    // The address drops ?restored=, so a reload doesn't announce it again.
+    await expect(page).not.toHaveURL(/restored=/);
+    await page.reload();
+    await expect(page.getByText(/^Restored “First pass”/)).toHaveCount(0);
   });
 });
 

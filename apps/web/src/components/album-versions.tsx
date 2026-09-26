@@ -156,12 +156,14 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                 tone="primary"
                 busy={isSaving}
                 aria-disabled={!named || isSaving || undefined}
-                aria-describedby={named ? undefined : "version-save-reason"}
+                aria-describedby={named || saveStatus?.tone === "ok" ? undefined : "version-save-reason"}
               >
                 {isSaving ? "Saving…" : "Save version"}
               </Button>
               {/* An unavailable button says why, where the eye already is. */}
-              {named ? null : (
+              {/* Not beside "Version saved.": the field clears after a save, and the reason is
+                  only news once someone starts naming the next one. */}
+              {named || saveStatus?.tone === "ok" ? null : (
                 <p id="version-save-reason" className="min-w-0 text-sm text-ink-3">
                   Name the version to save it.
                 </p>

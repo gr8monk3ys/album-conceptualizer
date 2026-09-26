@@ -18,8 +18,9 @@ export default async function BiblesPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
+        size="page"
         title="Story bibles"
-        description="Each album's reference for consistency: its concept, themes, motifs, characters and style, and which tracks carry them."
+        description="Each album's reference for consistency: its concept, themes, motifs and characters, and which tracks carry them."
       />
 
       {albums.length ? (

@@ -117,7 +117,7 @@ function StatusRow({
 function restoredVersionName(message: string | null | undefined) {
   const name = message?.trim();
   if (!name) return "an earlier version";
-  if (beforeRestoringDate(name)) return "the draft saved before an earlier restore";
+  if (beforeRestoringDate(name)) return "the draft an earlier restore kept";
   return `“${name}”`;
 }
 
@@ -182,6 +182,8 @@ export default async function AlbumOverviewPage({
       {/* Arriving from a restore: one line says what happened, announced as it appears. */}
       <ArrivalStatus
         className="max-w-[65ch]"
+        param="restored"
+        takeFocus
         message={
           restoredVersion
             ? `Restored ${restoredVersionName(restoredVersion.message)} · the draft it replaced is saved in Version history.`

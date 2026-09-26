@@ -604,6 +604,8 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
   const seenTrackNumbers = new Set<number>();
   const duplicateTrackNumbers = new Set<number>();
   const titleCounts = new Map<string, number>();
+  // The title as the artist first wrote it, for each normalised key, so a finding quotes it.
+  const titleShown = new Map<string, string>();
   const keySet = new Set<string>();
   const tempos: number[] = [];
   const patternCounts = new Map<string, number>();
@@ -668,6 +670,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
 
       const normalizedTitle = song.title.trim().toLowerCase();
       titleCounts.set(normalizedTitle, (titleCounts.get(normalizedTitle) ?? 0) + 1);
+      if (!titleShown.has(normalizedTitle)) titleShown.set(normalizedTitle, song.title.trim());
       if (sectionPattern) {
         patternCounts.set(sectionPattern, (patternCounts.get(sectionPattern) ?? 0) + 1);
       }
@@ -788,7 +791,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
 
   const duplicatedTitles = Array.from(titleCounts.entries())
     .filter(([, count]) => count > 1)
-    .map(([title]) => title);
+    .map(([title]) => `“${titleShown.get(title) ?? title}”`);
   if (duplicatedTitles.length) {
     issues.push({
       id: "duplicate_titles",

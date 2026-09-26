@@ -1036,10 +1036,13 @@ function useAlbumStudioRender({
     structuralRef.current = true;
     edit((prev) => ({ ...prev, songs: moveTrack(prev.songs, index, dir) ?? prev.songs }));
     setSelection({ song: index + dir, section: sectionIndex });
-    // Named as it is now: a default name follows its new number ("Track 2" → "Track 1").
+    // Named as the writer knew it: a default name follows its new number ("Track 1" becomes
+    // "Track 2"), so the line says what it was called and, if that changed, what it is now.
     const song = moved[index + dir];
-    const title = song?.title.trim() || "Untitled";
-    setNavAnnouncement(`Moved “${title}” to track ${index + dir + 1} of ${songs.length}.`);
+    const before = songs[index]?.title.trim() || "Untitled";
+    const after = song?.title.trim() || "Untitled";
+    const title = before === after ? `“${before}”` : `“${before}” (now “${after}”)`;
+    setNavAnnouncement(`Moved ${title} to track ${index + dir + 1} of ${songs.length}.`);
     // Sighted writers see the move too, where a delete is shown, with Undo: a default name
     // changes with its number, so the line says where the track came from.
     if (song?.id) {
@@ -1047,7 +1050,7 @@ function useAlbumStudioRender({
         kind: "move",
         songId: song.id,
         from: index,
-        label: `Moved “${title}” to ${pad2(index + dir + 1)} (was ${pad2(index + 1)}).`,
+        label: `Moved ${title} from ${pad2(index + 1)} to ${pad2(index + dir + 1)}.`,
         key: Date.now(),
       });
     }
@@ -2034,7 +2037,7 @@ function useAlbumStudioRender({
             leaveGuard.leaveAnyway();
           },
         }}
-        message={`Your latest changes couldn't be saved${saveError ? `: ${saveError}` : ""}. Stay to retry, or leave without them.`}
+        message={`Your latest changes couldn't be saved${saveError ? `: ${saveError.replace(/[.\s]+$/, "")}` : ""}. Stay to retry, or leave without them.`}
       />
       <p className="sr-only" aria-live="polite">
         {navAnnouncement}
