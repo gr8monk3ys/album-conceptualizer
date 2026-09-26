@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 
 import { RelativeTime } from "@/components/relative-time";
 import type { ScoreStory } from "@/lib/score-story";
@@ -61,6 +61,21 @@ export function toAlbumListItem(album: {
 }
 
 /**
+ * A catalog item with classes for its whole cell, separator included, e.g. one that a narrow
+ * line leaves out (`hidden @min-[30rem]:inline`). Hide only an item that isn't the last: the
+ * item before it keeps its separator for the item after.
+ */
+export type CatalogItem = { content: ReactNode; className: string };
+
+function isCatalogItem(item: ReactNode | CatalogItem): item is CatalogItem {
+  return typeof item === "object" && item !== null && !isValidElement(item) && "content" in item && "className" in item;
+}
+
+function toCatalogItem(item: ReactNode | CatalogItem): { content: ReactNode; className?: string } {
+  return isCatalogItem(item) ? item : { content: item };
+}
+
+/**
  * A catalog line (artist · tracks · edited) whose separators end the item before them, so a
  * wrapped line never starts with a dot ("· On Discover"): each separator is inside the item it
  * follows, held to the item's last word by a word joiner (no break opportunity, even after an
@@ -68,13 +83,13 @@ export function toAlbumListItem(album: {
  * inside themselves, so a long artist name still fits a narrow screen or 200% text. Use it for
  * every catalog line, including the release header's.
  */
-export function CatalogItems({ items }: { items: ReactNode[] }) {
-  const shown = items.filter(Boolean);
+export function CatalogItems({ items }: { items: Array<ReactNode | CatalogItem> }) {
+  const shown = items.filter(Boolean).map(toCatalogItem);
   return (
     <>
       {shown.map((item, index) => (
-        <span key={index} className="min-w-0 break-words">
-          {item}
+        <span key={index} className={cn("min-w-0 break-words", item.className)}>
+          {item.content}
           {index < shown.length - 1 ? (
             <>
               {"\u2060"}
@@ -152,7 +167,7 @@ export function AlbumCard({
         <div className="flex items-center justify-between gap-3 @min-[20rem]:justify-end">
           <span className="flex min-w-0 flex-wrap items-center gap-3">
             {/* One badge per fact: publishing sets both the status and Discover visibility. */}
-            <Chip>{album.isPublic ? "Published" : albumStatusLabel(album.status)}</Chip>
+            <Chip>{album.isPublic ? "On Discover" : albumStatusLabel(album.status)}</Chip>
             {hint ? <span className="hidden text-sm text-ink-2 group-hover:text-ink md:inline">{hint}</span> : null}
           </span>
           <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />

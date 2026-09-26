@@ -17,6 +17,8 @@ export type MoreMenuItem = {
   disabled?: boolean;
   /** Destructive: coral text, set apart from the items above it by a hairline. */
   danger?: boolean;
+  /** `aria-keyshortcuts`: the Studio shortcut that does the same from outside the menu. */
+  keyshortcuts?: string;
 };
 
 /**
@@ -169,6 +171,7 @@ export function MoreMenu({
               role="menuitem"
               tabIndex={-1}
               aria-disabled={item.disabled || undefined}
+              aria-keyshortcuts={item.keyshortcuts}
               onClick={() => {
                 if (item.disabled) return;
                 hide(true);

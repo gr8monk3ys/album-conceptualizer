@@ -370,6 +370,22 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
                 "The album is structurally coherent across the current draft."
               )}
             </p>
+            {/* Low early numbers read like a fault; they are progress, as Help says. Neutral
+                ink, and only while tracks are unwritten. The link stands on its own line
+                when the sentence fills the row, a full 44px target either way. */}
+            {partlyWritten ? (
+              <p className="flex max-w-[65ch] flex-wrap items-center gap-x-2 text-sm leading-relaxed text-ink-2">
+                <span className="min-w-0">
+                  Low numbers this early are progress, not a fault: they rise with each track you write.
+                </span>
+                <Link
+                  href="/app/help#written-title"
+                  className="inline-flex min-h-11 items-center text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink"
+                >
+                  What counts as written
+                </Link>
+              </p>
+            ) : null}
           </div>
         ) : (
           <div className="flex flex-col gap-3">

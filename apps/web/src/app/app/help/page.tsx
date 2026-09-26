@@ -133,6 +133,16 @@ const SHORTCUTS: Array<{ keys: string[][]; does: string; spoken: string }> = [
     spoken: "Alt plus Shift plus Up arrow, or Alt plus Shift plus Down arrow",
   },
   {
+    keys: [["Ctrl", "Alt", "Shift", "Page Up"], ["Ctrl", "Alt", "Shift", "Page Down"]],
+    does: "Move the selected track up or down one place, from anywhere",
+    spoken: "Control plus Alt plus Shift plus Page Up, or Page Down",
+  },
+  {
+    keys: [["Ctrl", "Alt", "Shift", "↑"], ["Ctrl", "Alt", "Shift", "↓"]],
+    does: "Move the selected track up or down one place, when you're not typing in a field",
+    spoken: "Control plus Alt plus Shift plus Up arrow, or Down arrow",
+  },
+  {
     keys: [["Ctrl", "S"], ["⌘", "S"]],
     does: "Save now, without waiting for the automatic save",
     spoken: "Control plus S, or Command plus S on a Mac",

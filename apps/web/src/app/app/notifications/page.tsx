@@ -8,6 +8,8 @@ import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
+import { publishedRemixes, remixRowLink } from "./remix-links";
+
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Notifications",
@@ -44,6 +46,9 @@ export default async function NotificationsPage() {
       title: true,
       body: true,
       url: true,
+      albumId: true,
+      actorUserId: true,
+      metadata: true,
       readAt: true,
       createdAt: true,
       actor: { select: { id: true, name: true, email: true } },
@@ -51,6 +56,8 @@ export default async function NotificationsPage() {
   });
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
+  // A remix row leads to the remix itself, on Discover, once it is published there.
+  const remixes = await publishedRemixes(notifications);
 
   return (
     <div className="flex flex-col gap-8">
@@ -71,6 +78,8 @@ export default async function NotificationsPage() {
           {notifications.map((n) => {
             const isUnread = !n.readAt;
             const who = n.actor?.name || n.actor?.email || "Album Conceptualizer";
+            const remix = n.type === "remix" ? remixRowLink(remixes.get(n.id) ?? null, n.url) : null;
+            const href = remix ? remix.href : n.url;
             const title = (
               <>
                 {isUnread ? <span className="sr-only">Unread: </span> : null}
@@ -92,11 +101,13 @@ export default async function NotificationsPage() {
                   />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      {n.url ? (
+                      {href ? (
+                        // A link at rest too (the Strong Rule underline, ink on hover), so a
+                        // row that opens something says so before it is hovered.
                         <Link
-                          href={n.url}
+                          href={href}
                           className={cn(
-                            "inline-block max-w-full break-words py-2.5 text-base underline-offset-4 hover:underline",
+                            "inline-block max-w-full break-words py-2.5 text-base underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-ink",
                             isUnread ? "font-semibold text-ink" : "text-ink-2",
                           )}
                         >
@@ -118,6 +129,13 @@ export default async function NotificationsPage() {
                       {NAMES_ACTOR_IN_TITLE.has(n.type) ? null : <>{who} · </>}
                       <RelativeTime date={n.createdAt.toISOString()} />
                     </p>
+                    {remix ? (
+                      <p className="mt-1 max-w-[65ch] text-sm text-ink-2">
+                        {remix.onDiscover
+                          ? "Opens their remix on Discover."
+                          : "Their remix isn't on Discover, so this opens your album."}
+                      </p>
+                    ) : null}
                     {n.body ? (
                       <p className="mt-2 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">{n.body}</p>
                     ) : null}

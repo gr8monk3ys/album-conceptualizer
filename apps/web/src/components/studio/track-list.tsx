@@ -188,6 +188,26 @@ function TrackListView({
     else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
   }, [activeId]);
 
+  // Beside the editor the list scrolls on its own under its sticky column heads. A row reached
+  // by Tab or Shift+Tab is scrolled into view by the browser, which keeps it clear of those
+  // heads only if the scroller's scroll padding says how tall they are: measured, since theme
+  // names can take two lines and text can be enlarged.
+  const hasRows = songs.length > 0;
+  useEffect(() => {
+    const box = scrollRef.current;
+    const head = box?.querySelector("thead");
+    if (!box || !head) return;
+    const pad = () => {
+      box.style.scrollPaddingTop = `${Math.ceil(head.getBoundingClientRect().height)}px`;
+    };
+    const observer = new ResizeObserver(pad);
+    observer.observe(head);
+    return () => {
+      observer.disconnect();
+      box.style.removeProperty("scroll-padding-top");
+    };
+  }, [hasRows]);
+
   // How many rows the side column's own scroll hides above and below ("3 more below").
   useEffect(() => {
     const box = scrollRef.current;

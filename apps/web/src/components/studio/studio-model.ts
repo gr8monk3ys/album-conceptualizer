@@ -268,15 +268,16 @@ export function defaultTrackTitle(trackNumber: number) {
  * ("Track 1"), so "01" is never "Track 2". Titles the artist wrote are never touched.
  */
 export function renumberTracks<T extends { track_number: number; title?: string | null }>(songs: readonly T[]): T[] {
-  return songs.map((song, index) => {
-    const number = index + 1;
-    if (song.track_number === number) return song;
-    const keepsDefault =
-      typeof song.title === "string" && song.title.trim() === defaultTrackTitle(song.track_number);
-    return keepsDefault
-      ? { ...song, track_number: number, title: defaultTrackTitle(number) }
-      : { ...song, track_number: number };
-  });
+  return songs.map((song, index) => renumberTrack(song, index + 1));
+}
+
+/** One track at `number`: its default name follows the number; a written title stays. */
+function renumberTrack<T extends { track_number: number; title?: string | null }>(song: T, number: number): T {
+  if (song.track_number === number) return song;
+  const keepsDefault = typeof song.title === "string" && song.title.trim() === defaultTrackTitle(song.track_number);
+  return keepsDefault
+    ? { ...song, track_number: number, title: defaultTrackTitle(number) }
+    : { ...song, track_number: number };
 }
 
 // ---------------------------------------------------------------- sequencing
@@ -291,16 +292,115 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] |
 }
 
 /**
- * The tracklist with one track moved a step up (-1) or down (1), renumbered 1…n; default names
- * follow their new numbers (`renumberTracks`).
+ * The tracklist with the track at `from` moved to `to` in one step (any distance), renumbered
+ * 1…n; default names follow their new numbers (`renumberTracks`), so "01" is never "Track 2".
+ * Null when either place is out of range or they are the same.
  */
+export function moveTrackTo<T extends { track_number: number; title?: string | null }>(
+  songs: readonly T[],
+  from: number,
+  to: number,
+): T[] | null {
+  const moved = moveItem(songs, from, to);
+  return moved ? renumberTracks(moved) : null;
+}
+
+/** The tracklist with one track moved a step up (-1) or down (1): `moveTrackTo` one place. */
 export function moveTrack<T extends { track_number: number; title?: string | null }>(
   songs: readonly T[],
   index: number,
   dir: -1 | 1,
 ): T[] | null {
-  const moved = moveItem(songs, index, index + dir);
-  return moved ? renumberTracks(moved) : null;
+  return moveTrackTo(songs, index, index + dir);
+}
+
+/** A title a move changed (a default name following its number): what it was, what it became. */
+export type TrackRename = { id: string; before: string; after: string };
+
+type SequencedTrack = { id?: string | null; track_number: number; title?: string | null };
+
+/** The titles that differ between two orders of the same tracks, matched by id. */
+export function trackRenames(before: readonly SequencedTrack[], after: readonly SequencedTrack[]): TrackRename[] {
+  const was = new Map(before.flatMap((song) => (song.id ? [[song.id, song.title ?? ""] as const] : [])));
+  return after.flatMap((song) => {
+    const old = song.id ? was.get(song.id) : undefined;
+    const now = song.title ?? "";
+    return song.id && old !== undefined && old !== now ? [{ id: song.id, before: old, after: now }] : [];
+  });
+}
+
+/**
+ * Two moves' renames as one (several moves of a track share one Undo): each track keeps the
+ * name it had before the first move and the one it has after the last; a name that is back
+ * where it started drops out.
+ */
+export function mergeRenames(first: readonly TrackRename[], second: readonly TrackRename[]): TrackRename[] {
+  const merged = new Map(first.map((rename) => [rename.id, { ...rename }]));
+  for (const rename of second) {
+    const earlier = merged.get(rename.id);
+    merged.set(rename.id, earlier ? { ...earlier, after: rename.after } : { ...rename });
+  }
+  return [...merged.values()].filter((rename) => rename.before !== rename.after);
+}
+
+/**
+ * Undo for a move: the track `songId` back at `from`, renumbered, and every name the move
+ * changed put back exactly as it was ("Track 3" is "Track 1" again), unless the artist has
+ * renamed it since, in which case their title stays and only the usual renumbering applies.
+ * Null when the track is gone.
+ */
+export function undoTrackMove<T extends SequencedTrack>(
+  songs: readonly T[],
+  songId: string,
+  from: number,
+  renamed: readonly TrackRename[],
+): T[] | null {
+  const at = songs.findIndex((song) => song.id === songId);
+  if (at < 0) return null;
+  const back = moveItem(songs, at, clampIndex(from, songs.length)) ?? [...songs];
+  const names = new Map(renamed.map((rename) => [rename.id, rename]));
+  return back.map((song, index) => {
+    const rename = song.id ? names.get(song.id) : undefined;
+    if (rename && (song.title ?? "") === rename.after) return { ...song, track_number: index + 1, title: rename.before };
+    return renumberTrack(song, index + 1);
+  });
+}
+
+/**
+ * What the Undo line says about a move, from where the track started to where it is now:
+ * "Moved “Signal” from 01 to 05.", naming the track as the writer knew it and, when a default
+ * name followed its number, what it is called now: "Moved “Track 1” (now “Track 2”) from 01 to 02."
+ */
+export function moveUndoLabel(fromTitle: string, nowTitle: string, from: number, to: number): string {
+  const before = fromTitle.trim() || "Untitled";
+  const after = nowTitle.trim() || "Untitled";
+  const name = before === after ? `“${before}”` : `“${before}” (now “${after}”)`;
+  const pad = (n: number) => String(n + 1).padStart(2, "0");
+  return `Moved ${name} from ${pad(from)} to ${pad(to)}.`;
+}
+
+/**
+ * The other tracks with the same title as the track at `index` (trimmed, any casing), by
+ * track number. Empty titles match nothing.
+ */
+export function tracksSharingTitle(
+  songs: readonly { track_number: number; title?: string | null }[],
+  index: number,
+): number[] {
+  const key = (songs[index]?.title ?? "").trim().toLocaleLowerCase();
+  if (!key) return [];
+  return songs.flatMap((song, i) =>
+    i !== index && (song.title ?? "").trim().toLocaleLowerCase() === key ? [song.track_number] : [],
+  );
+}
+
+/** "Track 03 is also called this.", "Tracks 03 and 07 are also called this." Empty for none. */
+export function sharedTitleHint(trackNumbers: readonly number[]): string {
+  if (!trackNumbers.length) return "";
+  const numbers = trackNumbers.map((n) => String(n).padStart(2, "0"));
+  return numbers.length === 1
+    ? `Track ${numbers[0]} is also called this.`
+    : `Tracks ${AND_LIST.format(numbers)} are also called this.`;
 }
 
 /** The tracklist without the track at `index`, renumbered, default names following. */

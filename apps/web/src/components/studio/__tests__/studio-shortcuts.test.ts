@@ -74,8 +74,25 @@ describe("studioShortcut", () => {
     expect(studioShortcut(key("ArrowUp", { altKey: true, metaKey: true }), button)).toBeNull();
   });
 
+  it("moves the selected track with Ctrl+Alt+Shift, never taking a text field's arrows", () => {
+    const mods = { ctrlKey: true, altKey: true, shiftKey: true };
+    expect(studioShortcut(key("PageUp", mods), textarea)).toEqual({ kind: "move", dir: -1 });
+    expect(studioShortcut(key("PageDown", mods), textInput)).toEqual({ kind: "move", dir: 1 });
+    expect(studioShortcut(key("ArrowUp", mods), button)).toEqual({ kind: "move", dir: -1 });
+    expect(studioShortcut(key("ArrowDown", mods), null)).toEqual({ kind: "move", dir: 1 });
+    expect(studioShortcut(key("ArrowDown", mods), textarea)).toBeNull();
+    expect(studioShortcut(key("ArrowUp", mods), select)).toBeNull();
+    // Not with ⌘, and not without all three.
+    expect(studioShortcut(key("ArrowDown", { ...mods, metaKey: true }), button)).toBeNull();
+    expect(studioShortcut(key("ArrowDown", { ctrlKey: true, shiftKey: true }), button)).toBeNull();
+    expect(studioShortcut(key("s", mods), textarea)).toBeNull();
+  });
+
   it("does nothing while an IME is composing", () => {
     expect(studioShortcut(key("s", { ctrlKey: true, isComposing: true }), textarea)).toBeNull();
     expect(studioShortcut(key("PageDown", { altKey: true, keyCode: 229 }), textarea)).toBeNull();
+    expect(
+      studioShortcut(key("PageDown", { ctrlKey: true, altKey: true, shiftKey: true, isComposing: true }), textarea),
+    ).toBeNull();
   });
 });

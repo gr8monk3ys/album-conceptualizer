@@ -163,7 +163,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
                     <div className="min-w-0 flex-1">
                       <p className="break-words text-base font-semibold text-ink hyphens-auto">{track.title}</p>
                       {track.role ? (
-                        <p className="mt-0.5 line-clamp-2 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">{track.role}</p>
+                        <p className="mt-0.5 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">{track.role}</p>
                       ) : null}
                       {track.themes.length ? (
                         <p className="type-catalog mt-1 text-xs text-ink-3">

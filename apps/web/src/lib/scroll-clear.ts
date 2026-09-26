@@ -5,6 +5,10 @@
  * `width` its width; `viewport`/`content` are clientWidth/scrollWidth. Returns the current
  * position when the item is already clear. An item too wide to fit with both margins is lined
  * up at the start margin (its beginning is what the reader needs first).
+ *
+ * `stickyStart` is how much of the scroller's start edge a sticky first column covers (its
+ * width, which the scroller also declares as `scroll-padding-left`): an item is kept clear of
+ * that column as well as of the fade, so Shift+Tab never lands under it.
  */
 export function fadeClearScrollLeft({
   scrollLeft,
@@ -13,6 +17,7 @@ export function fadeClearScrollLeft({
   start,
   width,
   margin,
+  stickyStart = 0,
 }: {
   scrollLeft: number;
   viewport: number;
@@ -20,12 +25,13 @@ export function fadeClearScrollLeft({
   start: number;
   width: number;
   margin: number;
+  stickyStart?: number;
 }): number {
   const max = Math.max(0, content - viewport);
   const clamp = (value: number) => Math.max(0, Math.min(max, Math.round(value)));
   const end = start + width;
   // At the very start or end of the table there is no fade on that side, so no margin needed.
-  const startMargin = scrollLeft + start - margin <= 0 ? 0 : margin;
+  const startMargin = stickyStart + (scrollLeft + start - stickyStart - margin <= 0 ? 0 : margin);
   const endMargin = scrollLeft + end + margin >= content ? 0 : margin;
   if (width > viewport - startMargin - endMargin || start < startMargin) {
     return clamp(scrollLeft + start - startMargin);

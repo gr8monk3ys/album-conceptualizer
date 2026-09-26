@@ -29,4 +29,19 @@ describe("fadeClearScrollLeft", () => {
   it("lines up an item too wide to fit at the start margin", () => {
     expect(fadeClearScrollLeft({ ...base, scrollLeft: 0, start: 100, width: 290 })).toBe(76);
   });
+
+  it("keeps a focused cell clear of a sticky first column as well as the fade", () => {
+    // Scrolled 300px in; a 150px sticky column covers the start; the item starts 100px in,
+    // under it. It scrolls back so the item begins past the column and the fade.
+    const left = fadeClearScrollLeft({
+      scrollLeft: 300,
+      viewport: 400,
+      content: 1200,
+      start: 100,
+      width: 60,
+      margin: 24,
+      stickyStart: 150,
+    });
+    expect(left).toBe(300 + 100 - 150 - 24);
+  });
 });

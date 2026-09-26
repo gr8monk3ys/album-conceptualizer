@@ -27,6 +27,23 @@ function fadeWidth() {
  * view and at least the fade's width clear of each edge, so the fade never covers what has
  * focus (`scroll-px-6` asks the browser for the same margin when it scrolls to focus itself).
  */
+/**
+ * How far a sticky cell in the focused item's row reaches in from the scroller's visible left
+ * edge (the Story bible's Theme column), so focus scrolling keeps the item clear of it. 0 when
+ * the row has none, or the item is itself in the sticky cell.
+ */
+function stickyStartCover(target: HTMLElement, visibleLeft: number): number {
+  const row = target.closest("tr");
+  if (!row) return 0;
+  let cover = 0;
+  for (const cell of Array.from(row.children)) {
+    if (!(cell instanceof HTMLElement) || cell.contains(target)) continue;
+    if (getComputedStyle(cell).position !== "sticky") continue;
+    cover = Math.max(cover, cell.getBoundingClientRect().right - visibleLeft);
+  }
+  return Math.max(0, cover);
+}
+
 export function TableScroller({
   label,
   className,
@@ -61,6 +78,7 @@ export function TableScroller({
         start: item.left - box.left - scroller.clientLeft,
         width: item.width,
         margin: fadeWidth(),
+        stickyStart: stickyStartCover(target, box.left + scroller.clientLeft),
       });
       if (left !== scroller.scrollLeft) scroller.scrollLeft = left;
     },

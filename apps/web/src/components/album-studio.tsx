@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
+  ArrowUpDown,
   CircleHelp,
   Copy,
   Download,
@@ -36,6 +37,7 @@ import {
 import { previewBlockedMessage } from "@/components/studio/input-checks";
 import { DeleteConfirm, deleteSectionQuestion, deleteTrackQuestion } from "@/components/studio/delete-confirm";
 import { MoreMenu } from "@/components/studio/more-menu";
+import { MoveTrackForm } from "@/components/studio/move-track-form";
 import { TRACKS_TOGGLE_ID, useTracksOpen } from "@/components/studio/tracks-disclosure";
 import { ChordField, TempoField } from "@/components/studio/musical-fields";
 import { SongStoryEditor, SongStoryFields, STORY_FOCUS_TARGETS } from "@/components/studio/song-story-editor";
@@ -45,7 +47,12 @@ import {
   saveBarSticks,
   visibleBelowSticky,
 } from "@/components/studio/sticky-stack";
-import { SECTION_KEYSHORTCUTS, studioShortcut } from "@/components/studio/studio-shortcuts";
+import {
+  MOVE_TRACK_DOWN_KEYSHORTCUTS,
+  MOVE_TRACK_UP_KEYSHORTCUTS,
+  SECTION_KEYSHORTCUTS,
+  studioShortcut,
+} from "@/components/studio/studio-shortcuts";
 import {
   KEY_OPTIONS,
   SECTION_TYPES,
@@ -61,8 +68,10 @@ import {
   firstUnwrittenSection,
   isStarterLoopSection,
   isWritten,
+  mergeRenames,
   moveItem,
-  moveTrack,
+  moveTrackTo,
+  moveUndoLabel,
   nextToWrite,
   normalizeKey,
   normalizeOrders,
@@ -78,9 +87,13 @@ import {
   sectionTypeLabel,
   saveStatusParts,
   toggleTheme,
+  trackRenames,
+  tracksSharingTitle,
+  undoTrackMove,
   unreadableChordsOnAlbum,
   unreadableChordsStatus,
   type ChordSnapshot,
+  type TrackRename,
   type SaveMode,
   type StudioAlbum,
   type StudioSection,
@@ -94,6 +107,7 @@ import {
   TrackThemeToggles,
   pad2,
 } from "@/components/studio/track-list";
+import { TrackTitle, TRACK_TITLE_ID } from "@/components/studio/track-title";
 import { useUndoWindow } from "@/components/studio/undo-window";
 import { sameKeys, useStableEvent } from "@/components/studio/use-stable-event";
 import { Button, EmptyState, Field, inputClass, selectClass, textareaClass } from "@/components/ui";
@@ -137,8 +151,13 @@ type AlbumStudioProps = {
 type UndoEntry =
   | { kind: "track"; song: StudioSong; index: number; label: string; key: number }
   | { kind: "section"; songId: string; section: StudioSection; index: number; label: string; key: number }
-  /** A track moved one place: Undo moves it back. `label` is the line beside Undo. */
-  | { kind: "move"; songId: string; from: number; label: string; key: number }
+  /**
+   * A track moved (one place or several, by the menu, Move to position or the shortcut): Undo
+   * puts it back at `from`, where it was before the first of a run of moves, with every name
+   * the moves changed (`renamed`) as it was. `fromTitle` is what it was called there; `label`
+   * is the line beside Undo.
+   */
+  | { kind: "move"; songId: string; from: number; fromTitle: string; renamed: TrackRename[]; label: string; key: number }
   | {
       kind: "chords";
       songId: string;
@@ -232,6 +251,7 @@ const BATCH_CHORDS_ID = "use-chords-everywhere";
 const SECTION_MENU_ID = "section-more";
 const TRACK_MENU_ID = "track-more";
 const DELETE_CONFIRM_ID = "studio-delete-confirm";
+const MOVE_FORM_ID = "studio-move-track";
 const ADD_TRACK_ID = "studio-add-track";
 const ADD_SECTION_ID = "studio-add-section";
 const VERSION_TOGGLE_ID = "save-version-toggle";
@@ -383,6 +403,8 @@ function useAlbumStudioRender({
   const [confirmDelete, setConfirmDelete] = useState<{ kind: "track" | "section"; at: string; question: string } | null>(
     null,
   );
+  // "Move to position…" open under the track header, for the track it was opened on (its id).
+  const [moveFormFor, setMoveFormFor] = useState<string | null>(null);
   const [pendingFocus, setPendingFocus] = useState<PendingFocus | null>(() =>
     initialTarget ? arrivalFocus(initialTarget) : null,
   );
@@ -415,6 +437,7 @@ function useAlbumStudioRender({
   const structuralRef = useRef(false);
   const saveRef = useRef<(mode: SaveMode) => Promise<boolean>>(async () => false);
   const stepRef = useRef<(what: "track" | "section", dir: -1 | 1) => void>(() => {});
+  const moveKeyRef = useRef<(dir: -1 | 1) => void>(() => {});
   const saveBarRef = useRef<HTMLDivElement | null>(null);
 
   // Deep links (?song=N&section=M&sid=…&focus=…) select a track and section. They are applied
@@ -442,6 +465,7 @@ function useAlbumStudioRender({
   const activeLabel = labels[sectionIndex] ?? "Section";
   const confirmAt = `${activeSong?.id ?? ""}|${activeSection?.id ?? ""}`;
   if (confirmDelete && confirmDelete.at !== confirmAt) setConfirmDelete(null);
+  if (moveFormFor && moveFormFor !== activeSong?.id) setMoveFormFor(null);
 
   useEffect(() => {
     albumRef.current = album;
@@ -753,13 +777,15 @@ function useAlbumStudioRender({
   }, [album, dirty, saving, saveError]);
 
   // Ctrl/⌘+S saves; Alt+PageUp/PageDown (anywhere) and Alt+↑/↓ (outside text fields) move
-  // between tracks, with Shift between sections. See studio-shortcuts.ts for the rules.
+  // between tracks, with Shift between sections; Ctrl+Alt+Shift with the same keys moves the
+  // selected track one place. See studio-shortcuts.ts for the rules.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const shortcut = studioShortcut(event, event.target instanceof Element ? (event.target as HTMLElement) : null);
       if (!shortcut) return;
       event.preventDefault();
       if (shortcut.kind === "save") void saveRef.current("manual");
+      else if (shortcut.kind === "move") moveKeyRef.current(shortcut.dir);
       else stepRef.current(shortcut.what, shortcut.dir);
     };
     window.addEventListener("keydown", onKey);
@@ -810,6 +836,7 @@ function useAlbumStudioRender({
 
   useEffect(() => {
     stepRef.current = step;
+    moveKeyRef.current = moveByKey;
   });
 
   function updateSongField<K extends keyof StudioSong>(key: K, value: StudioSong[K]) {
@@ -854,7 +881,7 @@ function useAlbumStudioRender({
   /** The Studio's skip link: straight to the current section's lyrics (or the track's title). */
   function skipToLyrics() {
     if (activeSection) setPendingFocus({ id: "section-lyrics", scroll: "start", scrollTo: SECTION_EDITOR_ID });
-    else if (activeSong) setPendingFocus({ id: "song-title", scroll: "start", scrollTo: "studio-track" });
+    else if (activeSong) setPendingFocus({ id: TRACK_TITLE_ID, scroll: "start", scrollTo: "studio-track" });
     else setPendingFocus({ id: EDITOR_ID, scroll: "start" });
   }
 
@@ -863,7 +890,7 @@ function useAlbumStudioRender({
     structuralRef.current = true;
     edit((prev) => ({ ...prev, songs: renumberTracks([...prev.songs, buildNewSong(prev.songs.length + 1)]) }));
     setSelection({ song: index, section: 0 });
-    setPendingFocus({ id: "song-title", scroll: "nearest" });
+    setPendingFocus({ id: TRACK_TITLE_ID, scroll: "nearest" });
   }
 
   // Deleting never moves the page: the next item is selected in place and focus goes to Undo,
@@ -886,6 +913,7 @@ function useAlbumStudioRender({
   function requestDeleteTrack() {
     const song = songs[songIndex];
     if (!song) return;
+    setMoveFormFor(null);
     const written = (song.sections ?? []).filter((section) => isWritten(section.lyrics)).length;
     if (!written) {
       deleteTrack(songIndex);
@@ -959,19 +987,17 @@ function useAlbumStudioRender({
       edit((prev) => ({ ...prev, songs: restoreTrack(prev.songs, song, index) }));
       setSelection({ song: index, section: 0 });
       setPendingFocus({ id: `track-row-${song.id}`, scroll: "nearest" });
+      setNavAnnouncement(`Put back “${undo.label}”.`);
     } else if (undo.kind === "move") {
-      const { songId, from } = undo;
+      // Back to where the run of moves started, in one step, every name as it was then.
+      const { songId, from, renamed } = undo;
       const at = songs.findIndex((s) => s.id === songId);
-      if (at >= 0 && at !== from) {
-        const dir = from < at ? -1 : 1;
+      if (at >= 0) {
+        const to = clampIndex(from, songs.length);
         structuralRef.current = true;
-        edit((prev) => {
-          let list = prev.songs;
-          for (let i = at; i !== from; i += dir) list = moveTrack(list, i, dir) ?? list;
-          return { ...prev, songs: list };
-        });
-        setSelection({ song: from, section: sectionIndex });
-        setNavAnnouncement(`Moved back to track ${from + 1} of ${songs.length}.`);
+        edit((prev) => ({ ...prev, songs: undoTrackMove(prev.songs, songId, from, renamed) ?? prev.songs }));
+        setSelection({ song: to, section: sectionIndex });
+        setNavAnnouncement(`Moved back to track ${to + 1} of ${songs.length}.`);
       }
       setPendingFocus({ id: `track-row-${songId}`, scroll: "nearest" });
     } else if (undo.kind === "section") {
@@ -984,6 +1010,7 @@ function useAlbumStudioRender({
       });
       if (owner >= 0) setSelection({ song: owner, section: index });
       setPendingFocus({ id: `section-row-${section.id}`, scroll: "nearest" });
+      setNavAnnouncement(`Put back ${undo.label}.`);
     } else {
       const { songId, previous, sourceIndex, targets } = undo;
       const owner = songs.findIndex((s) => s.id === songId);
@@ -1029,31 +1056,92 @@ function useAlbumStudioRender({
     setNavAnnouncement(`${sectionTypeLabel(section.section_type)} moved to section ${target + 1} of ${sections.length}.`);
   }
 
-  /** Moves a track one place and renumbers the album; the moved track stays selected. */
-  function moveTrackBy(index: number, dir: -1 | 1) {
-    const moved = moveTrack(songs, index, dir);
-    if (!moved) return;
+  /**
+   * Moves the track at `index` to `to` (one place or many) and renumbers the album; the moved
+   * track stays selected. Said like any move: announced, and shown in the save bar with Undo.
+   * Moves of the same track in a row share one Undo, which takes it back to where the first
+   * started (moving it down three times, then Undo, puts it back where it was). Returns
+   * whether it moved, and "back" when it is back where the run of moves started.
+   */
+  function moveTrackToIndex(index: number, to: number): "moved" | "back" | null {
+    const song = songs[index];
+    const moved = moveTrackTo(songs, index, to);
+    if (!moved || !song?.id) return null;
+    const songId = song.id;
     structuralRef.current = true;
-    edit((prev) => ({ ...prev, songs: moveTrack(prev.songs, index, dir) ?? prev.songs }));
-    setSelection({ song: index + dir, section: sectionIndex });
+    edit((prev) => ({ ...prev, songs: moveTrackTo(prev.songs, index, to) ?? prev.songs }));
+    setSelection({ song: to, section: sectionIndex });
     // Named as the writer knew it: a default name follows its new number ("Track 1" becomes
     // "Track 2"), so the line says what it was called and, if that changed, what it is now.
-    const song = moved[index + dir];
-    const before = songs[index]?.title.trim() || "Untitled";
-    const after = song?.title.trim() || "Untitled";
+    const before = song.title.trim() || "Untitled";
+    const after = moved[to]?.title.trim() || "Untitled";
     const title = before === after ? `“${before}”` : `“${before}” (now “${after}”)`;
-    setNavAnnouncement(`Moved ${title} to track ${index + dir + 1} of ${songs.length}.`);
+    setNavAnnouncement(`Moved ${title} to track ${to + 1} of ${songs.length}.`);
     // Sighted writers see the move too, where a delete is shown, with Undo: a default name
     // changes with its number, so the line says where the track came from.
-    if (song?.id) {
-      setUndo({
-        kind: "move",
-        songId: song.id,
-        from: index,
-        label: `Moved ${title} from ${pad2(index + 1)} to ${pad2(index + dir + 1)}.`,
-        key: Date.now(),
-      });
+    const prior = undo?.kind === "move" && undo.songId === songId ? undo : null;
+    const from = prior ? prior.from : index;
+    const fromTitle = prior ? prior.fromTitle : song.title;
+    const renamed = mergeRenames(prior?.renamed ?? [], trackRenames(songs, moved));
+    if (from === to) {
+      // Moved back to where it started: nothing is left to undo.
+      setUndo(null);
+      return "back";
     }
+    setUndo({
+      kind: "move",
+      songId,
+      from,
+      fromTitle,
+      renamed,
+      label: moveUndoLabel(fromTitle, moved[to]?.title ?? "", from, to),
+      key: Date.now(),
+    });
+    return "moved";
+  }
+
+  function moveTrackBy(index: number, dir: -1 | 1) {
+    moveTrackToIndex(index, index + dir);
+  }
+
+  /**
+   * Ctrl+Alt+Shift+PageUp/PageDown (or ↑/↓ outside text fields): the selected track one place.
+   * Focus stays where it was (a track row follows its track); at either end it says so.
+   */
+  function moveByKey(dir: -1 | 1) {
+    const song = songs[songIndex];
+    if (!song) return;
+    const activeId = focusedId();
+    const result = moveTrackToIndex(songIndex, songIndex + dir);
+    if (!result) {
+      const name = song.title.trim() || "Untitled";
+      setNavAnnouncement(dir < 0 ? `“${name}” is already the first track.` : `“${name}” is already the last track.`);
+      return;
+    }
+    // The row is re-inserted in its new place, and Undo is replaced, which can drop focus: put
+    // it back (on the track's row when the Undo it was on is gone).
+    const undoGone = activeId === "studio-undo" && result === "back";
+    if (activeId) setPendingFocus({ id: undoGone ? `track-row-${song.id}` : activeId, scroll: "none" });
+  }
+
+  /** "Move to position…" from the track's More menu: the inline form, focus on its select. */
+  function openMoveForm() {
+    if (!activeSong?.id) return;
+    setConfirmDelete(null);
+    setMoveFormFor(activeSong.id);
+  }
+
+  /** The form's Move: one step to the chosen place, then focus back to More. */
+  function moveFromForm(to: number) {
+    setMoveFormFor(null);
+    moveTrackToIndex(songIndex, to);
+    setPendingFocus({ id: TRACK_MENU_ID, scroll: "none" });
+  }
+
+  /** Cancel or Escape: nothing moved, focus back on the "More" button that asked. */
+  function cancelMoveForm() {
+    setMoveFormFor(null);
+    setPendingFocus({ id: TRACK_MENU_ID, scroll: "none" });
   }
 
   /** The track list's theme toggles: tag or untag one track with one central theme. */
@@ -1421,6 +1509,12 @@ function useAlbumStudioRender({
         <div className="contents pointer-coarse:hidden">
           <p className="hidden min-w-0 text-xs text-ink-3 lg:block">
             <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
+            {/* Only where the bar has room for it on the same row (from 85rem the row holds
+                the status, every hint and the actions); Help lists every shortcut. */}
+            <span className="hidden min-[85rem]:inline">
+              {" "}
+              · <Kbd>Ctrl Alt Shift PgUp/PgDn</Kbd> move track
+            </span>
           </p>
         </div>
         {/* Help, Save version and Save now stay together as one group, never one left alone on
@@ -1595,25 +1689,27 @@ function useAlbumStudioRender({
       ].filter((part): part is string => Boolean(part))
     : [];
 
+  // Other tracks with this title (trimmed, any casing), named under the title field.
+  const sharedTitle = useMemo(() => tracksSharingTitle(songs, songIndex), [songs, songIndex]);
+
   const trackHeader = activeSong ? (
     <section id="studio-track" aria-labelledby="studio-song-title" className="flex min-w-0 flex-col gap-4">
       <div>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0">
-          {/* Named "Track 01: Storm Warning" once. The name is set outright rather than
-              assembled from hidden fragments, which browsers join with stray spaces; the
-              visible text is the figure, a real space and the title ("01 Storm Warning"). */}
-          <h2
-            id="studio-song-title"
-            aria-label={`Track ${pad2(activeSong.track_number)}: ${activeSong.title.trim() || "Untitled"}`}
-            className="text-2xl font-semibold text-ink"
-          >
-            <span className="type-figure mr-1.5 text-3xl text-ink-3">{pad2(activeSong.track_number)}</span>{" "}
-            <span className="break-words hyphens-auto">{activeSong.title || "Untitled"}</span>
-          </h2>
+        {/* The heading is the track's title, edited in place (TrackTitle): renaming happens
+            where the name is read. Named "Track 01: Storm Warning" once, set outright. It
+            takes the row's room; Preview song and More wrap below it when there is none. */}
+        <div className="min-w-0 flex-1 basis-64">
+          <TrackTitle
+            headingId="studio-song-title"
+            trackNumber={activeSong.track_number}
+            title={activeSong.title ?? ""}
+            sharedWith={sharedTitle}
+            onChange={(title) => updateSongField("title", title)}
+          />
           {/* The release header's rule: each separator ends the item before it, so a wrapped
               line never starts with a dot. */}
-          <p className="type-catalog type-figure mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">
+          <p className="type-catalog type-figure mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">
             <CatalogItems items={catalog} />
           </p>
         </div>
@@ -1631,6 +1727,7 @@ function useAlbumStudioRender({
                 label: "Move track up",
                 icon: <ArrowUp className="h-4 w-4" aria-hidden="true" />,
                 disabled: songIndex === 0,
+                keyshortcuts: MOVE_TRACK_UP_KEYSHORTCUTS,
                 onSelect: () => moveTrackBy(songIndex, -1),
               },
               {
@@ -1638,7 +1735,16 @@ function useAlbumStudioRender({
                 label: "Move track down",
                 icon: <ArrowDown className="h-4 w-4" aria-hidden="true" />,
                 disabled: songIndex >= songs.length - 1,
+                keyshortcuts: MOVE_TRACK_DOWN_KEYSHORTCUTS,
                 onSelect: () => moveTrackBy(songIndex, 1),
+              },
+              {
+                key: "position",
+                label: "Move to position…",
+                hint: "Any place in the sequence, in one step.",
+                icon: <ArrowUpDown className="h-4 w-4" aria-hidden="true" />,
+                disabled: songs.length < 2,
+                onSelect: openMoveForm,
               },
               {
                 key: "delete",
@@ -1656,6 +1762,15 @@ function useAlbumStudioRender({
       </div>
       {previewStatus("track")}
       {deleteConfirm("track")}
+      {moveFormFor === activeSong.id ? (
+        <MoveTrackForm
+          id={MOVE_FORM_ID}
+          songs={songs}
+          current={songIndex}
+          onMove={moveFromForm}
+          onCancel={cancelMoveForm}
+        />
+      ) : null}
       </div>
 
       {/* The track's Role and Story note, always in view: Coherence asks every track for them. */}
@@ -1671,9 +1786,9 @@ function useAlbumStudioRender({
     </section>
   ) : null;
 
-  // The track's title, key and tempo: set once and rarely changed, so they follow the writing
-  // rather than stand between the track's title and its lyrics (the catalog line under the
-  // title already shows the key and tempo).
+  // The track's key and tempo: set once and rarely changed, so they follow the writing rather
+  // than stand between the track's title and its lyrics (the catalog line under the title
+  // already shows them). The title is edited in the track's heading.
   const trackDetails = activeSong ? (
     <section aria-labelledby="studio-track-details-title" className="border-t border-line pt-5">
       <h2 id="studio-track-details-title" className="text-lg font-semibold text-ink">
@@ -1682,23 +1797,7 @@ function useAlbumStudioRender({
       {/* Key and Tempo share a row only while each column holds the longest key whole
           ("G# minor" needs 6.5rem, in rem so enlarged text needs more room); narrower (390px
           with 200% text) they stack, so the select never reads "C m". */}
-      <div className="mt-4 grid grid-cols-1 gap-4 @min-[14.5rem]:grid-cols-2 @lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
-        <Field
-          label="Track title"
-          htmlFor="song-title"
-          className="@min-[14.5rem]:col-span-2 @lg:col-span-1"
-          error={activeSong.title.trim() ? undefined : "A track needs a title before it can be saved."}
-        >
-          <input
-            id="song-title"
-            value={activeSong.title ?? ""}
-            onChange={(e) => updateSongField("title", e.target.value)}
-            maxLength={200}
-            aria-invalid={activeSong.title.trim() ? undefined : true}
-            aria-describedby={activeSong.title.trim() ? undefined : "song-title-error"}
-            className={inputClass}
-          />
-        </Field>
+      <div className="mt-4 grid max-w-[36rem] grid-cols-1 gap-4 @min-[14.5rem]:grid-cols-2">
         <Field label="Key" htmlFor="song-key" className="min-w-0">
           <select
             id="song-key"

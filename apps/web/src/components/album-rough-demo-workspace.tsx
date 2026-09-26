@@ -267,10 +267,19 @@ function DeleteControl({
   return (
     <div role="group" aria-label={`Delete ${itemLabel}?`} className="flex flex-wrap items-center gap-2">
       <span className="text-sm text-ink-2">Delete this demo?</span>
-      <Button ref={confirmRef} tone="danger" className="px-3" disabled={busy} onClick={onConfirm}>
+      {/* Busy, not disabled, so focus stays on it while it works and after a failed delete
+          (the error is announced; the artist can try again from where they are). */}
+      <Button ref={confirmRef} tone="danger" className="px-3" busy={busy} onClick={onConfirm}>
         {busy ? "Deleting…" : "Yes, delete"}
       </Button>
-      <Button tone="ghost" className="px-3" disabled={busy} onClick={() => setConfirming(false)}>
+      <Button
+        tone="ghost"
+        className="px-3"
+        aria-disabled={busy || undefined}
+        onClick={() => {
+          if (!busy) setConfirming(false);
+        }}
+      >
         Keep
       </Button>
     </div>

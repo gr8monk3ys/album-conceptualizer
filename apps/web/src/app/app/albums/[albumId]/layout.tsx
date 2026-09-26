@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 
 import { CatalogItems, albumStatusLabel } from "@/components/album-card";
 import { AlbumCatalogLink } from "@/components/album-catalog-link";
-import { AlbumBody, AlbumNav, AlbumNextAction } from "@/components/album-nav";
+import { AlbumBody, AlbumNav, AlbumNextAction, AlbumSkipLink } from "@/components/album-nav";
 import { AlbumSpine } from "@/components/album-spine";
 import { RelativeTime } from "@/components/relative-time";
 import { ReleaseTitle } from "@/components/release-title";
+import { albumCatalogStatus } from "@/lib/album-skip";
 import { getSpineRows, getSpineThemes, nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
 import { requireUser } from "@/server/identity";
@@ -46,22 +47,32 @@ export default async function AlbumLayout({
   // lyrics reach the first viewport ("Writing comes first"): the title steps down to 1.875rem,
   // the catalog line sits beside it on its baseline, and the frame's gaps tighten. Pure CSS
   // (`:has()`), so it applies on the server render and nothing moves after hydration; every
-  // other album screen keeps the full release header.
+  // other album screen keeps the full release header. On a phone the frame's gaps tighten
+  // too, so the page starts sooner under the header and tabs.
   return (
-    <div className="group/album flex min-w-0 flex-col gap-6 has-[#studio-editor]:gap-4">
-      {/* A size container, so the release title steps down in a narrow header (a phone at
-          200% text) instead of breaking inside words (--text-display-release). */}
-      <header className="@container flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-        <div className="flex min-w-0 max-w-full flex-col gap-3 group-has-[#studio-editor]/album:flex-row group-has-[#studio-editor]/album:flex-wrap group-has-[#studio-editor]/album:items-baseline group-has-[#studio-editor]/album:gap-x-4 group-has-[#studio-editor]/album:gap-y-1">
+    <div className="group/album flex min-w-0 flex-col gap-4 md:gap-6 has-[#studio-editor]:gap-4">
+      {/* A size container (release), so the release title steps down in a narrow header (a
+          phone at 200% text) instead of breaking inside words (--text-display-release), and
+          the header tightens and shortens its catalog line below 42rem and 30rem. */}
+      <header className="@container/release flex flex-wrap items-end justify-between gap-x-8 gap-y-3 @min-[42rem]/release:gap-y-4">
+        <div className="flex min-w-0 max-w-full flex-col gap-2 @min-[42rem]/release:gap-3 group-has-[#studio-editor]/album:flex-row group-has-[#studio-editor]/album:flex-wrap group-has-[#studio-editor]/album:items-baseline group-has-[#studio-editor]/album:gap-x-4 group-has-[#studio-editor]/album:gap-y-1">
+          {/* The first stop in the album frame: past the title, catalog line, tabs and
+              sequence, to the page itself. A visible ink link in a narrow header (a phone,
+              enlarged text), where those take a screen or more; focus-only from 42rem. Not
+              on the Studio, whose own "Skip to the lyrics" is its first stop. */}
+          <AlbumSkipLink albumId={album.id} />
           {/* On the Studio the compact size is capped by the header's width like the full
               one (13cqi, never under 1rem): a flat text-3xl set 60px at 320px with 200% text
-              and broke "Lighthouse" inside the word.
+              and broke "Lighthouse" inside the word. Under a 12rem header (320px with 200%
+              text) both step down to 12% of the header, floor included: a 12-letter word
+              ("Transmission", 7.9em in the display cut) then fits whole instead of losing its
+              last letter to the next line; 13% still holds wherever the header is wider.
               18.75em is 24ch of the display cut, set in em so the measure is the same before
               and after Archivo loads (the fallback's "0" is narrower). The page's h1, except
               under an address the album has no page for, where the not-found heading is. */}
           <ReleaseTitle
             albumId={album.id}
-            className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto group-has-[#studio-editor]/album:min-w-0 group-has-[#studio-editor]/album:text-[length:max(1rem,min(1.875rem,13cqi))] group-has-[#studio-editor]/album:leading-[1.2]"
+            className="type-display text-display-release max-w-[18.75em] break-words text-ink hyphens-auto group-has-[#studio-editor]/album:min-w-0 group-has-[#studio-editor]/album:text-[length:max(1rem,min(1.875rem,13cqi))] group-has-[#studio-editor]/album:leading-[1.2] @max-[12rem]/release:text-[length:12cqi]"
           >
             {album.title}
           </ReleaseTitle>
@@ -73,8 +84,8 @@ export default async function AlbumLayout({
                 <span key="tracks" className="type-figure">
                   {rows.length} {rows.length === 1 ? "track" : "tracks"}
                 </span>,
-                albumStatusLabel(album.status),
-                album.isPublic ? "On Discover" : null,
+                // Publishing sets the status and the visibility: said once, "On Discover".
+                albumCatalogStatus(album, albumStatusLabel),
                 remix ? (
                   // Provenance: the original artist's name stays on the remix, and links to the
                   // original on Discover while it is still published.
@@ -90,9 +101,17 @@ export default async function AlbumLayout({
                     </span>
                   )
                 ) : null,
-                <span key="edited">
-                  Edited <RelativeTime date={album.updatedAt.toISOString()} />
-                </span>,
+                // The least needed item: a narrow line (a phone, enlarged text) leaves it out,
+                // so the line keeps to two or three lines. Never the last item, so the item
+                // before keeps its separator for Version history.
+                {
+                  className: "hidden @min-[30rem]/release:inline",
+                  content: (
+                    <span key="edited">
+                      Edited <RelativeTime date={album.updatedAt.toISOString()} />
+                    </span>
+                  ),
+                },
                 // Versions open from here on every album tab, not only from the Overview; on
                 // the Version history page this link is the current location (no tab is).
                 <AlbumCatalogLink key="versions" href={`/app/albums/${album.id}/versions`} className={CATALOG_LINK}>

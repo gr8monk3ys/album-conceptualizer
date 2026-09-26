@@ -21,8 +21,11 @@ type Tone = "primary" | "secondary" | "ghost" | "danger";
 // Every tone has a 1px border, transparent where the design shows none: in forced-colors
 // (Windows High Contrast) mode backgrounds are dropped and borders are drawn in the system
 // colour, so the border is what keeps a primary or ghost button looking like a button.
+// Unavailable (disabled, or aria-disabled while busy) is 50% and a not-allowed cursor; in
+// forced colors the label and edge turn GrayText, which the system draws for a native disabled
+// button but not for an aria-disabled one or a link.
 const BUTTON_BASE =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded border border-transparent px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded border border-transparent px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 disabled:forced-colors:border-[GrayText] disabled:forced-colors:text-[GrayText] aria-disabled:forced-colors:border-[GrayText] aria-disabled:forced-colors:text-[GrayText]";
 
 /**
  * Marks the one saffron action on a screen. It carries no style; the album release header
@@ -30,8 +33,17 @@ const BUTTON_BASE =
  */
 export const PRIMARY_ACTION_MARKER = "primary-action";
 
+const PRIMARY_UNAVAILABLE = [
+  "disabled:border-line-strong disabled:bg-raised disabled:text-ink-3 disabled:opacity-100 disabled:hover:bg-raised",
+  "aria-disabled:border-line-strong aria-disabled:bg-raised aria-disabled:text-ink-3 aria-disabled:opacity-100 aria-disabled:hover:bg-raised",
+].join(" ");
+
 const BUTTON_TONES: Record<Tone, string> = {
-  primary: `${PRIMARY_ACTION_MARKER} bg-accent text-accent-ink hover:bg-accent-hover`,
+  // An unavailable primary doesn't fade its saffron (half-strength saffron on graphite read
+  // as a muddy olive, a colour the system doesn't have): it takes the Raised surface with a
+  // Strong Rule edge and an Ash Ink label, at full opacity, so it reads as unavailable, keeps
+  // its shape, and the one saffron on a screen is always an action that can be taken.
+  primary: `${PRIMARY_ACTION_MARKER} bg-accent text-accent-ink hover:bg-accent-hover ${PRIMARY_UNAVAILABLE}`,
   secondary: "border-line-strong bg-transparent text-ink hover:border-ink-3 hover:bg-hover",
   ghost: "text-ink-2 hover:bg-hover hover:text-ink",
   danger: "border-danger/60 bg-transparent text-danger hover:bg-danger-soft",

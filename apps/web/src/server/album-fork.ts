@@ -192,6 +192,7 @@ export async function forkIntoWorkspace(input: {
     albumId: input.sourceAlbumId,
     actorUserId: input.userId,
     kind: "remix",
+    remixAlbumId: created.id,
   });
   return created.id;
 }

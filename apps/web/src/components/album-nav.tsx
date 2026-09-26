@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { ArrowDown } from "lucide-react";
 import { Suspense, useCallback, useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 
 import { ButtonLink, PRIMARY_ACTION_MARKER } from "@/components/ui";
 import { useEdgeFade } from "@/components/use-edge-fade";
+import { ALBUM_PAGE_ID, albumSkipLabel } from "@/lib/album-skip";
 import { edgeFadeClass } from "@/lib/edge-fade";
 import { cn } from "@/lib/utils";
 import { prefersReducedMotion } from "@/lib/motion";
@@ -121,6 +123,31 @@ export function AlbumNav({ albumId }: { albumId: string }) {
         </ul>
       </nav>
     </div>
+  );
+}
+
+/**
+ * The album frame's first stop: a link past the release header, the tabs and the sequence to
+ * the page itself, named after it ("Skip to the Coherence report"). Below a 42rem release
+ * header (a phone, enlarged text), where the frame fills a screen or more before the page, it
+ * is a visible ink link a touch can take; wider it is the focus-only skip chip, like the app's.
+ * The Studio has its own ("Skip to the lyrics"), so there is none here.
+ */
+export function AlbumSkipLink({ albumId }: { albumId: string }) {
+  const label = albumSkipLabel(useAlbumSegment(albumId));
+  if (!label) return null;
+  return (
+    <a
+      href={`#${ALBUM_PAGE_ID}`}
+      className={cn(
+        "inline-flex min-h-11 items-center gap-2 self-start rounded text-sm text-ink-2 underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink",
+        "@min-[42rem]/release:sr-only @min-[42rem]/release:z-50 @min-[42rem]/release:bg-accent @min-[42rem]/release:font-semibold @min-[42rem]/release:text-accent-ink @min-[42rem]/release:no-underline",
+        "@min-[42rem]/release:focus:not-sr-only @min-[42rem]/release:focus:fixed @min-[42rem]/release:focus:left-4 @min-[42rem]/release:focus:top-4 @min-[42rem]/release:focus:px-4 @min-[42rem]/release:focus:py-3",
+      )}
+    >
+      <ArrowDown className="h-4 w-4 shrink-0 text-ink-3 @min-[42rem]/release:hidden" aria-hidden="true" />
+      {label}
+    </a>
   );
 }
 
@@ -277,22 +304,24 @@ export function AlbumBody({
         </aside>
         <div className="flex min-w-0 flex-col gap-6">
           <details className="@4xl:hidden" open={segment === ""}>
-            {/* Wraps rather than overflowing a narrow column at enlarged text; the count keeps
-                its separator with it. */}
+            {/* Wraps rather than overflowing a narrow column at enlarged text. Like every
+                catalog line (CatalogItems), the separator ends the item before it, held to
+                "Sequence" by a word joiner, so a wrapped count never starts with a dot. */}
             <summary className="inline-flex min-h-11 max-w-full cursor-pointer flex-wrap items-center gap-x-2 rounded border border-line-strong px-4 py-1 text-sm font-semibold text-ink transition-colors hover:bg-hover">
-              Sequence
               <span className="whitespace-nowrap">
-                <span aria-hidden="true" className="text-ink-3">
+                Sequence{"\u2060"}
+                <span aria-hidden="true" className="ml-2 text-ink-3">
                   ·
-                </span>{" "}
-                <span className="type-figure font-normal text-ink-2">
-                  {trackCount} {trackCount === 1 ? "track" : "tracks"}
                 </span>
+              </span>
+              <span className="type-figure min-w-0 font-normal text-ink-2">
+                {trackCount} {trackCount === 1 ? "track" : "tracks"}
               </span>
             </summary>
             <div className="mt-3">{compactSpine}</div>
           </details>
-          <div className="min-w-0" {...content}>
+          {/* Where the frame's skip link lands (focusable for it, not in the tab order). */}
+          <div id={ALBUM_PAGE_ID} tabIndex={-1} className="min-w-0" {...content}>
             {children}
           </div>
         </div>

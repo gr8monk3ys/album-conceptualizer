@@ -32,11 +32,13 @@ export type AlbumNotification = {
    * notification of the first one they appear in.
    */
   audiences: NotificationAudience[];
+  /** Extra facts the notification carries, e.g. `{ remixAlbumId }` for a remix. */
+  metadata?: Prisma.InputJsonValue;
 };
 
 /** Create the notifications for one piece of album activity. Returns how many were created. */
 export async function notifyWorkspaceMembers(db: Db, notification: AlbumNotification) {
-  const { workspaceId, albumId, actorUserId, url, commentId, taskId, audiences } = notification;
+  const { workspaceId, albumId, actorUserId, url, commentId, taskId, audiences, metadata } = notification;
 
   const named = new Set<string>();
   for (const audience of audiences) {
@@ -76,6 +78,7 @@ export async function notifyWorkspaceMembers(db: Db, notification: AlbumNotifica
         albumId,
         commentId,
         taskId,
+        metadata,
       });
     }
   }
@@ -156,9 +159,9 @@ export function albumActivityTitle(kind: AlbumActivity, actorName: string | null
  */
 export async function notifyAlbumOwner(
   db: Db,
-  input: { albumId: string; actorUserId: string; kind: AlbumActivity },
+  input: { albumId: string; actorUserId: string; kind: AlbumActivity; remixAlbumId?: string },
 ): Promise<boolean> {
-  const { albumId, actorUserId, kind } = input;
+  const { albumId, actorUserId, kind, remixAlbumId } = input;
   const album = await db.album.findUnique({
     where: { id: albumId },
     select: { title: true, workspaceId: true, workspace: { select: { ownerId: true } } },
@@ -180,6 +183,8 @@ export async function notifyAlbumOwner(
     actorUserId,
     url: `/app/albums/${albumId}`,
     audiences: [{ to: "owner", type: kind, title: albumActivityTitle(kind, actor?.name, album.title) }],
+    // A remix row links to the remix itself (notifications/remix-links.ts reads this first).
+    metadata: kind === "remix" && remixAlbumId ? { remixAlbumId } : undefined,
   });
   return created > 0;
 }
@@ -190,7 +195,7 @@ export async function notifyAlbumOwner(
  */
 export async function notifyAlbumOwnerQuietly(
   db: Db,
-  input: { albumId: string; actorUserId: string; kind: AlbumActivity },
+  input: { albumId: string; actorUserId: string; kind: AlbumActivity; remixAlbumId?: string },
 ): Promise<boolean> {
   try {
     return await notifyAlbumOwner(db, input);
