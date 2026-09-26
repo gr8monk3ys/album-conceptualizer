@@ -69,7 +69,7 @@ export function LikeToggle({
     }
   }
 
-  const name = likeToggleName(state.liked, albumTitle);
+  const name = likeToggleName(albumTitle);
   return (
     <div className="flex items-center">
       <IconButton

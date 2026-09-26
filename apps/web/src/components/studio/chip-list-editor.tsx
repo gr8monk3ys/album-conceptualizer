@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 
-import { Button, inputClass } from "@/components/ui";
+import { Button, LiveStatus, inputClass } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 /**
@@ -41,6 +41,8 @@ export function ChipListEditor({
   max?: number;
 }) {
   const [draft, setDraft] = useState("");
+  // Said once when a chip goes: focus moves to the next chip, which names only itself.
+  const [removed, setRemoved] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // Where focus goes after the next commit: a data-chip-focus key, or "input".
@@ -89,6 +91,7 @@ export function ChipListEditor({
   }
 
   function remove(value: string) {
+    setRemoved(`Removed ${noun} “${value}”.`);
     const index = values.indexOf(value);
     const neighbour = values[index + 1] ?? values[index - 1];
     pendingFocus.current = neighbour !== undefined ? `remove:${neighbour}` : "input";
@@ -202,6 +205,8 @@ export function ChipListEditor({
           </ul>
         </div>
       ) : null}
+
+      <LiveStatus message={removed} className="sr-only" />
 
       {hint ? (
         <p id={hintId} className="max-w-[65ch] text-xs leading-relaxed text-ink-3">

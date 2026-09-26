@@ -76,7 +76,11 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
     .first();
   // Like controls are named after their album, so each row's toggle is distinct.
   await albumCard.getByRole("button", { name: `Like ${albumTitle}`, exact: true }).click();
-  await expect(albumCard.getByRole("button", { name: `Liked ${albumTitle}`, exact: true })).toBeVisible();
+  // The name stays put; aria-pressed says it's liked.
+  await expect(albumCard.getByRole("button", { name: `Like ${albumTitle}`, exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 
   // A card opens the album's Discover page; Remix lives there. Your own published album opens
   // in the Studio from it: no remix, no credits spent.

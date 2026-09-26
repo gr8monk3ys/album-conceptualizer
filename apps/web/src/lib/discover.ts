@@ -40,9 +40,12 @@ export function lyricStripPhrase({ tracks, withLyrics }: { tracks: number; withL
  * The Like toggle's accessible name: "Like Salt Year" / "Liked Salt Year" in a list, where each
  * row's toggle must be told apart, or plain "Like" / "Liked" where the page names the album.
  */
-export function likeToggleName(liked: boolean, albumTitle?: string) {
-  const verb = liked ? "Liked" : "Like";
-  return albumTitle?.trim() ? `${verb} ${albumTitle}` : verb;
+/**
+ * The Like toggle's name. It stays the same whether or not the album is liked: `aria-pressed`
+ * carries the state, so a screen reader says "Like Salt Year, pressed", never "Liked …, pressed".
+ */
+export function likeToggleName(albumTitle?: string) {
+  return albumTitle?.trim() ? `Like ${albumTitle}` : "Like";
 }
 
 const MAX_EXCERPT_LINE = 90;

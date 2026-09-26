@@ -903,6 +903,8 @@ function useAlbumStudioRender({
     edit((prev) => ({ ...prev, songs: removeTrack(prev.songs, index) }));
     setUndo({ kind: "track", song, index, label: song.title || `Track ${song.track_number}`, key: Date.now() });
     setSelection({ song: Math.max(0, Math.min(index, songs.length - 2)), section: 0 });
+    // Focus on Undo says it ("Undo, Deleted “Track 3”."): the nav line drops its old news.
+    setNavAnnouncement("");
     setPendingFocus({ id: "studio-undo", scroll: "none" });
   }
 
@@ -976,6 +978,7 @@ function useAlbumStudioRender({
     updateSections(activeSong.id, (list) => list.filter((_, i) => i !== index));
     setUndo({ kind: "section", songId: activeSong.id, section, index, label: labels[index] ?? "Section", key: Date.now() });
     setSelection({ song: songIndex, section: Math.max(0, Math.min(index, sections.length - 2)) });
+    setNavAnnouncement("");
     setPendingFocus({ id: "studio-undo", scroll: "none" });
   }
 

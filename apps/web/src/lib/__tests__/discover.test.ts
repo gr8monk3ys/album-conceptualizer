@@ -142,11 +142,10 @@ describe("Discover view (sort and filter)", () => {
     expect(widenViewHref(view)).toBe("/app/discover?q=zzz&sort=liked");
   });
 
-  it("names each Like toggle after its album in a list", () => {
-    expect(likeToggleName(false, "Salt Year")).toBe("Like Salt Year");
-    expect(likeToggleName(true, "Salt Year")).toBe("Liked Salt Year");
-    expect(likeToggleName(true)).toBe("Liked");
-    expect(likeToggleName(false, "  ")).toBe("Like");
+  it("names each Like toggle after its album in a list, the same liked or not", () => {
+    expect(likeToggleName("Salt Year")).toBe("Like Salt Year");
+    expect(likeToggleName()).toBe("Like");
+    expect(likeToggleName("  ")).toBe("Like");
   });
 
   it("sorts newest first, by tracks written, or by likes", () => {
