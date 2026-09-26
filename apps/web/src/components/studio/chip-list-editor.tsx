@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 
 import { Button, inputClass } from "@/components/ui";
@@ -10,6 +10,11 @@ import { cn } from "@/lib/utils";
  * A labelled list of short values (themes, motifs, characters) edited as chips. New values
  * come from free entry (Enter or comma adds) or from one-click suggestions; every chip has
  * its own labelled remove button.
+ *
+ * Focus never falls to the page when a control it was on goes away (Focus comes back after
+ * async work): Add returns to the field (or, once the list is full, to the last chip's
+ * remove button); removing a chip moves to the next chip's remove button, else the previous
+ * one, else the field; taking a suggestion moves to the next suggestion, else the field.
  */
 export function ChipListEditor({
   id,
@@ -36,6 +41,23 @@ export function ChipListEditor({
   max?: number;
 }) {
   const [draft, setDraft] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Where focus goes after the next commit: a data-chip-focus key, or "input".
+  const pendingFocus = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    const target = pendingFocus.current;
+    if (!target) return;
+    pendingFocus.current = null;
+    const root = rootRef.current;
+    if (!root) return;
+    const byKey = target === "input" ? null : root.querySelector<HTMLElement>(`[data-chip-focus="${CSS.escape(target)}"]`);
+    const input = inputRef.current;
+    if (byKey) byKey.focus();
+    else if (input && !input.disabled) input.focus();
+    else Array.from(root.querySelectorAll<HTMLElement>("[data-chip-focus^='remove:']")).at(-1)?.focus();
+  });
   const lower = new Set(values.map((v) => v.toLowerCase()));
   const open = suggestions.filter((s, i) => s.trim() && !lower.has(s.toLowerCase()) && suggestions.indexOf(s) === i);
   const full = values.length >= max;
@@ -58,10 +80,32 @@ export function ChipListEditor({
     setDraft("");
   }
 
+  function commitFromButton() {
+    if (!draft.trim()) return;
+    const willFill = values.length + 1 >= max;
+    commitDraft();
+    // Filling the list disables the field and this button; land on the newest chip instead.
+    pendingFocus.current = willFill ? `remove:${draft.trim().slice(0, 80)}` : "input";
+  }
+
+  function remove(value: string) {
+    const index = values.indexOf(value);
+    const neighbour = values[index + 1] ?? values[index - 1];
+    pendingFocus.current = neighbour !== undefined ? `remove:${neighbour}` : "input";
+    onChange(values.filter((v) => v !== value));
+  }
+
+  function takeSuggestion(value: string) {
+    const index = open.indexOf(value);
+    const neighbour = open[index + 1] ?? open[index - 1];
+    pendingFocus.current = neighbour !== undefined && values.length + 1 < max ? `suggest:${neighbour}` : "input";
+    add(value);
+  }
+
   const hintId = hint ? `${id}-hint` : undefined;
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div ref={rootRef} className="flex min-w-0 flex-col gap-2">
       <label htmlFor={id} className="text-sm font-medium text-ink">
         {label}
       </label>
@@ -76,7 +120,8 @@ export function ChipListEditor({
               <span className="min-w-0 truncate">{value}</span>
               <button
                 type="button"
-                onClick={() => onChange(values.filter((v) => v !== value))}
+                data-chip-focus={`remove:${value}`}
+                onClick={() => remove(value)}
                 aria-label={`Remove ${noun} “${value}”`}
                 title={`Remove ${noun}`}
                 className="grid h-11 w-11 flex-none place-items-center rounded-sm text-ink-3 transition-colors hover:bg-hover hover:text-ink"
@@ -90,6 +135,7 @@ export function ChipListEditor({
 
       <div className="flex min-w-0 gap-2">
         <input
+          ref={inputRef}
           id={id}
           value={draft}
           disabled={full}
@@ -111,12 +157,24 @@ export function ChipListEditor({
               onChange(values.slice(0, -1));
             }
           }}
-          onBlur={commitDraft}
+          onBlur={(e) => {
+            // Moving to Add lets Add commit (and bring focus back here); anywhere else, keep
+            // what was typed as a chip.
+            if ((e.relatedTarget as HTMLElement | null)?.dataset.chipAdd !== undefined) return;
+            commitDraft();
+          }}
           placeholder={placeholder}
           aria-describedby={hintId}
           className={cn(inputClass, "min-w-0 flex-1")}
         />
-        <Button tone="secondary" onClick={commitDraft} disabled={!draft.trim() || full} aria-label={`Add ${noun}`}>
+        {/* Unavailable, not disabled: a disabled button under focus drops focus to the page. */}
+        <Button
+          tone="secondary"
+          data-chip-add=""
+          onClick={commitFromButton}
+          aria-disabled={!draft.trim() || full || undefined}
+          aria-label={`Add ${noun}`}
+        >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Add
         </Button>
@@ -131,7 +189,8 @@ export function ChipListEditor({
                 <button
                   type="button"
                   disabled={full}
-                  onClick={() => add(s)}
+                  data-chip-focus={`suggest:${s}`}
+                  onClick={() => takeSuggestion(s)}
                   aria-label={`Add ${noun} “${s}”`}
                   className="inline-flex min-h-11 items-center gap-1.5 rounded-sm border border-dashed border-line-strong px-3 text-sm text-ink-2 transition-colors hover:border-ink-3 hover:bg-hover hover:text-ink disabled:opacity-50"
                 >

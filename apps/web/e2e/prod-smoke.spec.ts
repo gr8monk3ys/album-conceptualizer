@@ -4,9 +4,8 @@ test.describe("Production smoke", () => {
   test("sign-in page renders marketing shell", async ({ page }) => {
     await page.goto("/sign-in");
     await expect(page).toHaveTitle(/Sign In/i);
-    // "Album Conceptualizer" appears twice now: once in the shared site header
-    // and once as the page heading. Pin the assertion to the heading.
-    await expect(page.getByRole("heading", { name: "Album Conceptualizer" })).toBeVisible();
+    // The site header names the product; the page heading names the page.
+    await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
   });
 
   test("unauthenticated app route redirects to sign-in", async ({ page }) => {

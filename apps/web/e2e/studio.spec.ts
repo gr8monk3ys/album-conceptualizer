@@ -126,5 +126,36 @@ test.describe("Studio", () => {
     await page.waitForURL("**/studio");
     await expect(page.getByLabel("Lyrics draft")).toHaveValue(line);
   });
+  test("focus never falls to the page after creating an album or editing chips", async ({ page }) => {
+    await devLogin(page);
+    await page.goto("/app/create");
+    await page.getByLabel("Album title").fill(`Focus Arrival ${randomSuffix()}`);
+    await page.getByLabel("Artist").fill("Studio Artist");
+    await page.getByLabel("Concept summary").fill("A concept album about a lighthouse keeper's last winter.");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Save and continue" }).click();
+    await page.getByRole("button", { name: "Save and continue", exact: true }).click();
+    await page.waitForURL("**/app/albums/**");
+    // The wizard's button is gone; focus lands on the line that says the album is saved.
+    await expect(page.getByRole("group", { name: "Album saved" })).toBeFocused();
+
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
+    await page.waitForURL("**/studio");
+    await page.getByRole("button", { name: /Themes and motifs/ }).click();
+    const themes = page.getByLabel("Themes", { exact: true });
+    await themes.fill("tide");
+    await page.getByRole("button", { name: "Add theme", exact: true }).click();
+    // Add returns to the field, ready for the next one.
+    await expect(themes).toBeFocused();
+    await themes.fill("salt");
+    await themes.press("Enter");
+    await page.getByRole("button", { name: "Remove theme “tide”" }).click();
+    // Removing a chip moves to the next chip's remove button.
+    await expect(page.getByRole("button", { name: "Remove theme “salt”" })).toBeFocused();
+    await page.getByRole("button", { name: "Remove theme “salt”" }).press("Enter");
+    // The last chip gone, focus returns to the field.
+    await expect(themes).toBeFocused();
+  });
 });
 

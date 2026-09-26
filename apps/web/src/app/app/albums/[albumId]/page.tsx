@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 
 import { AlbumDangerZone } from "@/components/album-danger-zone";
 import { ArrivalStatus } from "@/components/arrival-status";
+import { FocusOnArrival } from "@/components/focus-on-arrival";
 import { FirstProjectChecklist } from "@/components/first-project-checklist";
 import { PublishAlbumButton } from "@/components/publish-album-button";
 import { ShareAlbumButton } from "@/components/share-album-button";
@@ -175,7 +176,16 @@ export default async function AlbumOverviewPage({
         }
       />
       {welcoming ? (
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded border border-line bg-raised px-4 py-3">
+        // Arriving from the create wizard, focus lands here (its button is gone), so the first
+        // thing heard is that the album is saved and what comes next.
+        <div
+          id="album-welcome"
+          tabIndex={-1}
+          role="group"
+          aria-label="Album saved"
+          className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded border border-line bg-raised px-4 py-3"
+        >
+          <FocusOnArrival targetId="album-welcome" />
           <p className="min-w-0 max-w-[65ch] break-words text-sm text-ink">
             <span className="font-semibold">{album.title}</span> is saved. Next:{" "}
             {step.action.charAt(0).toLowerCase() + step.action.slice(1)}.

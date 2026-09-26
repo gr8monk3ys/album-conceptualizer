@@ -106,7 +106,7 @@ export function DiscoverAlbumCard({ album }: { album: DiscoverAlbum }) {
           </p>
         ) : null}
         {album.conceptSummary ? (
-          <p className="mt-1 line-clamp-2 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
+          <p className="mt-1 line-clamp-4 sm:line-clamp-2 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">
             {album.conceptSummary}
           </p>
         ) : null}

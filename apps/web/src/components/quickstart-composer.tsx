@@ -530,8 +530,10 @@ function BlueprintPreview({
       </h2>
       <p className="mt-1 max-w-[65ch] text-sm text-ink-2">How the album will open once you save it.</p>
 
-      <div className="mt-6 border-t border-line-strong pt-5">
-        <p className={cn("type-display break-words text-3xl md:text-4xl", title ? "text-ink" : "text-ink-3")}>
+      {/* A size container: the preview title sizes to the panel (never below 30px, the size it
+          has at 100% text on a phone), so "Untitled" stays one word at 320px with 200% text. */}
+      <div className="@container mt-6 border-t border-line-strong pt-5">
+        <p className={cn("type-display break-words text-[length:max(min(1.875rem,30px),min(2.25rem,17cqi))]", title ? "text-ink" : "text-ink-3")}>
           {title || "Untitled album"}
         </p>
         <p className="type-catalog mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">
