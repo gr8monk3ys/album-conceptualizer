@@ -286,7 +286,7 @@ export default async function DiscoverAlbumPage({
                   : `A remix copies this album's concept, sequence, lyrics and chords into your workspace as a new private album credited to you, opened in the Studio; it keeps a note of the album it came from. It costs ${CREDIT_COSTS.albumFork} credits. The original and its artist are not affected.`}
               </p>
               <ButtonLink tone="ghost" href="/app/discover" className="mt-3 -ml-4">
-                Back to community albums
+                Back to Discover
               </ButtonLink>
             </Section>
           </div>

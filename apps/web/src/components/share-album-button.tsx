@@ -96,11 +96,11 @@ export function ShareAlbumButton({
               onFocus={(event) => event.currentTarget.select()}
               className="min-h-11 min-w-0 flex-1 basis-64 rounded border border-line-control bg-sunken px-3 text-sm text-ink-2"
             />
-            <Button onClick={() => void copy(link, false)} disabled={Boolean(busy)}>
+            <Button onClick={() => void copy(link, false)} disabled={busy === "revoke"}>
               <Copy className="h-4 w-4" aria-hidden="true" />
               Copy link
             </Button>
-            <Button tone="ghost" onClick={() => void revoke()} disabled={Boolean(busy)}>
+            <Button tone="ghost" onClick={() => void revoke()} busy={busy === "revoke"}>
               {busy === "revoke" ? "Revoking…" : "Revoke"}
             </Button>
           </div>
@@ -110,7 +110,7 @@ export function ShareAlbumButton({
         </>
       ) : (
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => void create()} disabled={Boolean(busy)}>
+          <Button onClick={() => void create()} busy={busy === "create"}>
             <Link2 className="h-4 w-4" aria-hidden="true" />
             {busy === "create" ? "Creating link…" : "Create share link"}
           </Button>

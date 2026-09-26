@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CompleteTaskButton, ResolveCommentButton } from "@/components/inbox-actions";
@@ -5,13 +6,23 @@ import { RelativeTime } from "@/components/relative-time";
 import { ButtonLink, Chip, EmptyState, Section } from "@/components/ui";
 import { getPrisma } from "@/server/db";
 import { requireUser } from "@/server/identity";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Comments and tasks",
-  description: "Resolve the album's section comments and open tasks in one place.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  if (!albumTitle) return { title: "Page not found" };
+  return {
+    title: albumPageTitle("Comments and tasks", albumTitle),
+    description: "Resolve the album's section comments and open tasks in one place.",
+  };
+}
 
 const TASK_STATUS: Record<string, { label: string; tone: "neutral" | "ok" }> = {
   open: { label: "Open", tone: "neutral" },

@@ -5,7 +5,6 @@ import { Plus } from "lucide-react";
 
 import { carriedThemes, type StudioSong } from "@/components/studio/studio-model";
 import { TRACK_KEYSHORTCUTS } from "@/components/studio/studio-shortcuts";
-import { ThemeMark } from "@/components/theme-mark";
 import { Button, TableScroller } from "@/components/ui";
 import { lyricProgress } from "@/lib/lyrics";
 import { carriedThemesPhrase, themeAbbreviations } from "@/lib/theme-keys";
@@ -14,13 +13,36 @@ import { cn } from "@/lib/utils";
 /** The album's central themes shown as columns; more than this reads as noise. */
 export const MAX_THEME_COLUMNS = 6;
 
-const FRACTION_GLYPHS: Record<string, string> = { "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾" };
-
-/** "½", "2/2", "0/3"; "—" when the track has no sections yet. */
+/**
+ * "1/2", "2/2", "0/3" in tabular figures, so the column aligns (never a "½" glyph, which sets
+ * narrower than its neighbours); "—" when the track has no sections yet.
+ */
 export function lyricFraction({ written, total }: { written: number; total: number }) {
   if (!total) return "—";
-  const plain = `${written}/${total}`;
-  return FRACTION_GLYPHS[plain] ?? plain;
+  return `${written}/${total}`;
+}
+
+/**
+ * The Studio's theme toggle face: the theme's key letter in a small square, filled Bone Ink
+ * with the letter in the ground colour when the track carries the theme, the bare letter in
+ * Ash Ink when it doesn't. The spine keeps ThemeMark's square and dot; the Studio matrix is
+ * where tagging happens, so each toggle shows which theme it is without a tooltip. Forced
+ * colors draw it in system colours (CanvasText fill, Canvas letter; GrayText when off).
+ */
+function ThemeToggleFace({ carries, letter }: { carries: boolean; letter: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "type-catalog grid h-6 min-w-6 place-items-center rounded-sm px-0.5 text-xs leading-none forced-color-adjust-none",
+        carries
+          ? "bg-ink font-semibold text-ground forced-colors:bg-[CanvasText] forced-colors:text-[Canvas]"
+          : "text-ink-3 forced-colors:text-[GrayText]",
+      )}
+    >
+      {letter}
+    </span>
+  );
 }
 
 function lyricSentence({ written, total }: { written: number; total: number }) {
@@ -268,7 +290,8 @@ export function TrackList({
                         aria-current={isActive ? "true" : undefined}
                         aria-keyshortcuts={TRACK_KEYSHORTCUTS}
                         className={cn(
-                          "flex min-h-11 w-full min-w-32 flex-col justify-center text-left after:absolute after:inset-0 after:content-['']",
+                          // The ring is drawn inset: the scroller would clip it at the row's edge.
+                          "flex min-h-11 w-full min-w-32 flex-col justify-center text-left focus-visible:-outline-offset-2 after:absolute after:inset-0 after:content-['']",
                           isActive &&
                             "after:border-2 after:border-transparent forced-colors:after:border-[color:Highlight]",
                         )}
@@ -313,11 +336,11 @@ export function TrackList({
                             // transparent border that forced colors draw, where the filled
                             // square's background is dropped.
                             className={cn(
-                              "relative z-10 mx-auto grid h-11 w-11 place-items-center rounded-sm border transition-colors hover:bg-hover",
+                              "relative z-10 mx-auto grid h-11 w-11 place-items-center rounded-sm border transition-colors hover:bg-hover focus-visible:-outline-offset-2",
                               carries ? "border-transparent" : "border-transparent forced-colors:border-[color:Canvas]",
                             )}
                           >
-                            <ThemeMark carries={carries} label="" />
+                            <ThemeToggleFace carries={carries} letter={abbreviations[col] ?? ""} />
                           </button>
                         </td>
                       );

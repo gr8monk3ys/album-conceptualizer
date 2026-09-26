@@ -8,6 +8,7 @@ import type { AlbumReferenceRecord } from "@/server/references";
 import { analyzeAlbumRoughDemos } from "@/server/rough-demo-review";
 import { getRoughDemoSourceLabel, listAlbumRoughDemos } from "@/server/rough-demos";
 import { safeFilename } from "@/server/headers";
+import { formatPackDate } from "@/server/pack-date";
 
 export type HandoffTarget = "suno" | "udio" | "daw";
 
@@ -133,7 +134,6 @@ function buildGeneratorPrompt(input: {
   styleLeadVoice: string | null;
   sonicPalette: string[];
   emotionalTargets: string[];
-  avoidList: string[];
   song: {
     title: string;
     tempo: number | null | undefined;
@@ -145,8 +145,9 @@ function buildGeneratorPrompt(input: {
     mood_tags: string[];
     instrumentation: string[];
   };
-  references: AlbumReferenceRecord[];
 }) {
+  // No references here: generators reject artist names in a prompt, so they sit in their own
+  // "References (for you, not the prompt)" block under the prompt line.
   const parts = [
     input.albumGenre ?? null,
     input.song.mood_tags.length ? input.song.mood_tags.join(", ") : null,
@@ -160,19 +161,22 @@ function buildGeneratorPrompt(input: {
     input.song.themes.length ? `themes: ${input.song.themes.join(", ")}` : null,
     input.song.motifs.length ? `motifs: ${input.song.motifs.join(", ")}` : null,
     input.emotionalTargets.length ? `emotion: ${input.emotionalTargets.join(", ")}` : null,
-    input.references.length
-      ? `references: ${input.references
-          .slice(0, 2)
-          .map((reference) => joinMaybe([reference.title, reference.artist], " by "))
-          .join("; ")}`
-      : null,
   ];
 
-  const set = parts.filter(Boolean);
+  const set = parts.map((part) => (part ?? "").trim()).filter(Boolean);
   if (!set.length) {
     return "Not enough is set for a prompt line yet — add a story note, themes or a sonic palette.";
   }
-  return lineWrap(set.join(". ") + ".", 110);
+  // A part that already ends a sentence (a story note ending "…keep counting.") takes no second
+  // full stop, so the line never reads "keep counting.. themes:".
+  const ended = (part: string) => /[.!?…]$/u.test(part);
+  const line = set.reduce((text, part) => (text ? `${text}${ended(text) ? "" : "."} ${part}` : part), "");
+  return lineWrap(ended(line) ? line : `${line}.`, 110);
+}
+
+/** "Carrie & Lowell — Sufjan Stevens": a reference as a listening note, never prompt text. */
+function referenceListeningLine(reference: AlbumReferenceRecord) {
+  return joinMaybe([reference.title, reference.artist], " — ");
 }
 
 function buildDawObjective(input: {
@@ -185,7 +189,7 @@ function buildDawObjective(input: {
   references: AlbumReferenceRecord[];
 }) {
   const lines = [
-    input.narrativeSummary ? `Song brief: ${input.narrativeSummary}` : null,
+    input.narrativeSummary ? `Story note: ${input.narrativeSummary}` : null,
     input.themes.length ? `Theme focus: ${input.themes.join(", ")}` : null,
     input.motifs.length ? `Motif callbacks: ${input.motifs.join(", ")}` : null,
     input.arrangementRules.length ? `Arrangement guardrails: ${input.arrangementRules.join(", ")}` : null,
@@ -244,6 +248,8 @@ export function buildHandoffPackMarkdown(input: {
   albumData: unknown;
   references: AlbumReferenceRecord[];
   target: HandoffTarget;
+  /** When the pack was made; now by default (tests pass a fixed date). */
+  generatedAt?: Date;
 }) {
   const parsed = AlbumJsonSchema.safeParse(input.albumData);
   if (!parsed.success) {
@@ -276,7 +282,7 @@ export function buildHandoffPackMarkdown(input: {
   lines.push(`# ${album.title} — ${config.title}`);
   if (album.artist) lines.push(`**Artist:** ${album.artist}`);
   if (album.primary_genre) lines.push(`**Primary genre:** ${album.primary_genre}`);
-  lines.push(`**Generated:** ${new Date().toISOString()}`);
+  lines.push(`**Generated:** ${formatPackDate(input.generatedAt ?? new Date())}`);
   lines.push("");
 
   lines.push("## Handoff objective");
@@ -327,7 +333,7 @@ export function buildHandoffPackMarkdown(input: {
   lines.push("");
 
   const style = bible.styleBible;
-  lines.push("## Voice / style bible");
+  lines.push("## Style bible");
   lines.push(
     ...block(
       [
@@ -349,6 +355,10 @@ export function buildHandoffPackMarkdown(input: {
   lines.push("");
 
   lines.push("## Album-wide references");
+  if (input.target !== "daw" && albumWideReferences.length) {
+    lines.push("For you, not the prompt: generators reject artist names, so no prompt line names these.");
+    lines.push("");
+  }
   lines.push(
     mdList(
       albumWideReferences.map((reference) => buildReferenceLine(reference)),
@@ -446,7 +456,6 @@ export function buildHandoffPackMarkdown(input: {
           styleLeadVoice: bible.styleBible.lead_voice,
           sonicPalette: bible.styleBible.sonic_palette,
           emotionalTargets: bible.styleBible.emotional_targets,
-          avoidList: bible.styleBible.avoid_list,
           song: {
             title: song.title,
             tempo: song.tempo,
@@ -458,12 +467,17 @@ export function buildHandoffPackMarkdown(input: {
             mood_tags: song.mood_tags,
             instrumentation: song.instrumentation,
           },
-          references: songReferences.length ? songReferences : albumWideReferences,
         }),
       );
       if (bible.styleBible.avoid_list.length) {
         lines.push("");
         lines.push(`**Avoid / negative prompt:** ${bible.styleBible.avoid_list.join(", ")}`);
+      }
+      const listenTo = songReferences.length ? songReferences : albumWideReferences.slice(0, 2);
+      if (listenTo.length) {
+        lines.push("");
+        lines.push("#### References (for you, not the prompt)");
+        lines.push(mdList(listenTo.map(referenceListeningLine), ""));
       }
     }
 
@@ -482,8 +496,8 @@ export function buildHandoffPackMarkdown(input: {
   lines.push(
     lineWrap(
       input.target === "daw"
-        ? "Keep the singer perspective, palette, motif callbacks, and mix priorities consistent between sessions. If a track drifts, update the style bible or references before continuing."
-        : "If a generated track drifts from the album voice, update the style bible or references first, then regenerate with the revised prompt line instead of treating the song in isolation.",
+        ? "Keep the singer perspective, palette, motif callbacks, and mix priorities consistent between sessions. If a track drifts, update the Style bible or References before continuing."
+        : "If a generated track drifts from the album voice, update the Style bible or References first, then regenerate with the revised prompt line instead of treating the song in isolation.",
     ),
   );
   lines.push("");

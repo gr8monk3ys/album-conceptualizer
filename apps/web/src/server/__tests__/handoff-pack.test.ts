@@ -32,6 +32,26 @@ function freshAlbum(count = 3, extra: Record<string, unknown> = {}) {
   };
 }
 
+function reference(extra: { title: string; artist: string; songTrackNumber?: number }) {
+  return {
+    id: extra.title,
+    songId: null,
+    songTrackNumber: extra.songTrackNumber ?? null,
+    songTitle: null,
+    title: extra.title,
+    artist: extra.artist,
+    sourceUrl: null,
+    notes: null,
+    targetRole: null,
+    bpm: null,
+    key: null,
+    moodTags: [],
+    arrangementTags: [],
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+  };
+}
+
 const PLACEHOLDERS = /_none_|_missing_|_unset_|_unspecified_|_No /;
 
 describe("handoff packs", () => {
@@ -45,7 +65,7 @@ describe("handoff packs", () => {
 
   it("says the empty Style bible in one plain line", () => {
     const pack = buildHandoffPackMarkdown({ albumData: freshAlbum(), references: [], target: "suno" });
-    const style = pack.split("## Voice / style bible")[1]?.split("\n## ")[0] ?? "";
+    const style = pack.split("## Style bible")[1]?.split("\n## ")[0] ?? "";
     expect(style.trim()).toBe(STYLE_BIBLE_EMPTY_LINE);
     expect(pack).not.toContain("**Lead voice:**");
     expect(pack).not.toContain("Avoid / negative prompt");
@@ -86,6 +106,49 @@ describe("handoff packs", () => {
     expect(pack).not.toMatch(/Narrative summary/i);
   });
 
+  it("keeps artist names out of the prompt line and lists references apart (critique run 5)", () => {
+    const album = freshAlbum(1, { central_themes: ["the sea", "duty"] });
+    Object.assign(album.songs[0], {
+      narrative_summary: "The first warning comes over the radio; she decides to keep counting.",
+      themes: ["the sea", "duty"],
+    });
+    const references = [
+      reference({ title: "Carrie & Lowell", artist: "Sufjan Stevens" }),
+      reference({ title: "For Emma, Forever Ago", artist: "Bon Iver" }),
+    ];
+    for (const target of ["suno", "udio"] as const) {
+      const pack = buildHandoffPackMarkdown({ albumData: album, references, target });
+      const prompt = pack.split("#### Prompt line")[1]?.split("\n####")[0] ?? "";
+      expect(prompt).not.toMatch(/Sufjan|Bon Iver|references:/);
+      expect(prompt.replace(/\s+/g, " ")).toContain("keep counting. themes: the sea, duty.");
+      expect(prompt).not.toContain("..");
+      const listen = pack.split("#### References (for you, not the prompt)")[1]?.split("\n####")[0] ?? "";
+      expect(listen).toContain("- Carrie & Lowell — Sufjan Stevens");
+      expect(listen).toContain("- For Emma, Forever Ago — Bon Iver");
+    }
+  });
+
+  it("doesn't add a second full stop after a question", () => {
+    const album = freshAlbum(1);
+    Object.assign(album.songs[0], { narrative_summary: "Will she stay?", themes: ["duty"] });
+    const pack = buildHandoffPackMarkdown({ albumData: album, references: [], target: "suno" });
+    expect(pack).toContain("Will she stay? themes: duty.");
+    expect(pack).not.toContain("#### References (for you, not the prompt)");
+  });
+
+  it("dates the pack the way a person reads a date", () => {
+    const pack = buildHandoffPackMarkdown({
+      albumData: freshAlbum(1),
+      references: [],
+      target: "suno",
+      generatedAt: new Date("2026-09-23T22:21:09.739Z"),
+    });
+    expect(pack).toContain("**Generated:** 23 September 2026");
+    expect(pack).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    expect(pack).toContain("## Style bible");
+    expect(pack).not.toMatch(/Voice \/ style bible/);
+  });
+
   it("explains an unreadable album plainly", () => {
     const pack = buildHandoffPackMarkdown({ albumData: { title: 5 }, references: [], target: "suno" });
     expect(pack).toContain("couldn't be read");
@@ -95,9 +158,10 @@ describe("handoff packs", () => {
 
 describe("the Bible as Markdown", () => {
   it("never prints a placeholder and says an empty Style bible in one line", () => {
-    const md = buildBibleMarkdown(buildAlbumBible(freshAlbum()));
+    const md = buildBibleMarkdown(buildAlbumBible(freshAlbum()), new Date("2026-09-23T10:00:00Z"));
     expect(md).not.toMatch(PLACEHOLDERS);
-    const style = md.split("## Voice / style bible")[1]?.split("\n## ")[0] ?? "";
+    expect(md).toContain("**Generated:** 23 September 2026");
+    const style = md.split("## Style bible")[1]?.split("\n## ")[0] ?? "";
     expect(style.trim()).toBe("Not set yet — add it in the Style bible.");
     expect(md).not.toMatch(/Narrative summary|role:/i);
   });

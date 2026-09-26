@@ -24,6 +24,7 @@ export const POST = apiHandler(
 
     const id = await forkIntoWorkspace({
       source: source.data,
+      sourceAlbumId: source.id,
       workspaceId,
       plan,
       userId,

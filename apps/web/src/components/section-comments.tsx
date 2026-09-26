@@ -75,6 +75,7 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
 
   const header = `Track ${section.songTrackNumber} · ${section.label ?? `Section ${section.sectionOrder + 1}`}`;
   const inputId = `comment-body-${sectionId}`;
+  const postId = `comment-post-${sectionId}`;
 
   async function refresh() {
     setUi((prev) => ({ ...prev, loading: true, error: null }));
@@ -99,6 +100,8 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
   }, [albumId, sectionId]);
 
   async function submit() {
+    if (submitting || length < 2) return;
+    const fromButton = document.activeElement?.id === postId;
     setUi((prev) => ({ ...prev, submitting: true, error: null, status: "Posting comment…" }));
     try {
       const response = await fetch(`/api/albums/${albumId}/comments`, {
@@ -116,6 +119,8 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
         throw new Error(await readApiError(response, "Couldn't post the comment. Try again."));
       }
       setUi((prev) => ({ ...prev, body: "", status: "Comment added." }));
+      // The cleared composer leaves Post unavailable: focus goes back to it for the next note.
+      if (fromButton) document.getElementById(inputId)?.focus();
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't post the comment. Try again.";
@@ -227,6 +232,7 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
     <section aria-labelledby={`comments-${sectionId}-title`} className="border-t border-line pt-3">
       <h3 id={`comments-${sectionId}-title`} className="text-base text-ink">
         <button
+          id={`comments-${sectionId}-toggle`}
           type="button"
           aria-expanded={open}
           aria-controls={bodyId}
@@ -357,7 +363,14 @@ function useSectionCommentsRender({ albumId, section, defaultOpen = false }: Sec
               {error ?? ""}
             </p>
           </div>
-          <Button tone="secondary" onClick={() => void submit()} disabled={submitting || length < 2}>
+          {/* Busy while posting (focus stays), and unavailable until there's a comment to post. */}
+          <Button
+            id={postId}
+            tone="secondary"
+            onClick={() => void submit()}
+            busy={submitting}
+            {...(length < 2 && !submitting ? { "aria-disabled": true } : {})}
+          >
             <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
             {submitting ? "Posting…" : "Post comment"}
           </Button>

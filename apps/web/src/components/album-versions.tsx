@@ -75,7 +75,8 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
       const res = await fetch(`/api/albums/${albumId}/versions/${versionId}/restore`, { method: "POST" });
       if (!res.ok) throw new Error(await errorFrom(res, "That version wasn't restored. Try again in a moment."));
       setRestoreStatus({ tone: "ok", text: "Version restored. Opening the album…" });
-      router.push(`/app/albums/${albumId}`);
+      // The Overview says what just happened in one line (it reads `restored`).
+      router.push(`/app/albums/${albumId}?restored=${encodeURIComponent(versionId)}`);
       router.refresh();
     } catch (err) {
       setRestoreStatus({
@@ -119,7 +120,8 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
               <Button
                 type="submit"
                 tone="primary"
-                disabled={!named || isSaving}
+                disabled={!named}
+                busy={isSaving}
                 aria-describedby={named ? undefined : "version-save-reason"}
               >
                 {isSaving ? "Saving…" : "Save version"}
@@ -186,7 +188,7 @@ export function AlbumVersions({ albumId, versions }: { albumId: string; versions
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
                           tone="danger"
-                          disabled={Boolean(restoringId)}
+                          busy={Boolean(restoringId)}
                           onClick={() => void restore(version.id)}
                         >
                           {restoringId === version.id ? "Restoring…" : "Restore this version"}

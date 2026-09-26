@@ -20,8 +20,11 @@ export async function generateMetadata({
   params: Promise<{ albumId: string }>;
 }): Promise<Metadata> {
   const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  // A missing album renders the not-found screen, so its tab says so too (WCAG 2.4.2).
+  if (!albumTitle) return { title: "Page not found" };
   return {
-    title: albumPageTitle("Export", await workspaceAlbumTitle(albumId)),
+    title: albumPageTitle("Export", albumTitle),
     description: "Download album bundles as MIDI, ChordPro, MusicXML, JSON, and text.",
   };
 }

@@ -7,9 +7,11 @@ import { Shuffle } from "lucide-react";
 import { ConfirmSpend } from "@/components/confirm-spend";
 import { StatusMessage } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { remixArrivalHref } from "@/lib/remix-arrival";
 
 /**
- * Remix a shared album into the viewer's workspace, then open the new album. It spends credits,
+ * Remix a shared album into the viewer's workspace, then open the new album in the Studio,
+ * which says it just arrived (`?remixed=1`). It spends credits,
  * so it asks once first; pass `creditsRemaining` so the question names the balance after.
  */
 export function ForkShareButton({
@@ -36,7 +38,7 @@ export function ForkShareButton({
       setStatus({ tone: "neutral", text: "Remixed. Opening your copy…" });
       // Open the new album, then refresh so the workspace's credit balance re-renders. (A
       // navigation discards a pending refresh, so the refresh is queued after it.)
-      router.push(`/app/albums/${body.id}`);
+      router.push(remixArrivalHref(body.id));
       router.refresh();
     } catch (err) {
       const text = err instanceof Error ? err.message : "The remix didn't go through. Try again in a moment.";

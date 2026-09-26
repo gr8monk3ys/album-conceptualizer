@@ -1,5 +1,6 @@
 import type { AlbumBible } from "@/server/bible";
 import { buildMotifCharacterGraph } from "@/server/bible-relationships";
+import { formatPackDate } from "@/server/pack-date";
 import { albumMotifIndex } from "@/lib/motifs";
 
 function lineWrap(text: string, max = 92) {
@@ -48,7 +49,7 @@ function sectionOrdinal(order: number) {
   return order >= 1 ? order : order + 1;
 }
 
-export function buildBibleMarkdown(bible: AlbumBible) {
+export function buildBibleMarkdown(bible: AlbumBible, generatedAt: Date = new Date()) {
   const lines: string[] = [];
   // Album motifs plus track motif tags: the same source as the Bible page and Coherence report.
   const motifs = albumMotifIndex({
@@ -59,7 +60,7 @@ export function buildBibleMarkdown(bible: AlbumBible) {
   lines.push(`# ${bible.title}`);
   if (bible.artist) lines.push(`**Artist:** ${bible.artist}`);
   if (bible.primaryGenre) lines.push(`**Genre:** ${bible.primaryGenre}`);
-  lines.push(`**Generated:** ${new Date().toISOString()}`);
+  lines.push(`**Generated:** ${formatPackDate(generatedAt)}`);
   lines.push("");
 
   lines.push("## Concept");
@@ -89,7 +90,7 @@ export function buildBibleMarkdown(bible: AlbumBible) {
   lines.push("");
 
   const style = bible.styleBible;
-  lines.push("## Voice / style bible");
+  lines.push("## Style bible");
   lines.push(
     ...block(
       [

@@ -19,7 +19,7 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
   const matches = typed.trim() === albumTitle.trim();
 
   async function remove() {
-    if (!matches) return;
+    if (!matches || busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -83,7 +83,7 @@ export function AlbumDangerZone({ albumId, albumTitle }: { albumId: string; albu
             />
           </Field>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" tone="danger" disabled={!matches || busy}>
+            <Button type="submit" tone="danger" disabled={!matches} busy={busy}>
               {busy ? "Deleting…" : "Delete this album"}
             </Button>
             <Button

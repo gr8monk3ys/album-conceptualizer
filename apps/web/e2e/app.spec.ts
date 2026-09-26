@@ -62,7 +62,7 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await expect(page.getByText("Published to Discover.")).toBeVisible();
 
   await page.goto("/app/discover");
-  await expect(page.getByText("Community albums")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
 
   const albumCard = page
     .locator('[data-testid="discover-album-card"]', { hasText: albumTitle })

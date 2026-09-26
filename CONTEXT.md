@@ -41,8 +41,8 @@ The album's reference for consistency: concept, themes, motifs, characters and s
 _Avoid_: story bible, lore doc
 
 **Style bible**:
-The voice and sonic guidance inside the Album snapshot (lead voice, palette, arrangement rules, things to avoid).
-_Avoid_: style guide
+The voice and sonic guidance inside the Album snapshot (lead voice, palette, arrangement rules, things to avoid). The one name on every surface: labels, headings, buttons, Help and the Sound page.
+_Avoid_: style guide, "Voice / style bible", "Voice and style"
 
 **Coherence report**:
 The computed assessment of how well an Album's Songs hold together against its concept, themes and Motifs. Every dimension is capped by the share of Songs with written lyrics, and an Album with any unwritten Song is labelled "Unfinished" (with the count) whatever its score.
@@ -51,8 +51,12 @@ The computed assessment of how well an Album's Songs hold together against its c
 A Markdown brief for taking an Album into a specific downstream tool (a DAW, a generator, a collaborator).
 
 **Remix**:
-A new Album forked from a published or shared Album snapshot into the remixer's Workspace.
+A new Album forked from a published or shared Album snapshot into the remixer's Workspace. It records where it came from (`remixed_from`: the original's id, title and artist), so the release header reads "Remix of <title> by <artist>" and links to the original on Discover while it is still published.
 _Avoid_: copy, clone
+
+**Discover**:
+The public feed of published Albums, where others read them and Remix them. The one name for it everywhere, its page heading included; an Album is "on Discover" once published.
+_Avoid_: Community albums, community projects, the feed, the gallery
 
 ### Workspace and billing
 

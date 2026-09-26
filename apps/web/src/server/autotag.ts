@@ -1,80 +1,38 @@
 import { isWrittenLyrics } from "@/lib/lyrics";
-import { TAG_KINDS, type TrackTagProposal, type TrackTags } from "@/lib/tag-proposals";
+import { albumMotifIndex } from "@/lib/motifs";
+import { TAG_KINDS, type TagKind, type TrackTagProposal, type TrackTags } from "@/lib/tag-proposals";
 import { AlbumJsonSchema, type AlbumJson } from "@/server/album-json";
 
-type TrackTagSuggestion = {
-  trackNumber: number;
-  themes: string[];
-  motifs: string[];
-  characters: string[];
-};
+/** One track's suggestions, each kind ranked album matches first, with the matches named. */
+type TrackTagSuggestion = TrackTags & { fromAlbum: TrackTags };
 
-const STOPWORDS = new Set(
-  [
-    "a",
-    "an",
-    "and",
-    "are",
-    "as",
-    "at",
-    "be",
-    "but",
-    "by",
-    "for",
-    "from",
-    "has",
-    "have",
-    "he",
-    "her",
-    "hers",
-    "him",
-    "his",
-    "i",
-    "if",
-    "in",
-    "into",
-    "is",
-    "it",
-    "its",
-    "me",
-    "my",
-    "no",
-    "not",
-    "of",
-    "on",
-    "or",
-    "our",
-    "ours",
-    "she",
-    "so",
-    "than",
-    "that",
-    "the",
-    "their",
-    "them",
-    "then",
-    "there",
-    "these",
-    "they",
-    "this",
-    "to",
-    "too",
-    "up",
-    "us",
-    "was",
-    "we",
-    "were",
-    "what",
-    "when",
-    "where",
-    "who",
-    "why",
-    "with",
-    "you",
-    "your",
-    "yours",
-  ].map((w) => w.toLowerCase()),
+/**
+ * Words that carry no subject of their own: articles, pronouns, prepositions, particles,
+ * auxiliaries and filler. None of them is ever proposed as a tag or as half of a phrase ("down"
+ * is a direction, not a theme; "count down" can only come from the album's own motif).
+ */
+const FUNCTION_WORDS = new Set(
+  (
+    "a about above across after again against ah ain all almost along also am among an and any " +
+    "are around as at away back be because been before behind being below beneath beside between " +
+    "beyond both but by can could did do does doing done down during each even ever every few for " +
+    "from get gets getting go goes going gone gonna got had has have having he hey her here hers " +
+    "herself him himself his how i if in inside into is it its itself just la let lets like made " +
+    "make many may maybe me might mine more most much must my myself na near never next no none " +
+    "nor not nothing now oh of off on once one only onto or other our ours ourselves out over own " +
+    "please same say says she should so some something still such than that the their theirs them " +
+    "themselves then there these they thing things this those though through till to too toward " +
+    "towards under until up upon us very was wanna way we well were what whatever when where " +
+    "whether which while who whom whose why will with within without would yeah yes yet you your " +
+    "yours yourself ooh whoa uh"
+  ).split(/\s+/),
 );
+
+/** Words an album term can drop when matching lyrics: "the sea" is found by "sea". */
+const TERM_FILLER = new Set(["a", "an", "the", "of", "and", "my", "our", "your", "his", "her", "their"]);
+
+/** How close (in words) the words of a two-or-more word term must sit to count as one mention. */
+const PHRASE_WINDOW = 6;
 
 function normKey(value: string) {
   return value.trim().toLowerCase();
@@ -93,54 +51,157 @@ function uniqByKey(values: string[]) {
   return out;
 }
 
-function tokenizeWords(text: string): string[] {
-  const matches = text.match(/[A-Za-z][A-Za-z']{2,}/g) ?? [];
-  return matches.map((m) => m.toLowerCase());
+/** Lower-case words, apostrophes kept inside a word ("keeper's" stays one word). */
+function words(text: string): string[] {
+  return (text.match(/[A-Za-z]+(?:'[A-Za-z]+)*/g) ?? []).map((word) => word.toLowerCase());
 }
 
-function countTokens(tokens: string[]) {
-  const map = new Map<string, number>();
-  for (const t of tokens) map.set(t, (map.get(t) ?? 0) + 1);
-  return map;
+/**
+ * A plain stem, enough to hear "tides", "counting" and "memories" as "tide", "count" and
+ * "memory"; no synonyms ("water" is not "the sea").
+ */
+export function stem(word: string): string {
+  let w = word.toLowerCase().replace(/'s$/, "");
+  if (w.length > 4 && w.endsWith("ies")) w = `${w.slice(0, -3)}y`;
+  else if (w.length > 5 && w.endsWith("ing")) w = w.slice(0, -3);
+  else if (w.length > 4 && w.endsWith("ed")) w = w.slice(0, -2);
+  else if (w.length > 4 && /(ss|sh|ch|x)es$/.test(w)) w = w.slice(0, -2);
+  else if (w.length > 3 && w.endsWith("s") && !w.endsWith("ss")) w = w.slice(0, -1);
+  // "counting" → "count", "tided" → "tid": drop a trailing silent e so both sides agree.
+  if (w.length > 3 && w.endsWith("e")) w = w.slice(0, -1);
+  return w;
 }
 
-function topN(map: Map<string, number>, n: number) {
-  return Array.from(map.entries())
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+/** A content word worth tagging: not a function word, at least four letters, no contraction. */
+function isContentWord(word: string) {
+  return word.length >= 4 && !FUNCTION_WORDS.has(word) && !word.includes("'");
+}
+
+/** The words of an album term that a lyric has to contain ("the sea" → ["sea"]). */
+function termStems(term: string): string[] {
+  const all = words(term);
+  const kept = all.filter((word) => !TERM_FILLER.has(word));
+  return (kept.length ? kept : all).map(stem);
+}
+
+/**
+ * Whether the lyrics mention an album term: every word of it (by stem), within a few words of
+ * each other for a phrase. "Count it down" mentions "count down"; "a counting house" doesn't.
+ */
+function mentions(lyricStems: string[], term: string): boolean {
+  const needed = termStems(term);
+  if (!needed.length) return false;
+  if (needed.length === 1) return lyricStems.includes(needed[0]);
+  for (let start = 0; start < lyricStems.length; start += 1) {
+    if (!needed.includes(lyricStems[start])) continue;
+    const window = new Set(lyricStems.slice(start, start + PHRASE_WINDOW));
+    if (needed.every((part) => window.has(part))) return true;
+  }
+  return false;
+}
+
+/** The most frequent spelling per stem, and how often the stem occurs. */
+function countByStem(tokens: string[]) {
+  const map = new Map<string, { count: number; forms: Map<string, number> }>();
+  for (const token of tokens) {
+    const key = stem(token);
+    const entry = map.get(key) ?? { count: 0, forms: new Map<string, number>() };
+    entry.count += 1;
+    entry.forms.set(token, (entry.forms.get(token) ?? 0) + 1);
+    map.set(key, entry);
+  }
+  return Array.from(map.entries()).map(([key, entry]) => {
+    const form = Array.from(entry.forms.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+    return { key, form, count: entry.count };
+  });
+}
+
+function ranked<T extends { count: number; form: string }>(items: T[], min: number, n: number) {
+  return items
+    .filter((item) => item.count >= min)
+    .sort((a, b) => b.count - a.count || a.form.localeCompare(b.form))
     .slice(0, n);
 }
 
-function extractBigrams(tokens: string[]) {
-  const map = new Map<string, number>();
-  for (let i = 0; i < tokens.length - 1; i += 1) {
-    const a = tokens[i] ?? "";
-    const b = tokens[i + 1] ?? "";
-    if (!a || !b) continue;
-    if (STOPWORDS.has(a) || STOPWORDS.has(b)) continue;
-    const key = `${a} ${b}`;
-    map.set(key, (map.get(key) ?? 0) + 1);
+/**
+ * Two-word phrases that repeat, both words content words, each pair counted once whatever its
+ * order ("count down" and "down count" are one phrase, spelt the way it occurs most).
+ */
+function repeatedPhrases(lines: string[][]) {
+  const map = new Map<string, { count: number; forms: Map<string, number> }>();
+  for (const line of lines) {
+    for (let i = 0; i < line.length - 1; i += 1) {
+      const a = line[i];
+      const b = line[i + 1];
+      if (!isContentWord(a) || !isContentWord(b) || stem(a) === stem(b)) continue;
+      const key = [stem(a), stem(b)].sort().join(" ");
+      const entry = map.get(key) ?? { count: 0, forms: new Map<string, number>() };
+      entry.count += 1;
+      const form = `${a} ${b}`;
+      entry.forms.set(form, (entry.forms.get(form) ?? 0) + 1);
+      map.set(key, entry);
+    }
   }
-  return map;
+  return Array.from(map.entries()).map(([key, entry]) => {
+    const form = Array.from(entry.forms.entries()).sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))[0][0];
+    return { key, form, count: entry.count };
+  });
 }
 
-function extractCharacters(lyrics: string) {
-  const matches = lyrics.match(/\b[A-Z][a-z]{2,}\b/g) ?? [];
-  const map = new Map<string, number>();
-  for (const token of matches) {
-    const key = normKey(token);
-    if (!key || key === "i") continue;
-    map.set(key, (map.get(key) ?? 0) + 1);
+/**
+ * Names: capitalised words that aren't at the start of a line or sentence (where every word is
+ * capitalised) and aren't function words, repeated at least twice.
+ */
+function repeatedNames(text: string) {
+  const counts = new Map<string, { form: string; count: number }>();
+  for (const line of text.split(/\n+/)) {
+    const pattern = /[A-Za-z]+(?:'[A-Za-z]+)*/g;
+    let match: RegExpExecArray | null;
+    let first = true;
+    let previousEnd = 0;
+    while ((match = pattern.exec(line))) {
+      const token = match[0];
+      const between = line.slice(previousEnd, match.index);
+      const sentenceStart = first || /[.!?]/.test(between);
+      previousEnd = match.index + token.length;
+      first = false;
+      if (sentenceStart || !/^[A-Z][a-z]{2,}$/.test(token)) continue;
+      const key = token.toLowerCase();
+      if (FUNCTION_WORDS.has(key)) continue;
+      const entry = counts.get(key) ?? { form: token, count: 0 };
+      entry.count += 1;
+      counts.set(key, entry);
+    }
   }
-  return map;
+  return Array.from(counts.values());
 }
 
-function suggestTagsFromLyrics(data: unknown): TrackTagSuggestion[] {
-  const parsed = AlbumJsonSchema.safeParse(data);
-  if (!parsed.success) return [];
+type AlbumVocabulary = Record<TagKind, string[]>;
 
-  const album = parsed.data;
-  const centralThemes = Array.isArray(album.central_themes) ? album.central_themes : [];
-  const recurringMotifs = Array.isArray(album.recurring_motifs) ? album.recurring_motifs : [];
+/**
+ * The album's own words, which a match is ranked first for and ticked for: its central themes
+ * and every theme tag on a track; its motifs (album motifs plus track tags, `lib/motifs`); and
+ * every character already named on a track.
+ */
+function albumVocabulary(album: AlbumJson): AlbumVocabulary {
+  return {
+    themes: uniqByKey([...album.central_themes, ...album.songs.flatMap((song) => song.themes ?? [])]),
+    motifs: uniqByKey(albumMotifIndex(album).map((entry) => entry.name)),
+    characters: uniqByKey(album.songs.flatMap((song) => song.characters ?? [])),
+  };
+}
+
+/** Stems a new proposal mustn't repeat: every word of the album's terms and the track's tags. */
+function takenStems(vocabulary: AlbumVocabulary, song: AlbumJson["songs"][number]) {
+  const terms = [
+    ...TAG_KINDS.flatMap((kind) => vocabulary[kind]),
+    ...TAG_KINDS.flatMap((kind) => song[kind] ?? []),
+  ];
+  return new Set(terms.flatMap(termStems));
+}
+
+function suggestTagsFromLyrics(album: AlbumJson): TrackTagSuggestion[] {
+  const vocabulary = albumVocabulary(album);
 
   return album.songs
     .slice()
@@ -153,42 +214,47 @@ function suggestTagsFromLyrics(data: unknown): TrackTagSuggestion[] {
         .filter(Boolean)
         .join("\n");
 
-      if (!lyrics.trim()) {
-        return { trackNumber: song.track_number, themes: [], motifs: [], characters: [] };
-      }
+      const empty: TrackTags = { trackNumber: song.track_number, themes: [], motifs: [], characters: [] };
+      if (!lyrics.trim()) return { ...empty, fromAlbum: { ...empty } };
 
-      const words = tokenizeWords(lyrics).filter((w) => !STOPWORDS.has(w));
-      const wordCounts = countTokens(words);
-      const themes = topN(wordCounts, 6)
-        .filter(([, count]) => count >= 3)
-        .map(([w]) => w);
+      const lines = lyrics.split(/\n+/).map(words);
+      const lyricStems = lines.flat().map(stem);
+      const taken = takenStems(vocabulary, song);
 
-      // Promote album-level themes/motifs if they appear literally in lyrics.
-      const lowerLyrics = lyrics.toLowerCase();
-      const literalThemes = centralThemes
-        .map((t) => String(t).trim())
-        .filter(Boolean)
-        .filter((t) => lowerLyrics.includes(t.toLowerCase()));
-      const literalMotifs = recurringMotifs
-        .map((m) => String(m).trim())
-        .filter(Boolean)
-        .filter((m) => lowerLyrics.includes(m.toLowerCase()));
+      // 1. The album's own themes, motifs and characters that the lyrics mention.
+      const fromAlbum: TrackTags = {
+        trackNumber: song.track_number,
+        themes: vocabulary.themes.filter((term) => mentions(lyricStems, term)),
+        motifs: vocabulary.motifs.filter((term) => mentions(lyricStems, term)),
+        characters: vocabulary.characters.filter((term) => mentions(lyricStems, term)),
+      };
 
-      const bigramCounts = extractBigrams(tokenizeWords(lyrics));
-      const motifs = topN(bigramCounts, 5)
-        .filter(([, count]) => count >= 2)
-        .map(([phrase]) => phrase);
-
-      const characterCounts = extractCharacters(lyrics);
-      const characters = topN(characterCounts, 6)
-        .filter(([, count]) => count >= 2)
-        .map(([name]) => name);
+      // 2. New tags: repeated content words and phrases the album doesn't use yet.
+      const content = lines.flat().filter(isContentWord);
+      const newThemes = ranked(
+        countByStem(content).filter((item) => !taken.has(item.key)),
+        3,
+        4,
+      ).map((item) => item.form);
+      const newMotifs = ranked(
+        repeatedPhrases(lines).filter((item) => !item.key.split(" ").some((part) => taken.has(part))),
+        2,
+        3,
+      ).map((item) => item.form);
+      const motifStems = new Set(newMotifs.flatMap((phrase) => words(phrase).map(stem)));
+      const newCharacters = ranked(
+        repeatedNames(lyrics).filter((item) => !taken.has(stem(item.form))),
+        2,
+        4,
+      ).map((item) => item.form);
 
       return {
         trackNumber: song.track_number,
-        themes: uniqByKey([...literalThemes, ...themes]).slice(0, 10),
-        motifs: uniqByKey([...literalMotifs, ...motifs]).slice(0, 10),
-        characters: uniqByKey(characters).slice(0, 10),
+        // A word already inside a new phrase isn't offered again on its own.
+        themes: uniqByKey([...fromAlbum.themes, ...newThemes.filter((word) => !motifStems.has(stem(word)))]),
+        motifs: uniqByKey([...fromAlbum.motifs, ...newMotifs]),
+        characters: uniqByKey([...fromAlbum.characters, ...newCharacters]),
+        fromAlbum,
       };
     });
 }
@@ -197,8 +263,10 @@ const MAX_TAGS_PER_KIND = 32;
 
 /**
  * What "Tag from lyrics" would add, per track, without writing anything: only tags the track
- * doesn't carry yet, only from written lyrics, only tracks with something to add. Null when
- * the album can't be read. `writtenTracks` lets the page say why there's nothing to propose.
+ * doesn't carry yet, only from written lyrics, only tracks with something to add. Each kind
+ * lists the album's own themes, motifs and characters the lyrics mention first (`fromAlbum`,
+ * the ones the review ticks), then new words and phrases that repeat (left unticked). Null
+ * when the album can't be read. `writtenTracks` lets the page say why there's nothing to propose.
  */
 export function proposeTagsFromLyrics(
   data: unknown,
@@ -213,16 +281,21 @@ export function proposeTagsFromLyrics(
   for (const suggestion of suggestTagsFromLyrics(album)) {
     const song = byTrack.get(suggestion.trackNumber);
     if (!song) continue;
-    const fresh = (kind: (typeof TAG_KINDS)[number]) => {
+    const fresh = (kind: TagKind, tags: string[]) => {
       const existing = new Set((song[kind] ?? []).map(normKey));
-      return uniqByKey(suggestion[kind]).filter((tag) => !existing.has(normKey(tag)));
+      return uniqByKey(tags).filter((tag) => !existing.has(normKey(tag)));
     };
     const proposal: TrackTagProposal = {
       trackNumber: suggestion.trackNumber,
       title: song.title,
-      themes: fresh("themes"),
-      motifs: fresh("motifs"),
-      characters: fresh("characters"),
+      themes: fresh("themes", suggestion.themes),
+      motifs: fresh("motifs", suggestion.motifs),
+      characters: fresh("characters", suggestion.characters),
+      fromAlbum: {
+        themes: fresh("themes", suggestion.fromAlbum.themes),
+        motifs: fresh("motifs", suggestion.fromAlbum.motifs),
+        characters: fresh("characters", suggestion.fromAlbum.characters),
+      },
     };
     if (TAG_KINDS.some((kind) => proposal[kind].length)) proposals.push(proposal);
   }

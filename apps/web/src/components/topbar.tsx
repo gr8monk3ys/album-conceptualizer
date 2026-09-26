@@ -17,8 +17,11 @@ export function Topbar({
   credits?: { remaining: number; total: number };
   unreadNotifications?: number;
 }) {
+  // Below 22rem of header (a narrow phone, or 200% text) every control is a 44px icon square
+  // with tighter gaps, so the three always fit and New album is never pushed off the edge.
+  // The parent is the size container (app/app/layout.tsx).
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-w-0 items-center gap-1 @min-[22rem]:gap-3">
       <MobileAppMenu
         workspaceName={workspaceName}
         userName={userName}
@@ -29,11 +32,13 @@ export function Topbar({
 
       <TopbarSearch />
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-1 @min-[22rem]:gap-2">
+        {/* Stands in for the search field wherever the field doesn't show. */}
         <Link
           href="/app/search"
           aria-label="Open search"
-          className="grid h-11 w-11 place-items-center rounded text-ink-2 hover:bg-hover hover:text-ink md:hidden"
+          title="Open search"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded text-ink-2 hover:bg-hover hover:text-ink md:@min-[22rem]:hidden"
         >
           <Search className="h-5 w-5" aria-hidden="true" />
         </Link>

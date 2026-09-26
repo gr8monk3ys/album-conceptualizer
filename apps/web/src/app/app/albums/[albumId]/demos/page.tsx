@@ -19,9 +19,11 @@ export async function generateMetadata({
   params: Promise<{ albumId: string }>;
 }): Promise<Metadata> {
   const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  if (!albumTitle) return { title: "Page not found" };
   return {
-    title: albumPageTitle("Demos", await workspaceAlbumTitle(albumId)),
-    description: "Capture rough demos, voice memos, and riff sketches before they disappear.",
+    title: albumPageTitle("Demos", albumTitle),
+    description: "Rough demos for this album: voice memos, riff sketches and rehearsal takes, by track.",
   };
 }
 

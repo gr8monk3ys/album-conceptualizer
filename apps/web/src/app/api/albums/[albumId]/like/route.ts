@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 
 import { ApiError, apiHandler, requireUser } from "@/server/api";
 import { getPrisma } from "@/server/db";
+import { notifyAlbumOwnerQuietly } from "@/server/notify";
 
 export const runtime = "nodejs";
 
@@ -24,17 +25,21 @@ export const POST = apiHandler(async (_request: Request, { params }: Context) =>
   const publicAlbumId = await requirePublicAlbumId(albumId);
   const prisma = getPrisma();
 
+  let isNew = false;
   try {
     await prisma.albumLike.create({
       data: { albumId: publicAlbumId, userId },
       select: { id: true },
     });
+    isNew = true;
   } catch (err) {
     // A duplicate like (unique constraint) is fine: the user already likes it.
     if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) {
-      throw new ApiError(500, "Unable to like.");
+      throw new ApiError(500, "Your like didn't save. Try again.");
     }
   }
+  // The album's owner hears about a new like once per liker (never about their own).
+  if (isNew) await notifyAlbumOwnerQuietly(prisma, { albumId: publicAlbumId, actorUserId: userId, kind: "like" });
 
   const likes = await prisma.albumLike.count({ where: { albumId: publicAlbumId } });
   return NextResponse.json({ liked: true, likes });

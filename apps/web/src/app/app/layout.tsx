@@ -36,8 +36,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         unreadNotifications={unreadNotifications}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-header items-center border-b border-line bg-ground px-4 md:px-8">
-          <div className="w-full min-w-0">
+        {/* Sticky only where the window has height to spare (the Studio's save bar uses the
+            same breakpoint): on a short screen, a phone held sideways or 200% text, a stuck
+            header would take a third of the window. globals.css counts it in the page's scroll
+            padding (--header-offset) only while it sticks. The side padding gives way a little
+            on a narrow phone so the three header controls fit at 200% text. */}
+        <header className="z-30 flex h-header items-center border-b border-line bg-ground px-[min(1rem,5vw)] md:px-8 [@media(min-height:501px)]:sticky [@media(min-height:501px)]:top-0">
+          {/* A size container: the search field and New album collapse to icons by the room
+              the header actually has, not by the window. */}
+          <div className="@container w-full min-w-0">
             <Topbar
               workspaceName={workspace.name}
               userName={session.user?.name}

@@ -8,7 +8,7 @@ export type BibleIssue = {
   /**
    * `structure`: how themes, characters and story order hang together across the album, which
    * only the Bible checks. `coverage`: per-track gaps the Coherence report also lists.
-   * `style`: Style bible fields, shown in the Bible's voice and style section.
+   * `style`: Style bible fields, shown in the Bible's Style bible section.
    */
   scope: "structure" | "coverage" | "style";
   title: string;
@@ -78,6 +78,41 @@ export function themeTracksPhrase(trackNumbers: number[], totalTracks: number): 
   if (!unique.length) return "on no track yet";
   if (unique.length === totalTracks && totalTracks > 2) return `on all ${totalTracks} tracks`;
   return `on ${unique.length === 1 ? "track" : "tracks"} ${formatTrackList(unique)}`;
+}
+
+function padTrack(trackNumber: number) {
+  return String(trackNumber).padStart(2, "0");
+}
+
+const ARC_LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
+
+/**
+ * What the spine can't show about a theme: where it enters, where it leaves and where it drops
+ * out in between, read along `sequence` (the map's track order, which may be the story order):
+ * "first on 02, last on 07, missing from 04–05", "only on 03", "on every track". Empty when no
+ * track carries it.
+ */
+export function themeArc(carrying: number[], sequence: number[]): string {
+  const carried = new Set(carrying);
+  const positions = sequence.flatMap((trackNumber, index) => (carried.has(trackNumber) ? [index] : []));
+  if (!positions.length) return "";
+  if (positions.length === 1) return `only on ${padTrack(sequence[positions[0]])}`;
+  if (positions.length === sequence.length) return "on every track";
+  const first = positions[0];
+  const last = positions[positions.length - 1];
+  const gaps: string[] = [];
+  for (let index = first + 1; index < last; ) {
+    if (carried.has(sequence[index])) {
+      index += 1;
+      continue;
+    }
+    let end = index;
+    while (end + 1 < last && !carried.has(sequence[end + 1])) end += 1;
+    gaps.push(index === end ? padTrack(sequence[index]) : `${padTrack(sequence[index])}–${padTrack(sequence[end])}`);
+    index = end + 1;
+  }
+  const span = `first on ${padTrack(sequence[first])}, last on ${padTrack(sequence[last])}`;
+  return gaps.length ? `${span}, missing from ${ARC_LIST.format(gaps)}` : `${span}, unbroken`;
 }
 
 /**

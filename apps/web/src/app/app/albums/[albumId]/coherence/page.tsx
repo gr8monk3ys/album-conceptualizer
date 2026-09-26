@@ -36,8 +36,11 @@ export async function generateMetadata({
   params: Promise<{ albumId: string }>;
 }): Promise<Metadata> {
   const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  // A missing album renders the not-found screen, so its tab says so too (WCAG 2.4.2).
+  if (!albumTitle) return { title: "Page not found" };
   return {
-    title: albumPageTitle("Coherence", await workspaceAlbumTitle(albumId)),
+    title: albumPageTitle("Coherence", albumTitle),
     description: "How well the album's songs hold together against its concept, themes and motifs.",
   };
 }
@@ -222,10 +225,11 @@ function HowScored({ report }: { report: CoherenceReport }) {
           ))}
         </dl>
         <p>
-          No dimension scores above the share of tracks that have lyrics: {capExample}. Harmony is also held to the share of tracks with chords of
-          their own. While a dimension is held, its row also says what the written tracks score on their
-          own, and the rows run weakest first by that. The overall score weighs Narrative most, then
-          Lyrics, Harmony, Sequence and Motifs.
+          No dimension scores above the share of tracks that have lyrics: {capExample}. Harmony also
+          scores no higher than the share of tracks with chords of their own, on the written tracks as
+          well as the whole album. While a score is held down, its row says what lifts it, and under that
+          what the written tracks score on their own; the rows run weakest first by that second number.
+          The overall score weighs Narrative most, then Lyrics, Harmony, Sequence and Motifs.
         </p>
         <p>
           <span className="font-semibold text-ink">Unfinished</span> means at least one track still has no
@@ -400,12 +404,16 @@ export default async function CoherencePage({ params }: { params: Promise<{ albu
                     <span className="text-sm font-normal text-ink-3">Not yet</span>
                   )}
                 </span>
-                {held ? (
+                {scored && item.lever ? (
+                  // One plain sentence naming what lifts the score; the evidence (and, while the
+                  // score is held, what the written tracks score alone) sits under it as detail.
+                  // The rule itself is in "How this is scored".
                   <span className="min-w-0 max-w-[65ch] flex-1 basis-64 text-sm leading-relaxed text-ink-2">
-                    <span className="block">{item.signal}.</span>
+                    <span className="block">{item.lever}</span>
                     <span className="type-figure mt-0.5 block text-xs text-ink-3">
-                      Held at {item.score} because {item.heldBecause} · {item.uncapped}
-                      {partlyWritten ? " on the written tracks alone" : " without the hold"}
+                      {held
+                        ? `${item.signal}. ${partlyWritten ? `The written tracks alone score ${item.uncapped}.` : `On its own it scores ${item.uncapped}.`}`
+                        : item.summary}
                     </span>
                   </span>
                 ) : (

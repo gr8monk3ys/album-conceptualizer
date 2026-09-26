@@ -832,7 +832,7 @@ export function AlbumReferencesWorkspace({
     <div className="flex flex-col gap-10">
       <Section
         id="references"
-        title="The records this album keeps pointing at"
+        title="References — records and songs this album points to"
         description="One collection of references for the album: records and songs, what each one teaches, and whether it's for the whole album or one track. References named when you set up the album are here too."
         actions={
           references.length && !addOpen && !editing ? (

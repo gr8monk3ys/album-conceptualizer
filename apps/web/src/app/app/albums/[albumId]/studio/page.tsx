@@ -27,8 +27,9 @@ const loadStudio = cache(async (albumId: string) => {
 export async function generateMetadata({ params }: { params: Promise<{ albumId: string }> }): Promise<Metadata> {
   const { albumId } = await params;
   const { album } = await loadStudio(albumId);
+  if (!album) return { title: "Page not found" };
   return {
-    title: album ? `Studio · ${album.title}` : "Studio",
+    title: `Studio · ${album.title}`,
     description: "Write each track's lyrics and chords inside the album's sequence.",
   };
 }
@@ -64,6 +65,8 @@ export default async function AlbumStudioPage({
         initialAlbum={album.data}
         aiAvailable={aiAvailable}
         creditsRemaining={credits.remaining}
+        // Remix lands here with ?remixed=1: the Studio says so once, then drops the param.
+        arrival={param(query.remixed) === "1" ? "remixed" : null}
         initialSelection={{
           song: param(query.song),
           section: param(query.section),

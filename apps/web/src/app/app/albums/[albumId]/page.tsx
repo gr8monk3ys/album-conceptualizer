@@ -7,7 +7,7 @@ import { AlbumDangerZone } from "@/components/album-danger-zone";
 import { FirstProjectChecklist } from "@/components/first-project-checklist";
 import { PublishAlbumButton } from "@/components/publish-album-button";
 import { ShareAlbumButton } from "@/components/share-album-button";
-import { ButtonLink, Section, buttonClass } from "@/components/ui";
+import { ButtonLink, Section, StatusMessage, buttonClass } from "@/components/ui";
 import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
 import { analyzeAlbumCoherence, verdictText, weakestDimension } from "@/server/coherence";
@@ -21,6 +21,7 @@ import { analyzeAlbumRoughDemos, summarizeRoughDemoReviews } from "@/server/roug
 import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 /** The album's own title in the browser tab and history: the Overview is the album's home. */
@@ -30,8 +31,11 @@ export async function generateMetadata({
   params: Promise<{ albumId: string }>;
 }): Promise<Metadata> {
   const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  // A missing album renders the not-found screen, so its tab says so too (WCAG 2.4.2).
+  if (!albumTitle) return { title: "Page not found" };
   return {
-    title: (await workspaceAlbumTitle(albumId)) ?? "Album overview",
+    title: albumTitle,
     description: "What the album needs next, how it holds together, its sound and how it's released.",
   };
 }
@@ -45,7 +49,12 @@ function humanize(value: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** One row that opens a screen: a name, a figure and the latest detail. */
+/**
+ * One row that opens a screen: a name, a figure and the latest detail. The row reads its own
+ * width (a container query, in rem so enlarged text needs more room): with room, the label,
+ * the text and the trailing words sit side by side; in a narrow row (a phone at 200% text)
+ * the trailing words drop below the text instead of squeezing it.
+ */
 function StatusRow({
   href,
   label,
@@ -60,23 +69,39 @@ function StatusRow({
   /** Visible words before the arrow, when the row needs to say where it goes. */
   trailing?: string;
 }) {
+  const arrow = (
+    <ArrowRight
+      className="h-4 w-4 shrink-0 text-ink-3 transition-colors group-hover:text-ink motion-safe:transition-[color,transform] motion-safe:group-hover:translate-x-0.5"
+      aria-hidden="true"
+    />
+  );
   return (
-    <li>
-      <Link href={href} className="group flex min-h-11 items-start gap-4 py-3 pr-1 transition-colors hover:bg-hover">
-        <span className="min-w-0 flex-1 sm:flex sm:gap-4">
-          <span className="block text-sm font-semibold text-ink sm:min-w-0 sm:shrink sm:basis-48">{label}</span>
-          <span className="mt-1 block min-w-0 flex-1 sm:mt-0">
+    <li className="@container">
+      <Link
+        href={href}
+        className={cn(
+          "group flex min-h-11 gap-x-4 gap-y-1 py-3 pr-1 transition-colors hover:bg-hover",
+          // Only trailing words can squeeze the text; a bare arrow stays at the end of the row.
+          trailing ? "flex-col @[30rem]:flex-row @[30rem]:items-start" : "items-start",
+        )}
+      >
+        <span className="min-w-0 flex-1 @[40rem]:flex @[40rem]:gap-4">
+          <span className="block text-sm font-semibold text-ink @[40rem]:min-w-0 @[40rem]:shrink @[40rem]:basis-48">
+            {label}
+          </span>
+          <span className="mt-1 block min-w-0 flex-1 @[40rem]:mt-0">
             <span className="type-figure block text-sm text-ink">{figure}</span>
             <span className="mt-0.5 block max-w-[65ch] break-words text-xs leading-relaxed text-ink-3">{detail}</span>
           </span>
         </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-1 text-sm text-ink-2 group-hover:text-ink">
-          {trailing ? <span className="font-semibold">{trailing}</span> : null}
-          <ArrowRight
-            className="h-4 w-4 shrink-0 text-ink-3 transition-colors group-hover:text-ink motion-safe:transition-[color,transform] motion-safe:group-hover:translate-x-0.5"
-            aria-hidden="true"
-          />
-        </span>
+        {trailing ? (
+          <span className="flex min-w-0 items-center gap-1 text-sm text-ink-2 group-hover:text-ink @[30rem]:mt-0.5">
+            <span className="min-w-0 font-semibold">{trailing}</span>
+            {arrow}
+          </span>
+        ) : (
+          <span className="mt-0.5 flex shrink-0 items-center">{arrow}</span>
+        )}
       </Link>
     </li>
   );
@@ -90,14 +115,15 @@ export default async function AlbumOverviewPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { albumId } = await params;
-  const { welcome } = await searchParams;
+  const { welcome, restored } = await searchParams;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
 
   const prisma = getPrisma();
-  const [shareLink, onboarding, references, openComments, openTasks] = await Promise.all([
+  const restoredId = typeof restored === "string" && restored ? restored : null;
+  const [shareLink, onboarding, references, openComments, openTasks, restoredVersion] = await Promise.all([
     prisma.albumShareLink.findUnique({
       where: { albumId: album.id },
       select: { token: true, revokedAt: true },
@@ -111,6 +137,10 @@ export default async function AlbumOverviewPage({
     listAlbumReferences(workspace.id, album.id),
     prisma.albumSectionComment.count({ where: { albumId: album.id, deletedAt: null, resolvedAt: null } }),
     prisma.albumTask.count({ where: { albumId: album.id, deletedAt: null, status: { not: "done" } } }),
+    // Arriving from a restore: name the version so the landing says what just happened.
+    restoredId
+      ? prisma.albumVersion.findFirst({ where: { id: restoredId, albumId: album.id }, select: { message: true } })
+      : Promise.resolve(null),
   ]);
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const initialShareLink =
@@ -134,6 +164,11 @@ export default async function AlbumOverviewPage({
 
   return (
     <div className="flex flex-col gap-10">
+      {restoredVersion ? (
+        <StatusMessage tone="ok" className="max-w-[65ch]">
+          {`Restored ${restoredVersion.message?.trim() ? `“${restoredVersion.message.trim()}”` : "an earlier version"} · the draft it replaced is saved in Version history.`}
+        </StatusMessage>
+      ) : null}
       {welcoming ? (
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded border border-line bg-raised px-4 py-3">
           <p className="min-w-0 max-w-[65ch] break-words text-sm text-ink">
@@ -183,7 +218,7 @@ export default async function AlbumOverviewPage({
           />
           <StatusRow
             href={`${base}/style`}
-            label="Voice / style bible"
+            label="Style bible"
             figure={`${styleSummary.filledCount} of ${styleSummary.totalCount} set`}
             detail={styleBible.lead_voice || "Define the vocal identity, palette and mix limits before export."}
           />
@@ -223,18 +258,20 @@ export default async function AlbumOverviewPage({
         </ul>
       </Section>
 
-      {/* Release is quiet: plain rows, no primary, and delete at the very end, away from the
-          work. Publish asks once when the album isn't finished. */}
+      {/* Manage is quiet and last, below the work: releasing it, its versions and deleting it
+          share one section of plain rows with no primary. Delete sits at the very end, away
+          from the writing path, and asks for the title first. Publish asks once when the album
+          isn't finished. */}
       <Section
-        id="album-release"
-        title="Release"
-        description="Publish to Discover for others to find and remix, or send a private link."
+        id="album-manage"
+        title="Manage"
+        description="Publish to Discover or send a private link, keep versions, or delete the album."
       >
         <ul className="divide-y divide-line border-y border-line">
-          <li className="py-4">
+          <li className="py-3">
             <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} readiness={readiness} />
           </li>
-          <li className="py-4">
+          <li className="py-3">
             <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
           </li>
           <li>
@@ -251,7 +288,7 @@ export default async function AlbumOverviewPage({
               <ArrowRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
             </Link>
           </li>
-          <li className="py-4">
+          <li className="py-3">
             <AlbumDangerZone albumId={album.id} albumTitle={album.title} />
           </li>
         </ul>

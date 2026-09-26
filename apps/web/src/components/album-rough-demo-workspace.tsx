@@ -941,8 +941,8 @@ export function AlbumRoughDemoWorkspace({
     <div className="flex flex-col gap-10">
       <Section
         id="rough-demos"
-        title="Capture the voice memo before the good idea disappears"
-        description="Save rough demo details, notes, and next moves. Local audio files are read on this device for their length and size only; they aren't uploaded or stored."
+        title="Rough demos — voice memos and sketches by track"
+        description="Each demo's details, notes and next moves, for the whole album or one track. Local audio files are read on this device for their length and size only; they aren't uploaded or stored."
         actions={
           demos.length && !addOpen && !editing ? (
             <Button id="demo-add-trigger" onClick={openAdd}>

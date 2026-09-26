@@ -109,7 +109,7 @@ export function PublishAlbumButton({
           </p>
           <ReadinessList items={readiness.items} onlyOpen />
           <div className="flex flex-wrap items-center gap-2">
-            <Button ref={confirmRef} onClick={() => void toggle()} disabled={busy} aria-busy={busy || undefined}>
+            <Button ref={confirmRef} onClick={() => void toggle()} busy={busy}>
               <Globe2 className="h-4 w-4" aria-hidden="true" />
               {busy ? "Publishing…" : "Publish anyway"}
             </Button>
@@ -123,8 +123,7 @@ export function PublishAlbumButton({
           <Button
             ref={triggerRef}
             onClick={() => (needsConfirm ? setConfirming(true) : void toggle())}
-            disabled={busy}
-            aria-busy={busy || undefined}
+            busy={busy}
             aria-haspopup={needsConfirm ? "true" : undefined}
           >
             {isPublic ? (

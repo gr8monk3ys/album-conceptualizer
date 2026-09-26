@@ -1,3 +1,4 @@
+import { invalidChords, isScaffoldSection } from "@/lib/chords";
 import { isWrittenLyrics, lyricProgress } from "@/lib/lyrics";
 import type { AlbumJson } from "@/server/album-json";
 
@@ -91,6 +92,94 @@ export function sectionLabels(sections: StudioSection[]): string[] {
     counts.set(key, next);
     return `${sectionTypeLabel(section.section_type)} ${next}`;
   });
+}
+
+// ---------------------------------------------------------------- batch harmony
+
+function typeKey(section: { section_type?: string | null } | undefined) {
+  return (section?.section_type ?? "").trim().toLowerCase() || "section";
+}
+
+function progressionText(section: StudioSection | undefined) {
+  return chordsOf(section).join(" ");
+}
+
+/**
+ * The other sections of the same type as `index` ("every Verse") whose chords differ from it,
+ * when its chords can be reused: set, and all readable by the exports (an unreadable token is
+ * never spread across a track). Empty when there's nothing to apply.
+ */
+export function sameTypeTargets(sections: readonly StudioSection[], index: number): number[] {
+  const source = sections[index];
+  const chords = chordsOf(source);
+  if (!source || !chords.length || invalidChords(chords).length) return [];
+  const key = typeKey(source);
+  const text = chords.join(" ");
+  return sections.flatMap((section, i) =>
+    i !== index && typeKey(section) === key && progressionText(section) !== text ? [i] : [],
+  );
+}
+
+/**
+ * The chords half of a section row in the Studio's section list: "starter loop" while the
+ * section is still the setup's scaffolding (lib/chords decides, track-aware), "no chords",
+ * or the count of chords the exports can read, naming any they can't ("3 chords · 1 unreadable").
+ */
+export function sectionChordSummary(sections: readonly StudioSection[], index: number): string {
+  const chords = chordsOf(sections[index]);
+  if (!chords.length) return "no chords";
+  const unreadable = invalidChords(chords).length;
+  if (!unreadable && isScaffoldSection(sections, index)) return "starter loop";
+  const readable = chords.length - unreadable;
+  const plural = (n: number) => (n === 1 ? "chord" : "chords");
+  if (!readable) return `${unreadable} unreadable ${plural(unreadable)}`;
+  const count = `${readable} ${plural(readable)}`;
+  return unreadable ? `${count} · ${unreadable} unreadable` : count;
+}
+
+/** Whether a section's chords are set and still the starter loop (for the chord field's hint). */
+export function isStarterLoopSection(sections: readonly StudioSection[], index: number): boolean {
+  return chordsOf(sections[index]).length > 0 && isScaffoldSection(sections, index);
+}
+
+/** What a batch change replaced, so Undo can put it back: each changed section's old chords. */
+export type ChordSnapshot = { id: string; chords: string[] };
+
+/**
+ * Batch harmony: the section at `index`'s chords copied onto every other section of its type
+ * on the same track. Returns the new sections, the indices that changed and what they held;
+ * null when nothing would change.
+ */
+export function applyProgressionToType(
+  sections: readonly StudioSection[],
+  index: number,
+): { sections: StudioSection[]; changed: number[]; previous: ChordSnapshot[] } | null {
+  const targets = sameTypeTargets(sections, index);
+  if (!targets.length) return null;
+  const chords = chordsOf(sections[index]);
+  const changed = new Set(targets);
+  const previous = targets.map((i) => ({ id: sections[i]?.id ?? "", chords: chordsOf(sections[i]) }));
+  return {
+    sections: sections.map((section, i) => (changed.has(i) ? { ...section, chord_progression: [...chords] } : section)),
+    changed: targets,
+    previous,
+  };
+}
+
+/** Undo for `applyProgressionToType`: each snapshotted section gets its old chords back. */
+export function restoreProgressions(sections: readonly StudioSection[], previous: readonly ChordSnapshot[]): StudioSection[] {
+  const byId = new Map(previous.filter((p) => p.id).map((p) => [p.id, p.chords]));
+  return sections.map((section) => {
+    const chords = section.id ? byId.get(section.id) : undefined;
+    return chords ? { ...section, chord_progression: [...chords] } : section;
+  });
+}
+
+const AND_LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
+
+/** Names a batch change: "Set Verse 2 and Verse 3 to C G Am F." */
+export function batchChordsSummary(changedLabels: readonly string[], chords: readonly string[]): string {
+  return `Set ${AND_LIST.format(changedLabels)} to ${chords.join(" ")}.`;
 }
 
 // ---------------------------------------------------------------- keys and tempo

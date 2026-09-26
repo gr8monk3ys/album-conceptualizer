@@ -3,14 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DISCOVER_VIEW,
   arrangeDiscoverAlbums,
+  clearSearchHref,
   discoverCountLine,
   discoverHref,
+  discoverPage,
   genreOptions,
   isFinishedAlbum,
   isNarrowedView,
+  likeToggleName,
   lyricExcerpt,
   lyricExcerptsByTrack,
   parseDiscoverView,
+  widenViewHref,
   writtenSummaryLine,
 } from "@/lib/discover";
 
@@ -84,6 +88,7 @@ describe("Discover view (sort and filter)", () => {
       sort: "liked",
       show: "finished",
       genre: "Folk",
+      page: 1,
     });
     expect(parseDiscoverView({ sort: "loudest", show: "some", genre: "" })).toEqual(DEFAULT_DISCOVER_VIEW);
     expect(parseDiscoverView({ sort: ["written", "liked"] }).sort).toBe("written");
@@ -97,6 +102,37 @@ describe("Discover view (sort and filter)", () => {
     );
     const round = parseDiscoverView(Object.fromEntries(new URLSearchParams("sort=liked&genre=folk")));
     expect(discoverHref(round)).toBe("/app/discover?sort=liked&genre=folk");
+  });
+
+  it("reads and writes the page, from 1", () => {
+    expect(parseDiscoverView({ page: "3" }).page).toBe(3);
+    for (const page of ["0", "-2", "two", "1.5", "", "99999999"]) {
+      expect(parseDiscoverView({ page }).page).toBe(1);
+    }
+    expect(parseDiscoverView({ page: "9000" }).page).toBe(500);
+    expect(discoverHref({ page: 1 })).toBe("/app/discover");
+    expect(discoverHref({ show: "finished", page: 2 })).toBe("/app/discover?show=finished&page=2");
+  });
+
+  it("slices a page of the list and clamps a page past the end", () => {
+    expect(discoverPage(0, 1)).toEqual({ page: 1, pageCount: 1, start: 0, end: 0 });
+    expect(discoverPage(45, 1)).toEqual({ page: 1, pageCount: 3, start: 0, end: 20 });
+    expect(discoverPage(45, 3)).toEqual({ page: 3, pageCount: 3, start: 40, end: 45 });
+    expect(discoverPage(45, 7).page).toBe(3);
+    expect(discoverPage(20, 2)).toEqual({ page: 1, pageCount: 1, start: 0, end: 20 });
+  });
+
+  it("clears a search without widening the rest of the view", () => {
+    const view = parseDiscoverView({ q: "zzz", sort: "liked", show: "finished", genre: "folk", page: "2" });
+    expect(clearSearchHref(view)).toBe("/app/discover?sort=liked&show=finished&genre=folk");
+    expect(widenViewHref(view)).toBe("/app/discover?q=zzz&sort=liked");
+  });
+
+  it("names each Like toggle after its album in a list", () => {
+    expect(likeToggleName(false, "Salt Year")).toBe("Like Salt Year");
+    expect(likeToggleName(true, "Salt Year")).toBe("Liked Salt Year");
+    expect(likeToggleName(true)).toBe("Liked");
+    expect(likeToggleName(false, "  ")).toBe("Like");
   });
 
   it("sorts newest first, by tracks written, or by likes", () => {
@@ -163,6 +199,10 @@ describe("Discover view (sort and filter)", () => {
       "2 matches for “tide” · finished only",
     );
     expect(discoverCountLine(1, { ...DEFAULT_DISCOVER_VIEW, q: "tide" })).toBe("1 match for “tide”");
+    expect(discoverCountLine(45, DEFAULT_DISCOVER_VIEW, discoverPage(45, 2))).toBe(
+      "45 published albums · 21–40 shown",
+    );
+    expect(discoverCountLine(12, DEFAULT_DISCOVER_VIEW, discoverPage(12, 1))).toBe("12 published albums");
     expect(isNarrowedView(DEFAULT_DISCOVER_VIEW)).toBe(false);
     expect(isNarrowedView({ ...DEFAULT_DISCOVER_VIEW, sort: "liked" })).toBe(false);
     expect(isNarrowedView({ ...DEFAULT_DISCOVER_VIEW, genre: "folk" })).toBe(true);

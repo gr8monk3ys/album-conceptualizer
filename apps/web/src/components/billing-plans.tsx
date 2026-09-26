@@ -270,7 +270,7 @@ export function BillingPlans({
         description="Writing, saving, the Album Bible and the Coherence report never cost credits. These actions do; each plan column shows how many times its monthly credits cover one."
       >
         <TableScroller label="Credit costs by plan">
-          <table className="w-full min-w-[34rem] border-collapse text-sm">
+          <table className="w-full border-collapse text-sm">
             <caption id="credits-table-caption" className="sr-only">
               Credit cost of each action, and how many times each plan&apos;s monthly credits cover it
             </caption>
@@ -279,7 +279,7 @@ export function BillingPlans({
                 <th scope="col" className="type-catalog min-w-[12rem] py-2 pr-4 text-left text-xs font-semibold text-ink-3">
                   Action
                 </th>
-                <th scope="col" className="type-catalog py-2 pr-4 text-right text-xs font-semibold text-ink-3">
+                <th scope="col" className="type-catalog min-w-[6.5rem] py-2 pr-4 text-right text-xs font-semibold text-ink-3">
                   Costs
                 </th>
                 {PLANS.map((plan) => (
@@ -287,7 +287,9 @@ export function BillingPlans({
                     key={plan.key}
                     scope="col"
                     className={cn(
-                      "type-catalog py-2 pr-2 text-right text-xs font-semibold",
+                      // A plan column holds its name and "5000 a month · yours" on two lines at
+                      // most; with less room the table scrolls in its TableScroller instead.
+                      "type-catalog min-w-[8.5rem] py-2 pl-2 pr-2 text-right text-xs font-semibold",
                       plan.key === currentPlan ? "text-ink" : "text-ink-3",
                     )}
                   >
@@ -309,14 +311,14 @@ export function BillingPlans({
                       <span className="mt-0.5 block max-w-[65ch] text-xs text-ink-3">{use.detail}</span>
                     ) : null}
                   </th>
-                  <td className="type-figure py-2.5 pr-4 text-right font-semibold text-ink">
+                  <td className="type-figure whitespace-nowrap py-2.5 pr-4 text-right font-semibold text-ink">
                     {plural(use.cost, "credit", "credits")}
                   </td>
                   {PLANS.map((plan) => (
                     <td
                       key={plan.key}
                       className={cn(
-                        "type-figure py-2.5 pr-2 text-right",
+                        "type-figure whitespace-nowrap py-2.5 pl-2 pr-2 text-right",
                         plan.key === currentPlan ? "text-ink" : "text-ink-2",
                       )}
                     >

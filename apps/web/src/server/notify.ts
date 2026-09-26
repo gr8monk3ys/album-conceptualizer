@@ -1,8 +1,9 @@
 import type { Prisma } from "@prisma/client";
 
-// In-app notification fan-out for album activity (comments, tasks). One call creates at most
-// one notification per recipient; the actor is never notified of their own action, and only
-// members of the workspace (the owner included) can receive one.
+// In-app notification fan-out for album activity: comments and tasks, and likes and remixes
+// from Discover. One call creates at most one notification per recipient; the actor is never
+// notified of their own action, and only members of the workspace (the owner included) can
+// receive one.
 
 type Db = Prisma.TransactionClient;
 
@@ -132,4 +133,73 @@ export function albumItemUrl(
   return target.sectionId && target.songTrackNumber
     ? `${base}/studio?song=${target.songTrackNumber}&sid=${encodeURIComponent(target.sectionId)}`
     : `${base}/inbox`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Discover activity: another artist liked or remixed a published album.
+// ---------------------------------------------------------------------------------------------
+
+export type AlbumActivity = "like" | "remix";
+
+/** What the owner reads: "Theo Lind liked Salt Year", "Theo Lind remixed Salt Year". */
+export function albumActivityTitle(kind: AlbumActivity, actorName: string | null | undefined, albumTitle: string) {
+  const who = actorName?.trim() || "Another artist";
+  const title = albumTitle.trim() || "your album";
+  return `${who} ${kind === "like" ? "liked" : "remixed"} ${title}`;
+}
+
+/**
+ * Tell an album's owner that someone liked or remixed it. Nobody hears about their own like
+ * or remix. A like notifies once per liker and album, so unliking and liking again stays
+ * quiet; every remix notifies (each one is a new album). The notification links to the album's
+ * Overview in the owner's workspace. Returns true when one was created.
+ */
+export async function notifyAlbumOwner(
+  db: Db,
+  input: { albumId: string; actorUserId: string; kind: AlbumActivity },
+): Promise<boolean> {
+  const { albumId, actorUserId, kind } = input;
+  const album = await db.album.findUnique({
+    where: { id: albumId },
+    select: { title: true, workspaceId: true, workspace: { select: { ownerId: true } } },
+  });
+  if (!album || album.workspace.ownerId === actorUserId) return false;
+
+  if (kind === "like") {
+    const already = await db.notification.findFirst({
+      where: { userId: album.workspace.ownerId, albumId, actorUserId, type: "like" },
+      select: { id: true },
+    });
+    if (already) return false;
+  }
+
+  const actor = await db.user.findUnique({ where: { id: actorUserId }, select: { name: true } });
+  const created = await notifyWorkspaceMembers(db, {
+    workspaceId: album.workspaceId,
+    albumId,
+    actorUserId,
+    url: `/app/albums/${albumId}`,
+    audiences: [{ to: "owner", type: kind, title: albumActivityTitle(kind, actor?.name, album.title) }],
+  });
+  return created > 0;
+}
+
+/**
+ * `notifyAlbumOwner` for a route that has already done its work: a failed notification is
+ * logged and never fails the like or the remix it reports.
+ */
+export async function notifyAlbumOwnerQuietly(
+  db: Db,
+  input: { albumId: string; actorUserId: string; kind: AlbumActivity },
+): Promise<boolean> {
+  try {
+    return await notifyAlbumOwner(db, input);
+  } catch (error) {
+    console.error("album_activity_notify_failed", {
+      albumId: input.albumId,
+      kind: input.kind,
+      error: error instanceof Error ? error.message : error,
+    });
+    return false;
+  }
 }

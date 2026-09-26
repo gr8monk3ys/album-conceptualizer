@@ -15,8 +15,28 @@ describe("forkAlbumJson", () => {
     expect(remix.artist).toBe("Theo");
     expect(remix.title).toBe("Tide Tables (Remix)");
     expect((remix as { remixed_from?: unknown }).remixed_from).toEqual({
+      album_id: null,
       title: "Tide Tables",
       artist: "Mara Vale",
+    });
+  });
+
+  it("records the original album's id, so the remix can link back to it", () => {
+    const remix = forkAlbumJson(source, { remixerName: "Theo", sourceAlbumId: "album-123" });
+    expect((remix as { remixed_from?: unknown }).remixed_from).toEqual({
+      album_id: "album-123",
+      title: "Tide Tables",
+      artist: "Mara Vale",
+    });
+  });
+
+  it("replaces a remix's own provenance with the album it was remixed from", () => {
+    const first = forkAlbumJson(source, { remixerName: "Theo", sourceAlbumId: "album-1" });
+    const second = forkAlbumJson(AlbumJsonSchema.parse(first), { remixerName: "Ana", sourceAlbumId: "album-2" });
+    expect((second as { remixed_from?: unknown }).remixed_from).toEqual({
+      album_id: "album-2",
+      title: "Tide Tables",
+      artist: "Theo",
     });
   });
 

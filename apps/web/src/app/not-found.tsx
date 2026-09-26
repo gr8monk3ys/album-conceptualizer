@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PageNotFoundTitle } from "@/components/page-not-found-title";
 import { Wordmark } from "@/components/sidebar";
 import { ButtonLink } from "@/components/ui";
 
@@ -10,6 +11,7 @@ export const metadata = { title: "Page not found" };
 export default function RootNotFound() {
   return (
     <div className="min-h-screen bg-ground px-4 py-6 sm:px-6">
+      <PageNotFoundTitle />
       <div className="mx-auto max-w-[1200px]">
         <header>
           <Link href="/" className="inline-flex min-h-11 items-center rounded">

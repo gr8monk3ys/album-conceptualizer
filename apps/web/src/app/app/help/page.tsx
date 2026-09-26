@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { PageHeader, Section } from "@/components/ui";
+import { PageHeader, Section, TableScroller } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { FREE_PROJECT_LIMIT, planMonthlyCredits } from "@/server/plan";
 
@@ -161,55 +161,59 @@ export default function HelpPage() {
         description="Credits pay for the few actions that do heavy work on the server. Writing, the Album Bible, the Coherence report, versions and comments are free to use as much as you like."
       >
         <div className="flex flex-col gap-8">
-          <table className="w-full max-w-2xl border-collapse text-sm">
-            <caption className="sr-only">What each action costs, in credits</caption>
-            <thead>
-              <tr className="border-b border-line">
-                <th scope="col" className="type-catalog pb-2 pr-4 text-left text-xs text-ink-3">
-                  Action
-                </th>
-                <th scope="col" className="type-catalog pb-2 text-right text-xs text-ink-3">
-                  Credits
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {COSTS.map((row) => (
-                <tr key={row.action} className="border-b border-line">
-                  <td className="py-3 pr-4 text-ink">{row.action}</td>
-                  <td className="type-figure py-3 text-right font-semibold text-ink">{row.cost}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <table className="w-full max-w-2xl border-collapse text-sm">
-            <caption className="sr-only">Monthly credits on each plan</caption>
-            <thead>
-              <tr className="border-b border-line">
-                <th scope="col" className="type-catalog pb-2 pr-4 text-left text-xs text-ink-3">
-                  Plan
-                </th>
-                <th scope="col" className="type-catalog pb-2 pr-4 text-right text-xs text-ink-3">
-                  Credits a month
-                </th>
-                <th scope="col" className="type-catalog pb-2 text-left text-xs text-ink-3">
-                  Albums
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {PLANS.map((plan) => (
-                <tr key={plan.name} className="border-b border-line">
-                  <th scope="row" className="py-3 pr-4 text-left font-semibold text-ink">
-                    {plan.name}
+          <TableScroller label="What each action costs" className="max-w-2xl">
+            <table className="w-full border-collapse text-sm">
+              <caption className="sr-only">What each action costs, in credits</caption>
+              <thead>
+                <tr className="border-b border-line">
+                  <th scope="col" className="type-catalog pb-2 pr-4 text-left text-xs text-ink-3">
+                    Action
                   </th>
-                  <td className="type-figure py-3 pr-4 text-right text-ink">{plan.credits}</td>
-                  <td className="py-3 text-ink-2">{plan.note}</td>
+                  <th scope="col" className="type-catalog pb-2 text-right text-xs text-ink-3">
+                    Credits
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {COSTS.map((row) => (
+                  <tr key={row.action} className="border-b border-line">
+                    <td className="py-3 pr-4 text-ink">{row.action}</td>
+                    <td className="type-figure py-3 text-right font-semibold text-ink">{row.cost}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroller>
+
+          <TableScroller label="Monthly credits on each plan" className="max-w-2xl">
+            <table className="w-full border-collapse text-sm">
+              <caption className="sr-only">Monthly credits on each plan</caption>
+              <thead>
+                <tr className="border-b border-line">
+                  <th scope="col" className="type-catalog pb-2 pr-4 text-left text-xs text-ink-3">
+                    Plan
+                  </th>
+                  <th scope="col" className="type-catalog pb-2 pr-4 text-right text-xs text-ink-3">
+                    Credits a month
+                  </th>
+                  <th scope="col" className="type-catalog pb-2 text-left text-xs text-ink-3">
+                    Albums
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {PLANS.map((plan) => (
+                  <tr key={plan.name} className="border-b border-line">
+                    <th scope="row" className="py-3 pr-4 text-left font-semibold text-ink">
+                      {plan.name}
+                    </th>
+                    <td className="type-figure py-3 pr-4 text-right text-ink">{plan.credits}</td>
+                    <td className="py-3 text-ink-2">{plan.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroller>
 
           <div className="flex max-w-[65ch] flex-col gap-3 text-sm leading-relaxed text-ink-2">
             <p>
@@ -224,8 +228,9 @@ export default function HelpPage() {
               Every button that spends credits says how many, and asks once before it spends,
               with the balance you&apos;ll have left. If an action fails, its credits come back.
             </p>
+            {/* A link on its own line, not in running text: a full 44px target. */}
             <p>
-              <Link href="/app/settings/billing" className={inlineLink}>
+              <Link href="/app/settings/billing" className={`${inlineLink} inline-flex min-h-11 items-center`}>
                 Compare plans and manage billing
               </Link>
             </p>
@@ -243,8 +248,8 @@ export default function HelpPage() {
             <dt className="font-semibold text-ink">Lyrics</dt>
             <dd className="mt-1 text-ink-2">
               A Section counts as written once it has words of yours. The bracketed placeholders
-              the setup leaves, like [Verse line 1], don&apos;t count. In the Sequence, ½ means half a
-              track&apos;s Sections are written.
+              the setup leaves, like [Verse line 1], don&apos;t count. In the Sequence, 1/2 means
+              one of a track&apos;s two Sections is written.
             </dd>
           </div>
           <div>
@@ -278,37 +283,39 @@ export default function HelpPage() {
         title="Keyboard shortcuts in the Studio"
         description="Plain arrow keys always move the caret. On a Mac, Alt is the Option key (⌥)."
       >
-        <table className="w-full max-w-3xl border-collapse text-sm">
-          <caption className="sr-only">Studio keyboard shortcuts</caption>
-          <thead>
-            <tr className="border-b border-line">
-              <th scope="col" className="type-catalog pb-2 pr-4 text-left text-xs text-ink-3">
-                Keys
-              </th>
-              <th scope="col" className="type-catalog pb-2 text-left text-xs text-ink-3">
-                What it does
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {SHORTCUTS.map((shortcut) => (
-              <tr key={shortcut.does} className="border-b border-line align-top">
-                <td className="py-3 pr-4">
-                  <span aria-hidden="true" className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    {shortcut.keys.map((combo, index) => (
-                      <span key={combo.join("+")} className="inline-flex items-center gap-2">
-                        {index > 0 ? <span className="text-ink-3">or</span> : null}
-                        <Keys keys={combo} />
-                      </span>
-                    ))}
-                  </span>
-                  <span className="sr-only">{shortcut.spoken}</span>
-                </td>
-                <td className="py-3 text-ink-2">{shortcut.does}</td>
+        <TableScroller label="Studio keyboard shortcuts" className="max-w-3xl">
+          <table className="w-full border-collapse text-sm">
+            <caption className="sr-only">Studio keyboard shortcuts</caption>
+            <thead>
+              <tr className="border-b border-line">
+                <th scope="col" className="type-catalog pb-2 pr-4 text-left text-xs text-ink-3">
+                  Keys
+                </th>
+                <th scope="col" className="type-catalog pb-2 text-left text-xs text-ink-3">
+                  What it does
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {SHORTCUTS.map((shortcut) => (
+                <tr key={shortcut.does} className="border-b border-line align-top">
+                  <td className="py-3 pr-4">
+                    <span aria-hidden="true" className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      {shortcut.keys.map((combo, index) => (
+                        <span key={combo.join("+")} className="inline-flex items-center gap-2">
+                          {index > 0 ? <span className="text-ink-3">or</span> : null}
+                          <Keys keys={combo} />
+                        </span>
+                      ))}
+                    </span>
+                    <span className="sr-only">{shortcut.spoken}</span>
+                  </td>
+                  <td className="py-3 text-ink-2">{shortcut.does}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroller>
       </Section>
 
       <Section id="stuck" title="Still stuck?">

@@ -123,8 +123,11 @@ function VolumeSlider({ id }: { id: string }) {
   );
 }
 
-/** The player collapses to one row on short screens (a phone on its side). */
-const SHORT_SCREEN = "(max-height: 500px)";
+/**
+ * The player collapses to one row on short screens: a phone on its side, and any window under
+ * 640px tall, where the full player would cover much of what's being written.
+ */
+const SHORT_SCREEN = "(max-height: 639.98px)";
 /** The docked player never takes more than this share of the viewport's height. */
 const MAX_SHARE = 0.4;
 
@@ -175,8 +178,9 @@ function PlayPauseButton() {
  * The preview player, docked to the bottom of the viewport once a preview has loaded. It opens
  * only for a preview that loaded (a failed one is explained where it was asked for, with
  * Retry), never takes more than 40% of the viewport's height (scrolling inside itself past
- * that), folds to one row (title, Play, Close) on short screens or whenever the full player
- * wouldn't fit, and Close stops playback and removes it.
+ * that), folds to one row (title, Play, Close) on screens under 640px tall or whenever the full
+ * player wouldn't fit, and Close stops playback and removes it. Close sits at the end of the
+ * transport row, so on a phone it wraps with Play, Stop and Repeat instead of alone.
  */
 export function Playerbar() {
   const player = usePlayer();
@@ -302,6 +306,8 @@ export function Playerbar() {
                 >
                   <Repeat2 className="h-4 w-4" aria-hidden="true" />
                 </IconButton>
+                {/* Below 768px Close ends the transport group, so the two wrap as one row. */}
+                <span className="contents md:hidden">{closeButton}</span>
               </div>
 
               <div className="hidden flex-wrap items-center gap-x-4 gap-y-1 md:flex">
@@ -309,7 +315,7 @@ export function Playerbar() {
                 <VolumeSlider id="player-volume" />
               </div>
 
-              {closeButton}
+              <span className="hidden md:contents">{closeButton}</span>
             </div>
 
             <div className="flex min-w-0 items-center gap-3">

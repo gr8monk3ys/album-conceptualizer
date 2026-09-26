@@ -93,7 +93,7 @@ export async function buildBiblePdfBuffer(bible: AlbumBible) {
   if (bible.recurringMotifs.length) writeBullets(doc, bible.recurringMotifs);
   else writeParagraph(doc, "No album-level motifs set.", { color: "#555555" });
 
-  writeHeading(doc, "Voice / Style Bible", { size: 14 });
+  writeHeading(doc, "Style bible", { size: 14 });
   writeParagraph(
     doc,
     bible.styleBible.lead_voice?.trim() || "No lead voice brief set.",

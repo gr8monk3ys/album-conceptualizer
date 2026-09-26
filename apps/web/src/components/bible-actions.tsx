@@ -9,6 +9,7 @@ import {
   TAG_KINDS,
   countTags,
   describeAddedTags,
+  isAlbumMatch,
   type TagKind,
   type TrackTagProposal,
   type TrackTags,
@@ -36,6 +37,17 @@ function allKeys(proposals: TrackTagProposal[]) {
   );
 }
 
+/** The proposals that are the album's own themes, motifs and characters: ticked to start with. */
+function albumMatchKeys(proposals: TrackTagProposal[]) {
+  return new Set(
+    proposals.flatMap((track) =>
+      TAG_KINDS.flatMap((kind) =>
+        track[kind].filter((tag) => isAlbumMatch(track, kind, tag)).map((tag) => tagKey(track.trackNumber, kind, tag)),
+      ),
+    ),
+  );
+}
+
 async function errorFrom(response: Response, fallback: string) {
   const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
   return typeof body?.error === "string" && body.error ? body.error : fallback;
@@ -43,8 +55,10 @@ async function errorFrom(response: Response, fallback: string) {
 
 /**
  * Suggest tags from the lyrics, or take the Bible away as Markdown or PDF. Tagging never
- * writes on its own: it lists what the lyrics suggest per track as dashed suggestions, all
- * ticked, and adds only what the artist keeps ticked, then says exactly what it added.
+ * writes on its own: it lists what the lyrics suggest per track as dashed suggestions (the
+ * album's own themes, motifs and characters the lyrics mention come first and ticked; any other
+ * word is marked "New tag" and left unticked), adds only what the artist ticks, then says
+ * exactly what it added.
  */
 export function BibleActions({ albumId, className }: { albumId: string; className?: string }) {
   const router = useRouter();
@@ -87,7 +101,7 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
         return;
       }
       setProposals(body.proposals);
-      setSelected(allKeys(body.proposals));
+      setSelected(albumMatchKeys(body.proposals));
       setPhase("review");
     } catch (err) {
       setPhase("idle");
@@ -140,6 +154,7 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
   }
 
   const total = countTags(proposals);
+  const matches = albumMatchKeys(proposals).size;
   const chosen = selected.size;
 
   return (
@@ -148,8 +163,8 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
         <Button
           ref={triggerRef}
           onClick={() => void suggest()}
-          disabled={phase !== "idle"}
-          aria-busy={phase === "loading" || undefined}
+          busy={phase === "loading"}
+          disabled={phase === "review" || phase === "applying"}
         >
           <Tags className="h-4 w-4" aria-hidden="true" />
           {phase === "loading" ? "Reading the lyrics…" : "Tag from lyrics"}
@@ -186,8 +201,14 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
             </h3>
             <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-ink-2">
               {total === 1 ? "1 suggestion" : `${total} suggestions`} on{" "}
-              {proposals.length === 1 ? "1 track" : `${proposals.length} tracks`}, from words and names that
-              repeat in the written lyrics. Nothing is added until you choose: untick any you don&apos;t want.
+              {proposals.length === 1 ? "1 track" : `${proposals.length} tracks`}.{" "}
+              {matches
+                ? `${matches === 1 ? "1 is" : `${matches} are`} the album's own themes, motifs or characters that the lyrics mention, and ${matches === 1 ? "it is" : "they are"} ticked. `
+                : ""}
+              {matches < total
+                ? "Words marked New tag repeat in the lyrics but aren't in the album yet: tick the ones you want. "
+                : ""}
+              Nothing is added until you choose.
             </p>
           </div>
 
@@ -205,6 +226,7 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
                         <span className="type-catalog min-w-0 basis-24 text-xs text-ink-3">{KIND_LABEL[kind].many}</span>
                         {track[kind].map((tag) => {
                           const key = tagKey(track.trackNumber, kind, tag);
+                          const isNew = !isAlbumMatch(track, kind, tag);
                           return (
                             <label
                               key={key}
@@ -217,8 +239,17 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
                                 disabled={phase === "applying"}
                                 className="h-4 w-4 shrink-0 accent-ink"
                               />
-                              <span className="min-w-0 break-words">{tag}</span>
-                              <span className="sr-only">{`, ${KIND_LABEL[kind].one} for track ${track.trackNumber}`}</span>
+                              {/* One text node run for the name: "tally, new theme for track 2", never a
+                                  stray space before the comma between flex items. */}
+                              <span className="min-w-0 break-words">
+                                {tag}
+                                <span className="sr-only">{`, ${isNew ? "new " : ""}${KIND_LABEL[kind].one} for track ${track.trackNumber}`}</span>
+                              </span>
+                              {isNew ? (
+                                <span aria-hidden="true" className="type-catalog text-xs text-ink-3">
+                                  New tag
+                                </span>
+                              ) : null}
                             </label>
                           );
                         })}
@@ -234,8 +265,8 @@ export function BibleActions({ albumId, className }: { albumId: string; classNam
             <Button
               tone="primary"
               onClick={() => void apply()}
-              disabled={!chosen || phase === "applying"}
-              aria-busy={phase === "applying" || undefined}
+              disabled={!chosen}
+              busy={phase === "applying"}
             >
               {phase === "applying" ? "Adding…" : chosen === 1 ? "Add 1 tag" : `Add ${chosen} tags`}
             </Button>

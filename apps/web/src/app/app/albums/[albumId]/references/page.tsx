@@ -18,9 +18,11 @@ export async function generateMetadata({
   params: Promise<{ albumId: string }>;
 }): Promise<Metadata> {
   const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  if (!albumTitle) return { title: "Page not found" };
   return {
-    title: albumPageTitle("References", await workspaceAlbumTitle(albumId)),
-    description: "The records and songs this album keeps pointing at, for the whole album or one track.",
+    title: albumPageTitle("References", albumTitle),
+    description: "The records and songs this album points to, for the whole album or one track.",
   };
 }
 

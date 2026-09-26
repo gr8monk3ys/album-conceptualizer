@@ -6,6 +6,7 @@ import {
   dimensionsWeakestFirst,
   weakestDimension,
   formatTrackList,
+  formatTrackRuns,
   isWrittenLyrics,
   verdictText,
   type CoherenceReport,
@@ -492,8 +493,77 @@ describe("each dimension's own signal while the cap holds", () => {
     const songs = partlyWrittenAlbum(7, 7).songs as Array<Record<string, unknown>>;
     songs[6] = scaffoldSong(6, { verse: "Words", themes: ["distance"], motifs: ["phone"], narrative: "x" });
     const report = analyzeAlbumCoherence(album(songs, { recurring_motifs: ["phone"] }));
-    expect(breakdown(report, "harmony").signal).toBe("6 of 7 tracks have chords of their own");
-    expect(breakdown(report, "harmony").heldBecause).toBe("only 6 of 7 tracks have chords of their own");
+    const harmony = breakdown(report, "harmony");
+    expect(harmony.signal).toBe("6 of 7 tracks have chords of their own");
+    // Harmony scores no higher than its own chord share, so nothing holds it and nothing disagrees.
+    expect(harmony.score).toBeLessThanOrEqual(86);
+    expect(harmony.heldBecause).toBeUndefined();
+    expect(harmony.lever).toBe("Change the starter loop on track 7 to lift Harmony.");
+  });
+
+  it("names the lever for a dimension held by the unwritten tracks", () => {
+    for (const item of report.breakdown) {
+      expect(item.lever).toBe("Write lyrics on 5 more tracks (4–8) to lift this.");
+    }
+  });
+
+  it("names no lever for an unscored report", () => {
+    const fresh = analyzeAlbumCoherence(scaffoldAlbum());
+    for (const item of fresh.breakdown) expect(item.lever).toBeUndefined();
+  });
+});
+
+// The critique's case (run 5): 3 of 8 tracks written, every one still on the starter loop.
+// The row read "0 of 3 written tracks have chords of their own. Held at 0 because only 0 of 8
+// tracks… · 55 on the written tracks alone".
+describe("harmony while the written tracks still have the starter loop", () => {
+  const report = analyzeAlbumCoherence(
+    album(
+      Array.from({ length: 8 }, (_, index) =>
+        index < 3
+          ? scaffoldSong(index, { verse: "Words of its own", themes: ["distance"], motifs: ["phone"] })
+          : scaffoldSong(index, { themes: ["distance"], motifs: ["phone"] }),
+      ),
+      { recurring_motifs: ["phone"] },
+    ),
+  );
+  const harmony = breakdown(report, "harmony");
+
+  it("scores 0 on the written tracks too, agreeing with its signal", () => {
+    expect(harmony.signal).toBe("0 of 3 written tracks have chords of their own");
+    expect(harmony.score).toBe(0);
+    expect(harmony.uncapped).toBe(0);
+  });
+
+  it("isn't held (the number is already its own) and names the lever in one sentence", () => {
+    expect(harmony.heldBecause).toBeUndefined();
+    expect(harmony.lever).toBe("Change the starter loop on tracks 1–3 to score Harmony.");
+  });
+
+  it("names the starter loop as the lever once one written track has chords", () => {
+    const songs = Array.from({ length: 8 }, (_, index) =>
+      index === 0
+        ? scaffoldSong(index, { verse: "Words", verseChords: ["Am", "G", "F", "E"], chorusChords: ["F", "G", "Am", "E"] })
+        : index < 4
+          ? scaffoldSong(index, { verse: "Words of its own" })
+          : scaffoldSong(index),
+    );
+    const partly = breakdown(analyzeAlbumCoherence(album(songs)), "harmony");
+    expect(partly.signal).toBe("1 of 4 written tracks have chords of their own");
+    expect(partly.uncapped).toBeLessThanOrEqual(25);
+    expect(partly.score).toBeLessThanOrEqual(13);
+    expect(partly.heldBecause).toBe("only 1 of 8 tracks has chords of its own");
+    expect(partly.lever).toBe("Change the starter loop on tracks 2–4 to lift Harmony.");
+  });
+});
+
+describe("formatTrackRuns", () => {
+  it("collapses runs of three or more and keeps pairs", () => {
+    expect(formatTrackRuns([1, 2, 3])).toBe("1–3");
+    expect(formatTrackRuns([5, 1, 2, 3])).toBe("1–3 and 5");
+    expect(formatTrackRuns([4, 5])).toBe("4 and 5");
+    expect(formatTrackRuns([2, 4, 6])).toBe("2, 4 and 6");
+    expect(formatTrackRuns([7])).toBe("7");
   });
 });
 

@@ -23,9 +23,14 @@ export function CreditsMeter({ credits }: { credits?: { remaining: number; total
         aria-valuemax={Math.max(total, remaining)}
         aria-valuenow={remaining}
         aria-valuetext={`${remaining} of ${total} monthly credits left`}
-        className="mt-2 h-1 w-full overflow-hidden rounded-full bg-line"
+        // Forced colors drop both washes, so there the track is drawn as a CanvasText outline
+        // and the fill in CanvasText, and the meter still reads.
+        className="mt-2 h-1 w-full overflow-hidden rounded-full bg-line forced-colors:border forced-colors:border-[CanvasText]"
       >
-        <div className="h-full rounded-full bg-ink-2" style={{ width: `${Math.round(ratio * 100)}%` }} />
+        <div
+          className="h-full rounded-full bg-ink-2 forced-colors:bg-[CanvasText]"
+          style={{ width: `${Math.round(ratio * 100)}%` }}
+        />
       </div>
       <p className="mt-2 max-w-[65ch] text-xs leading-relaxed text-ink-3">
         Creating an album costs {CREDIT_COSTS.albumCreate}, a remix {CREDIT_COSTS.albumFork}, an export{" "}

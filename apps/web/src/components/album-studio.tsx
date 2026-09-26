@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, Download, Loader2, Play, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, Copy, Download, Loader2, Play, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 
 import { previewErrorMessage, usePlayerControls } from "@/components/player/player-provider";
 import { previewFailureMessage } from "@/components/player/preview-errors";
@@ -27,12 +27,15 @@ import {
   SECTION_TYPES,
   albumFrameKey,
   albumProblem,
+  applyProgressionToType,
+  batchChordsSummary,
   buildNewSection,
   buildNewSong,
   chordsOf,
   clampIndex,
   clampTempo,
   firstUnwrittenSection,
+  isStarterLoopSection,
   isWritten,
   moveItem,
   moveTrack,
@@ -42,10 +45,14 @@ import {
   normalizeTrackNumbers,
   parseInitialAlbum,
   readApiError,
+  restoreProgressions,
+  sameTypeTargets,
+  sectionChordSummary,
   sectionLabels,
   sectionTypeLabel,
   saveStatusParts,
   toggleTheme,
+  type ChordSnapshot,
   type SaveMode,
   type StudioAlbum,
   type StudioSection,
@@ -87,11 +94,40 @@ type AlbumStudioProps = {
   aiAvailable?: boolean;
   /** The workspace's credit balance, so an AI draft can confirm "You'll have N left." */
   creditsRemaining?: number;
+  /**
+   * How the artist got here, when the Studio should say so once (`?remixed=1`, set by Remix):
+   * "Remixed into your workspace · 45 credits left" in the save bar until the first edit.
+   */
+  arrival?: "remixed" | null;
 };
 
 type UndoEntry =
   | { kind: "track"; song: StudioSong; index: number; label: string; key: number }
-  | { kind: "section"; songId: string; section: StudioSection; index: number; label: string; key: number };
+  | { kind: "section"; songId: string; section: StudioSection; index: number; label: string; key: number }
+  | {
+      kind: "chords";
+      songId: string;
+      /** The section whose chords were copied, reselected (and its button refocused) on Undo. */
+      sourceIndex: number;
+      previous: ChordSnapshot[];
+      /** The changed sections' labels, for the announcement when Undo puts them back. */
+      targets: string[];
+      /** What changed, said in the save bar beside Undo ("Set Verse 2 and Verse 3 to C G Am F."). */
+      label: string;
+      key: number;
+    };
+
+/** The save bar's line beside Undo: what the undoable change did. */
+function undoText(entry: UndoEntry) {
+  return entry.kind === "chords" ? entry.label : `Deleted “${entry.label}”.`;
+}
+
+/** "Remixed into your workspace · 45 credits left". */
+function arrivalText(arrival: AlbumStudioProps["arrival"], credits: number | undefined) {
+  if (arrival !== "remixed") return null;
+  if (typeof credits !== "number") return "Remixed into your workspace";
+  return `Remixed into your workspace · ${credits} ${credits === 1 ? "credit" : "credits"} left`;
+}
 
 /** A preview's status, shown beside the control that asked for it (the track's or the section's). */
 type PreviewNote = {
@@ -103,6 +139,16 @@ type PreviewNote = {
   retryLabel?: string;
 };
 
+/** The Retry button beside each scope's preview status. */
+const RETRY_IDS: Record<PreviewNote["scope"], string> = {
+  track: "preview-retry-track",
+  section: "preview-retry-section",
+};
+
+function focusedId() {
+  return typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement.id : "";
+}
+
 /**
  * Where focus goes next and how the page may move to show it. "start" brings `scrollTo` (or
  * the target) to the top of the view, under the sticky bar, e.g. the section's heading above
@@ -113,6 +159,8 @@ type PendingFocus = { id: string; scroll: "center" | "nearest" | "start" | "none
 /** The Studio's in-page targets: the editor column, and the current section's editor. */
 const EDITOR_ID = "studio-editor";
 const SECTION_EDITOR_ID = "studio-section-editor";
+const BATCH_CHORDS_ID = "use-chords-everywhere";
+const SECTION_MENU_ID = "section-more";
 const PREVIEW_CHORD_LIMIT = 128;
 
 const AUTOSAVE_DELAY_MS = 2000;
@@ -195,6 +243,7 @@ function useAlbumStudioRender({
   initialSelection,
   aiAvailable = false,
   creditsRemaining,
+  arrival = null,
 }: AlbumStudioProps) {
   const router = useRouter();
   const player = usePlayerControls();
@@ -225,6 +274,9 @@ function useAlbumStudioRender({
   // A link to one section (`sid`, e.g. from Comments and tasks) opens its comments.
   const [commentsOpenAtStart] = useState(() => Boolean(initialSelection?.sid));
   const [navAnnouncement, setNavAnnouncement] = useState("");
+  // Said once on arrival (read from the first render's props, since the URL is cleaned below)
+  // and dismissed by the first edit.
+  const [arrivalNote, setArrivalNote] = useState(() => arrivalText(arrival, creditsRemaining));
 
   const albumRef = useRef(album);
   const revisionRef = useRef(0);
@@ -325,6 +377,16 @@ function useAlbumStudioRender({
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
+
+  // The arrival line is said once: drop `?remixed=1` from the address (keeping the rest), so a
+  // reload or a shared link doesn't announce the remix again.
+  useEffect(() => {
+    if (!arrival) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("remixed")) return;
+    url.searchParams.delete("remixed");
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+  }, [arrival, router]);
 
   // Leaving the Studio never drops words. An in-app link click saves first (waiting for any
   // save in flight) and then navigates; only if that save fails does the viewer choose.
@@ -491,6 +553,7 @@ function useAlbumStudioRender({
     setDirty(true);
     setSaveError(null);
     setSavedFlash(null);
+    setArrivalNote(null);
   }
 
   function selectSong(index: number) {
@@ -621,7 +684,7 @@ function useAlbumStudioRender({
       });
       setSelection({ song: index, section: 0 });
       setPendingFocus({ id: `track-row-${song.id}`, scroll: "nearest" });
-    } else {
+    } else if (undo.kind === "section") {
       const { songId, section, index } = undo;
       const owner = songs.findIndex((s) => s.id === songId);
       updateSections(songId, (list) => {
@@ -631,8 +694,40 @@ function useAlbumStudioRender({
       });
       if (owner >= 0) setSelection({ song: owner, section: index });
       setPendingFocus({ id: `section-row-${section.id}`, scroll: "nearest" });
+    } else {
+      const { songId, previous, sourceIndex, targets } = undo;
+      const owner = songs.findIndex((s) => s.id === songId);
+      updateSections(songId, (list) => restoreProgressions(list, previous));
+      if (owner >= 0) setSelection({ song: owner, section: sourceIndex });
+      // The sections differ again, so the batch button is back: focus returns to it.
+      setPendingFocus({ id: BATCH_CHORDS_ID, scroll: "nearest" });
+      setNavAnnouncement(`Put the earlier chords back on ${new Intl.ListFormat("en").format(targets)}.`);
     }
     setUndo(null);
+  }
+
+  /**
+   * Batch harmony: this section's chords on every other section of its type on this track, at
+   * once, with a 10-second Undo in the save bar that names what changed. Focus goes to Undo
+   * (the button that asked disappears, since nothing is left to apply).
+   */
+  function applyChordsToType() {
+    const songId = activeSong?.id;
+    if (!songId) return;
+    const result = applyProgressionToType(sections, sectionIndex);
+    if (!result) return;
+    const changedLabels = result.changed.map((i) => labels[i] ?? "Section");
+    updateSections(songId, () => result.sections);
+    setUndo({
+      kind: "chords",
+      songId,
+      sourceIndex: sectionIndex,
+      previous: result.previous,
+      targets: changedLabels,
+      label: batchChordsSummary(changedLabels, chordsOf(activeSection)),
+      key: Date.now(),
+    });
+    setPendingFocus({ id: "studio-undo", scroll: "none" });
   }
 
   function moveSection(index: number, dir: -1 | 1) {
@@ -673,6 +768,15 @@ function useAlbumStudioRender({
     setNavAnnouncement(upNext.song === songIndex ? label : `Track ${song?.track_number}: ${song?.title || "Untitled"}, ${label}`);
   }
 
+  /** The first save turns comments on; focus moves from the button that goes to the thread. */
+  async function saveToTurnOnComments() {
+    const fromButton = focusedId() === "save-for-comments";
+    const ok = await save("manual");
+    if (ok && fromButton && activeSection?.id) {
+      setPendingFocus({ id: `comments-${activeSection.id}-toggle`, scroll: "none" });
+    }
+  }
+
   function openAlbumField(id: string) {
     setDetailsOpen(true);
     setPendingFocus({ id, scroll: "center" });
@@ -688,8 +792,18 @@ function useAlbumStudioRender({
    * for a preview that loaded.
    */
   async function previewFromChords(chords: string[], subtitle: string, scope: PreviewNote["scope"], openerId: string) {
-    const retry = () => void previewFromChords(chords, subtitle, scope, openerId);
-    const fail = (text: string) => setPreviewNote({ scope, tone: "danger", text, retry });
+    const retry = () => {
+      // Retry leaves while the preview renders; hand focus back to Preview (busy, so it keeps
+      // it) so a second failure can bring it to the new Retry.
+      if (focusedId() === RETRY_IDS[scope]) document.getElementById(openerId)?.focus({ preventScroll: true });
+      void previewFromChords(chords, subtitle, scope, openerId);
+    };
+    const fail = (text: string) => {
+      setPreviewNote({ scope, tone: "danger", text, retry });
+      // Focus follows to Retry only from the Preview button that asked: never away from a
+      // field the artist went back to while it rendered.
+      if (focusedId() === openerId) setPendingFocus({ id: RETRY_IDS[scope], scroll: "none" });
+    };
     const clipped = chords.length > PREVIEW_CHORD_LIMIT;
     setPreviewing(true);
     setPreviewNote({ scope, tone: "neutral", text: "Rendering preview…" });
@@ -744,7 +858,11 @@ function useAlbumStudioRender({
   }
 
   async function downloadMp3(chords: string[], subtitle: string) {
-    const retry = () => void downloadMp3(chords, subtitle);
+    const retry = () => {
+      // Retry leaves while the MP3 renders: focus goes back to the menu it came from.
+      if (focusedId() === RETRY_IDS.section) document.getElementById(SECTION_MENU_ID)?.focus({ preventScroll: true });
+      void downloadMp3(chords, subtitle);
+    };
     const failed = "Couldn't render the MP3: the server couldn't turn these chords into audio. Previews still play in your browser.";
     setPreviewing(true);
     setPreviewNote({ scope: "section", tone: "neutral", text: "Rendering MP3…" });
@@ -821,6 +939,7 @@ function useAlbumStudioRender({
   // ------------------------------------------------------------------ render
 
   const progress = lyricProgress(sections);
+  const batchTargets = activeSection ? sameTypeTargets(sections, sectionIndex) : [];
   // Shorthand keys ("C", "Am") read as the select's own spelling, so both agree.
   const keyValue = normalizeKey(activeSong?.key) ?? "";
   const sectionType = activeSection?.section_type ?? "verse";
@@ -837,6 +956,9 @@ function useAlbumStudioRender({
       "Saving…"
     ) : status.quiet === "unsaved" ? (
       "Unsaved changes"
+    ) : arrivalNote && (status.quiet === "saved-at" || status.quiet === "no-changes") ? (
+      // Until the first edit, the arrival line stands where "Saved · …" would.
+      <span className="text-ink">{arrivalNote}</span>
     ) : status.quiet === "saved-at" && lastSavedAt ? (
       <>
         Saved · <RelativeTime date={lastSavedAt} />
@@ -882,8 +1004,8 @@ function useAlbumStudioRender({
         ) : null}
         {undo ? (
           <span className="flex min-w-0 items-center gap-x-2 text-sm text-ink">
-            <span id="studio-undo-text" className="min-w-0 max-w-[24ch] truncate" title={`Deleted “${undo.label}”.`}>
-              Deleted “{undo.label}”.
+            <span id="studio-undo-text" className="line-clamp-2 min-w-0 max-w-[36ch] break-words" title={undoText(undo)}>
+              {undoText(undo)}
             </span>
             <Button id="studio-undo" key={undo.key} tone="secondary" onClick={restoreDeleted} aria-describedby="studio-undo-text">
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
@@ -896,7 +1018,7 @@ function useAlbumStudioRender({
             <Kbd>Ctrl/⌘ S</Kbd> save · <Kbd>Alt PgUp/PgDn</Kbd> track · with <Kbd>Shift</Kbd> section
           </p>
         </div>
-        <Button tone="ghost" onClick={() => void save("manual")} disabled={saving} aria-keyshortcuts="Control+S Meta+S">
+        <Button tone="ghost" onClick={() => void save("manual")} busy={saving} aria-keyshortcuts="Control+S Meta+S">
           <Save className="h-4 w-4" aria-hidden="true" />
           Save now
         </Button>
@@ -905,13 +1027,14 @@ function useAlbumStudioRender({
   );
 
   /**
-   * A preview's status and Retry, beside the control that asked for it. Both scopes keep their
-   * live region mounted (empty, without height) so the first message is announced.
+   * A preview's status and Retry, on their own line under the heading row that holds Preview,
+   * so a long message never pushes the row's buttons around. Both scopes keep their live
+   * region mounted (empty, without height) so the first message is announced.
    */
   function previewStatus(scope: PreviewNote["scope"]) {
     const note = previewNote?.scope === scope ? previewNote : null;
     return (
-      <div className="flex flex-wrap items-center gap-x-3">
+      <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1", note?.text && "mt-2")}>
         <p
           role="status"
           className={cn(
@@ -922,7 +1045,7 @@ function useAlbumStudioRender({
           {note?.text ?? ""}
         </p>
         {note?.retry && !previewing ? (
-          <Button tone="secondary" className="mt-1" onClick={note.retry} aria-label={note.retryLabel ?? "Retry preview"}>
+          <Button id={RETRY_IDS[scope]} tone="secondary" onClick={note.retry} aria-label={note.retryLabel ?? "Retry preview"}>
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Retry
           </Button>
@@ -954,14 +1077,18 @@ function useAlbumStudioRender({
 
   const trackHeader = activeSong ? (
     <section id="studio-track" aria-labelledby="studio-song-title" className="flex min-w-0 flex-col gap-4">
+      <div>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
-          <h2 id="studio-song-title" className="text-2xl font-semibold text-ink">
-            {/* Read as "Track 01: Title"; the big figure is the visual form of the same words. */}
-            <span className="sr-only">{`Track ${pad2(activeSong.track_number)}: `}</span>
-            <span aria-hidden="true" className="type-figure mr-3 text-3xl text-ink-3">
-              {pad2(activeSong.track_number)}
-            </span>
+          {/* Named "Track 01: Storm Warning" once. The name is set outright rather than
+              assembled from hidden fragments, which browsers join with stray spaces; the
+              visible text is the figure, a real space and the title ("01 Storm Warning"). */}
+          <h2
+            id="studio-song-title"
+            aria-label={`Track ${pad2(activeSong.track_number)}: ${activeSong.title.trim() || "Untitled"}`}
+            className="text-2xl font-semibold text-ink"
+          >
+            <span className="type-figure mr-1.5 text-3xl text-ink-3">{pad2(activeSong.track_number)}</span>{" "}
             <span className="break-words hyphens-auto">{activeSong.title || "Untitled"}</span>
           </h2>
           <p className="type-catalog mt-1 flex flex-wrap gap-x-2 text-xs text-ink-2">
@@ -972,10 +1099,9 @@ function useAlbumStudioRender({
               </span>
             ))}
           </p>
-          {previewStatus("track")}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button id="preview-song" tone="secondary" onClick={previewSong} disabled={previewing}>
+          <Button id="preview-song" tone="secondary" onClick={previewSong} busy={previewing}>
             <Play className="h-4 w-4" aria-hidden="true" />
             Preview song
           </Button>
@@ -1007,6 +1133,8 @@ function useAlbumStudioRender({
             ]}
           />
         </div>
+      </div>
+      {previewStatus("track")}
       </div>
 
       <div className="grid grid-cols-2 gap-4 @lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
@@ -1081,7 +1209,6 @@ function useAlbumStudioRender({
           <ol aria-label={`Sections of ${songTitle}`} className="self-start border-t border-line">
             {sections.map((section, index) => {
               const isActive = index === sectionIndex;
-              const chordCount = chordsOf(section).length;
               return (
                 <li key={section.id ?? `${section.section_type}-${section.order}`} className="border-b border-line">
                   <button
@@ -1103,7 +1230,7 @@ function useAlbumStudioRender({
                       <span className={cn("block break-words text-sm", isActive && "font-semibold")}>{labels[index]}</span>
                       <span className="type-figure block break-words text-xs text-ink-3">
                         {isWritten(section.lyrics) ? "Lyrics written" : "No lyrics yet"} ·{" "}
-                        {chordCount ? `${chordCount} ${chordCount === 1 ? "chord" : "chords"}` : "no chords"}
+                        {sectionChordSummary(sections, index)}
                       </span>
                     </span>
                   </button>
@@ -1114,6 +1241,7 @@ function useAlbumStudioRender({
 
           {activeSection ? (
             <div id={SECTION_EDITOR_ID} className="flex min-w-0 flex-col gap-4">
+              <div>
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
@@ -1121,16 +1249,29 @@ function useAlbumStudioRender({
                     <p className="type-figure text-xs text-ink-3">
                       {sectionIndex + 1} of {sections.length}
                     </p>
+                    {/* In one column the track list is far above the lyrics (a phone): a way
+                        back to it, landing on this track's row. Beside the editor it's in view. */}
+                    <a
+                      href={`#track-row-${activeSong.id}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setPendingFocus({ id: `track-row-${activeSong.id}`, scroll: "center" });
+                      }}
+                      className="-mx-1 inline-flex min-h-11 items-center gap-1 self-center rounded px-1 text-xs text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink hover:decoration-ink @2xl/studio:hidden"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="sr-only">Back to </span>Tracks
+                    </a>
                   </div>
-                  {previewStatus("section")}
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
-                  <Button id="preview-section" tone="secondary" onClick={previewSection} disabled={previewing}>
+                  <Button id="preview-section" tone="secondary" onClick={previewSection} busy={previewing}>
                     <Play className="h-4 w-4" aria-hidden="true" />
                     Preview section
                   </Button>
                   <MoreMenu
                     label="section actions"
+                    triggerId={SECTION_MENU_ID}
                     items={[
                       {
                         key: "mp3",
@@ -1166,6 +1307,8 @@ function useAlbumStudioRender({
                   />
                 </div>
               </div>
+              {previewStatus("section")}
+              </div>
 
               <Field label="Lyrics draft" htmlFor="section-lyrics">
                 <textarea
@@ -1199,8 +1342,29 @@ function useAlbumStudioRender({
                   id="section-chords"
                   value={activeSection.chord_progression}
                   onChange={(chords) => updateSectionField("chord_progression", chords)}
+                  starterLoop={isStarterLoopSection(sections, sectionIndex)}
                 />
               </div>
+              {batchTargets.length ? (
+                // Batch harmony: reuse this progression across the track's sections of this
+                // type, with an Undo in the save bar. The hint names what it will change.
+                <div className="-mt-1 flex flex-wrap items-center gap-x-3">
+                  <Button
+                    id={BATCH_CHORDS_ID}
+                    tone="ghost"
+                    className="-ml-2 px-2"
+                    onClick={applyChordsToType}
+                    aria-describedby="use-chords-everywhere-hint"
+                  >
+                    <Copy className="h-4 w-4" aria-hidden="true" />
+                    Use these chords on every {sectionTypeLabel(activeSection.section_type)}
+                  </Button>
+                  <p id="use-chords-everywhere-hint" className="min-w-0 max-w-[65ch] text-xs text-ink-3">
+                    Changes {new Intl.ListFormat("en").format(batchTargets.map((i) => labels[i] ?? "Section"))} on
+                    this track. You can undo for 10 seconds.
+                  </p>
+                </div>
+              ) : null}
               {upNext ? (
                 <div>
                   <Button tone="primary" onClick={writeNext}>
@@ -1232,7 +1396,7 @@ function useAlbumStudioRender({
                     <p className="min-w-0 max-w-[65ch] text-sm leading-relaxed text-ink-2">
                       Comments and section links turn on after the first save.
                     </p>
-                    <Button tone="ghost" onClick={() => void save("manual")} disabled={saving}>
+                    <Button id="save-for-comments" tone="ghost" onClick={() => void saveToTurnOnComments()} busy={saving}>
                       <Save className="h-4 w-4" aria-hidden="true" />
                       Save to turn on comments
                     </Button>
@@ -1314,7 +1478,16 @@ function useAlbumStudioRender({
           />
         </Field>
         <div>
-          <Button tone="secondary" onClick={() => void save("version")} disabled={saving || !versionMessage.trim()}>
+          {/* Busy while saving and unavailable without a note, but never natively disabled, so
+              focus stays on it when the saved version clears the note. */}
+          <Button
+            tone="secondary"
+            onClick={() => {
+              if (versionMessage.trim()) void save("version");
+            }}
+            busy={saving}
+            {...(versionMessage.trim() ? {} : { "aria-disabled": true })}
+          >
             Save version
           </Button>
         </div>
@@ -1356,7 +1529,7 @@ function useAlbumStudioRender({
       {/* The columns follow the room the Studio has (rem container queries), so enlarged text
           folds it to one column. Fields keep clear of the sticky header and save bar through
           the page's scroll padding alone (globals.css reads --sticky-offset, set above). */}
-      <div className="@container min-w-0">
+      <div className="@container/studio min-w-0">
       <div
         className={cn(
           "grid min-w-0 grid-cols-1 items-start gap-x-8 gap-y-8",

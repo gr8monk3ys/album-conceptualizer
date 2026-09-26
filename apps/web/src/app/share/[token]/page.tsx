@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import { CatalogItems } from "@/components/album-card";
 import { ForkShareButton } from "@/components/fork-share-button";
 import { RelativeTime } from "@/components/relative-time";
 import { SiteHeader } from "@/components/site-header";
@@ -31,8 +32,11 @@ const loadSharedAlbum = cache((token: string) =>
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
   const { token } = await params;
   const album = await loadSharedAlbum(token);
+  // A revoked or expired link is not found here too, so the tab keeps "Page not found" once
+  // the page hydrates instead of a fallback title.
+  if (!album) notFound();
   return {
-    title: album?.title ?? "Shared album",
+    title: album.title.trim() || "Shared album",
     description: "A shared concept album: read its sequence and remix it into your own workspace.",
   };
 }
@@ -102,18 +106,19 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
           <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-5">
             <div className="min-w-0 max-w-[40rem]">
               <h1 className="type-display text-display-xl break-words hyphens-auto text-ink">{album.title}</h1>
-              <p className="type-catalog mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">
-                <span>{album.artist || "No artist yet"}</span>
-                <span aria-hidden="true">·</span>
-                <span className="type-figure">
-                  {tracks.length} {tracks.length === 1 ? "track" : "tracks"}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span>Shared album</span>
-                <span aria-hidden="true">·</span>
-                <span>
-                  Edited <RelativeTime date={album.updatedAt.toISOString()} />
-                </span>
+              <p className="type-catalog mt-3 flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">
+                <CatalogItems
+                  items={[
+                    album.artist || "No artist yet",
+                    <span key="tracks" className="type-figure">
+                      {tracks.length} {tracks.length === 1 ? "track" : "tracks"}
+                    </span>,
+                    "Shared album",
+                    <span key="edited">
+                      Edited <RelativeTime date={album.updatedAt.toISOString()} />
+                    </span>,
+                  ]}
+                />
               </p>
             </div>
             <div className="flex flex-col items-start gap-2">

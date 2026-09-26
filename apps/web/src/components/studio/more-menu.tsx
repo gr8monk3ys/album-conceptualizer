@@ -26,7 +26,18 @@ export type MoreMenuItem = {
  * closes it and moves on. The visible label is "More"; `label` completes the accessible name
  * ("More track actions") so two menus on a page stay distinct.
  */
-export function MoreMenu({ label, items, className }: { label: string; items: MoreMenuItem[]; className?: string }) {
+export function MoreMenu({
+  label,
+  items,
+  className,
+  triggerId,
+}: {
+  label: string;
+  items: MoreMenuItem[];
+  className?: string;
+  /** An id for the "More" button, so the page can return focus to it. */
+  triggerId?: string;
+}) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -126,6 +137,7 @@ export function MoreMenu({ label, items, className }: { label: string; items: Mo
     <div ref={wrapperRef} className={cn("relative", className)}>
       <button
         ref={triggerRef}
+        id={triggerId}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}

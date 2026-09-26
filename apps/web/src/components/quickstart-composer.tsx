@@ -538,7 +538,7 @@ function BlueprintPreview({
                 <p className="mt-0.5 text-xs text-ink-3">
                   Verse and chorus to write
                   <span aria-hidden="true"> · </span>
-                  <span className="sr-only">; </span>
+                  <span className="sr-only">, </span>
                   starting-point chords to replace:{" "}
                   <span className="type-figure">{progression.chords.join(" ")}</span>
                 </p>

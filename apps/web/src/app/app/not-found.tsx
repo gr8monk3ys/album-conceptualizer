@@ -1,3 +1,4 @@
+import { PageNotFoundTitle } from "@/components/page-not-found-title";
 import { ButtonLink, PageHeader } from "@/components/ui";
 
 export const metadata = { title: "Page not found" };
@@ -8,6 +9,7 @@ export const metadata = { title: "Page not found" };
 export default function AppNotFound() {
   return (
     <div className="flex flex-col gap-6 py-8">
+      <PageNotFoundTitle />
       <PageHeader
         title="Page not found"
         description="There’s nothing at this address in your workspace. The link may be mistyped, or the album it pointed to was deleted or belongs to another workspace. Links shared from Discover only work while the album stays published."

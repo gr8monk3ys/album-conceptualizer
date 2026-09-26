@@ -7,30 +7,14 @@ import { TableScroller } from "@/components/ui";
 import { carriedThemesPhrase, themeAbbreviations } from "@/lib/theme-keys";
 import { cn } from "@/lib/utils";
 
-const FRACTION_GLYPHS: Record<string, string> = {
-  "1/2": "½",
-  "1/3": "⅓",
-  "2/3": "⅔",
-  "1/4": "¼",
-  "3/4": "¾",
-  "1/5": "⅕",
-  "2/5": "⅖",
-  "3/5": "⅗",
-  "4/5": "⅘",
-  "1/6": "⅙",
-  "5/6": "⅚",
-  "1/8": "⅛",
-  "3/8": "⅜",
-  "5/8": "⅝",
-  "7/8": "⅞",
-};
-
-/** "½", "2/2", "—": sections with lyrics out of all sections, as a figure that fits a column. */
-function lyricFraction(written: number, total: number) {
+/**
+ * "1/2", "2/2", "—": Sections with lyrics out of all Sections, as tabular figures, so the
+ * column lines up down the sequence (never a "½" glyph, which sets narrower than "2/2").
+ */
+export function lyricFraction(written: number, total: number) {
   if (!total) return { visible: "—", spoken: "No sections yet" };
-  const key = `${written}/${total}`;
   return {
-    visible: FRACTION_GLYPHS[key] ?? key,
+    visible: `${written}/${total}`,
     spoken: `Lyrics: ${written} of ${total} ${total === 1 ? "section" : "sections"} written`,
   };
 }
@@ -59,8 +43,11 @@ const THEME_HEADS = {
  *
  * Built to survive enlarged text: the table sizes itself to its content (never `table-fixed`),
  * the title keeps at least 8rem, and when that no longer fits the table scrolls sideways
- * inside its own region rather than squeezing the title to a letter per line. A screen
- * reader hears each row once: title, lyrics, one phrase for the themes, role.
+ * inside its own region (with an edge fade on the side that has more) rather than squeezing
+ * the title to a letter per line. The number, lyrics, theme (1rem a key) and role columns are
+ * kept narrow enough that three themes and the 8rem title fit a 320px phone at normal text
+ * size (the table was 4px wider than the phone's column, clipping "Role"). A screen reader
+ * hears each row once: title, lyrics, one phrase for the themes, role.
  */
 export function AlbumSpine({
   albumId,
@@ -98,17 +85,17 @@ export function AlbumSpine({
             <th scope="col" className="type-catalog pb-2 pr-2 text-left text-xs font-semibold text-ink-3">
               Title
             </th>
-            <th scope="col" className="type-catalog w-8 px-1 pb-2 text-center text-xs font-semibold text-ink-3">
+            <th scope="col" className="type-catalog w-8 px-0.5 pb-2 text-center text-xs font-semibold text-ink-3">
               Lyrics
             </th>
             {themes.length ? (
-              <th scope="col" className="px-0.5 pb-2 font-semibold">
+              <th scope="col" className="pb-2 font-semibold">
                 <span className="sr-only">Album themes</span>
                 {/* One head per theme, read left to right like the marks beneath it: the name
                     where the container has room, a short key (spelled out below) where not. */}
                 <span aria-hidden="true" className="flex items-end justify-center">
                   {themes.map((theme, index) => (
-                    <span key={theme} className={cn("block w-4.5 shrink-0 text-center", heads.slot)}>
+                    <span key={theme} className={cn("block w-4 shrink-0 text-center", heads.slot)}>
                       <abbr
                         title={theme}
                         className={cn("type-catalog block text-xs text-ink-3 no-underline", heads.keys)}
@@ -159,7 +146,7 @@ export function AlbumSpine({
                 </td>
                 <td
                   className={cn(
-                    "type-figure px-1 text-center align-middle text-sm",
+                    "type-figure px-0.5 text-center align-middle text-sm",
                     complete ? "text-ink" : row.lyricSections ? "text-ink-2" : "text-ink-3",
                   )}
                 >
@@ -167,10 +154,10 @@ export function AlbumSpine({
                   <span className="sr-only">{lyrics.spoken}</span>
                 </td>
                 {themes.length ? (
-                  <td className="px-0.5 align-middle">
+                  <td className="align-middle">
                     <span aria-hidden="true" className="flex justify-center">
                       {themes.map((theme, index) => (
-                        <span key={theme} className={cn("grid w-4.5 shrink-0 place-items-center", heads.slot)}>
+                        <span key={theme} className={cn("grid w-4 shrink-0 place-items-center", heads.slot)}>
                           <ThemeMark carries={row.themeKeys.includes(themeKeys[index])} />
                         </span>
                       ))}

@@ -54,6 +54,30 @@ export function formatTrackList(trackNumbers: number[]) {
   return `${sorted.slice(0, -1).join(", ")} and ${sorted[sorted.length - 1]}`;
 }
 
+/**
+ * Track numbers as compact runs: "1–3", "1–3 and 5", "2, 4 and 6". Runs of three or more
+ * collapse to a range; a pair stays a pair ("4 and 5").
+ */
+export function formatTrackRuns(trackNumbers: number[]) {
+  const sorted = Array.from(new Set(trackNumbers)).sort((left, right) => left - right);
+  const runs: string[] = [];
+  for (let index = 0; index < sorted.length; ) {
+    let end = index;
+    while (end + 1 < sorted.length && sorted[end + 1] === sorted[end] + 1) end += 1;
+    if (end - index >= 2) runs.push(`${sorted[index]}–${sorted[end]}`);
+    else for (let at = index; at <= end; at += 1) runs.push(String(sorted[at]));
+    index = end + 1;
+  }
+  if (runs.length <= 1) return runs.join("");
+  return `${runs.slice(0, -1).join(", ")} and ${runs[runs.length - 1]}`;
+}
+
+/** "track 3", "tracks 1–3 and 5". */
+function tracksPhrase(trackNumbers: number[]) {
+  const count = new Set(trackNumbers).size;
+  return `${count === 1 ? "track" : "tracks"} ${formatTrackRuns(trackNumbers)}`;
+}
+
 export type CoherenceIssue = {
   id: string;
   severity: CoherenceIssueSeverity;
@@ -88,6 +112,13 @@ export type CoherenceBreakdownItem = {
   uncapped: number;
   /** Why the cap holds `score` below `uncapped` ("only 3 of 8 tracks are written"); absent when it doesn't. */
   heldBecause?: string;
+  /**
+   * The one thing that lifts the score, as a plain sentence, when there is one clear lever:
+   * "Write lyrics on 5 more tracks (4–8) to lift this." while the lyric cap holds it, and
+   * "Change the starter loop on tracks 1–3 to score Harmony." while written tracks have no
+   * chords of their own (held or not). Absent for an unscored report.
+   */
+  lever?: string;
   /** The dimension's own evidence on the tracks it measured: "3 of 3 written tracks have chords of their own". */
   signal: string;
 };
@@ -261,7 +292,7 @@ function buildBreakdownItem(
   key: CoherenceDimension,
   score: number,
   summary: string,
-  extra: { uncapped?: number; heldBecause?: string; signal?: string } = {},
+  extra: { uncapped?: number; heldBecause?: string; lever?: string; signal?: string } = {},
 ): CoherenceBreakdownItem {
   const limited = clampScore(score);
   return {
@@ -271,6 +302,7 @@ function buildBreakdownItem(
     summary,
     uncapped: clampScore(extra.uncapped ?? score),
     ...(extra.heldBecause ? { heldBecause: extra.heldBecause } : {}),
+    ...(extra.lever ? { lever: extra.lever } : {}),
     signal: extra.signal ?? summary,
   };
 }
@@ -364,6 +396,9 @@ function dimensionScores(counts: TrackCounts, album: AlbumFacts): Record<Coheren
   harmony -= ratioPenalty(counts.missingKeys, total, 18);
   harmony -= ratioPenalty(counts.missingTempo, total, 14);
   if (album.singleKey) harmony -= 8;
+  // Never more than the share of these tracks with chords of their own, so the number can't
+  // disagree with its own signal ("0 of 3 written tracks have chords of their own" scores 0).
+  if (total) harmony = Math.min(harmony, ((total - counts.missingChords) / total) * 100);
 
   let sequence = 100;
   if (!album.songCount) sequence -= 50;
@@ -1009,12 +1044,37 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
   const scoreCap = songCount ? clampScore((songsWithLyrics / songCount) * 100) : 0;
   const harmonyCap = songCount ? Math.min(scoreCap, clampScore((songsWithChords / songCount) * 100)) : 0;
   const writtenFact = `only ${songsWithLyrics} of ${songCount} tracks ${songsWithLyrics === 1 ? "is" : "are"} written`;
-  const capped = (key: CoherenceDimension, summary: string, cap = scoreCap, capReason = writtenFact) => {
+  // The lever while the lyric cap holds a dimension: the unwritten tracks.
+  const unwritten = snapshots.filter((song) => !song.hasLyrics).map((song) => song.trackNumber);
+  const lyricsLever =
+    unwritten.length === 1
+      ? `Write lyrics on track ${unwritten[0]} to lift this.`
+      : `Write lyrics on ${unwritten.length} more tracks (${formatTrackRuns(unwritten)}) to lift this.`;
+  // The lever while the chords cap holds Harmony: the written tracks without chords of their
+  // own (that cap is below the lyric cap only when some written track lacks them).
+  const writtenWithoutChords = writtenSongs.filter((song) => !song.hasChords);
+  const harmonyVerb = songsWithChords ? "lift" : "score";
+  const harmonyTracks = tracksPhrase(writtenWithoutChords.map((song) => song.trackNumber));
+  const harmonyLever = writtenWithoutChords.every((song) => song.starterHarmony)
+    ? `Change the starter loop on ${harmonyTracks} to ${harmonyVerb} Harmony.`
+    : writtenWithoutChords.every((song) => !song.starterHarmony)
+      ? `Write chords on ${harmonyTracks} to ${harmonyVerb} Harmony.`
+      : `Write chords of their own on ${harmonyTracks} to ${harmonyVerb} Harmony.`;
+  const capped = (
+    key: CoherenceDimension,
+    summary: string,
+    cap = scoreCap,
+    capReason = writtenFact,
+    heldLever = lyricsLever,
+    ownLever?: string,
+  ) => {
     const limited = Math.min(rawScores[key], cap);
+    // Unscored reports show what each dimension needs, not a cap nobody can see.
+    const held = limited < uncapped[key] && !insufficient;
     return buildBreakdownItem(key, limited, summary, {
       uncapped: uncapped[key],
-      // Unscored reports show what each dimension needs, not a cap nobody can see.
-      heldBecause: limited < uncapped[key] && !insufficient ? capReason : undefined,
+      heldBecause: held ? capReason : undefined,
+      lever: insufficient ? undefined : held ? heldLever : ownLever,
       signal: signals[key],
     });
   };
@@ -1049,6 +1109,8 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
       harmonyCap < scoreCap
         ? `only ${songsWithChords} of ${songCount} tracks ${songsWithChords === 1 ? "has" : "have"} chords of ${songsWithChords === 1 ? "its" : "their"} own`
         : writtenFact,
+      harmonyCap < scoreCap && writtenWithoutChords.length ? harmonyLever : lyricsLever,
+      writtenWithoutChords.length ? harmonyLever : undefined,
     ),
     capped(
       "sequence",

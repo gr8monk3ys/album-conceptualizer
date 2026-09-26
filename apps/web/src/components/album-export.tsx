@@ -29,6 +29,7 @@ const HANDOFF_PACKS = [
     contents: [
       "A prompt line for every track, built from its tempo, key, themes and your Style bible",
       "Negative prompt guidance from your avoid list",
+      "Your references listed beside each prompt, never in it: Suno rejects artist names",
       "The section map and production notes for each track",
     ],
   },
@@ -38,7 +39,8 @@ const HANDOFF_PACKS = [
     title: "Udio brief",
     use: "For Udio sessions where you extend and replace sections one at a time.",
     contents: [
-      "A prompt line per track to start from, with the references and emotional targets to keep",
+      "A prompt line per track to start from, with the emotional targets to keep",
+      "Your references listed beside each prompt, never in it: Udio rejects artist names",
       "A section-by-section map for editing and extending",
       "Negative prompt guidance from your avoid list",
     ],

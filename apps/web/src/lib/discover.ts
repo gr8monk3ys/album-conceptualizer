@@ -28,6 +28,15 @@ export function writtenSummaryLine({ tracks, withLyrics }: { tracks: number; wit
   return `${count} · lyrics on ${withLyrics}`;
 }
 
+/**
+ * The Like toggle's accessible name: "Like Salt Year" / "Liked Salt Year" in a list, where each
+ * row's toggle must be told apart, or plain "Like" / "Liked" where the page names the album.
+ */
+export function likeToggleName(liked: boolean, albumTitle?: string) {
+  const verb = liked ? "Liked" : "Like";
+  return albumTitle?.trim() ? `${verb} ${albumTitle}` : verb;
+}
+
 const MAX_EXCERPT_LINE = 90;
 
 /**
@@ -91,9 +100,16 @@ export type DiscoverView = {
   show: DiscoverShow;
   /** A primary genre to keep, compared without case; null for every genre. */
   genre: string | null;
+  /** The page of the list, from 1. */
+  page: number;
 };
 
-export const DEFAULT_DISCOVER_VIEW: DiscoverView = { q: "", sort: "newest", show: "all", genre: null };
+export const DEFAULT_DISCOVER_VIEW: DiscoverView = { q: "", sort: "newest", show: "all", genre: null, page: 1 };
+
+/** Albums on one page of Discover. */
+export const DISCOVER_PAGE_SIZE = 20;
+/** The highest page a URL may ask for; anything past the last page is sent back to it. */
+const MAX_PAGE = 500;
 
 type SearchParamsRecord = Record<string, string | string[] | undefined>;
 
@@ -101,6 +117,11 @@ function firstParam(value: string | string[] | undefined): string {
   if (typeof value === "string") return value.trim();
   if (Array.isArray(value)) return value[0]?.trim() ?? "";
   return "";
+}
+
+function parsePage(value: string): number {
+  if (!/^\d{1,6}$/.test(value)) return 1;
+  return Math.min(Math.max(Number(value), 1), MAX_PAGE);
 }
 
 /** The Discover view a URL asks for; unknown values fall back to the defaults. */
@@ -113,10 +134,15 @@ export function parseDiscoverView(params: SearchParamsRecord): DiscoverView {
     sort: DISCOVER_SORTS.some((option) => option.value === sort) ? (sort as DiscoverSort) : "newest",
     show: show === "finished" ? "finished" : "all",
     genre: genre || null,
+    page: parsePage(firstParam(params.page)),
   };
 }
 
-/** The URL for a Discover view; defaults are left out, so the plain view is `/app/discover`. */
+/**
+ * The URL for a Discover view; defaults are left out, so the plain view is `/app/discover`.
+ * The page is kept only when it is past the first; a link that changes the search, sort or
+ * filter passes `page: 1` (or leaves it out) so it starts the new list from the top.
+ */
 export function discoverHref(view: Partial<DiscoverView>): string {
   const full = { ...DEFAULT_DISCOVER_VIEW, ...view };
   const params = new URLSearchParams();
@@ -124,8 +150,39 @@ export function discoverHref(view: Partial<DiscoverView>): string {
   if (full.sort !== "newest") params.set("sort", full.sort);
   if (full.show !== "all") params.set("show", full.show);
   if (full.genre) params.set("genre", full.genre);
+  if (full.page > 1) params.set("page", String(full.page));
   const query = params.toString();
   return query ? `/app/discover?${query}` : "/app/discover";
+}
+
+/**
+ * The same view without its search: sort, "Finished only" and the genre stay as they were,
+ * so clearing a search never quietly widens the list.
+ */
+export function clearSearchHref(view: DiscoverView): string {
+  return discoverHref({ ...view, q: "", page: 1 });
+}
+
+/** The same search without its narrowing: every album, still in the chosen order. */
+export function widenViewHref(view: DiscoverView): string {
+  return discoverHref({ q: view.q, sort: view.sort, page: 1 });
+}
+
+export type DiscoverPage = {
+  /** The page shown, clamped to the pages there are (1 when the list is empty). */
+  page: number;
+  pageCount: number;
+  /** Index of the first album on the page, and one past the last (for `slice`). */
+  start: number;
+  end: number;
+};
+
+/** Which slice of `total` albums a page shows. */
+export function discoverPage(total: number, page: number, pageSize = DISCOVER_PAGE_SIZE): DiscoverPage {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const current = Math.min(Math.max(1, Math.floor(page) || 1), pageCount);
+  const start = (current - 1) * pageSize;
+  return { page: current, pageCount, start, end: Math.min(start + pageSize, total) };
 }
 
 /** True when the view narrows or reorders the plain list. */
@@ -196,8 +253,16 @@ export function genreOptions(values: ReadonlyArray<string | null | undefined>): 
   return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
-/** "12 published albums", "3 finished albums in folk", "2 matches for “tide” · finished only". */
-export function discoverCountLine(count: number, view: DiscoverView): string {
+/**
+ * "12 published albums", "3 finished albums in folk", "2 matches for “tide” · finished only";
+ * past one page it says which albums are showing: "42 published albums · 21–40 shown".
+ */
+export function discoverCountLine(count: number, view: Omit<DiscoverView, "page">, page?: DiscoverPage): string {
+  const range = page && page.pageCount > 1 ? ` · ${page.start + 1}–${page.end} shown` : "";
+  return `${countPhrase(count, view)}${range}`;
+}
+
+function countPhrase(count: number, view: Omit<DiscoverView, "page">): string {
   const searching = view.q.length >= 2;
   const filters = [
     view.show === "finished" ? "finished only" : null,

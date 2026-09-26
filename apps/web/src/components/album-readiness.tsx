@@ -32,7 +32,7 @@ export function ReadinessList({
             {item.done ? (
               <Check className="h-4 w-4 shrink-0 text-ok" aria-hidden="true" />
             ) : (
-              <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-warn" />
+              <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-warn forced-colors:bg-[CanvasText]" />
             )}
             <span className="type-figure min-w-0 break-words">{item.label}</span>
             <span className="sr-only">{item.done ? " (done)" : " (to do)"}</span>

@@ -9,7 +9,14 @@ import { ThemeMark } from "@/components/theme-mark";
 import { ButtonLink, Chip, EmptyState, Section, TableScroller } from "@/components/ui";
 import { getAlbum } from "@/server/albums";
 import { getSpineRows } from "@/server/album-songs";
-import { buildAlbumBible, looseThreadsSummary, themeTracksPhrase, type AlbumBible, type BibleIssue } from "@/server/bible";
+import {
+  buildAlbumBible,
+  looseThreadsSummary,
+  themeArc,
+  themeTracksPhrase,
+  type AlbumBible,
+  type BibleIssue,
+} from "@/server/bible";
 import { buildMotifCharacterGraph, type MotifCharacterGraph } from "@/server/bible-relationships";
 import { coherenceFixHref } from "@/server/coherence";
 import { requireUser } from "@/server/identity";
@@ -27,8 +34,11 @@ export async function generateMetadata({
   params: Promise<{ albumId: string }>;
 }): Promise<Metadata> {
   const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  // A missing album renders the not-found screen, so its tab says so too (WCAG 2.4.2).
+  if (!albumTitle) return { title: "Page not found" };
   return {
-    title: albumPageTitle("Album Bible", await workspaceAlbumTitle(albumId)),
+    title: albumPageTitle("Album Bible", albumTitle),
     description: "Themes, motifs, characters and story beats across the album, and what still needs tagging.",
   };
 }
@@ -42,7 +52,10 @@ function pad(trackNumber: number) {
   return String(trackNumber).padStart(2, "0");
 }
 
-/** The signature view: which of the album's themes each track carries, in sequence. */
+/**
+ * Themes × tracks, and what the spine beside it can't show: for each theme, where it first
+ * appears, where it last does and the tracks it drops out on in between.
+ */
 function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible }) {
   const { tracks, rows } = bible.themeGrid;
   if (!tracks.length) {
@@ -79,7 +92,7 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
     "w-[min(12rem,40cqw)] min-w-[min(12rem,40cqw)] max-w-[45cqw] bg-ground pr-4 text-left sticky left-0 z-10 @max-[28rem]:static";
   return (
     <div className="@container min-w-0 border-y border-line">
-      <TableScroller label="Theme map" className="scroll-ps-[min(12rem,40%)] @max-[28rem]:scroll-ps-0">
+      <TableScroller label="Theme map table" className="scroll-ps-[min(12rem,40%)] @max-[28rem]:scroll-ps-0">
         {/* Auto layout: larger text widens the table (it scrolls inside this region) instead
             of starving the theme names. */}
         <table className="w-full border-collapse text-sm">
@@ -111,9 +124,12 @@ function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible })
               <tr key={row.label} className="border-b border-line last:border-b-0">
                 <th scope="row" className={cn(themeColumn, "py-2.5 font-normal")}>
                   <span className="block font-semibold text-ink wrap-anywhere hyphens-auto">{row.label}</span>
-                  <span className="type-figure block text-xs text-ink-3">
+                  <span className="type-figure block max-w-[40ch] text-xs text-ink-3">
                     {row.trackNumbers.length
-                      ? `${row.trackNumbers.length} of ${tracks.length} tracks`
+                      ? `${row.trackNumbers.length} of ${tracks.length} · ${themeArc(
+                          row.trackNumbers,
+                          tracks.map((track) => track.trackNumber),
+                        )}`
                       : "On no track yet"}
                     {/* One phrase per row instead of a "yes"/"no" for every cell. */}
                     {row.trackNumbers.length ? (
@@ -330,7 +346,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
   const graph = buildMotifCharacterGraph(bible, { maxCharacters: 10, maxMotifs: 10, minEdgeWeight: 1 });
   const motifs = albumMotifIndex(album.data);
   // Track-by-track gaps are the Coherence report's job and Style bible gaps show under
-  // "Voice and style"; this page checks only how the album's threads hang together.
+  // "Style bible"; this page checks only how the album's threads hang together.
   const structure = bible.issues.filter((issue) => issue.scope === "structure");
   const warnings = structure.filter((issue) => issue.level === "warn");
   const notes = structure.filter((issue) => issue.level === "info");
@@ -363,7 +379,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
       <Section
         id="bible-themes"
         title="Theme map"
-        description={`The album's themes across the ${
+        description={`Where each of the album's themes enters, leaves and drops out across the ${
           bible.timeline.mode === "chronological" ? "story order" : "tracklist"
         }. Select a track number to edit its themes.`}
       >
@@ -500,7 +516,7 @@ export default async function AlbumBiblePage({ params }: { params: Promise<{ alb
 
       <Section
         id="bible-style"
-        title="Voice and style"
+        title="Style bible"
         description={`${styleSummary.filledCount} of ${styleSummary.totalCount} parts of the Style bible are set.`}
         actions={<ButtonLink href={`${base}/style`} tone="ghost">Open the Style bible</ButtonLink>}
       >

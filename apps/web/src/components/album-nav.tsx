@@ -2,17 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import {
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { Suspense, useCallback, useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 
 import { ButtonLink, PRIMARY_ACTION_MARKER } from "@/components/ui";
+import { useEdgeFade } from "@/components/use-edge-fade";
+import { edgeFadeClass } from "@/lib/edge-fade";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,15 +33,6 @@ function useAlbumSegment(albumId: string) {
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
-
-// The strip fades at whichever edge has more tabs past it. A mask, not a colour: the
-// content itself goes transparent at the edge.
-const EDGE_FADE = {
-  none: "",
-  start: "[mask-image:linear-gradient(to_right,transparent,black_1.5rem)]",
-  end: "[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)]",
-  both: "[mask-image:linear-gradient(to_right,transparent,black_1.5rem,black_calc(100%-1.5rem),transparent)]",
-} as const;
 
 /**
  * Scrolls the strip so the current tab sits in the middle, without `scrollIntoView`: that
@@ -77,30 +62,8 @@ export function AlbumNav({ albumId }: { albumId: string }) {
   const base = `/app/albums/${albumId}`;
   const scrollerRef = useRef<HTMLElement>(null);
   const activeRef = useRef<HTMLAnchorElement>(null);
-  const [fade, setFade] = useState<keyof typeof EDGE_FADE>("none");
-
-  const measure = useCallback(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    const overflowing = el.scrollWidth > el.clientWidth + 1;
-    if (!overflowing) return setFade("none");
-    const atStart = el.scrollLeft <= 1;
-    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-    setFade(atStart ? "end" : atEnd ? "start" : "both");
-  }, []);
-
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    // A ResizeObserver reports once as soon as it starts observing, which gives the first measure.
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    el.addEventListener("scroll", measure, { passive: true });
-    return () => {
-      observer.disconnect();
-      el.removeEventListener("scroll", measure);
-    };
-  }, [measure]);
+  // The strip fades at whichever edge has more tabs past it (the same cue as TableScroller).
+  const fade = useEdgeFade(scrollerRef, "x");
 
   // Keep the current tab in view when the strip is narrower than its tabs.
   useEffect(() => {
@@ -116,7 +79,7 @@ export function AlbumNav({ albumId }: { albumId: string }) {
         ref={scrollerRef}
         aria-label="Album"
         // Scrolls inside itself: min-w-0 keeps the tab strip from ever widening the page.
-        className={cn("-mx-1 min-w-0 max-w-[calc(100%+0.5rem)] overflow-x-auto", EDGE_FADE[fade])}
+        className={cn("-mx-1 min-w-0 max-w-[calc(100%+0.5rem)] overflow-x-auto", edgeFadeClass(fade, "x"))}
       >
         <ul className="grid grid-cols-2 px-1 @xs:grid-cols-3 @lg:flex @lg:min-w-max @lg:gap-1 @lg:border-b @lg:border-line">
           {TABS.map((tab) => {
@@ -275,20 +238,25 @@ export function AlbumBody({
   return (
     <div className="@container min-w-0">
       <div className="grid min-w-0 grid-cols-1 gap-6 @4xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @4xl:gap-10 @6xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-        {/* Sticky just below the app header; the negative margin and padding line its top up
-            with the content while keeping it clear of the header once it sticks. */}
-        <aside className="hidden @4xl:sticky @4xl:top-header @4xl:-mt-6 @4xl:block @4xl:max-h-[calc(100dvh-5rem)] @4xl:self-start @4xl:overflow-y-auto @4xl:pb-6 @4xl:pt-6">
+        {/* Sticky just below the app header (at the top on a short screen, where the header
+            scrolls away); the negative margin and padding line its top up with the content
+            while keeping it clear of the header once it sticks. */}
+        <aside className="hidden @4xl:sticky @4xl:top-header-offset @4xl:-mt-6 @4xl:block @4xl:max-h-[calc(100dvh-5rem)] @4xl:self-start @4xl:overflow-y-auto @4xl:pb-6 @4xl:pt-6">
           {spine}
         </aside>
         <div className="flex min-w-0 flex-col gap-6">
           <details className="@4xl:hidden" open={segment === ""}>
-            <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:bg-hover">
+            {/* Wraps rather than overflowing a narrow column at enlarged text; the count keeps
+                its separator with it. */}
+            <summary className="inline-flex min-h-11 max-w-full cursor-pointer flex-wrap items-center gap-x-2 rounded border border-line-strong px-4 py-1 text-sm font-semibold text-ink transition-colors hover:bg-hover">
               Sequence
-              <span aria-hidden="true" className="text-ink-3">
-                ·
-              </span>
-              <span className="type-figure font-normal text-ink-2">
-                {trackCount} {trackCount === 1 ? "track" : "tracks"}
+              <span className="whitespace-nowrap">
+                <span aria-hidden="true" className="text-ink-3">
+                  ·
+                </span>{" "}
+                <span className="type-figure font-normal text-ink-2">
+                  {trackCount} {trackCount === 1 ? "track" : "tracks"}
+                </span>
               </span>
             </summary>
             <div className="mt-3">{compactSpine}</div>

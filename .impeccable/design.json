@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-23T22:06:17Z",
+  "generatedAt": "2026-09-23T23:08:57Z",
   "title": "Design System: Album Conceptualizer",
   "extensions": {
     "colorMeta": {
@@ -300,7 +300,7 @@
       },
       "display-release": {
         "displayName": "Release title",
-        "purpose": "Album title in the release header on every album screen (`text-display-release`): fluid from 2.25rem on a phone to 3.75rem on a wide screen, max 18.75em (24ch of the display cut, in em so it holds before Archivo loads)."
+        "purpose": "Album title in the release header on every album screen (`text-display-release`): fluid from 2.25rem on a phone to 3.75rem on a wide screen, max 18.75em (24ch of the display cut, in em so it holds before Archivo loads). The header is a size container and the title stays under 13cqi (floor 1.5rem), so a 320px phone at 200% text sets it at 48px, not 72px."
       },
       "display-lg": {
         "displayName": "Display L",
@@ -308,7 +308,7 @@
       },
       "display-md": {
         "displayName": "Display M",
-        "purpose": "Every page h1 rendered by the page header."
+        "purpose": "Every page h1 rendered by the page header. The header is a size container: the title never exceeds 12cqi (floor 1.5rem, which still grows with text size), so a 320px phone at 200% text sets it at 48px, not 56px; at normal text size the container never binds."
       },
       "headline": {
         "displayName": "Headline",
@@ -344,7 +344,7 @@
       },
       "figure-track": {
         "displayName": "Track figure",
-        "purpose": "Two-digit tabular track numbers in the Studio track list."
+        "purpose": "Two-digit tabular track numbers in the Studio track list. Fractions are \"1/2\", \"0/2\", \"2/2\" in tabular figures, never a \"½\" glyph."
       }
     },
     "shadows": [],
@@ -423,19 +423,19 @@
     ],
     "masks": [
       {
-        "name": "tab-strip-edge-fade",
-        "value": "mask-image: linear-gradient(to right, transparent, black 1.5rem)",
-        "purpose": "Transparency fade on the overflowing edge of the album tab strip. A mask, not a color fill."
+        "name": "edge-fade",
+        "value": "mask-image: linear-gradient(to right, transparent, black 1.5rem, black calc(100% - 1.5rem), transparent) (per edge; to bottom, 2rem, for columns)",
+        "purpose": "The one scroll cue (`@/lib/edge-fade`): the edge of a scroller with more content past it fades, on TableScroller, the album tab strip, the sidebar and the mobile sheet. A mask, not a color fill; it takes no space, and it steps aside while a focusable scroller has focus so it cannot clip the ring."
       }
     ],
     "layoutMeta": {
       "scrollPadding": {
-        "value": "calc(var(--sticky-offset, var(--header-h)) + 1rem)",
-        "purpose": "The only sticky offset: anchors and focused fields land clear of everything sticky; the Studio sets --sticky-offset (header plus save bar) while mounted. No element adds a scroll-margin of its own."
+        "value": "calc(var(--sticky-offset, var(--header-offset)) + 1rem)",
+        "purpose": "The only sticky offset: anchors and focused fields land clear of everything sticky. --header-offset is the header's height where it sticks and 0 on a window 500px tall or less; the Studio sets --sticky-offset (header plus save bar, each only while it sticks) while mounted. No element adds a scroll-margin of its own."
       },
       "sidebar": {
-        "value": "sticky, 100dvh, scrolls as one column",
-        "purpose": "Nothing inside the sidebar or the mobile sheet shrinks, so navigation never collapses on short screens or at 200% text."
+        "value": "sticky, 100dvh, scrolls as one column (FadeScroll)",
+        "purpose": "Nothing inside the sidebar or the mobile sheet shrinks, so navigation never collapses on short screens or at 200% text; while the column overflows, the edge with more past it fades (2rem mask)."
       },
       "sidebarWidth": {
         "value": "--sidebar-w: 0px; from 48rem min(16rem, 33vw)",
@@ -443,11 +443,19 @@
       },
       "spineColumn": {
         "value": "22rem from a 56rem album body, 24rem from 72rem",
-        "purpose": "Six theme marks, an 8rem title and the Lyrics and Role heads fit without the spine scrolling at normal text size."
+        "purpose": "Six theme marks, an 8rem title and the Lyrics and Role heads fit without the spine scrolling at normal text size; three themes and the 8rem title fit a 320px phone."
       },
       "fontFallbacks": {
         "value": "app/font-fallbacks.css: \"Archivo Local Arial\", \"Archivo Local Roboto\", \"Archivo Local DejaVu\"",
         "purpose": "Local faces per cut (stretch 100% regular and bold, 125%, 75%) with size-adjust matching Archivo's average advance, so nothing re-wraps when Archivo swaps in."
+      },
+      "header": {
+        "value": "h-header (4.3125rem); sticky only at [@media(min-height:501px)]; --header-offset / top-header-offset",
+        "purpose": "On a phone held sideways or at 200% text a stuck header took a third of the window, so it scrolls away there. Anything sticky below it reads --header-offset. Its contents are sized by a 22rem container query: below it search and New album are 44px icon squares and the side padding is min(1rem, 5vw)."
+      },
+      "narrowRule": {
+        "value": "320px viewport, html font-size 200%",
+        "purpose": "Nothing sticks out: rows stack trailing actions under text below a 20rem container, header actions collapse to icons, display titles step down (cqi), catalog separators stay with the next word, tables scroll inside TableScroller with an edge fade."
       }
     },
     "forcedColors": [
@@ -470,6 +478,16 @@
         "name": "theme-mark",
         "value": "carried: CanvasText; not carried: GrayText",
         "purpose": "Background-colored marks would vanish."
+      },
+      {
+        "name": "credits-meter",
+        "value": "track: 1px CanvasText border; fill: CanvasText",
+        "purpose": "Both washes are dropped in forced colors, so the meter is drawn as an outline and a system-colored fill."
+      },
+      {
+        "name": "studio-theme-toggle",
+        "value": "pressed: CanvasText square, Canvas letter; unpressed: GrayText letter",
+        "purpose": "The Studio track list tags themes with key-letter toggles; the spine keeps ThemeMark."
       }
     ]
   },
@@ -526,7 +544,7 @@
       "name": "Sidebar Navigation",
       "kind": "nav",
       "refersTo": "nav-item-active",
-      "description": "44px rows; the current row is Selected Graphite with a saffron bar and icon (a Highlight outline in forced colors). The focus ring is inset. The sidebar is --sidebar-w wide. The account block (name, plan, Upgrade on the free plan, Settings, Help, Sign out) is one component shared with the mobile sheet.",
+      "description": "44px rows; the current row is Selected Graphite with a saffron bar and icon (a Highlight outline in forced colors). The focus ring is inset, Sign out included. The sidebar is --sidebar-w wide and scrolls as one column with an edge fade while it overflows. The account block (name, plan, Upgrade on the free plan, Settings, Help, Sign out) is one component shared with the mobile sheet.",
       "html": "<nav class=\"ds-nav\" aria-label=\"Main\"><a class=\"ds-nav-item\" href=\"#\" aria-current=\"page\"><span class=\"ds-nav-bar\" aria-hidden=\"true\"></span><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg><span>Albums</span></a><a class=\"ds-nav-item\" href=\"#\"><span class=\"ds-nav-bar\" aria-hidden=\"true\"></span><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><span>Discover</span></a></nav>",
       "css": ".ds-nav { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-direction: column; gap: 2px; width: 16rem; } .ds-nav-item { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 4px; font-size: 0.875rem; color: var(--ink-2); text-decoration: none; transition: background-color 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-nav-item svg { color: var(--ink-3); flex: none; } .ds-nav-item:hover { background: var(--hover); color: var(--ink); } .ds-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-nav-bar { position: absolute; top: 8px; bottom: 8px; left: 0; width: 2px; border-radius: 9999px; background: transparent; } .ds-nav-item[aria-current=page] { background: var(--selected); color: var(--ink); font-weight: 600; } .ds-nav-item[aria-current=page] svg { color: var(--accent); } .ds-nav-item[aria-current=page] .ds-nav-bar { background: var(--accent); }"
     },
@@ -542,7 +560,7 @@
       "name": "Release Header",
       "kind": "custom",
       "refersTo": "release-title",
-      "description": "The album title in the expanded cut (display-release), the catalog line in condensed caps, and one next-step action: saffron unless the screen's own content shows a primary (the One Next Step Rule).",
+      "description": "The album title in the expanded cut (display-release, stepping down in a narrow header), the catalog line in condensed caps with each separator kept with the next item (artist, tracks, status, On Discover, \"Remix of <title> by <artist>\" linking to the original on Discover while it is published, edited, and a quiet \"Version history\" link with a 44px target stretched above and below its text), and one next-step action: saffron unless the screen's own content shows a primary (the One Next Step Rule).",
       "html": "<header class=\"ds-release\"><div class=\"ds-release-text\"><h1 class=\"ds-release-title\">Salt Signal</h1><p class=\"ds-catalog\"><span>Mara Lind</span><span aria-hidden=\"true\">·</span><span class=\"ds-figure\">8 tracks</span><span aria-hidden=\"true\">·</span><span>Draft</span><span aria-hidden=\"true\">·</span><span>Edited 2 hours ago</span></p></div><a class=\"ds-release-action\" href=\"#\">Write the next lyric</a></header>",
       "css": ".ds-release { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; } .ds-release-text { display: flex; flex-direction: column; gap: 12px; min-width: 0; } .ds-release-title { margin: 0; max-width: 24ch; font-size: 2.25rem; font-weight: 760; font-stretch: 125%; letter-spacing: -0.02em; line-height: 1.02; text-wrap: balance; overflow-wrap: break-word; hyphens: auto; color: var(--ink); } @media (min-width: 768px) { .ds-release-title { font-size: 3.75rem; } } .ds-catalog { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); } .ds-figure { font-variant-numeric: tabular-nums; } .ds-release-action { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 16px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); font-size: 0.875rem; font-weight: 600; text-decoration: none; transition: background-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-release-action:hover { background: var(--accent-hover); } .ds-release-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
     },
@@ -550,15 +568,15 @@
       "name": "The Spine",
       "kind": "custom",
       "refersTo": "spine-row",
-      "description": "The album sequence as a track sheet: number, title (never under 8rem), lyrics written, the album themes as marks under their full names where the container has room (36rem for up to three themes, 48rem for six) or under short keys with a legend where not, role in the arc. Auto table layout in a TableScroller that scrolls sideways at 200% text; one spoken phrase per row for the themes.",
-      "html": "<div class=\"ds-spine-wrap\"><table class=\"ds-spine\"><caption class=\"ds-sr\">Tracks in sequence</caption><thead><tr><th scope=\"col\" class=\"ds-n\"><span aria-hidden=\"true\">#</span><span class=\"ds-sr\">Track number</span></th><th scope=\"col\">Title</th><th scope=\"col\" class=\"ds-c\">Lyrics</th><th scope=\"col\" class=\"ds-c\"><span class=\"ds-sr\">Album themes</span><span class=\"ds-keys\" aria-hidden=\"true\"><abbr title=\"Isolation\">I</abbr><abbr title=\"Memory\">M</abbr></span></th><th scope=\"col\" class=\"ds-c\">Role</th></tr></thead><tbody><tr><td class=\"ds-num\">01</td><td><a href=\"#\">Call Sign</a></td><td class=\"ds-c ds-fig\"><span aria-hidden=\"true\">2/2</span><span class=\"ds-sr\">Lyrics: 2 of 2 sections written</span></td><td class=\"ds-c\"><span class=\"ds-keys\" aria-hidden=\"true\"><span><span class=\"ds-on\"></span></span><span><span class=\"ds-off\"></span></span></span><span class=\"ds-sr\">Carries Isolation</span></td><td class=\"ds-c\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg><span class=\"ds-sr\">Role: Opening</span></td></tr><tr><td class=\"ds-num\">02</td><td><a href=\"#\">Empty Frequencies</a></td><td class=\"ds-c ds-fig\"><span aria-hidden=\"true\">½</span><span class=\"ds-sr\">Lyrics: 1 of 2 sections written</span></td><td class=\"ds-c\"><span class=\"ds-keys\" aria-hidden=\"true\"><span><span class=\"ds-on\"></span></span><span><span class=\"ds-on\"></span></span></span><span class=\"ds-sr\">Carries Isolation and Memory</span></td><td class=\"ds-c\"><span class=\"ds-off\" aria-hidden=\"true\"></span><span class=\"ds-sr\">No role yet</span></td></tr></tbody></table></div><p class=\"ds-legend\" aria-hidden=\"true\"><span><b>I</b> Isolation</span> <span><b>M</b> Memory</span></p>",
+      "description": "The album sequence as a track sheet: number, title (never under 8rem), lyrics written as a tabular fraction (\"1/2\", never \"½\"), the album themes as marks under their full names where the container has room (36rem for up to three themes, 48rem for six) or under 1rem short keys with a legend where not, role in the arc. Auto table layout in a TableScroller that scrolls sideways, with its edge fade, at 200% text; three themes fit a 320px phone at normal size; one spoken phrase per row for the themes.",
+      "html": "<div class=\"ds-spine-wrap\"><table class=\"ds-spine\"><caption class=\"ds-sr\">Tracks in sequence</caption><thead><tr><th scope=\"col\" class=\"ds-n\"><span aria-hidden=\"true\">#</span><span class=\"ds-sr\">Track number</span></th><th scope=\"col\">Title</th><th scope=\"col\" class=\"ds-c\">Lyrics</th><th scope=\"col\" class=\"ds-c\"><span class=\"ds-sr\">Album themes</span><span class=\"ds-keys\" aria-hidden=\"true\"><abbr title=\"Isolation\">I</abbr><abbr title=\"Memory\">M</abbr></span></th><th scope=\"col\" class=\"ds-c\">Role</th></tr></thead><tbody><tr><td class=\"ds-num\">01</td><td><a href=\"#\">Call Sign</a></td><td class=\"ds-c ds-fig\"><span aria-hidden=\"true\">2/2</span><span class=\"ds-sr\">Lyrics: 2 of 2 sections written</span></td><td class=\"ds-c\"><span class=\"ds-keys\" aria-hidden=\"true\"><span><span class=\"ds-on\"></span></span><span><span class=\"ds-off\"></span></span></span><span class=\"ds-sr\">Carries Isolation</span></td><td class=\"ds-c\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg><span class=\"ds-sr\">Role: Opening</span></td></tr><tr><td class=\"ds-num\">02</td><td><a href=\"#\">Empty Frequencies</a></td><td class=\"ds-c ds-fig\"><span aria-hidden=\"true\">1/2</span><span class=\"ds-sr\">Lyrics: 1 of 2 sections written</span></td><td class=\"ds-c\"><span class=\"ds-keys\" aria-hidden=\"true\"><span><span class=\"ds-on\"></span></span><span><span class=\"ds-on\"></span></span></span><span class=\"ds-sr\">Carries Isolation and Memory</span></td><td class=\"ds-c\"><span class=\"ds-off\" aria-hidden=\"true\"></span><span class=\"ds-sr\">No role yet</span></td></tr></tbody></table></div><p class=\"ds-legend\" aria-hidden=\"true\"><span><b>I</b> Isolation</span> <span><b>M</b> Memory</span></p>",
       "css": ".ds-spine-wrap { position: relative; overflow-x: auto; min-width: 0; } .ds-spine { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; width: 100%; border-collapse: collapse; font-size: 0.875rem; color: var(--ink); } .ds-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .ds-spine th { padding: 0 4px 8px 0; text-align: left; vertical-align: bottom; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--line); } .ds-spine th.ds-n { width: 1.5rem; } .ds-spine th.ds-c { text-align: center; } .ds-keys { display: flex; justify-content: center; } .ds-keys > * { display: grid; place-items: center; width: 1.125rem; flex-shrink: 0; text-decoration: none; } .ds-spine tbody tr { position: relative; border-bottom: 1px solid var(--line); transition: background-color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-spine tbody tr:hover, .ds-spine tbody tr:focus-within { background: var(--hover); } .ds-spine td { height: 44px; padding: 6px 4px 6px 0; vertical-align: middle; } .ds-spine .ds-c { text-align: center; color: var(--ink-2); } .ds-num, .ds-fig { font-variant-numeric: tabular-nums; } .ds-num { font-weight: 600; color: var(--ink-3); } .ds-spine a { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-width: 8rem; overflow-wrap: break-word; color: var(--ink); text-decoration: none; } .ds-spine a::after { content: ''; position: absolute; inset: 0; } .ds-spine a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-on { display: block; margin: 0 auto; width: 10px; height: 10px; border-radius: 4px; background: var(--ink); } .ds-off { display: block; margin: 0 auto; width: 4px; height: 4px; border-radius: 9999px; background: var(--line-strong); } @media (forced-colors: active) { .ds-on { background: CanvasText; } .ds-off { background: GrayText; } } .ds-legend { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; line-height: 1.625; color: var(--ink-3); } .ds-legend b { font-stretch: 75%; letter-spacing: 0.06em; font-weight: 600; color: var(--ink-2); }"
     },
     {
       "name": "Confirm Spend",
       "kind": "custom",
       "refersTo": "button-primary",
-      "description": "Every credit spend asks once: the priced trigger swaps in place for one line naming the cost and the balance after, a primary confirm and Cancel. Escape cancels; focus returns to the trigger.",
+      "description": "Every credit spend asks once: the priced trigger (aria-expanded=\"false\", aria-controls naming the group; never aria-haspopup) swaps in place for one line naming the cost and the balance after, a primary confirm and Cancel. Escape cancels; focus returns to the trigger. While the spend runs the confirm is busy (\"Working…\", Button busy), keeps focus and ignores a second press; when it finishes on a screen that stays, the line closes and focus returns to the trigger.",
       "html": "<div class=\"ds-confirm\" role=\"group\" aria-labelledby=\"ds-confirm-q\"><p id=\"ds-confirm-q\">Remix for 5 credits? You'll have 40 left.</p><button class=\"ds-btn ds-btn-primary\">Remix</button><button class=\"ds-btn ds-btn-ghost\">Cancel</button></div>",
       "css": ".ds-confirm { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .ds-confirm p { margin: 0; font-size: 0.875rem; color: var(--ink); } .ds-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border-radius: 4px; font-size: 0.875rem; font-weight: 600; border: 1px solid transparent; cursor: pointer; } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-primary { background: var(--accent); color: var(--accent-ink); } .ds-btn-primary:hover { background: var(--accent-hover); } .ds-btn-ghost { background: transparent; color: var(--ink-2); } .ds-btn-ghost:hover { background: var(--hover); color: var(--ink); }"
     },
@@ -566,9 +584,25 @@
       "name": "Table Scroller",
       "kind": "custom",
       "refersTo": "table-scroller",
-      "description": "The one wrapper for a table that may be wider than its column: a labelled, focusable region that scrolls sideways inside itself. Positioned (relative) so screen-reader-only text in the table stays inside it instead of widening the page.",
+      "description": "The one wrapper for a table that may be wider than its column: a labelled, focusable region that scrolls sideways inside itself. Positioned (relative) so screen-reader-only text in the table stays inside it instead of widening the page. When the table overflows, the edge with more of it past it fades (a 1.5rem transparency mask, updated on scroll and resize, none on the server); the fade steps aside while the region has focus. Interface unchanged: <TableScroller label=\"…\">.",
       "html": "<div class=\"ds-table-scroller\" role=\"region\" aria-label=\"Tracks in sequence\" tabindex=\"0\"><table class=\"ds-table\"><thead><tr><th scope=\"col\">#</th><th scope=\"col\">Title</th><th scope=\"col\">Lyrics</th></tr></thead><tbody><tr><td>01</td><td>Call Sign</td><td>2/2</td></tr></tbody></table></div>",
       "css": ".ds-table-scroller { position: relative; min-width: 0; overflow-x: auto; } .ds-table-scroller:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-table { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; width: 100%; border-collapse: collapse; font-size: 0.875rem; color: var(--ink); } .ds-table th { text-align: left; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); padding: 0 8px 8px 0; border-bottom: 1px solid var(--line); } .ds-table td { padding: 12px 8px 12px 0; border-bottom: 1px solid var(--line); }"
+    },
+    {
+      "name": "Button Busy",
+      "kind": "custom",
+      "refersTo": "button-secondary",
+      "description": "A button busy with its own work (`<Button busy>`): 50% opacity and a not-allowed cursor like disabled, but it keeps keyboard focus and announces aria-disabled and aria-busy; presses are ignored. `disabled` stays for a control unavailable for a reason shown on screen.",
+      "html": "<button class=\"ds-btn ds-btn-secondary\" aria-disabled=\"true\" aria-busy=\"true\">Saving…</button>",
+      "css": ".ds-btn { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border-radius: 4px; font-size: 0.875rem; font-weight: 600; border: 1px solid transparent; } .ds-btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); } .ds-btn[aria-disabled=\"true\"] { opacity: 0.5; cursor: not-allowed; } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Catalog Row",
+      "kind": "custom",
+      "refersTo": "album-card",
+      "description": "One album as a whole-row link: title in the small display cut, catalog line, then \"Lyrics written 3/8\" and the Coherence verdict label where the page loaded them (Library, Home), a status chip and a chevron. A size container: from 20rem the chip sits at the end and the title keeps 12rem; below it the chip and chevron drop under the catalog line.",
+      "html": "<a class=\"ds-row\" href=\"#\"><div><p class=\"ds-row-title\">Salt Signal</p><p class=\"ds-catalog\">Mara Lind · 8 tracks · Edited 2 hours ago</p><dl class=\"ds-row-progress\"><dt>Lyrics written</dt><dd>3/8</dd><dt>Coherence</dt><dd>Unfinished</dd></dl></div><span class=\"ds-chip\">Draft</span></a>",
+      "css": ".ds-row { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: 44px; padding: 12px 4px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); } .ds-row:hover { background: var(--hover); } .ds-row-title { margin: 0; font-size: 1.125rem; font-weight: 760; font-stretch: 125%; } .ds-catalog { margin: 6px 0 0; font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); } .ds-row-progress { display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 6px 0 0; align-items: baseline; } .ds-row-progress dt { font-size: 0.75rem; font-weight: 600; font-stretch: 75%; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); } .ds-row-progress dd { margin: 0 12px 0 0; font-size: 0.875rem; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-chip { font-size: 0.75rem; padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--ink-2); }"
     }
   ],
   "narrative": {
@@ -614,8 +648,8 @@
         "section": "typography"
       },
       {
-        "name": "The Tabular Figures Rule",
-        "body": "Any number that could line up with another number is set in tabular figures; track numbers are real data and are always two digits.",
+        "name": "The Tabular Figures Stay Tabular Rule",
+        "body": "Any number that could line up with another number is set in tabular figures; track numbers are real data and are always two digits. Fractions are written with a slash in tabular figures (\"1/2\", \"0/2\", \"2/2\", \"Lyrics written 3/8\") everywhere, the spine and the Studio track list included: never a vulgar-fraction glyph (\"½\"), which sets narrower than \"2/2\" and breaks the column.",
         "section": "typography"
       },
       {
@@ -645,7 +679,12 @@
       },
       {
         "name": "The Table Scroller Rule",
-        "body": "Every table that may scroll sideways sits in `TableScroller` (`<TableScroller label=\"…\">`, components/ui.tsx): `relative min-w-0 overflow-x-auto`, a labelled region that takes focus so the keyboard can scroll it. The `relative` is the point: screen-reader-only text inside the table is absolutely positioned, and without a positioned ancestor it escapes the scroller and widens the page.",
+        "body": "Every table that may scroll sideways sits in `TableScroller` (`<TableScroller label=\"…\">`, components/ui.tsx, a client component Server Components render like any primitive): `relative min-w-0 overflow-x-auto`, a labelled region that takes focus so the keyboard can scroll it. The `relative` is the point: screen-reader-only text inside the table is absolutely positioned, and without a positioned ancestor it escapes the scroller and widens the page. When the table is wider than the region, the region shows its scroll cue: the edge with more of the table past it fades out over 1.5rem (a transparency mask from `@/lib/edge-fade`, updated on scroll and on any resize of the region or the table), both edges when there is more on each side, none when it fits. A mask takes no space, so nothing shifts when the cue comes or goes, and the server renders no fade. While the region itself has keyboard focus the mask steps aside, because it would also clip the focus ring. The Help page's tables (costs, plans, shortcuts) are in one too.",
+        "section": "layout"
+      },
+      {
+        "name": "The 320/200 Rule",
+        "body": "Nothing sticks out at 320px with 200% text. Every row that pairs text with a trailing action or badge lets the text keep at least 12rem or stacks the action below it (the catalog row drops its status chip and chevron under the catalog line in a container under 20rem); header actions collapse to 44px icons with their names kept; display titles step down in a narrow container instead of breaking inside words; every catalog separator stays with the word after it; every table is in a TableScroller with its scroll cue; and nothing outside a scroller is wider than the column.",
         "section": "layout"
       },
       {
@@ -665,7 +704,7 @@
       },
       {
         "name": "The One Term Rule",
-        "body": "One word per concept on every surface (labels, headings, fix links, spine heads, search): \"Story note\" for a track's narrative summary, \"Role\" for its place in the arc, \"Motifs\" for album motifs plus track motif tags, read from the same source on the Bible and the Coherence report. CONTEXT.md holds the glossary.",
+        "body": "One word per concept on every surface (labels, headings, fix links, spine heads, search, page titles): \"Story note\" for a track's narrative summary, \"Role\" for its place in the arc, \"Motifs\" for album motifs plus track motif tags, read from the same source on the Bible and the Coherence report; \"Style bible\" (never \"Voice / style bible\" or \"Voice and style\"); \"Discover\" for the public feed, its h1 included (never \"Community albums\"); \"References\". CONTEXT.md holds the glossary.",
         "section": "components"
       },
       {
@@ -719,6 +758,21 @@
         "section": "components"
       },
       {
+        "name": "The Explain Where It Bites Rule",
+        "body": "When the product discounts or rejects something the artist typed (a starter chord loop, an unreadable chord, placeholder lyrics), the explanation sits at the field, where it happens, in one plain line; Help may repeat it but is never the only place it is said.",
+        "section": "components"
+      },
+      {
+        "name": "The Arrivals Say Where You Are Rule",
+        "body": "After a remix, a create or a restore, the screen you land on says what just happened in one line, in its status area (\"Remixed into your workspace · 45 credits left\"), so the arrival is never a silent page swap.",
+        "section": "components"
+      },
+      {
+        "name": "The Busy Keeps Focus Rule",
+        "body": "A control busy with its own work stays focusable (`Button busy`: aria-disabled, aria-busy, presses ignored) instead of `disabled`, and when an action finishes on a screen that stays, focus returns to what started it (Confirm Spend returns it to its trigger). Focus never drops to the page body.",
+        "section": "components"
+      },
+      {
         "name": "The One Term for AI Rule",
         "body": "The AI action and its cost have one name everywhere: \"AI draft\" (\"AI draft · 5 credits\", \"New AI draft\", \"AI drafts\" in plural). Never \"AI run\", \"agent workflow\" or \"brainstorm\" as the name of the spend; the ideation feature may say it brainstorms ideas, but its cost line says \"AI draft\". Likewise lyrics are \"written\", never \"started\" (\"Lyrics written 3/8\").",
         "section": "components"
@@ -734,7 +788,9 @@
       "Do use a transparency mask, not a color, when an overflowing strip needs an edge fade.",
       "Do say what spends credits on the button itself, confirm it once with Confirm Spend, and disable priced AI actions with a plain reason when AI can't run (the disabled button drops its price).",
       "Do give a mark that relies on a wash or saffron a forced-colors equivalent (Highlight, CanvasText, a border).",
-      "Do put every table that may scroll sideways in `TableScroller`, and line anything fixed to the content column up with `--sidebar-w`."
+      "Do put every table that may scroll sideways in `TableScroller` (it brings its own edge fade), and line anything fixed to the content column up with `--sidebar-w`.",
+      "Do check every screen at 320px with 200% text: rows stack their trailing action below the text, header actions become icons, catalog separators stay with the next word.",
+      "Do use `Button busy` for a control busy with its own work, and return focus to the trigger when an action finishes on a screen that stays."
     ],
     "donts": [
       "Don't use saffron for headings, the wordmark, links, hovers, badges, checkboxes, meters or decoration, and never more than one saffron button on a screen.",
@@ -746,7 +802,9 @@
       "Don't set any text below 12px or run body copy wider than 65ch.",
       "Don't add per-element focus rings or remove outlines; insetting the global ring inside a scroller is the only adjustment.",
       "Don't use `table-fixed` with rem columns, rotate column heads, or read a matrix out one cell at a time.",
-      "Don't add a `scroll-margin` for the sticky header: `html`'s scroll padding already clears it, and a second offset doubles it."
+      "Don't add a `scroll-margin` for the sticky header: `html`'s scroll padding already clears it, and a second offset doubles it. Anything that sits below the header reads `--header-offset`, not `--header-h`.",
+      "Don't write a vulgar-fraction glyph (\"½\") for progress; fractions are \"1/2\" in tabular figures.",
+      "Don't put `disabled` on a control that is only busy; it drops keyboard focus."
     ]
   }
 }

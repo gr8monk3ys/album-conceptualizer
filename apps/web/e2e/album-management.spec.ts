@@ -223,7 +223,7 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Style bible saved.")).toBeVisible();
 
     await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Overview", exact: true }).click();
-    await expect(page.getByRole("main").getByText("Voice / Style Bible").first()).toBeVisible();
+    await expect(page.getByRole("main").getByText("Style bible", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Close-mic alto with hushed verses").first()).toBeVisible();
   });
 
@@ -275,6 +275,28 @@ test.describe("Album Management", () => {
     await expect(demoCard).toBeVisible();
     await expect(demoCard).toContainText("1 captured");
     await expect(demoCard).toContainText("Chorus or post-chorus candidate");
+  });
+
+  test("not-found screens keep their tab title once the page has loaded", async ({ page }) => {
+    await devLogin(page);
+
+    await createAlbumFromWizard(page, {
+      title: `Missing Page ${randomSuffix()}`,
+      artist: "Nobody Home",
+      concept: "A record about knocking on doors that were never there.",
+    });
+    const albumId = new URL(page.url()).pathname.match(/\/app\/albums\/([^/]+)/)?.[1];
+    expect(albumId).toBeTruthy();
+    const albumPath = `/app/albums/${albumId}`;
+
+    // The server's HTML is titled correctly; the title must still say so after hydration.
+    for (const path of ["/app/nope", `${albumPath}/mix`]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      await expect(page).toHaveTitle(/Page not found/);
+      expect(await page.evaluate(() => document.title)).toContain("Page not found");
+    }
   });
 
   test("analytics page shows the new project in the workspace funnel", async ({ page }) => {

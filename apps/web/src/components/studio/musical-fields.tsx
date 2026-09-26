@@ -18,16 +18,21 @@ import { cn } from "@/lib/utils";
  * coral under the field ("“banana” isn't a chord the exports can read — try Am, F#m7, G/B.")
  * and the field is marked invalid. What the artist typed is kept (stored as typed, in order);
  * lib/chords never counts a progression with an unreadable token as written.
+ *
+ * `starterLoop` (from lib/chords `isScaffoldSection`) says the chords are still the setup's
+ * loop, which nothing counts as written; the rule is explained here, in Ember, where it bites.
  */
 export function ChordField({
   id,
   value,
   onChange,
+  starterLoop = false,
   className,
 }: {
   id: string;
   value: unknown;
   onChange: (chords: string[]) => void;
+  starterLoop?: boolean;
   className?: string;
 }) {
   const stored = stringifyChordProgression(value);
@@ -49,9 +54,16 @@ export function ChordField({
       className={className}
       error={problem ?? undefined}
       hint={
-        <span className="block max-w-[65ch]">
-          Separate chords with spaces or commas. Loops of 4 to 8 chords export cleanly.
-        </span>
+        <>
+          {starterLoop ? (
+            <span className="block max-w-[65ch] font-medium text-warn">
+              Still the starter loop — change a chord to make it this track’s own.
+            </span>
+          ) : null}
+          <span className="block max-w-[65ch]">
+            Separate chords with spaces or commas. Loops of 4 to 8 chords export cleanly.
+          </span>
+        </>
       }
     >
       {(control) => (

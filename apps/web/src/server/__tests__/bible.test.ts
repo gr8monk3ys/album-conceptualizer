@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { looseThreadsSummary, themeTracksPhrase } from "@/server/bible";
+import { looseThreadsSummary, themeArc, themeTracksPhrase } from "@/server/bible";
 
 describe("themeTracksPhrase", () => {
   it.each([
@@ -10,6 +10,24 @@ describe("themeTracksPhrase", () => {
     [[], 8, "on no track yet"],
   ])("%j of %i → %s", (tracks, total, expected) => {
     expect(themeTracksPhrase(tracks, total)).toBe(expected);
+  });
+});
+
+describe("themeArc", () => {
+  const eight = [1, 2, 3, 4, 5, 6, 7, 8];
+  it.each([
+    [[2, 3, 6, 7], eight, "first on 02, last on 07, missing from 04–05"],
+    [[1, 3, 5], eight, "first on 01, last on 05, missing from 02 and 04"],
+    [[2, 3, 4], eight, "first on 02, last on 04, unbroken"],
+    [[3], eight, "only on 03"],
+    [eight, eight, "on every track"],
+    [[], eight, ""],
+  ])("%j → %s", (tracks, sequence, expected) => {
+    expect(themeArc(tracks, sequence)).toBe(expected);
+  });
+
+  it("reads along the map's order, such as the story order", () => {
+    expect(themeArc([5, 1], [5, 3, 1, 2, 4])).toBe("first on 05, last on 01, missing from 03");
   });
 });
 

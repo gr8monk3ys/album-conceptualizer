@@ -14,8 +14,19 @@ export type TrackTags = {
   characters: string[];
 };
 
-/** Tags the lyrics suggest for one track, none of them on the track already. */
-export type TrackTagProposal = TrackTags & { title: string };
+/**
+ * Tags the lyrics suggest for one track, none of them on the track already, each kind ranked
+ * with the album's own words first. `fromAlbum` names the ones that are the album's central
+ * themes, motifs or characters mentioned in the lyrics: the review ticks only those, and marks
+ * every other proposal "New tag", unticked.
+ */
+export type TrackTagProposal = TrackTags & { title: string; fromAlbum: Record<TagKind, string[]> };
+
+/** Whether a proposed tag is one of the album's own words (so the review ticks it). */
+export function isAlbumMatch(proposal: TrackTagProposal, kind: TagKind, tag: string): boolean {
+  const key = tag.trim().toLowerCase();
+  return proposal.fromAlbum[kind].some((match) => match.trim().toLowerCase() === key);
+}
 
 /** How many tags, over every track and kind. */
 export function countTags(tracks: readonly TrackTags[]): number {

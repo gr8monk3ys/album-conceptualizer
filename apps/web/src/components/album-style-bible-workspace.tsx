@@ -247,8 +247,8 @@ export function AlbumStyleBibleWorkspace({
   return (
     <Section
       id="style-bible"
-      title="Lock the singer, palette, and production rules before handoff"
-      description="Give collaborators a stable target for vocal character, sonic palette, arrangement constraints, and mix priorities."
+      title="Style bible — how this album should sound"
+      description="The lead voice, sonic palette, arrangement rules and mix priorities, in one place. Collaborators and every handoff pack read them from here."
     >
       <div className="@container">
         <div className="grid grid-cols-1 gap-8 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] @3xl:items-start">

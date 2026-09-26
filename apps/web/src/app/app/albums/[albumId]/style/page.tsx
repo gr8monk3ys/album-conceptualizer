@@ -19,9 +19,11 @@ export async function generateMetadata({
   params: Promise<{ albumId: string }>;
 }): Promise<Metadata> {
   const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  if (!albumTitle) return { title: "Page not found" };
   return {
-    title: albumPageTitle("Style", await workspaceAlbumTitle(albumId)),
-    description: "Define the vocal identity, sonic palette, and production rules for your album.",
+    title: albumPageTitle("Style", albumTitle),
+    description: "The Style bible: how this album should sound, from the lead voice to the mix.",
   };
 }
 

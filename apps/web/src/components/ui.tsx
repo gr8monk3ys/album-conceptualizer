@@ -122,7 +122,9 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-4", className)}>
+    // A size container, so the title steps down in a narrow column (a phone at 200% text)
+    // instead of breaking inside words (--text-display-md in globals.css).
+    <header className={cn("@container flex flex-wrap items-end justify-between gap-x-6 gap-y-4", className)}>
       <div className="min-w-0">
         <h1 className="type-display text-display-md break-words hyphens-auto text-ink">{title}</h1>
         {catalog ? <p className="type-catalog mt-3 text-xs text-ink-2">{catalog}</p> : null}
@@ -181,26 +183,12 @@ export function Panel({ className, ...props }: ComponentProps<"div">) {
 }
 
 /**
- * The one wrapper for a table wider than its column: it scrolls sideways inside itself (a
- * labelled, focusable region, so keyboard users can scroll it) and never widens the page.
- * `relative` is the point: screen-reader-only text in the table is absolutely positioned, and
- * without a positioned ancestor here it is placed against the page and escapes the scroller.
+ * The one wrapper for a table wider than its column: a labelled, focusable region that
+ * scrolls sideways inside itself, with an edge fade on the side that has more of the table.
+ * It measures its own scroll position, so it lives in a client module; Server Components
+ * render it like any other primitive (`<TableScroller label="…">…table…</TableScroller>`).
  */
-export function TableScroller({
-  label,
-  className,
-  ...props
-}: ComponentProps<"div"> & { label: string }) {
-  return (
-    <div
-      role="region"
-      aria-label={label}
-      tabIndex={0}
-      className={cn("relative min-w-0 overflow-x-auto", className)}
-      {...props}
-    />
-  );
-}
+export { TableScroller } from "@/components/table-scroller";
 
 const CONTROL =
   "w-full rounded border border-line-control bg-sunken px-3 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-ink-3 focus-visible:border-accent disabled:opacity-60";

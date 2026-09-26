@@ -58,6 +58,33 @@ describe("nextAlbumStep", () => {
     expect(nextAlbumStep("a1", { songs: [song(1)] }).href).toBe("/app/albums/a1/studio?song=1&focus=lyrics");
   });
 
+  it("finishes a half-written track before starting the next empty one", () => {
+    const half = {
+      ...song(3, { lyrics: "Words" }),
+      sections: [
+        { section_type: "verse", order: 1, lyrics: "Words", chord_progression: [] },
+        { section_type: "chorus", order: 2, lyrics: "[Chorus line 1]", chord_progression: [] },
+      ],
+    };
+    const step = nextAlbumStep("a1", {
+      songs: [song(1, { lyrics: "Words" }), song(2, { lyrics: "Words" }), half, song(4)],
+    });
+    expect(step.action).toBe("Finish track 3");
+    expect(step.statement).toBe("Track 3 has 1 of 2 sections written");
+    expect(step.href).toBe("/app/albums/a1/studio?song=3&focus=lyrics");
+  });
+
+  it("writes the empty track when it comes before the half-written one", () => {
+    const half = {
+      ...song(3),
+      sections: [
+        { section_type: "verse", order: 1, lyrics: "Words", chord_progression: [] },
+        { section_type: "chorus", order: 2, lyrics: "", chord_progression: [] },
+      ],
+    };
+    expect(nextAlbumStep("a1", { songs: [song(1, { lyrics: "Words" }), song(2), half] }).action).toBe("Write track 2");
+  });
+
   it("asks for chords once lyrics, themes and story notes are in, since the starter loop doesn't count", () => {
     const step = nextAlbumStep("a1", { songs: [song(1, { lyrics: "Words" })] });
     expect(step.statement).toBe("Track 1 still has the starter chords");

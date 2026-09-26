@@ -2,8 +2,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * Whether a track carries one of the album's central themes: a filled square when it does, a
- * small dot when it doesn't. The one mark for every theme matrix (the spine, the Studio track
- * list, the landing example), so the three never drift apart.
+ * small dot when it doesn't. The one mark for every read-only theme matrix (the spine and the
+ * landing example), so the two never drift apart. The Studio track list is editable and
+ * draws its own toggles (the theme's key letter, filled when pressed).
  *
  * `label` is the mark's spoken equivalent. Leave it out where the row already says what it
  * carries in one phrase (the spine does), so a screen reader isn't read one cell per theme.

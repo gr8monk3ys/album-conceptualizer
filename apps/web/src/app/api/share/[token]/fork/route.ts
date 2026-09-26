@@ -16,11 +16,12 @@ export const POST = apiHandler(
     );
 
     const { token } = await params;
-    const shared = await findSharedAlbum(token, { data: true });
+    const shared = await findSharedAlbum(token, { id: true, data: true });
     if (!shared?.data) throw new ApiError(404, "Not found.");
 
     const id = await forkIntoWorkspace({
       source: shared.data,
+      sourceAlbumId: shared.id,
       workspaceId,
       plan,
       userId,

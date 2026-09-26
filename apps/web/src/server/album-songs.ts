@@ -133,6 +133,21 @@ export function nextAlbumStep(albumId: string, data: unknown): AlbumNextStep {
   });
 
   const needsLyrics = rows.find((row) => row.lyricSections === 0);
+  // A track left half written ahead of the first empty one comes first: finish it before
+  // starting the next ("Finish track 3", straight to its first unwritten section).
+  const halfWritten = needsLyrics
+    ? rows.find(
+        (row) => row.trackNumber < needsLyrics.trackNumber && row.lyricSections > 0 && row.lyricSections < row.sections,
+      )
+    : undefined;
+  if (halfWritten) {
+    return forTrack(
+      halfWritten,
+      `Track ${halfWritten.trackNumber} has ${halfWritten.lyricSections} of ${halfWritten.sections} sections written`,
+      `Finish track ${halfWritten.trackNumber}`,
+      "lyrics",
+    );
+  }
   if (needsLyrics) {
     return forTrack(
       needsLyrics,

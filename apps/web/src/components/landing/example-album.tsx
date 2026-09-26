@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { CatalogItems } from "@/components/album-card";
 import { ThemeMark } from "@/components/theme-mark";
 import { TableScroller } from "@/components/ui";
 import { carriedThemesPhrase } from "@/lib/theme-keys";
@@ -114,14 +115,19 @@ export function ExampleAlbum({ className }: { className?: string }) {
           <h2 id="example-album-title" className="type-display text-3xl text-ink md:text-4xl">
             {EXAMPLE_ALBUM.title}
           </h2>
-          <p className="type-catalog mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">
-            <span>Example album</span>
-            <span aria-hidden="true">·</span>
-            <span className="type-figure">{tracks.length} tracks</span>
-            <span aria-hidden="true">·</span>
-            <span>{EXAMPLE_ALBUM.arc}</span>
-            <span aria-hidden="true">·</span>
-            <span className="type-figure">{THEMES.length} themes</span>
+          <p className="type-catalog mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-2">
+            <CatalogItems
+              items={[
+                "Example album",
+                <span key="tracks" className="type-figure">
+                  {tracks.length} tracks
+                </span>,
+                EXAMPLE_ALBUM.arc,
+                <span key="themes" className="type-figure">
+                  {THEMES.length} themes
+                </span>,
+              ]}
+            />
           </p>
         </div>
       </div>

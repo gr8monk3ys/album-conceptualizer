@@ -2,7 +2,7 @@ import { trackHasWrittenHarmony } from "@/lib/chords";
 import { trackHasLyrics } from "@/lib/lyrics";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 
-/** Style bible fields set before the voice and style count as locked. */
+/** Style bible fields set before the Style bible counts as set. */
 export const STYLE_BIBLE_LOCKED_FIELDS = 3;
 
 /** One thing a handoff carries, as it stands, and where it gets fixed. */

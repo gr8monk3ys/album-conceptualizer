@@ -6,8 +6,10 @@ import { useState } from "react";
 import { Heart, Shuffle } from "lucide-react";
 
 import { ConfirmSpend } from "@/components/confirm-spend";
-import { Button, ButtonLink, StatusMessage } from "@/components/ui";
+import { ButtonLink, IconButton, StatusMessage } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { likeToggleName } from "@/lib/discover";
+import { remixArrivalHref } from "@/lib/remix-arrival";
 import { cn } from "@/lib/utils";
 
 /** The server's human-written `error`, or a plain fallback. Never a raw body or status code. */
@@ -21,8 +23,9 @@ function likesLabel(count: number) {
 }
 
 /**
- * A Like toggle (aria-pressed) with the album's like count beside it. In a list, pass
- * `albumTitle` so each toggle's accessible name says which album it likes.
+ * A quiet Like toggle: a heart icon button (aria-pressed) with the album's like count beside
+ * it, so Remix stays the one bordered action in a row. In a list, pass `albumTitle` so each
+ * toggle's accessible name says which album it likes.
  */
 export function LikeToggle({
   albumId,
@@ -41,6 +44,8 @@ export function LikeToggle({
   const [busy, setBusy] = useState(false);
 
   async function toggle() {
+    // Busy, not disabled: the toggle keeps keyboard focus while its like saves.
+    if (busy) return;
     setBusy(true);
     onError(null);
     try {
@@ -64,14 +69,20 @@ export function LikeToggle({
     }
   }
 
+  const name = likeToggleName(state.liked, albumTitle);
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button tone="secondary" aria-pressed={state.liked} onClick={toggle} disabled={busy}>
-        <Heart className={cn("h-4 w-4", state.liked && "fill-current")} aria-hidden="true" />
-        {state.liked ? "Liked" : "Like"}
-        {albumTitle ? <span className="sr-only"> {albumTitle}</span> : null}
-      </Button>
-      <span className="type-figure min-w-[4.5rem] text-sm text-ink-2">{likesLabel(state.likes)}</span>
+    <div className="flex items-center">
+      <IconButton
+        label={name}
+        aria-pressed={state.liked}
+        aria-disabled={busy || undefined}
+        aria-busy={busy || undefined}
+        onClick={toggle}
+        className={cn("aria-disabled:cursor-progress", state.liked && "text-ink")}
+      >
+        <Heart className={cn("h-5 w-5", state.liked && "fill-current")} aria-hidden="true" />
+      </IconButton>
+      <span className="type-figure min-w-[4.5rem] pr-1 text-sm text-ink-2">{likesLabel(state.likes)}</span>
     </div>
   );
 }
@@ -116,7 +127,7 @@ export function RemixButton({
       // Open the new album, then refresh so the workspace chrome (the credits meter) re-renders
       // with the spent credits. The order matters: a navigation discards a refresh that is
       // still pending, while a refresh queued after it runs once the album has opened.
-      router.push(`/app/albums/${payload.id}/studio`);
+      router.push(remixArrivalHref(payload.id));
       router.refresh();
     } catch (err) {
       onError(err instanceof Error ? err.message : "The remix didn't go through. Try again.");
@@ -134,15 +145,21 @@ export function RemixButton({
         busy={busy}
         disabled={cannotAfford}
         tone={tone}
+        className="max-w-full"
       >
-        <Shuffle className="h-4 w-4" aria-hidden="true" />
-        {busy ? "Remixing…" : "Remix"}
-        {albumTitle ? <span className="sr-only"> {albumTitle}</span> : null}
-        {busy ? null : ` · ${cost} credits`}
+        <Shuffle className="h-4 w-4 shrink-0" aria-hidden="true" />
+        {/* One run of text, so the label has no flex gap in it ("Remix · 5 credits", not
+            "Remix  · 5 credits") and wraps between words when the row is narrow. A disabled
+            priced action drops its price; the line below says why. */}
+        <span className="min-w-0 text-left">
+          {busy ? "Remixing…" : "Remix"}
+          {albumTitle ? <span className="sr-only"> {albumTitle}</span> : null}
+          {busy || cannotAfford ? null : ` · ${cost} credits`}
+        </span>
       </ConfirmSpend>
       {cannotAfford ? (
         <p className="max-w-[65ch] text-xs text-ink-2">
-          You have {creditsRemaining} {creditsRemaining === 1 ? "credit" : "credits"}.{" "}
+          A remix costs {cost} credits and you have {creditsRemaining}.{" "}
           <Link href="/app/challenges" className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-ink">
             Earn more
           </Link>

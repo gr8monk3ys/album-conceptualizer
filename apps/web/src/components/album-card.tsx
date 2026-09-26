@@ -15,6 +15,11 @@ export type AlbumListItem = {
   isPublic?: boolean;
   /** ISO timestamp of the last edit. */
   updatedAt: string;
+  /**
+   * How far the album has come (server/album-progress.ts): tracks with lyrics written, and
+   * the Coherence verdict label. Rows show it when the page loaded it.
+   */
+  progress?: { tracks: number; lyricsWritten: number; verdict: string };
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -50,8 +55,10 @@ export function toAlbumListItem(album: {
 
 /**
  * A catalog line (artist · tracks · edited) whose separators stay with the item that follows,
- * so a wrapped line never ends on a dangling dot. Items may wrap inside themselves, so a long
- * artist name still fits a narrow screen or 200% text.
+ * so a wrapped line never ends on a dangling dot: each separator is inside its item, joined
+ * to the item's first word with no break opportunity between them. Items may wrap inside
+ * themselves, so a long artist name still fits a narrow screen or 200% text. Use it for every
+ * catalog line, including the release header's.
  */
 export function CatalogItems({ items }: { items: ReactNode[] }) {
   return (
@@ -66,9 +73,38 @@ export function CatalogItems({ items }: { items: ReactNode[] }) {
   );
 }
 
+/** "Lyrics written 3/8 · Coherence Unfinished": the figures Home shows for the album it continues. */
+function ProgressLine({ progress }: { progress: NonNullable<AlbumListItem["progress"]> }) {
+  const { tracks, lyricsWritten, verdict } = progress;
+  return (
+    <dl className="mt-1.5 flex flex-wrap gap-x-5 gap-y-0.5">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <dt className="type-catalog text-xs text-ink-3">Lyrics written</dt>
+        <dd className="type-figure text-sm font-semibold text-ink">
+          <span aria-hidden="true">
+            {lyricsWritten}/{tracks}
+          </span>
+          <span className="sr-only">
+            {lyricsWritten} of {tracks} {tracks === 1 ? "track" : "tracks"}
+          </span>
+        </dd>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <dt className="type-catalog text-xs text-ink-3">Coherence</dt>
+        <dd className="text-sm font-semibold text-ink">{verdict}</dd>
+      </div>
+    </dl>
+  );
+}
+
 /**
  * One album as a catalog row: the title in the display cut, a catalog line beneath it
- * (artist · tracks · edited), and its status. The whole row is a single link.
+ * (artist · tracks · edited), how far it has come when the page knows (lyrics written, the
+ * Coherence verdict), and its status. The whole row is a single link.
+ *
+ * The row is a size container: with 20rem or more the status sits at the row's end and the
+ * title keeps at least 12rem; with less (a narrow phone, 200% text) the status and chevron
+ * drop below the catalog line and the title has the whole width.
  */
 export function AlbumCard({
   album,
@@ -86,30 +122,32 @@ export function AlbumCard({
   return (
     <Link
       href={href}
-      className={cn(
-        "group flex min-h-11 items-center gap-4 px-1 py-3 transition-colors hover:bg-hover",
-        className,
-      )}
+      className={cn("group @container block min-h-11 px-1 py-3 transition-colors hover:bg-hover", className)}
     >
-      <div className="min-w-0 flex-1">
-        <p className="type-display break-words text-lg text-ink hyphens-auto md:text-xl">{album.title}</p>
-        <p className="type-catalog mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
-          <CatalogItems
-            items={[
-              album.artist || "No artist yet",
-              <span key="tracks" className="type-figure">{tracks}</span>,
-              <span key="edited">
-                Edited <RelativeTime date={album.updatedAt} />
-              </span>,
-            ]}
-          />
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        {/* One badge per fact: publishing sets both the status and Discover visibility. */}
-        <Chip>{album.isPublic ? "Published" : albumStatusLabel(album.status)}</Chip>
-        {hint ? <span className="hidden text-sm text-ink-2 group-hover:text-ink md:inline">{hint}</span> : null}
-        <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+      <div className="flex flex-col gap-2 @min-[20rem]:flex-row @min-[20rem]:items-center @min-[20rem]:gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="type-display break-words text-lg text-ink hyphens-auto md:text-xl">{album.title}</p>
+          <p className="type-catalog mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
+            <CatalogItems
+              items={[
+                album.artist || "No artist yet",
+                <span key="tracks" className="type-figure">{tracks}</span>,
+                <span key="edited">
+                  Edited <RelativeTime date={album.updatedAt} />
+                </span>,
+              ]}
+            />
+          </p>
+          {album.progress?.tracks ? <ProgressLine progress={album.progress} /> : null}
+        </div>
+        <div className="flex items-center justify-between gap-3 @min-[20rem]:justify-end">
+          <span className="flex min-w-0 flex-wrap items-center gap-3">
+            {/* One badge per fact: publishing sets both the status and Discover visibility. */}
+            <Chip>{album.isPublic ? "Published" : albumStatusLabel(album.status)}</Chip>
+            {hint ? <span className="hidden text-sm text-ink-2 group-hover:text-ink md:inline">{hint}</span> : null}
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+        </div>
       </div>
     </Link>
   );

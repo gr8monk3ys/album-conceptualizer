@@ -104,7 +104,7 @@ export async function getAlbumOnboardingSummary(input: {
     },
     {
       key: "style_bible_locked",
-      label: "Lock the voice and style",
+      label: "Set the Style bible",
       description: "Set at least three of the Style bible's fields, such as the lead voice, sonic palette and mix priorities.",
       href: `${base}/style`,
       // Read from the album itself: a Style bible saved and later cleared is not done.

@@ -4,6 +4,7 @@ import { AlbumList, CatalogItems, albumStatusLabel, toAlbumListItem } from "@/co
 import { RelativeTime } from "@/components/relative-time";
 import { ButtonLink, EmptyState, PageHeader, Section } from "@/components/ui";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { albumProgressById } from "@/server/album-progress";
 import { getSpineRows, nextAlbumStep } from "@/server/album-songs";
 import { getAlbum, listAlbums } from "@/server/albums";
 import { getDailyChallenge } from "@/server/challenges";
@@ -38,7 +39,13 @@ export default async function AppHomePage() {
   const step = latest ? nextAlbumStep(latest.id, latest.data) : null;
   const stepTitle = step?.trackTitle ?? null;
 
-  const others = albums.slice(1, 1 + OTHERS_LIMIT).map(toAlbumListItem);
+  // The other albums' rows carry the same progress figures as the Library's.
+  const otherAlbums = albums.slice(1, 1 + OTHERS_LIMIT);
+  const otherProgress = await albumProgressById(
+    workspace.id,
+    otherAlbums.map((album) => album.id),
+  );
+  const others = otherAlbums.map((album) => ({ ...toAlbumListItem(album), progress: otherProgress.get(album.id) }));
   const { challenge } = getDailyChallenge();
 
   // Where the latest album stands, counted the way the spine and the handoff pack count it

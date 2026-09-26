@@ -11,14 +11,19 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Notifications",
-  description: "Mentions, comments and tasks on your albums.",
+  description: "Mentions, comments and tasks on your albums, and who liked or remixed them on Discover.",
 };
 
 const TYPE_LABEL: Record<string, string> = {
   mention: "Mention",
   comment: "Comment",
   task: "Task",
+  like: "Like",
+  remix: "Remix",
 };
+
+/** Likes and remixes name the artist in their title ("Theo Lind remixed Salt Year"). */
+const NAMES_ACTOR_IN_TITLE = new Set(["like", "remix"]);
 
 function typeLabel(type: string) {
   return TYPE_LABEL[type] ?? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
@@ -56,7 +61,7 @@ export default async function NotificationsPage() {
             <span className="type-figure">{unreadCount ? `${unreadCount} unread` : "All caught up"}</span>
           ) : undefined
         }
-        description="Mentions, comments and tasks left on your albums' sections."
+        description="Mentions, comments and tasks left on your albums' sections, and the artists who like or remix your albums on Discover."
         actions={notifications.length ? <MarkAllReadButton disabled={!unreadCount} /> : null}
       />
 
@@ -109,7 +114,8 @@ export default async function NotificationsPage() {
                       <Chip>{typeLabel(n.type)}</Chip>
                     </div>
                     <p className="text-xs text-ink-3">
-                      {who} · <RelativeTime date={n.createdAt.toISOString()} />
+                      {NAMES_ACTOR_IN_TITLE.has(n.type) ? null : <>{who} · </>}
+                      <RelativeTime date={n.createdAt.toISOString()} />
                     </p>
                     {n.body ? (
                       <p className="mt-2 max-w-[65ch] break-words text-sm leading-relaxed text-ink-2">{n.body}</p>
@@ -126,7 +132,8 @@ export default async function NotificationsPage() {
       ) : (
         <EmptyState title="Nothing here yet">
           When someone comments on a section, mentions you with @name, or assigns you a task on an
-          album, it shows up here with a link straight to that spot in the Studio.
+          album, it shows up here with a link straight to that spot in the Studio. So does another
+          artist liking or remixing an album you published to Discover.
         </EmptyState>
       )}
     </div>

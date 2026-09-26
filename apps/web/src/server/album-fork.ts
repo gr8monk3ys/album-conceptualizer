@@ -5,6 +5,7 @@ import { buildAlbumMutationData } from "@/server/album-sync";
 import { ApiError } from "@/server/api-error";
 import { chargeCredits, CREDIT_COSTS } from "@/server/credits";
 import { getPrisma } from "@/server/db";
+import { notifyAlbumOwnerQuietly } from "@/server/notify";
 import { enforceProjectLimit, type Plan } from "@/server/plan";
 
 function newId() {
@@ -20,6 +21,8 @@ export function forkAlbumJson(
      * isn't known); the original artist is kept in `remixed_from`, never in `artist`.
      */
     remixerName?: string | null;
+    /** The database id of the album being remixed, so the remix can link back to it. */
+    sourceAlbumId?: string | null;
   },
 ): AlbumJson {
   const now = new Date().toISOString();
@@ -31,9 +34,13 @@ export function forkAlbumJson(
     id: newId(),
     title: `${album.title}${titleSuffix}`.trim().slice(0, 200),
     artist: remixer,
-    // Provenance: which album this remix started from. Plain strings only, so it stays
-    // JSON-safe; the album schema passes unknown keys through.
+    // Provenance: which album this remix started from, so the original artist's authorship
+    // stays visible on the remix (the release header links "Remix of <title> by <artist>" to
+    // the original on Discover while it is published). `album_id` is the original's database
+    // id, the one in its Discover address. Plain strings only, so it stays JSON-safe; the
+    // album schema passes unknown keys through.
     remixed_from: {
+      album_id: opts?.sourceAlbumId || null,
       title: album.title,
       artist: typeof album.artist === "string" && album.artist.trim() ? album.artist.trim() : null,
     },
@@ -53,10 +60,12 @@ export function forkAlbumJson(
 /**
  * Fork a published or shared album snapshot into the caller's workspace: charge the fork,
  * enforce the free plan's project limit, and create the album with a first version, all in
- * one transaction. Returns the new album's id.
+ * one transaction. Then the original's owner is told who remixed it. Returns the new album's id.
  */
 export async function forkIntoWorkspace(input: {
   source: unknown;
+  /** The database id of the album being remixed: recorded in `remixed_from`, and its owner is notified. */
+  sourceAlbumId: string;
   workspaceId: string;
   plan: Plan;
   userId: string;
@@ -74,6 +83,7 @@ export async function forkIntoWorkspace(input: {
     const forked = forkAlbumJson(parsed.data, {
       titleSuffix: " (Remix)",
       remixerName: remixer?.name ?? null,
+      sourceAlbumId: input.sourceAlbumId,
     });
     await chargeCredits(tx, {
       workspaceId: input.workspaceId,
@@ -98,6 +108,12 @@ export async function forkIntoWorkspace(input: {
       select: { id: true },
     });
     return album;
+  });
+  // After the commit: a failed notification never undoes a remix that was paid for.
+  await notifyAlbumOwnerQuietly(getPrisma(), {
+    albumId: input.sourceAlbumId,
+    actorUserId: input.userId,
+    kind: "remix",
   });
   return created.id;
 }
