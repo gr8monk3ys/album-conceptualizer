@@ -3,7 +3,11 @@
 import { useEffect, useRef } from "react";
 import { Pause, Play, Repeat2, SkipBack, SkipForward, Square, Volume2 } from "lucide-react";
 
-import { usePlayer, type PreviewInstrument } from "@/components/player/player-provider";
+import {
+  usePlayer,
+  usePlayerPosition,
+  type PreviewInstrument,
+} from "@/components/player/player-provider";
 
 function formatClock(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "0:00";
@@ -15,6 +19,7 @@ function formatClock(totalSeconds: number) {
 
 export function Playerbar() {
   const player = usePlayer();
+  const position = usePlayerPosition();
   const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const waveformRafRef = useRef<number | null>(null);
   const getWaveform = player.getWaveform;
@@ -33,7 +38,7 @@ export function Playerbar() {
           ? "Loading instrument…"
         : player.nowPlaying?.subtitle ?? "Load a section preview from Studio.";
 
-  const ratio = player.duration ? Math.min(1, Math.max(0, player.position / player.duration)) : 0;
+  const ratio = player.duration ? Math.min(1, Math.max(0, position / player.duration)) : 0;
 
   useEffect(() => {
     const canvas = waveformCanvasRef.current;
@@ -163,7 +168,7 @@ export function Playerbar() {
 
           <div className="flex w-full max-w-[520px] items-center gap-3">
             <div className="text-[11px] tabular-nums text-[var(--muted2)]">
-              {formatClock(player.position)}
+              {formatClock(position)}
             </div>
             <button
               type="button"

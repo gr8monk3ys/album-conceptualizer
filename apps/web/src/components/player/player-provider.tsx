@@ -2,9 +2,48 @@
 
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import * as Tone from "tone";
-import { Midi } from "@tonejs/midi";
-import Soundfont, { type Player as SoundfontPlayer } from "soundfont-player";
+import type * as ToneModule from "tone";
+import type { Midi as MidiClass } from "@tonejs/midi";
+import type SoundfontModule from "soundfont-player";
+import type { Player as SoundfontPlayer } from "soundfont-player";
+
+// Tone.js, @tonejs/midi and soundfont-player are only needed once someone
+// previews a track, so they load on first use (react-best-practices 2.2)
+// instead of shipping in the studio page's initial bundle.
+type AudioLibs = {
+  Tone: typeof ToneModule;
+  Midi: typeof MidiClass;
+  Soundfont: typeof SoundfontModule;
+};
+
+let audioLibs: AudioLibs | null = null;
+let audioLibsPromise: Promise<AudioLibs> | null = null;
+
+function loadAudioLibs(): Promise<AudioLibs> {
+  if (!audioLibsPromise) {
+    audioLibsPromise = Promise.all([
+      import("tone"),
+      import("@tonejs/midi"),
+      import("soundfont-player"),
+    ]).then(
+      ([tone, midi, soundfont]) => {
+        audioLibs = { Tone: tone, Midi: midi.Midi, Soundfont: soundfont.default };
+        return audioLibs;
+      },
+      (err) => {
+        audioLibsPromise = null; // let a later click retry
+        throw err;
+      },
+    );
+  }
+  return audioLibsPromise;
+}
+
+/** The loaded libraries. Only called on paths that run after loadAudioLibs(). */
+function libs(): AudioLibs {
+  if (!audioLibs) throw new Error("Audio preview is still loading.");
+  return audioLibs;
+}
 
 type PlayerStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
@@ -26,7 +65,6 @@ type PlayerApi = {
   status: PlayerStatus;
   nowPlaying: NowPlaying | null;
   duration: number;
-  position: number;
   volume: number;
   loop: boolean;
   instrument: PreviewInstrument;
@@ -45,6 +83,10 @@ type PlayerApi = {
 };
 
 const PlayerContext = createContext<PlayerApi | null>(null);
+// Playback position changes every animation frame; keeping it in its own
+// context means only the components that show it re-render at 60fps, not the
+// whole studio (react-best-practices 5.x).
+const PlayerPositionContext = createContext<number>(0);
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -71,7 +113,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const activeInstrumentRef = useRef<SoundfontPlayer | null>(null);
 
   const partRef = useRef<
-    Tone.Part<{ time: number; name: string; duration: number; velocity: number }> | null
+    ToneModule.Part<{ time: number; name: string; duration: number; velocity: number }> | null
   >(null);
 
   const rafRef = useRef<number | null>(null);
@@ -98,7 +140,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const currentMidiNotesRef = useRef<string[]>([]);
 
   function getAudioContext(): AudioContext {
-    return Tone.getContext().rawContext as AudioContext;
+    return libs().Tone.getContext().rawContext as AudioContext;
   }
 
   const ensureAudioGraph = useCallback(() => {
@@ -137,11 +179,15 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   }, []);
 
   const stopInternal = useCallback((opts?: { keepPosition?: number }) => {
-    Tone.Transport.stop();
-    Tone.Transport.cancel(0);
+    // Nothing can be playing before the audio libraries have loaded.
+    if (audioLibs) {
+      const { Transport } = audioLibs.Tone;
+      Transport.stop();
+      Transport.cancel(0);
+      Transport.seconds = 0;
+    }
     stopAllSound();
     const keep = opts?.keepPosition;
-    Tone.Transport.seconds = 0;
     setStatus((prev) => (prev === "idle" ? "idle" : "ready"));
     if (typeof keep === "number") {
       setPosition(keep);
@@ -156,7 +202,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
   const pause = useCallback(() => {
     if (status !== "playing") return;
-    Tone.Transport.pause();
+    libs().Tone.Transport.pause();
     stopAllSound();
     setStatus("paused");
   }, [status]);
@@ -164,13 +210,14 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const seek = useCallback((seconds: number) => {
     if (!durationRef.current) return;
     const next = clamp(seconds, 0, durationRef.current);
-    Tone.Transport.seconds = next;
+    libs().Tone.Transport.seconds = next;
     setPosition(next);
     positionRef.current = next;
   }, []);
 
   const arm = useCallback(async () => {
     // Needs a user gesture in most browsers. Call from click handlers (Play/Preview).
+    const { Tone } = await loadAudioLibs();
     await Tone.start();
   }, []);
 
@@ -208,7 +255,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
                 : "pad_2_warm";
 
         const nextNotes = new Set<string>([...(previouslyLoaded ?? []), ...requiredNotes]);
-        const player = await Soundfont.instrument(ac, instrumentName, {
+        const player = await libs().Soundfont.instrument(ac, instrumentName, {
           soundfont: soundfontSet,
           ...(fromBase ? { from: fromBase } : {}),
           notes: Array.from(nextNotes),
@@ -245,6 +292,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       setPosition(0);
 
       try {
+        const { Tone, Midi } = await loadAudioLibs();
         ensureAudioGraph();
 
         Tone.Transport.stop();
@@ -322,14 +370,15 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
     if (instrumentLoading) return;
 
     // If we ended the previous playback, restart from the beginning.
+    const { Transport } = libs().Tone;
     if (durationRef.current && positionRef.current >= durationRef.current - 0.01) {
-      Tone.Transport.seconds = 0;
+      Transport.seconds = 0;
       setPosition(0);
       positionRef.current = 0;
     }
 
     await arm();
-    Tone.Transport.start();
+    Transport.start();
     setStatus("playing");
   }, [arm, instrumentLoading]);
 
@@ -345,7 +394,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
     }
 
     const tick = () => {
-      const next = Tone.Transport.seconds;
+      const next = libs().Tone.Transport.seconds;
       setPosition(next);
       positionRef.current = next;
 
@@ -391,7 +440,6 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       status,
       nowPlaying,
       duration,
-      position,
       volume,
       loop,
       instrument,
@@ -420,7 +468,6 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       nowPlaying,
       pause,
       play,
-      position,
       seek,
       setInstrument,
       setVolume,
@@ -431,7 +478,11 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
     ],
   );
 
-  return <PlayerContext.Provider value={api}>{children}</PlayerContext.Provider>;
+  return (
+    <PlayerContext.Provider value={api}>
+      <PlayerPositionContext.Provider value={position}>{children}</PlayerPositionContext.Provider>
+    </PlayerContext.Provider>
+  );
 }
 
 export function PlayerProvider(props: PlayerProviderProps) {
@@ -442,4 +493,9 @@ export function usePlayer() {
   const ctx = useContext(PlayerContext);
   if (!ctx) throw new Error("usePlayer must be used within a PlayerProvider.");
   return ctx;
+}
+
+/** Current playback position in seconds; re-renders on every animation frame. */
+export function usePlayerPosition() {
+  return useContext(PlayerPositionContext);
 }
