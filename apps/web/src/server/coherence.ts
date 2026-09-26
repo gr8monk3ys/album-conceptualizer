@@ -468,6 +468,11 @@ function dimensionScores(counts: TrackCounts, album: AlbumFacts): Record<Coheren
   if (themeDrift) motifs -= 18;
   if (album.uniqueMotifs > 0 && album.callbackMotifs === 0) motifs -= 22;
   if (album.uniqueMotifs > 0 && album.callbackMotifs === 1) motifs -= 8;
+  // Like Harmony's, the number can't claim what its own signal says isn't there: with no motifs
+  // it stays low ("No motifs yet" beside 82 read as a bug and let an album without its motif
+  // layer score in the 90s), and motifs that never return keep it under the middle.
+  if (!album.uniqueMotifs) motifs = Math.min(motifs, 40);
+  else if (album.callbackMotifs === 0) motifs = Math.min(motifs, 60);
 
   return {
     narrative: clampScore(narrative),

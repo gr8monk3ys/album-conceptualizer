@@ -264,6 +264,24 @@ describe("where coherence issues are fixed", () => {
     expect(bare.issues.find((issue) => issue.id === "no_motifs")?.fix).toEqual({ focus: "album-motifs" });
   });
 
+  it("keeps the Motifs score low while the album has no motifs, or none that return", () => {
+    // Themed and written, so nothing else holds the number down: it was 82 beside "No motifs yet".
+    const songs = [0, 1, 2, 3].map((index) => scaffoldSong(index, { verse: "Words", themes: ["tide"] }));
+    const bare = analyzeAlbumCoherence(album(songs, { themes: ["tide"] }));
+    expect(breakdown(bare, "motifs").score).toBeLessThanOrEqual(40);
+    expect(breakdown(bare, "motifs").summary).toContain("No motifs yet");
+
+    const once = analyzeAlbumCoherence(
+      album(songs.map((song, index) => (index === 0 ? { ...song, motifs: ["lamp"] } : song)), { themes: ["tide"] }),
+    );
+    expect(breakdown(once, "motifs").score).toBeLessThanOrEqual(60);
+
+    const returning = analyzeAlbumCoherence(
+      album(songs.map((song) => ({ ...song, motifs: ["lamp"] })), { themes: ["tide"] }),
+    );
+    expect(breakdown(returning, "motifs").score).toBeGreaterThan(breakdown(once, "motifs").score);
+  });
+
   it("carries the fix onto next actions", () => {
     for (const action of report.nextActions) {
       expect(action.fix).toBeDefined();
