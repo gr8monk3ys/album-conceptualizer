@@ -2,9 +2,15 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
+from typing import cast
 
 from album_conceptualizer.rag.embeddings import Document, EmbeddingModel
+from album_conceptualizer.rag.laya_router import LayaQueryRouter, router_from_settings
 from album_conceptualizer.rag.vector_store import ChromaVectorStore, MultiIndexStore
+
+
+# Sentinel: build the laya router from settings unless the caller passes one (or None).
+_FROM_SETTINGS = object()
 
 
 class BaseRetriever(ABC):
@@ -305,8 +311,21 @@ class UnifiedRetriever:
         self,
         multi_index_store: MultiIndexStore,
         embedding_model: EmbeddingModel,
+        laya_router: LayaQueryRouter | object | None = _FROM_SETTINGS,
     ):
+        """
+        Args:
+            multi_index_store: The per-domain vector stores
+            embedding_model: Model for query embedding
+            laya_router: Optional laya router for 'auto' queries. By default it is
+                built from settings (LAYA_URL); pass None to force keyword routing.
+        """
         self.embedding_model = embedding_model
+        self.laya_router: LayaQueryRouter | None = (
+            router_from_settings()
+            if laya_router is _FROM_SETTINGS
+            else cast("LayaQueryRouter | None", laya_router)
+        )
         self.lyrics_retriever = LyricsRetriever(multi_index_store.lyrics_store, embedding_model)
         self.music_theory_retriever = MusicTheoryRetriever(
             multi_index_store.music_theory_store, embedding_model
@@ -344,7 +363,19 @@ class UnifiedRetriever:
         return retriever.retrieve(query, top_k=top_k, **kwargs)
 
     def _classify_query(self, query: str) -> str:
-        """Classify query to determine best retriever."""
+        """Classify query to determine best retriever.
+
+        Uses laya when configured and confident; otherwise the keyword heuristic.
+        """
+        if self.laya_router is not None:
+            choice = self.laya_router.classify(query)
+            if choice is not None:
+                return choice
+        return self._classify_query_by_keywords(query)
+
+    @staticmethod
+    def _classify_query_by_keywords(query: str) -> str:
+        """Keyword-count heuristic (the default, and the fallback for laya)."""
         query_lower = query.lower()
 
         # Music theory keywords

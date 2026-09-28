@@ -194,6 +194,23 @@ class Settings(BaseSettings):
         alias="ALBUM_CONCEPTUALIZER_SMTP_TIMEOUT_SECONDS",
     )
 
+    # Optional laya decision model: routes UnifiedRetriever "auto" queries.
+    # Unset URL = off; keyword routing is always the fallback.
+    laya_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ALBUM_CONCEPTUALIZER_LAYA_URL", "LAYA_URL"),
+    )
+    laya_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ALBUM_CONCEPTUALIZER_LAYA_API_KEY", "LAYA_API_KEY"),
+    )
+    laya_min_confidence: float = Field(
+        default=0.6,
+        ge=0.0,
+        le=1.0,
+        alias="ALBUM_CONCEPTUALIZER_LAYA_MIN_CONFIDENCE",
+    )
+
     # Logging
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 

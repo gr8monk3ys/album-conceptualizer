@@ -80,6 +80,10 @@ Then open:
 
 Use Dev Login locally when enabled.
 
+Optional: set `ALBUM_CONCEPTUALIZER_LAYA_URL` (or `LAYA_URL`) to let a laya server pick the
+RAG retriever for `auto` queries. The keyword router remains the fallback. See
+[Installation → laya query routing](docs/getting-started/installation.md#optional-laya-query-routing).
+
 ## Main Developer Commands
 
 ### Python

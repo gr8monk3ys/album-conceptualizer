@@ -126,6 +126,19 @@ EOF
 | `ALBUM_CONCEPTUALIZER_EMAIL_FROM` | Sender identity for SMTP mode | None |
 | `ALBUM_CONCEPTUALIZER_SMTP_HOST` | SMTP host for `smtp` provider | None |
 | `ALBUM_CONCEPTUALIZER_TELEMETRY` | Enable telemetry | false |
+| `ALBUM_CONCEPTUALIZER_LAYA_URL` (or `LAYA_URL`) | laya server for RAG query routing (see below) | None (off) |
+| `ALBUM_CONCEPTUALIZER_LAYA_API_KEY` (or `LAYA_API_KEY`) | Bearer token for the laya server | None |
+| `ALBUM_CONCEPTUALIZER_LAYA_MIN_CONFIDENCE` | Minimum laya confidence to accept its route | 0.6 |
+
+#### Optional: laya query routing
+
+`UnifiedRetriever.retrieve(..., retriever_type="auto")` normally picks the lyrics,
+music-theory or narrative retriever by counting keywords. When a laya URL is set, it
+first asks the laya server (`POST /v1/systemone`) one `choice` question over those three
+retrievers. The keyword logic is still used when laya is not configured, errors or times
+out (4 s), returns an unexpected answer, or is less confident than
+`ALBUM_CONCEPTUALIZER_LAYA_MIN_CONFIDENCE`. laya is called over plain HTTP, so it adds no
+new dependencies.
 
 ## Verify Installation
 
