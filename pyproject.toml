@@ -1,6 +1,6 @@
 [project]
 name = "album-conceptualizer"
-version = "0.1.0"
+version = "0.3.0"
 description = "A RAG-powered concept album ideation system with multi-agent orchestration"
 readme = "README.md"
 license = { text = "GPL-3.0" }
