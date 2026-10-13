@@ -207,7 +207,38 @@ def cmd_index(args: argparse.Namespace) -> None:
         console.print(f"[green]Indexed {len(ids)} chord progressions[/green]")
 
     elif args.source == "lyrics":
-        console.print("[yellow]Lyrics indexing not yet implemented[/yellow]")
+        if not args.path:
+            console.print("[red]Error: --path required for lyrics[/red]")
+            sys.exit(1)
+
+        from album_conceptualizer.models.album import Album
+        from album_conceptualizer.rag.embeddings import get_embedding_model
+        from album_conceptualizer.rag.indexer import LyricsIndexer
+        from album_conceptualizer.rag.vector_store import ChromaVectorStore
+
+        input_path = Path(args.path)
+        if not input_path.exists():
+            console.print(f"[red]Error: File not found: {args.path}[/red]")
+            sys.exit(1)
+
+        album = Album.model_validate_json(input_path.read_text())
+
+        console.print("Initializing embedding model...")
+        embedding_model = get_embedding_model()
+
+        console.print("Creating vector store...")
+        vector_store = ChromaVectorStore(
+            collection_name="lyrics",
+            embedding_model=embedding_model,
+            persist_directory=Path("./data/chroma"),
+        )
+
+        console.print("Indexing lyrics...")
+        lyrics_indexer = LyricsIndexer(vector_store, embedding_model)
+        result = lyrics_indexer.index_album(album)
+
+        total = sum(len(ids) for ids in result.values())
+        console.print(f"[green]Indexed {total} lyrics documents[/green]")
 
     else:
         console.print(f"[yellow]Custom indexing for {args.path}[/yellow]")
