@@ -6,7 +6,7 @@ This roadmap turns Album Conceptualizer into a paid‑ready, production‑grade 
 Goal: A new user can create a cohesive album and export it reliably in one session.
 
 Sprint 1: Reliable Core Flow
-- Gradio onboarding wizard: concept → tracklist → song scaffolds → export
+- Onboarding wizard: concept → tracklist → song scaffolds → export
 - Project lifecycle: autosave, manual “Save version,” and export bundles
 - AI error handling: retries, user‑visible errors, and partial‑output fallback
 - UX polish: progress states, step indicators, export success screen
@@ -58,6 +58,6 @@ Exit criteria
 - Paid conversion after trial: > 5%
 
 ## Proposed Product Decisions (Default)
-- Primary UX: Gradio UI
+- Primary UX: Next.js web app (`apps/web`)
 - Project format: JSON with versioned snapshots per album
 - Focused MVP audience: indie musicians and songwriters

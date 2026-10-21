@@ -1,45 +1,29 @@
 import Link from "next/link";
 
+import { Wordmark } from "@/components/wordmark";
+import { buttonClass } from "@/components/ui";
+
 /**
- * Marketing/auth header. Shared by `/` and `/sign-in` (which is where `/app`
- * lands for signed-out visitors) so both routes carry the same branding and the
- * same way back out.
+ * Header for the public pages (`/`, `/sign-in`, shared albums): the wordmark, which leads
+ * home, and a way in. The sign-in page passes `showSignIn={false}` so it never offers a
+ * "Sign in" button on the sign-in page itself.
  */
-export function SiteHeader() {
+export function SiteHeader({ showSignIn = true }: { showSignIn?: boolean }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-      <Link href="/" className="flex min-w-0 items-center gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[linear-gradient(135deg,rgba(255,62,165,0.9),rgba(109,94,252,0.76))]">
-          <span className="text-[13px] font-semibold tracking-wide text-black/80">AC</span>
-        </div>
-        <div className="min-w-0 leading-tight">
-          <div className="truncate text-sm font-semibold tracking-tight text-[var(--text)]">
-            Album Conceptualizer
-          </div>
-          <div className="hidden text-xs text-[var(--muted2)] sm:block">
-            Blueprints, not raw audio.
-          </div>
-        </div>
+    <header className="@container flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line pb-3">
+      <Link href="/" className="inline-flex min-h-11 min-w-0 items-center rounded">
+        {/* Never smaller than at 100% text, never wider than the header: "CONCEPTUALIZER" is
+            about 8.9em wide in this cut, so 10.5cqi keeps it inside the column at 320px and 200%. */}
+        <Wordmark className="text-[length:max(min(1rem,16px),min(1rem,10.5cqi))]" />
       </Link>
 
-      <div className="flex shrink-0 items-center gap-2">
-        <form action="/sign-in">
-          <button
-            type="submit"
-            className="whitespace-nowrap rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
+      {showSignIn ? (
+        <nav aria-label="Account">
+          <Link href="/sign-in" className={buttonClass("ghost", "text-ink")}>
             Sign in
-          </button>
-        </form>
-        <form action="/app">
-          <button
-            type="submit"
-            className="whitespace-nowrap rounded-full bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90"
-          >
-            Open app
-          </button>
-        </form>
-      </div>
+          </Link>
+        </nav>
+      ) : null}
     </header>
   );
 }

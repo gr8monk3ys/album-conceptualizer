@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 
-import { AlbumJsonSchema } from "@/server/album-json";
+import { AlbumJsonSchema, RoughDemoFileSchema } from "@/server/album-json";
 
 export type AlbumRoughDemoRecord = {
   id: string;
@@ -21,6 +22,26 @@ export type AlbumRoughDemoRecord = {
   created_at: string;
   updated_at: string;
 };
+
+/** Request body for creating or replacing a rough demo (`POST`/`PATCH` rough-demos routes). */
+export const RoughDemoBodySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  source_kind: z.enum([
+    "voice-memo",
+    "phone-demo",
+    "rehearsal",
+    "riff-sketch",
+    "acoustic-pass",
+    "hook-sketch",
+  ]),
+  song_track_number: z.number().int().positive().max(512).optional().nullable(),
+  external_url: z.string().trim().url().max(500).optional().nullable(),
+  capture_notes: z.string().trim().max(1500).optional().nullable(),
+  sonic_traits: z.array(z.string().trim().min(1).max(80)).max(12).optional().default([]),
+  lyrical_fragments: z.array(z.string().trim().min(1).max(120)).max(12).optional().default([]),
+  next_actions: z.array(z.string().trim().min(1).max(180)).max(12).optional().default([]),
+  local_file: RoughDemoFileSchema.optional().nullable(),
+});
 
 const SOURCE_KIND_LABELS: Record<string, string> = {
   "voice-memo": "Voice memo",

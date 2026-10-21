@@ -22,7 +22,7 @@ COPY album_conceptualizer/ ./album_conceptualizer/
 
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -e ".[ui,music]" "redis>=5.0.0"
+    uv pip install --system -e ".[music]" "redis>=5.0.0"
 
 # Production stage
 FROM python:${PYTHON_VERSION}-slim as production
@@ -52,8 +52,8 @@ RUN mkdir -p /app/data /app/output && chown -R appuser:appuser /app
 # Switch to non-root user
 USER appuser
 
-# Expose ports for Gradio UI and FastAPI
-EXPOSE 7860 8000
+# Expose FastAPI port
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -73,16 +73,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/live').status==200 else 1)" || exit 1
 
 CMD ["uvicorn", "album_conceptualizer.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
-
-# UI stage (Gradio)
-FROM production as ui
-
-EXPOSE 7860
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import album_conceptualizer; print('healthy')" || exit 1
-
-CMD ["python", "-m", "album_conceptualizer.cli", "ui", "--host", "0.0.0.0"]
 
 # Development stage
 FROM production as development

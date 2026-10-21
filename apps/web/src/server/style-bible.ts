@@ -1,5 +1,7 @@
+import { STYLE_BIBLE_LIST_LIMIT } from "@/lib/style-bible-limits";
 import { AlbumJsonSchema } from "@/server/album-json";
 import type { AlbumStyleBible } from "@/server/album-json";
+import { ApiError } from "@/server/api-error";
 import type { AlbumReferenceRecord } from "@/server/references";
 
 export const EMPTY_STYLE_BIBLE: Required<AlbumStyleBible> = {
@@ -14,6 +16,16 @@ export const EMPTY_STYLE_BIBLE: Required<AlbumStyleBible> = {
   reference_strategy: null,
 };
 
+/** The Sound bible's list fields, with the labels the form shows. */
+const LIST_FIELDS = [
+  ["vocal_attributes", "Vocal attributes"],
+  ["sonic_palette", "Sonic palette"],
+  ["arrangement_rules", "Arrangement rules"],
+  ["mix_priorities", "Mix priorities"],
+  ["avoid_list", "Avoid list"],
+  ["emotional_targets", "Emotional targets"],
+] as const;
+
 const CORE_REFERENCE_ROLES = ["opener", "closer", "vocal-texture", "mix-palette"] as const;
 
 function normalizeToken(value: unknown) {
@@ -25,7 +37,7 @@ function normalizeNullableString(value: unknown, limit: number) {
   return text ? text.slice(0, limit) : null;
 }
 
-function normalizeList(value: unknown, limit = 12) {
+function normalizeList(value: unknown, limit = STYLE_BIBLE_LIST_LIMIT) {
   if (!Array.isArray(value)) return [];
 
   const seen = new Set<string>();
@@ -64,6 +76,31 @@ export function normalizeStyleBible(value: unknown): Required<AlbumStyleBible> {
       700,
     ),
   };
+}
+
+/**
+ * Refuse a Sound bible save whose lists hold more than the limit, with a 400 that names the
+ * field, rather than keeping the first 12 and answering as if all were saved.
+ */
+export function assertStyleBibleListsFit(value: AlbumStyleBible) {
+  const over = LIST_FIELDS.map(([field, label]) => ({
+    field,
+    label,
+    count: normalizeList(value[field], Number.POSITIVE_INFINITY).length,
+  })).filter((entry) => entry.count > STYLE_BIBLE_LIST_LIMIT);
+  if (!over.length) return;
+
+  const [first] = over;
+  const message =
+    over.length === 1
+      ? `${first.label} can hold up to ${STYLE_BIBLE_LIST_LIMIT} items (this has ${first.count}). Remove ${first.count - STYLE_BIBLE_LIST_LIMIT} to save.`
+      : `${over.map((entry) => entry.label).join(", ")} can hold up to ${STYLE_BIBLE_LIST_LIMIT} items each. Shorten them to save.`;
+  throw new ApiError(
+    400,
+    message,
+    undefined,
+    over.map((entry) => `${entry.field}: at most ${STYLE_BIBLE_LIST_LIMIT} items (${entry.count} given)`),
+  );
 }
 
 export function getAlbumStyleBible(data: unknown) {

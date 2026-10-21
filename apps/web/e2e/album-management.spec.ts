@@ -27,8 +27,22 @@ async function createAlbumFromWizard(
   await page.getByLabel("Concept summary").fill(input.concept);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
+  // Saving spends credits, so it asks once: the trigger, then the confirm.
   await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
   await page.waitForURL("**/app/albums/**");
+}
+
+async function openSoundPage(
+  page: import("@playwright/test").Page,
+  name: "Sound bible" | "References" | "Demos",
+) {
+  // One "Sound" album tab; Sound bible, References and Demos are its sub-pages.
+  await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Sound", exact: true }).click();
+  await page.waitForURL("**/style");
+  if (name !== "Sound bible") {
+    await page.getByRole("navigation", { name: "Sound" }).getByRole("link", { name, exact: true }).click();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -48,9 +62,13 @@ test.describe("Album Management", () => {
 
     await expect(page.getByText(title).first()).toBeVisible();
     await expect(page.getByText("Blueprint saved")).toBeVisible();
+
+    // The credits meter lives in the shared layout; it must show the spend without a reload.
+    const meter = page.getByRole("meter", { name: "Credits", includeHidden: true }).first();
+    await expect(meter).toHaveAttribute("aria-valuenow", "45");
   });
 
-  test("created album appears in Recent projects on dashboard", async ({ page }) => {
+  test("created album appears in Recent albums on Home", async ({ page }) => {
     await devLogin(page);
 
     const title = `Dashboard Album ${randomSuffix()}`;
@@ -74,8 +92,8 @@ test.describe("Album Management", () => {
       concept: "A winter-to-spring arc told through one apartment building.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Studio", exact: true }).click();
-    await page.waitForURL("**/studio");
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
+    await page.waitForURL(/\/studio(\?|$)/);
     await expect(page).toHaveURL(/studio/);
   });
 
@@ -89,7 +107,7 @@ test.describe("Album Management", () => {
       concept: "A concept record about leaving a coastal town for the city.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Export", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Export", exact: true }).click();
     await page.waitForURL("**/export");
     await expect(page).toHaveURL(/export/);
   });
@@ -104,7 +122,7 @@ test.describe("Album Management", () => {
       concept: "A concept album about airport hotels, rerouted flights, and the last message before sunrise.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Export", exact: true }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Export", exact: true }).click();
     await page.waitForURL("**/export");
 
     const [download] = await Promise.all([
@@ -115,7 +133,9 @@ test.describe("Album Management", () => {
     expect(download.suggestedFilename()).toContain("suno_handoff_pack");
   });
 
-  test("coherence report shows breakdown and next actions", async ({ page }) => {
+  // A fresh album has no written lyrics, so the report must decline to score it and link to
+  // what's missing instead. (The scored breakdown is covered by server/__tests__/coherence.)
+  test("coherence report explains what a fresh album is missing", async ({ page }) => {
     await devLogin(page);
 
     const title = `Coherence ${randomSuffix()}`;
@@ -127,11 +147,16 @@ test.describe("Album Management", () => {
 
     await page.getByRole("main").getByRole("link", { name: "View report" }).click();
     await page.waitForURL("**/coherence");
-    await expect(page.getByText("Coherence report v2")).toBeVisible();
-    await expect(page.getByText("Next actions")).toBeVisible();
-    await expect(page.getByText("Narrative").first()).toBeVisible();
-    await expect(page.getByText("Lyrics").first()).toBeVisible();
-    await expect(page.getByText("Harmony").first()).toBeVisible();
+    const report = page.getByRole("region", { name: "Coherence report" });
+    // It opens on what is done (the setup's sequence), then names what a first score needs, once.
+    await expect(report.getByText(/^The sequence is set: /)).toBeVisible();
+    await expect(report.getByText("For a first score:")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Next actions" })).toBeVisible();
+
+    const lyricsFix = report.getByRole("link", { name: /Lyrics on 2 more tracks/ });
+    await expect(lyricsFix).toBeVisible();
+    await lyricsFix.click();
+    await page.waitForURL("**/studio?song=1&focus=lyrics");
   });
 
   test("reference workspace saves a track reference and reflects it on the album page", async ({
@@ -146,8 +171,10 @@ test.describe("Album Management", () => {
       concept: "A concept album about train stations, detours, and messages that arrive too late.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "References", exact: true }).click();
+    await openSoundPage(page, "References");
     await page.waitForURL("**/references");
+    // An empty collection shows its teaching empty state; its button opens the form.
+    await page.getByRole("button", { name: "Add your first reference" }).click();
     await page.getByLabel("Reference title").fill("Dreams Tonite");
     await page.getByLabel("Artist").fill("Alvvays");
     await page.getByLabel("Target role").selectOption("chorus-energy");
@@ -162,8 +189,8 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Reference added.")).toBeVisible();
     await expect(page.getByText("Dreams Tonite").first()).toBeVisible();
 
-    await page.getByRole("link", { name: "Back" }).click();
-    await expect(page.getByRole("main").getByText("Reference tracks")).toBeVisible();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Overview", exact: true }).click();
+    await expect(page.getByRole("main").getByText("References", { exact: true })).toBeVisible();
     await expect(page.getByText("Dreams Tonite · Alvvays")).toBeVisible();
   });
 
@@ -179,8 +206,7 @@ test.describe("Album Management", () => {
       concept: "A concept album about hotel hallways, missed calls, and one long overnight drive.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Style", exact: true }).click();
-    await page.waitForURL("**/style");
+    await openSoundPage(page, "Sound bible");
     await page
       .getByLabel("Lead voice brief")
       .fill("Close-mic alto with hushed verses and a brighter chorus lift.");
@@ -193,12 +219,13 @@ test.describe("Album Management", () => {
     await page
       .getByLabel("Reference strategy")
       .fill("Use references to keep the opener intimate and the choruses wider without going glossy.");
-    await page.getByRole("button", { name: "Save style bible" }).click();
+    // The Sound bible autosaves; "Save now" is its quiet manual save.
+    await page.getByRole("button", { name: "Save now", exact: true }).click();
 
-    await expect(page.getByText("Style bible saved.")).toBeVisible();
+    await expect(page.getByText("Sound bible saved.")).toBeVisible();
 
-    await page.getByRole("link", { name: "Back" }).click();
-    await expect(page.getByRole("main").getByText("Voice / Style Bible").first()).toBeVisible();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Overview", exact: true }).click();
+    await expect(page.getByRole("main").getByText("Sound bible", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Close-mic alto with hushed verses").first()).toBeVisible();
   });
 
@@ -214,8 +241,9 @@ test.describe("Album Management", () => {
       concept: "A concept album about airport lounges, neon vending machines, and the chorus you only hear once.",
     });
 
-    await page.getByRole("main").getByRole("link", { name: "Demos", exact: true }).click();
+    await openSoundPage(page, "Demos");
     await page.waitForURL("**/demos");
+    await page.getByRole("button", { name: "Add your first demo" }).click();
     await page.getByLabel("Local rough demo file").setInputFiles({
       name: "hallway-memo.wav",
       mimeType: "audio/wav",
@@ -236,7 +264,7 @@ test.describe("Album Management", () => {
     await expect(page.getByText("Structured review").first()).toBeVisible();
     await expect(page.getByText("Chorus or post-chorus candidate").first()).toBeVisible();
 
-    await page.getByRole("link", { name: "Back" }).click();
+    await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Overview", exact: true }).click();
     // Wait for the navigation to actually land. The demos page also has a
     // "Rough demos" heading, and the demo title is in its list, so asserting
     // either right after the click passes against the OLD page whenever
@@ -251,6 +279,31 @@ test.describe("Album Management", () => {
     await expect(demoCard).toContainText("Chorus or post-chorus candidate");
   });
 
+  test("not-found screens keep their tab title once the page has loaded", async ({ page }) => {
+    await devLogin(page);
+
+    await createAlbumFromWizard(page, {
+      title: `Missing Page ${randomSuffix()}`,
+      artist: "Nobody Home",
+      concept: "A record about knocking on doors that were never there.",
+    });
+    const albumId = new URL(page.url()).pathname.match(/\/app\/albums\/([^/]+)/)?.[1];
+    expect(albumId).toBeTruthy();
+    const albumPath = `/app/albums/${albumId}`;
+
+    // The server's HTML is titled correctly; the title must still say so after hydration.
+    for (const path of ["/app/nope", `${albumPath}/mix`]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      await expect(page).toHaveTitle(/Page not found/);
+      expect(await page.evaluate(() => document.title)).toContain("Page not found");
+    }
+    // Under the album's header, the not-found heading is the page's one h1, not the album title.
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("This album has no page called “mix”");
+  });
+
   test("analytics page shows the new project in the workspace funnel", async ({ page }) => {
     await devLogin(page);
 
@@ -262,7 +315,7 @@ test.describe("Album Management", () => {
     });
 
     await page.goto("/app/settings/analytics");
-    await expect(page.locator("main").getByText("Workspace funnel").first()).toBeVisible();
+    await expect(page.locator("main").getByText("Album progress").first()).toBeVisible();
     await expect(page.getByText("Last 30 days")).toBeVisible();
     await expect(page.getByText("Album created")).toBeVisible();
     await expect(page.getByRole("link", { name: title })).toBeVisible();

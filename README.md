@@ -6,7 +6,6 @@ It currently includes:
 
 - a Next.js web app for planning, editing, sharing, billing, analytics, and publishing
 - a Python FastAPI engine for export, theory, identity, billing, and experience endpoints
-- a legacy Gradio UI for local workflows and smoke coverage
 
 The product is strongest at album-level coherence, structure, collaboration, and export handoff. It is not positioned as a one-prompt finished-audio generator.
 
@@ -80,6 +79,10 @@ Then open:
 - `http://127.0.0.1:3002/sign-in`
 
 Use Dev Login locally when enabled.
+
+Optional: set `ALBUM_CONCEPTUALIZER_LAYA_URL` (or `LAYA_URL`) to let a laya server pick the
+RAG retriever for `auto` queries. The keyword router remains the fallback. See
+[Installation → laya query routing](docs/getting-started/installation.md#optional-laya-query-routing).
 
 ## Main Developer Commands
 

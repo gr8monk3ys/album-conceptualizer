@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from album_conceptualizer.api.v1.albums import get_album_store
 from album_conceptualizer.export.chordpro import ChordProExporter, format_chordpro
+from album_conceptualizer.models.snapshot import InvalidSnapshotError, album_from_snapshot
 
 
 router = APIRouter()
@@ -185,11 +186,6 @@ async def export_album_zip(
     server-side project storage. Useful for the Next.js dashboard.
     """
     try:
-        from album_conceptualizer.models.album import Album
-    except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=f"Album model unavailable: {exc}") from exc
-
-    try:
         from album_conceptualizer.export.formats import AlbumExporter, ExportFormat
     except ImportError:
         raise HTTPException(
@@ -198,9 +194,9 @@ async def export_album_zip(
         ) from None
 
     try:
-        album = Album.model_validate(data.album)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid album payload: {exc}") from exc
+        album = album_from_snapshot(data.album)
+    except InvalidSnapshotError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     formats: list[ExportFormat] = []
     try:

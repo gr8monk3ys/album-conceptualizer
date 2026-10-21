@@ -530,5 +530,5 @@ uvicorn album_conceptualizer.api.app:app --reload
 uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000
 
 # With Docker
-docker compose up -d app
+docker compose up -d api
 ```

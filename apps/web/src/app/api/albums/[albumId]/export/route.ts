@@ -1,128 +1,74 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getPrisma } from "@/server/db";
-import { getAuthSession } from "@/server/auth";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
-import { engineFetch } from "@/server/engine";
-import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
-import { getCreditsStatus, InsufficientCreditsError, spendCredits } from "@/server/credits";
 import { trackProductEventSafe } from "@/server/analytics";
-import { contentDisposition } from "@/server/headers";
+import { apiHandler, enforceRateLimit, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
+import { CREDIT_COSTS, withCredits } from "@/server/credits";
+import { exportAlbumZip } from "@/server/engine";
+import { contentDisposition, safeFilename } from "@/server/headers";
 
 export const runtime = "nodejs";
 
-const FormatsSchema = z
-  .string()
-  .transform((value) =>
-    value
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  )
-  .pipe(z.array(z.enum(["midi", "chordpro", "musicxml", "json", "text"])))
-  .refine((formats) => formats.length > 0, "Select at least one format.");
+const BodySchema = z.object({
+  formats: z
+    .array(z.string().trim().toLowerCase().pipe(z.enum(["midi", "chordpro", "musicxml", "json", "text"])))
+    .max(5)
+    .default(["json"])
+    .refine((formats) => formats.length > 0, "Select at least one format."),
+  includeProductionNotes: z.boolean().optional().default(false),
+});
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
-  const rate = await checkRateLimit("export_zip", `user:${userId}`);
-  const rateFailure = getRateLimitFailure(rate, "Too many exports. Please wait a bit and try again.");
-  if (rateFailure) {
-    return NextResponse.json(rateFailure.body, {
-      status: rateFailure.status,
-      headers: rateFailure.headers,
-    });
-  }
-
-  const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const plan = workspace.subscription?.plan ?? "free";
-  const prisma = getPrisma();
-  const album = await prisma.album.findFirst({
-    where: { id: albumId, workspaceId: workspace.id },
-    select: { title: true, data: true },
-  });
-  if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
-
-  const creditStatus = await getCreditsStatus({ workspaceId: workspace.id, plan });
-  if (creditStatus.remaining < 2) {
-    return NextResponse.json(
-      { error: "Not enough credits to export. Complete challenges or upgrade." },
-      { status: 402 },
+/**
+ * Builds the album's zip on the engine and answers with it. A POST, because it spends
+ * credits: a link or redirect from another site (a top-level GET, which carries the session
+ * cookie) can't make one. The client downloads the zip from this response.
+ */
+export const POST = apiHandler(
+  async (request: Request, { params }: { params: Promise<{ albumId: string }> }) => {
+    const { userId, workspaceId, plan } = await requireWorkspace();
+    await enforceRateLimit(
+      "export_zip",
+      `user:${userId}`,
+      "Too many exports. Please wait a bit and try again.",
     );
-  }
 
-  const url = new URL(request.url);
-  const formatsRaw = url.searchParams.get("formats") ?? "json";
-  const formatsParsed = FormatsSchema.safeParse(formatsRaw);
-  if (!formatsParsed.success) {
-    return NextResponse.json({ error: formatsParsed.error.issues[0]?.message ?? "Invalid formats." }, { status: 400 });
-  }
+    const { albumId } = await params;
+    const album = await requireAlbum(workspaceId, albumId, { title: true, data: true });
 
-  const includeProductionNotes = url.searchParams.get("production_notes") === "1";
-
-  const engineResponse = await engineFetch("/export/album/zip", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      album: album.data,
-      formats: formatsParsed.data,
-      include_production_notes: includeProductionNotes,
-    }),
-  });
-
-  if (!engineResponse.ok) {
-    const text = await engineResponse.text().catch(() => "");
-    return NextResponse.json(
-      { error: `Export engine error (${engineResponse.status}): ${text || "request failed"}` },
-      { status: 502 },
+    const { formats: requested, includeProductionNotes } = await parseJsonBody(
+      request,
+      BodySchema,
+      "Invalid formats.",
     );
-  }
+    const formats = [...new Set(requested)];
 
-  try {
-    await spendCredits({
-      workspaceId: workspace.id,
-      plan,
-      amount: 2,
-      reason: "export_zip",
-      metadata: { albumId, formats: formatsParsed.data },
+    const body = await withCredits(
+      {
+        workspaceId,
+        plan,
+        amount: CREDIT_COSTS.exportZip,
+        reason: "export_zip",
+        metadata: { albumId, formats },
+        insufficientMessage: "Not enough credits to export. Complete challenges or upgrade.",
+      },
+      () => exportAlbumZip({ album: album.data, formats, includeProductionNotes }),
+    );
+
+    await trackProductEventSafe({
+      name: "album_export_requested",
+      workspaceId,
+      userId,
+      albumId,
+      path: `/api/albums/${albumId}/export`,
+      metadata: { formats, includeProductionNotes },
     });
-  } catch (err) {
-    if (err instanceof InsufficientCreditsError) {
-      return NextResponse.json(
-        { error: "Not enough credits to export. Complete challenges or upgrade." },
-        { status: 402 },
-      );
-    }
-    const message = err instanceof Error ? err.message : "Unable to spend credits.";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
 
-  const filename = `${album.title.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "album"}_export.zip`;
-  const headers = new Headers(engineResponse.headers);
-  headers.set("content-type", "application/zip");
-  headers.set("content-disposition", contentDisposition(filename));
-
-  await trackProductEventSafe({
-    name: "album_export_requested",
-    workspaceId: workspace.id,
-    userId,
-    albumId,
-    path: `/api/albums/${albumId}/export`,
-    metadata: {
-      formats: formatsParsed.data,
-      includeProductionNotes,
-    },
-  });
-
-  return new Response(engineResponse.body, {
-    status: 200,
-    headers,
-  });
-}
+    return new Response(body, {
+      status: 200,
+      headers: {
+        "content-type": "application/zip",
+        "content-disposition": contentDisposition(`${safeFilename(album.title, "album")}_export.zip`),
+        "cache-control": "no-store",
+      },
+    });
+  },
+);

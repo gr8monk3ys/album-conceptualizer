@@ -3,51 +3,19 @@
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type * as ToneModule from "tone";
-import type { Midi as MidiClass } from "@tonejs/midi";
-import type SoundfontModule from "soundfont-player";
 import type { Player as SoundfontPlayer } from "soundfont-player";
 
-// Tone.js, @tonejs/midi and soundfont-player are only needed once someone
-// previews a track, so they load on first use (react-best-practices 2.2)
-// instead of shipping in the studio page's initial bundle.
-type AudioLibs = {
-  Tone: typeof ToneModule;
-  Midi: typeof MidiClass;
-  Soundfont: typeof SoundfontModule;
-};
+import {
+  PreviewError,
+  instrumentSwitchMessage,
+  type PreviewFailure,
+  type PreviewInstrument,
+} from "@/components/player/preview-errors";
 
-let audioLibs: AudioLibs | null = null;
-let audioLibsPromise: Promise<AudioLibs> | null = null;
-
-function loadAudioLibs(): Promise<AudioLibs> {
-  if (!audioLibsPromise) {
-    audioLibsPromise = Promise.all([
-      import("tone"),
-      import("@tonejs/midi"),
-      import("soundfont-player"),
-    ]).then(
-      ([tone, midi, soundfont]) => {
-        audioLibs = { Tone: tone, Midi: midi.Midi, Soundfont: soundfont.default };
-        return audioLibs;
-      },
-      (err) => {
-        audioLibsPromise = null; // let a later click retry
-        throw err;
-      },
-    );
-  }
-  return audioLibsPromise;
-}
-
-/** The loaded libraries. Only called on paths that run after loadAudioLibs(). */
-function libs(): AudioLibs {
-  if (!audioLibs) throw new Error("Audio preview is still loading.");
-  return audioLibs;
-}
+export { PREVIEW_FAILED_MESSAGE, INSTRUMENT_LABELS, previewErrorMessage } from "@/components/player/preview-errors";
+export type { PreviewInstrument } from "@/components/player/preview-errors";
 
 type PlayerStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
-
-export type PreviewInstrument = "piano" | "epiano" | "strings" | "pad";
 
 type NowPlaying = {
   kind: "midi";
@@ -59,18 +27,24 @@ type LoadMidiInput = {
   midi: ArrayBuffer;
   title: string;
   subtitle?: string;
+  /** The control that started the preview; focus returns to it when the player is closed. */
+  returnFocusId?: string;
 };
 
 type PlayerApi = {
   status: PlayerStatus;
   nowPlaying: NowPlaying | null;
   duration: number;
+  position: number;
   volume: number;
   loop: boolean;
   instrument: PreviewInstrument;
   instrumentLoading: boolean;
   error: string | null;
+  /** A problem that didn't stop the preview (an instrument that didn't load), in plain words. */
+  notice: string | null;
   arm: () => Promise<void>;
+  /** Loads a preview. Rejects with a PreviewError (its message names the cause) when it can't. */
   loadMidi: (input: LoadMidiInput) => Promise<void>;
   play: () => Promise<void>;
   pause: () => void;
@@ -80,16 +54,31 @@ type PlayerApi = {
   toggleLoop: () => void;
   setInstrument: (instrument: PreviewInstrument) => Promise<void>;
   getWaveform: () => Uint8Array | null;
+  /** Stops playback and unloads the preview (the docked player goes away). Returns the id of the control that started it. */
+  close: () => string | null;
 };
 
+/** The stable part of the player: what a screen needs to start a preview. */
+export type PlayerControls = Pick<PlayerApi, "arm" | "loadMidi" | "play">;
+
 const PlayerContext = createContext<PlayerApi | null>(null);
-// Playback position changes every animation frame; keeping it in its own
-// context means only the components that show it re-render at 60fps, not the
-// whole studio (react-best-practices 5.x).
-const PlayerPositionContext = createContext<number>(0);
+const PlayerControlsContext = createContext<PlayerControls | null>(null);
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+type Tone = typeof ToneModule;
+
+// The audio stack (Tone, the MIDI parser and the soundfont loader) is loaded on the first
+// preview, not with the page, and the AudioContext is only created after that user gesture.
+let tonePromise: Promise<Tone> | null = null;
+function loadTone(): Promise<Tone> {
+  tonePromise ??= import("tone").catch((err: unknown) => {
+    tonePromise = null;
+    throw err;
+  });
+  return tonePromise;
 }
 
 type PlayerProviderProps = { children: ReactNode };
@@ -104,6 +93,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const [instrument, setInstrumentState] = useState<PreviewInstrument>("piano");
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const masterGainRef = useRef<GainNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -115,6 +105,8 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const partRef = useRef<
     ToneModule.Part<{ time: number; name: string; duration: number; velocity: number }> | null
   >(null);
+  // Set once the audio stack has loaded; every transport call reads it.
+  const toneRef = useRef<Tone | null>(null);
 
   const rafRef = useRef<number | null>(null);
   const durationRef = useRef(0);
@@ -138,15 +130,22 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   }, [loop]);
 
   const currentMidiNotesRef = useRef<string[]>([]);
+  const lastInputRef = useRef<LoadMidiInput | null>(null);
 
-  function getAudioContext(): AudioContext {
-    return libs().Tone.getContext().rawContext as AudioContext;
+  const ensureTone = useCallback(async () => {
+    if (!toneRef.current) toneRef.current = await loadTone();
+    return toneRef.current;
+  }, []);
+
+  function getAudioContext(tone: Tone): AudioContext {
+    return tone.getContext().rawContext as AudioContext;
   }
 
-  const ensureAudioGraph = useCallback(() => {
-    if (masterGainRef.current && analyserRef.current && waveformBufferRef.current) return;
+  const ensureAudioGraph = useCallback(async () => {
+    const tone = await ensureTone();
+    if (masterGainRef.current && analyserRef.current && waveformBufferRef.current) return tone;
 
-    const ac = getAudioContext();
+    const ac = getAudioContext(tone);
     const master = ac.createGain();
     master.gain.value = volume;
     const analyser = ac.createAnalyser();
@@ -158,7 +157,8 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
     masterGainRef.current = master;
     analyserRef.current = analyser;
     waveformBufferRef.current = new Uint8Array(analyser.fftSize);
-  }, [volume]);
+    return tone;
+  }, [ensureTone, volume]);
 
   function stopAllSound() {
     for (const instrumentPlayer of instrumentsRef.current.values()) {
@@ -173,18 +173,18 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const setVolume = useCallback((value: number) => {
     const next = clamp(value, 0, 1);
     setVolumeState(next);
-    if (masterGainRef.current) {
-      masterGainRef.current.gain.setTargetAtTime(next, getAudioContext().currentTime, 0.03);
+    const tone = toneRef.current;
+    if (masterGainRef.current && tone) {
+      masterGainRef.current.gain.setTargetAtTime(next, getAudioContext(tone).currentTime, 0.03);
     }
   }, []);
 
   const stopInternal = useCallback((opts?: { keepPosition?: number }) => {
-    // Nothing can be playing before the audio libraries have loaded.
-    if (audioLibs) {
-      const { Transport } = audioLibs.Tone;
-      Transport.stop();
-      Transport.cancel(0);
-      Transport.seconds = 0;
+    const tone = toneRef.current;
+    if (tone) {
+      tone.Transport.stop();
+      tone.Transport.cancel(0);
+      tone.Transport.seconds = 0;
     }
     stopAllSound();
     const keep = opts?.keepPosition;
@@ -202,7 +202,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
   const pause = useCallback(() => {
     if (status !== "playing") return;
-    libs().Tone.Transport.pause();
+    toneRef.current?.Transport.pause();
     stopAllSound();
     setStatus("paused");
   }, [status]);
@@ -210,20 +210,20 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const seek = useCallback((seconds: number) => {
     if (!durationRef.current) return;
     const next = clamp(seconds, 0, durationRef.current);
-    libs().Tone.Transport.seconds = next;
+    if (toneRef.current) toneRef.current.Transport.seconds = next;
     setPosition(next);
     positionRef.current = next;
   }, []);
 
   const arm = useCallback(async () => {
     // Needs a user gesture in most browsers. Call from click handlers (Play/Preview).
-    const { Tone } = await loadAudioLibs();
-    await Tone.start();
-  }, []);
+    const tone = await ensureTone();
+    await tone.start();
+  }, [ensureTone]);
 
   const ensureInstrumentLoaded = useCallback(
     async (next: PreviewInstrument, requiredNotes: string[]) => {
-      ensureAudioGraph();
+      const tone = await ensureAudioGraph();
       const dest = masterGainRef.current;
       if (!dest) throw new Error("Audio output not initialized.");
 
@@ -241,7 +241,8 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
       setInstrumentLoading(true);
       try {
-        const ac = getAudioContext();
+        const ac = getAudioContext(tone);
+        const { default: Soundfont } = await import("soundfont-player");
         const soundfontSet = process.env.NEXT_PUBLIC_SOUNDFONT || "MusyngKite";
         const fromBase = process.env.NEXT_PUBLIC_SOUNDFONT_BASE_URL;
 
@@ -255,7 +256,7 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
                 : "pad_2_warm";
 
         const nextNotes = new Set<string>([...(previouslyLoaded ?? []), ...requiredNotes]);
-        const player = await libs().Soundfont.instrument(ac, instrumentName, {
+        const player = await Soundfont.instrument(ac, instrumentName, {
           soundfont: soundfontSet,
           ...(fromBase ? { from: fromBase } : {}),
           notes: Array.from(nextNotes),
@@ -275,38 +276,56 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
   const setInstrument = useCallback(
     async (next: PreviewInstrument) => {
+      const previous = instrument;
       setInstrumentState(next);
-      if (currentMidiNotesRef.current.length) {
+      setNotice(null);
+      if (!currentMidiNotesRef.current.length) return;
+      try {
         await ensureInstrumentLoaded(next, currentMidiNotesRef.current);
+      } catch (err) {
+        // The preview keeps the instrument it already has; say so instead of failing it.
+        console.warn("preview_instrument_failed", err);
+        setInstrumentState(previous);
+        const kept = instrumentsRef.current.get(previous);
+        if (kept) activeInstrumentRef.current = kept;
+        setNotice(instrumentSwitchMessage(next, previous));
       }
     },
-    [ensureInstrumentLoaded],
+    [ensureInstrumentLoaded, instrument],
   );
 
   const loadMidi = useCallback(
     async (input: LoadMidiInput) => {
+      lastInputRef.current = input;
       setStatus("loading");
       setError(null);
+      setNotice(null);
       setNowPlaying({ kind: "midi", title: input.title, subtitle: input.subtitle });
       setDuration(0);
       setPosition(0);
+      // Whatever was playing stops now, so a load that fails never leaves sound running
+      // without a player to stop it.
+      toneRef.current?.Transport.stop();
+      stopAllSound();
 
+      // Each step names its own cause, so the artist hears what failed and what to do.
+      let step: PreviewFailure = "audio";
       try {
-        const { Tone, Midi } = await loadAudioLibs();
-        ensureAudioGraph();
+        const [tone, { Midi }] = await Promise.all([ensureAudioGraph(), import("@tonejs/midi")]);
 
-        Tone.Transport.stop();
-        Tone.Transport.seconds = 0;
-        Tone.Transport.cancel(0);
+        tone.Transport.stop();
+        tone.Transport.seconds = 0;
+        tone.Transport.cancel(0);
         stopAllSound();
         if (partRef.current) {
           partRef.current.dispose();
           partRef.current = null;
         }
 
+        step = "file";
         const parsed = new Midi(input.midi);
         const bpm = parsed.header.tempos[0]?.bpm ?? 120;
-        Tone.Transport.bpm.value = bpm;
+        tone.Transport.bpm.value = bpm;
 
         const events: Array<{
           time: number;
@@ -338,9 +357,11 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
         setDuration(totalDuration);
         durationRef.current = totalDuration;
 
+        step = "instrument";
         await ensureInstrumentLoaded(instrument, uniqueNotes);
+        step = "audio";
 
-        const part = new Tone.Part((time, value) => {
+        const part = new tone.Part((time, value) => {
           const instrumentPlayer = activeInstrumentRef.current;
           if (!instrumentPlayer) return;
 
@@ -357,9 +378,13 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
 
         setStatus("ready");
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unable to load preview.";
-        setError(message);
+        // Keep the technical reason for debugging; the artist sees the cause and Retry, where
+        // they asked for the preview (the docked player doesn't open for a failed one).
+        console.warn("preview_load_failed", err);
+        const failure = new PreviewError(step, instrument);
+        setError(failure.message);
         setStatus("error");
+        throw failure;
       }
     },
     [ensureAudioGraph, ensureInstrumentLoaded, instrument],
@@ -368,19 +393,35 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
   const play = useCallback(async () => {
     if (!partRef.current) return;
     if (instrumentLoading) return;
+    const tone = await ensureTone();
 
     // If we ended the previous playback, restart from the beginning.
-    const { Transport } = libs().Tone;
     if (durationRef.current && positionRef.current >= durationRef.current - 0.01) {
-      Transport.seconds = 0;
+      tone.Transport.seconds = 0;
       setPosition(0);
       positionRef.current = 0;
     }
 
     await arm();
-    Transport.start();
+    tone.Transport.start();
     setStatus("playing");
-  }, [arm, instrumentLoading]);
+  }, [arm, ensureTone, instrumentLoading]);
+
+  const close = useCallback(() => {
+    stopInternal();
+    partRef.current?.dispose();
+    partRef.current = null;
+    currentMidiNotesRef.current = [];
+    durationRef.current = 0;
+    setDuration(0);
+    setStatus("idle");
+    setNowPlaying(null);
+    setError(null);
+    setNotice(null);
+    const returnFocusId = lastInputRef.current?.returnFocusId ?? null;
+    lastInputRef.current = null;
+    return returnFocusId;
+  }, [stopInternal]);
 
   const toggleLoop = useCallback(() => {
     setLoop((prev) => !prev);
@@ -393,8 +434,10 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       return;
     }
 
+    const tone = toneRef.current;
+    if (!tone) return;
     const tick = () => {
-      const next = libs().Tone.Transport.seconds;
+      const next = tone.Transport.seconds;
       setPosition(next);
       positionRef.current = next;
 
@@ -440,11 +483,13 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       status,
       nowPlaying,
       duration,
+      position,
       volume,
       loop,
       instrument,
       instrumentLoading,
       error,
+      notice,
       arm,
       loadMidi,
       play,
@@ -455,9 +500,11 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       toggleLoop,
       setInstrument,
       getWaveform,
+      close,
     }),
     [
       arm,
+      close,
       duration,
       error,
       getWaveform,
@@ -466,8 +513,10 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
       loadMidi,
       loop,
       nowPlaying,
+      notice,
       pause,
       play,
+      position,
       seek,
       setInstrument,
       setVolume,
@@ -478,10 +527,14 @@ function usePlayerProviderRender({ children }: PlayerProviderProps) {
     ],
   );
 
+  // Screens that only start previews read this context, so they do not re-render on every
+  // playback frame while the position ticks.
+  const controls = useMemo<PlayerControls>(() => ({ arm, loadMidi, play }), [arm, loadMidi, play]);
+
   return (
-    <PlayerContext.Provider value={api}>
-      <PlayerPositionContext.Provider value={position}>{children}</PlayerPositionContext.Provider>
-    </PlayerContext.Provider>
+    <PlayerControlsContext.Provider value={controls}>
+      <PlayerContext.Provider value={api}>{children}</PlayerContext.Provider>
+    </PlayerControlsContext.Provider>
   );
 }
 
@@ -495,7 +548,8 @@ export function usePlayer() {
   return ctx;
 }
 
-/** Current playback position in seconds; re-renders on every animation frame. */
-export function usePlayerPosition() {
-  return useContext(PlayerPositionContext);
+export function usePlayerControls() {
+  const ctx = useContext(PlayerControlsContext);
+  if (!ctx) throw new Error("usePlayerControls must be used within a PlayerProvider.");
+  return ctx;
 }

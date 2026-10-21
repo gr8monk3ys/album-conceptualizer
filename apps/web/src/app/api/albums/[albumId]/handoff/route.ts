@@ -1,85 +1,67 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAuthSession } from "@/server/auth";
 import { trackProductEventSafe } from "@/server/analytics";
-import { getPrisma } from "@/server/db";
 import {
-  buildHandoffPackMarkdown,
-  getHandoffPackFilename,
-  type HandoffTarget,
-} from "@/server/handoff-pack";
-import { checkRateLimit, getRateLimitFailure } from "@/server/rate-limit";
-import { listAlbumReferences } from "@/server/references";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
+  apiHandler,
+  enforceRateLimit,
+  parseWith,
+  requireAlbum,
+  requireWorkspace,
+} from "@/server/api";
+import { buildHandoffPackMarkdown, getHandoffPackFilename } from "@/server/handoff-pack";
 import { contentDisposition } from "@/server/headers";
+import { listAlbumReferences } from "@/server/references";
 
 export const runtime = "nodejs";
 
 const TargetSchema = z.enum(["suno", "udio", "daw"]);
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ albumId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+export const GET = apiHandler(
+  async (request: Request, { params }: { params: Promise<{ albumId: string }> }) => {
+    const { userId, workspaceId } = await requireWorkspace();
+    await enforceRateLimit(
+      "export_zip",
+      `user:${userId}`,
+      "Too many handoff downloads. Please wait a bit and try again.",
+    );
 
-  const rate = await checkRateLimit("export_zip", `user:${userId}`);
-  const rateFailure = getRateLimitFailure(
-    rate,
-    "Too many handoff downloads. Please wait a bit and try again.",
-  );
-  if (rateFailure) {
-    return NextResponse.json(rateFailure.body, {
-      status: rateFailure.status,
-      headers: rateFailure.headers,
-    });
-  }
+    const { albumId } = await params;
+    const album = await requireAlbum(workspaceId, albumId, { id: true, title: true, data: true });
 
-  const { albumId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const prisma = getPrisma();
-  const album = await prisma.album.findFirst({
-    where: { id: albumId, workspaceId: workspace.id },
-    select: { id: true, title: true, data: true },
-  });
-  if (!album) return NextResponse.json({ error: "Not found." }, { status: 404 });
+    const url = new URL(request.url);
+    const target = parseWith(
+      TargetSchema,
+      url.searchParams.get("target") ?? "suno",
+      "Invalid handoff target.",
+    );
 
-  const url = new URL(request.url);
-  const targetParsed = TargetSchema.safeParse(url.searchParams.get("target") ?? "suno");
-  if (!targetParsed.success) {
-    return NextResponse.json({ error: "Invalid handoff target." }, { status: 400 });
-  }
-
-  const references = await listAlbumReferences(workspace.id, album.id);
-  const target = targetParsed.data as HandoffTarget;
-  const markdown = buildHandoffPackMarkdown({
-    albumData: album.data,
-    references,
-    target,
-  });
-  const filename = getHandoffPackFilename(album.title, target);
-
-  await trackProductEventSafe({
-    name: "album_handoff_downloaded",
-    workspaceId: workspace.id,
-    userId,
-    albumId: album.id,
-    path: `/api/albums/${album.id}/handoff`,
-    metadata: {
+    const references = await listAlbumReferences(workspaceId, album.id);
+    const markdown = buildHandoffPackMarkdown({
+      albumData: album.data,
+      references,
       target,
-      referenceCount: references.length,
-    },
-  });
+    });
+    const filename = getHandoffPackFilename(album.title, target);
 
-  return new Response(markdown, {
-    status: 200,
-    headers: {
-      "content-type": "text/markdown; charset=utf-8",
-      "content-disposition": contentDisposition(filename),
-      "cache-control": "no-store",
-    },
-  });
-}
+    await trackProductEventSafe({
+      name: "album_handoff_downloaded",
+      workspaceId,
+      userId,
+      albumId: album.id,
+      path: `/api/albums/${album.id}/handoff`,
+      metadata: {
+        target,
+        referenceCount: references.length,
+      },
+    });
+
+    return new Response(markdown, {
+      status: 200,
+      headers: {
+        "content-type": "text/markdown; charset=utf-8",
+        "content-disposition": contentDisposition(filename),
+        "cache-control": "no-store",
+      },
+    });
+  },
+);

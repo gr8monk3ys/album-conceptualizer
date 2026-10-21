@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-
+import { useRouter } from "next/navigation";
 
 export type AgentJobStatus = "pending" | "running" | "completed" | "failed";
 
@@ -28,6 +28,9 @@ type UseAgentJobReturn = {
 
 const DEFAULT_INTERVAL_MS = 2000;
 
+const LOST_TOUCH =
+  "Lost touch with the AI draft while it was working. Check your connection, then check again.";
+
 function isTerminal(status: AgentJobStatus): boolean {
   return status === "completed" || status === "failed";
 }
@@ -37,6 +40,9 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
   const [error, setError] = useState<string | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [trackedJobId, setTrackedJobId] = useState<string | null>(jobId);
+  // The credits meter is rendered by the server layout. Starting a job charged for it and a
+  // failed job is refunded, so re-render the layout at both moments to show the new balance.
+  const router = useRouter();
 
   // Reset state synchronously when jobId changes (React "adjust state on prop change" pattern).
   if (trackedJobId !== jobId) {
@@ -53,12 +59,13 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
   const fetchJob = useCallback(async (id: string): Promise<AgentJobSnapshot | null> => {
     const res = await fetch(`/api/agents/jobs/${encodeURIComponent(id)}`, { cache: "no-store" });
     if (!res.ok) {
-      let detail = `HTTP ${res.status}`;
+      // The server's human-written `error` when there is one; never a bare status code.
+      let detail = LOST_TOUCH;
       try {
         const data = (await res.json()) as { error?: unknown };
-        if (typeof data?.error === "string") detail = data.error;
+        if (typeof data?.error === "string" && data.error.trim()) detail = data.error;
       } catch {
-        // swallow; use generic detail
+        // Not JSON: keep the plain message.
       }
       throw new Error(detail);
     }
@@ -73,6 +80,7 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
 
     cancelledRef.current = false;
     startedAtRef.current = Date.now();
+    router.refresh();
 
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -86,11 +94,13 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
           setElapsedMs(Date.now() - startedAtRef.current);
         }
         if (snapshot && isTerminal(snapshot.status)) {
+          if (snapshot.status === "failed") router.refresh();
           return;
         }
       } catch (err) {
         if (cancelledRef.current) return;
-        const message = err instanceof Error ? err.message : "Could not reach job endpoint.";
+        // A network failure's own message ("Failed to fetch") is not for the artist.
+        const message = err instanceof TypeError || !(err instanceof Error) ? LOST_TOUCH : err.message;
         setError(message);
         return;
       }
@@ -103,7 +113,7 @@ export function useAgentJob({ jobId, intervalMs = DEFAULT_INTERVAL_MS }: UseAgen
       cancelledRef.current = true;
       if (timer !== null) clearTimeout(timer);
     };
-  }, [jobId, intervalMs, fetchJob]);
+  }, [jobId, intervalMs, fetchJob, router]);
 
   const isPolling =
     jobId !== null && error === null && (job === null || !isTerminal(job.status));

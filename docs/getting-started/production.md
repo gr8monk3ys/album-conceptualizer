@@ -40,15 +40,13 @@ This guide covers the recommended production run modes for Album Conceptualizer.
 - Project data is stored under `output/projects/` by default.
 
 ## Run With Docker (Recommended)
-- UI only:
-  - `docker compose up -d app`
 - API only:
   - `docker compose up -d api`
 - Full stack (includes ChromaDB):
   - `docker compose --profile full up -d`
 
 ### One‑Command Production Start
-- `scripts/run-prod.sh` starts API + UI.
+- `scripts/run-prod.sh` starts the API.
 - `scripts/stop-prod.sh` stops containers.
 
 ### Compose Production File
@@ -64,11 +62,9 @@ Use `docker compose logs -f` to tail logs and `docker compose down` to stop.
 
 ## Run Natively (No Docker)
 - Install dependencies:
-  - `uv pip install --system -e ".[ui,ai,rag,music]"`
+  - `uv pip install --system -e ".[ai,rag,music]"`
 - Start the API:
   - `make api` (or `make api-dev` for reload)
-- Launch the UI:
-  - `make ui`
 
 ## Railway (API Only)
 - `railway.json` and `Dockerfile.railway` are for the FastAPI service only.
@@ -82,19 +78,18 @@ Use `docker compose logs -f` to tail logs and `docker compose down` to stop.
 - Railway health checks should target `/ready`, not `/api/v1/health`.
 
 ## Reverse Proxy (TLS + Single Domain)
-This repo includes a `Caddyfile` to terminate TLS and route both the API and UI.
+This repo includes a `Caddyfile` to terminate TLS and route the API.
 - Set a domain:
   - `export ALBUM_CONCEPTUALIZER_DOMAIN=yourdomain.com`
 - Run Caddy:
   - `caddy run --config Caddyfile`
-- Ensure the API and UI are running locally on ports `8000` and `7860`.
+- Ensure the API is running locally on port `8000`.
 - Update CORS to match the domain:
   - `ALBUM_CONCEPTUALIZER_CORS_ORIGINS=https://yourdomain.com`
 
 Routes:
 - `https://yourdomain.com/api/*` → API
 - `https://yourdomain.com/docs` → API docs
-- `https://yourdomain.com/` → UI
 
 ### Docker Compose (Caddy)
 - `docker compose -f docker-compose.prod.yml up -d caddy`
@@ -184,29 +179,6 @@ python scripts/stripe-billing-smoke.py --simulate-lifecycle --skip-checkout
 - Run:
 ```bash
 python scripts/staging-e2e.py
-```
-
-## Browser UI Smoke (Playwright CLI)
-- Use `scripts/ui-playwright-smoke.sh` to validate the UI loads and is snapshot-capable.
-- Requires `npx` on PATH.
-- Optional env var:
-  - `ALBUM_CONCEPTUALIZER_UI_BASE_URL=https://staging.yourdomain.com`
-- Run:
-```bash
-bash scripts/ui-playwright-smoke.sh
-```
-
-## Browser UI E2E Assertions (Playwright CLI)
-- Use `scripts/ui-e2e-playwright.sh` for asserted UI flows:
-  - create album
-  - edit song content
-  - preview/export
-  - experience tab actions
-  - API docs experience endpoint visibility
-- Artifacts are saved to `output/playwright/` (logs + screenshots).
-- Run:
-```bash
-bash scripts/ui-e2e-playwright.sh
 ```
 
 ## Web Staging Smoke
