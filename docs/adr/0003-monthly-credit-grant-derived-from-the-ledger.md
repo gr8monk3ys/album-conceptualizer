@@ -1,0 +1,3 @@
+# Monthly credit grants are derived from the ledger
+
+A Workspace receives its Plan's monthly credits the first time its balance is touched in a UTC calendar month. We know whether that month's grant happened from `CreditLedgerEntry` rows with reason `monthly_grant`, rather than from a period column on `CreditBalance`. Every read, charge and grant takes the balance row lock first, so the check-then-grant can't double-grant under concurrency, and no migration is needed. The grant tops the balance up to the Plan's monthly amount (credits earned from challenges above it are kept), and an upgrade mid-month adds the difference between the two Plans. The previous design reset the balance to the Plan baseline before every spend, so credits never ran out.

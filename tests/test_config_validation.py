@@ -194,7 +194,6 @@ class TestParseCorsOrigins:
         settings = Settings()
         assert "*" not in settings.cors_origins
         assert "http://localhost:3000" in settings.cors_origins
-        assert "http://localhost:7860" in settings.cors_origins
         reset_settings()
 
     def test_wildcard_cors_flagged_in_production_issues(self, monkeypatch):

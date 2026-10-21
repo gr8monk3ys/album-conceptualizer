@@ -5,8 +5,8 @@ const SectionSchema = z
     id: z.string().optional(),
     section_type: z.string().min(1),
     order: z.number().int().min(0),
-    lyrics: z.string().optional().nullable(),
-    chord_progression: z.array(z.string()).optional(),
+    lyrics: z.string().max(20_000).optional().nullable(),
+    chord_progression: z.array(z.string().max(32)).max(256).optional(),
     notes: z.string().optional().nullable(),
     duration_bars: z.number().int().optional().nullable(),
     narrative_function: z.string().optional().nullable(),
@@ -22,7 +22,7 @@ const SongSchema = z
     id: z.string().optional(),
     title: z.string().min(1).max(200),
     track_number: z.number().int().min(1),
-    sections: z.array(SectionSchema).optional().default([]),
+    sections: z.array(SectionSchema).max(64).optional().default([]),
     // Metadata
     duration_estimate: z.string().optional().nullable(),
     duration_seconds: z.number().int().optional().nullable(),
@@ -87,17 +87,20 @@ export const StyleBibleSchema = z
   })
   .passthrough();
 
+/** The most tracks an album can have; anything that points at a track number caps it here. */
+export const MAX_ALBUM_SONGS = 100;
+
 export const AlbumJsonSchema = z
   .object({
     id: z.string().optional(),
     title: z.string().min(1).max(200),
     artist: z.string().optional().nullable(),
-    songs: z.array(SongSchema),
+    songs: z.array(SongSchema).max(MAX_ALBUM_SONGS),
     // Metadata
     created_at: z.string().optional().nullable(),
     updated_at: z.string().optional().nullable(),
     // Album-level narrative
-    concept_summary: z.string().optional().nullable(),
+    concept_summary: z.string().max(10_000).optional().nullable(),
     narrative_structure: z.string().optional().nullable(),
     // Album-level style
     primary_genre: z.string().optional().nullable(),
@@ -112,7 +115,7 @@ export const AlbumJsonSchema = z
     visual_inspiration: z.array(z.string()).optional().default([]),
     // Rough demo intake
     rough_demos: z.array(RoughDemoSchema).optional().default([]),
-    // Voice / style bible
+    // Voice / Sound bible
     style_bible: StyleBibleSchema.optional(),
   })
   .passthrough();

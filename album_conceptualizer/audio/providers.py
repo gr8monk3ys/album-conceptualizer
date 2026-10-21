@@ -60,20 +60,36 @@ class GenerationRequest:
 
 @dataclass(frozen=True)
 class GenerationResult:
-    """A finished render.
+    """A finished render, delivered one of two ways.
 
-    `audio_url` is the provider's URL. These commonly EXPIRE -- callers that
-    need the audio to outlive the provider's retention must copy it into
-    their own storage rather than persisting this URL as if it were durable.
+    Providers split on this and callers must handle both:
+
+    `audio_url` -- the provider hosts the file (Replicate). These URLs
+    commonly EXPIRE, so anything that needs the audio to outlive the
+    provider's retention must copy it rather than store the URL as durable.
+
+    `audio_bytes` -- the provider returned the audio inline (Hugging Face
+    Inference). Nothing hosts it but us, so it MUST be persisted before the
+    result is handed back, or the render is lost the moment the job ends.
+
+    Exactly one is set. `content_type` describes the bytes when present;
+    models differ (MusicGen returns WAV, others FLAC or MP3) and guessing
+    from the model name produces files players refuse to open.
     """
 
-    audio_url: str
     provider: str
     model: str
     duration_seconds: int
     prompt: str
+    audio_url: str = ""
+    audio_bytes: bytes | None = None
+    content_type: str = ""
     seed: int | None = None
     raw: dict | None = None
+
+    def __post_init__(self) -> None:
+        if not self.audio_url and not self.audio_bytes:
+            raise ValueError("GenerationResult needs either audio_url or audio_bytes.")
 
 
 class MusicProvider(Protocol):
@@ -214,6 +230,131 @@ class ReplicateProvider:
         )
 
 
+class HuggingFaceProvider:
+    """Hugging Face Inference. Free tier, no card, token required.
+
+    The cheap way in: a token costs nothing and needs no payment method,
+    unlike Replicate. The trade is throughput and cold starts, not quality --
+    facebook/musicgen-small is the same family, one size down.
+
+    Two behaviours here that are not optional to handle:
+
+    * The response is the audio ITSELF, not a URL. Nothing hosts it but us,
+      so a caller that does not persist the bytes loses the render.
+    * A model that is not warm answers 503 with an `estimated_time`. That is
+      a cold start, not a failure, and it resolves on its own -- so it is
+      reported as retryable with the wait the API itself suggested.
+    """
+
+    name = "huggingface"
+
+    # Anonymous inference was removed; router.huggingface.co is where the old
+    # api-inference.huggingface.co host now points, and the old name no
+    # longer resolves on its own.
+    BASE_URL = "https://router.huggingface.co/hf-inference/models"
+
+    def __init__(
+        self,
+        api_token: str,
+        model: str,
+        *,
+        timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+        client: httpx.Client | None = None,
+    ) -> None:
+        if not api_token:
+            raise ProviderNotConfiguredError(
+                "HUGGINGFACE_API_TOKEN is not set. Create a free token (no "
+                "payment method needed) at https://huggingface.co/settings/tokens"
+            )
+        self._token = api_token
+        self._model = model
+        self._timeout = timeout_seconds
+        self._client = client
+
+    def _http(self) -> httpx.Client:
+        return self._client or httpx.Client(timeout=float(self._timeout))
+
+    def generate(self, request: GenerationRequest) -> GenerationResult:
+        client = self._http()
+        try:
+            response = client.post(
+                f"{self.BASE_URL}/{self._model}",
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Content-Type": "application/json",
+                },
+                json={"inputs": request.prompt},
+            )
+        except httpx.HTTPError as exc:
+            raise ProviderRequestError(
+                f"could not reach Hugging Face: {exc}", retryable=True
+            ) from exc
+
+        if response.status_code in (401, 403):
+            # An expired or wrong-scope token fails identically forever, so
+            # this is configuration, never a retry. Worth naming explicitly:
+            # a stale CLI OAuth token in ~/.cache/huggingface/token looks like
+            # a token and is not one.
+            raise ProviderNotConfiguredError(
+                "Hugging Face rejected the token "
+                f"({response.status_code}). Create a fresh one at "
+                "https://huggingface.co/settings/tokens -- note that an "
+                "expired `huggingface-cli login` OAuth token will also fail here."
+            )
+        if response.status_code == 503:
+            raise ProviderRequestError(
+                f"Model {self._model} is loading{self._loading_hint(response)}. "
+                "This is a cold start, not a failure -- try again shortly.",
+                retryable=True,
+            )
+        if response.status_code == 429:
+            raise ProviderRequestError(
+                "Hugging Face rate limit reached on the free tier.", retryable=True
+            )
+        if response.status_code >= 500:
+            raise ProviderRequestError(
+                f"Hugging Face is unavailable ({response.status_code}).", retryable=True
+            )
+        if response.status_code >= 400:
+            raise ProviderRequestError(
+                f"Hugging Face rejected the request ({response.status_code}): {response.text[:300]}"
+            )
+
+        content_type = (response.headers.get("content-type") or "").split(";")[0].strip()
+        body = response.content
+        # A JSON body on a 200 means an error the API chose not to signal in
+        # the status line. Writing that to a .wav yields a file that plays as
+        # silence and a bug report about "empty audio".
+        if content_type.startswith("application/json") or body[:1] in (b"{", b"["):
+            raise ProviderRequestError(
+                f"Hugging Face returned JSON, not audio: {body[:300].decode(errors='replace')}"
+            )
+        if not body:
+            raise ProviderRequestError("Hugging Face returned an empty response.")
+
+        return GenerationResult(
+            provider=self.name,
+            model=self._model,
+            # Reported, not requested: the hosted Inference API gives no
+            # duration control for MusicGen, so claiming the caller's value
+            # would be a lie. What comes back is the model's own default.
+            duration_seconds=request.duration_seconds,
+            prompt=request.prompt,
+            audio_bytes=body,
+            content_type=content_type or "audio/wav",
+            seed=request.seed,
+            raw={"bytes": len(body)},
+        )
+
+    @staticmethod
+    def _loading_hint(response: httpx.Response) -> str:
+        try:
+            eta = response.json().get("estimated_time")
+        except Exception:
+            return ""
+        return f" (about {int(float(eta))}s)" if eta else ""
+
+
 class UnconfiguredProvider:
     """Stands in when nothing is configured, and says exactly what to do.
 
@@ -232,7 +373,11 @@ class UnconfiguredProvider:
         )
 
 
-_REGISTRY: dict[str, str] = {"replicate": "replicate"}
+_REGISTRY: dict[str, str] = {"replicate": "replicate", "huggingface": "huggingface"}
+
+# musicgen-small: the free tier's practical choice. Same family as the
+# Replicate default, one size down, and it fits in the free tier's limits.
+DEFAULT_HUGGINGFACE_MODEL = "facebook/musicgen-small"
 
 # MusicGen-large. Pinned by version digest: Replicate models are mutable by
 # tag, and an unpinned model silently changes what every render sounds like.
@@ -259,6 +404,20 @@ def get_provider(
     if name not in _REGISTRY:
         raise ProviderNotConfiguredError(
             f"Unknown MUSIC_PROVIDER {name!r}. Supported: {', '.join(sorted(_REGISTRY))}."
+        )
+
+    if name == "huggingface":
+        # HF_TOKEN is what the huggingface libraries themselves read, so it is
+        # accepted too rather than forcing a second copy of the same secret.
+        token = (
+            api_token or os.environ.get("HUGGINGFACE_API_TOKEN") or os.environ.get("HF_TOKEN") or ""
+        )
+        if not token:
+            return UnconfiguredProvider()
+        return HuggingFaceProvider(
+            token,
+            model or os.environ.get("MUSIC_MODEL") or DEFAULT_HUGGINGFACE_MODEL,
+            client=client,
         )
 
     token = api_token or os.environ.get("REPLICATE_API_TOKEN") or ""

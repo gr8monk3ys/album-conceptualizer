@@ -1,167 +1,546 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Fragment } from "react";
+import { ArrowRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { AlbumPageViewTracker } from "@/components/album-page-view-tracker";
 import { BibleActions } from "@/components/bible-actions";
+import { ThemeMark } from "@/components/theme-mark";
+import { ButtonLink, Chip, EmptyState, Section, TableScroller } from "@/components/ui";
 import { getAlbum } from "@/server/albums";
-import { buildAlbumBible } from "@/server/bible";
+import { getSpineRows } from "@/server/album-songs";
+import {
+  buildAlbumBible,
+  looseThreadsSummary,
+  themeArc,
+  themeTracksPhrase,
+  type AlbumBible,
+  type BibleIssue,
+} from "@/server/bible";
 import { buildMotifCharacterGraph, type MotifCharacterGraph } from "@/server/bible-relationships";
+import { coherenceFixHref } from "@/server/coherence";
 import { requireUser } from "@/server/identity";
 import { summarizeStyleBible } from "@/server/style-bible";
+import { albumPageTitle, workspaceAlbumTitle } from "@/server/page-titles";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { albumMotifIndex, type MotifEntry } from "@/lib/motifs";
+import { themeHeadLines } from "@/lib/theme-keys";
+import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
+import { writtenSoFar } from "@/lib/written-so-far";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Album Bible",
-  description: "View themes, motifs, characters, and relationship maps for your album.",
-};
-
-function Tag({ children }: { children: string }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.03)] px-2 py-0.5 text-[10px] font-semibold text-[var(--muted)]">
-      {children}
-    </span>
-  );
+/** "Story bible · <album title>" in the browser tab and history. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  // A missing album renders the not-found screen, so its tab says so too (WCAG 2.4.2).
+  if (!albumTitle) return { title: "Page not found" };
+  return {
+    title: albumPageTitle("Story bible", albumTitle),
+    description: "What the album is about: its concept, themes, story beats, characters and motifs.",
+  };
 }
 
-function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
-  if (!graph.characters.length || !graph.motifs.length) {
+/** The map's text version is listed in full up to this many connections, then folded away. */
+const CONNECTIONS_SHOWN = 10;
+/**
+ * The Theme map's slim (phone) columns: the room each gives a theme's name (the column less its
+ * padding), in rem, and the container range it is shown in (see ThemeMatrix).
+ */
+const SLIM_THEME_COLUMNS = [
+  { nameRem: 4.5, className: "@min-[14rem]:@max-[28rem]:block" },
+  { nameRem: 3, className: "@max-[14rem]:block" },
+] as const;
+/**
+ * A text link that sits flush with the rows around it (no button padding), so it lines up
+ * with the list below it at every width: the cross-link to the Sound bible, and the way on to
+ * the Coherence report.
+ */
+const FLUSH_LINK =
+  "inline-flex min-h-11 min-w-0 items-center gap-1 self-start text-sm font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3";
+const DISCLOSURE =
+  "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:bg-hover";
+
+function pad(trackNumber: number) {
+  return String(trackNumber).padStart(2, "0");
+}
+
+type BeatTrack = AlbumBible["timeline"]["tracks"][number];
+
+function hasStoryNote(track: BeatTrack) {
+  return Boolean(track.narrativeSummary?.trim());
+}
+
+/** A track's number and title, as the spine names it: "01 · Track 1". */
+function trackName(track: BeatTrack) {
+  return `${pad(track.trackNumber)} · ${track.title}`;
+}
+
+/**
+ * The story beats, one row per track that has a Story note. Until any track has one, the
+ * section is a single empty state pointing at the first track (nine identical "No story note
+ * yet" rows say nothing); after that, the tracks still without one share one compact line of
+ * links, each opening that track's Story note in the Studio.
+ */
+function StoryBeats({ albumId, tracks }: { albumId: string; tracks: BeatTrack[] }) {
+  if (!tracks.length) {
     return (
-      <div className="text-sm text-[var(--muted)]">
-        Tag characters and motifs on tracks to see a relationship map.
-      </div>
+      <EmptyState
+        title="No tracks yet"
+        action={<ButtonLink href={`/app/albums/${albumId}/studio`}>Open the Studio</ButtonLink>}
+      >
+        Add tracks in the Studio, then give each one a Story note: a sentence or two on what happens
+        in it.
+      </EmptyState>
+    );
+  }
+  const written = tracks.filter(hasStoryNote);
+  const blank = tracks.filter((track) => !hasStoryNote(track));
+  const storyHref = (track: BeatTrack) =>
+    coherenceFixHref(albumId, { focus: "story", trackNumber: track.trackNumber });
+
+  if (!written.length) {
+    const first = tracks[0];
+    return (
+      <EmptyState
+        title={`0 of ${tracks.length} ${tracks.length === 1 ? "track has" : "tracks have"} a story note`}
+        action={
+          <ButtonLink href={storyHref(first)}>
+            Start with {trackName(first)}
+          </ButtonLink>
+        }
+      >
+        A Story note is a sentence or two on what happens in a track. Once a few are written, the
+        beats read here in order and the Coherence report can follow the story.
+      </EmptyState>
     );
   }
 
-  const chars = graph.characters;
-  const motifs = graph.motifs;
-  const edges = graph.edges.slice(0, 120);
-
-  const row = 34;
-  const padY = 26;
-  const viewW = 1000;
-  const viewH = Math.max(chars.length, motifs.length) * row + padY * 2;
-
-  const leftX = 220;
-  const rightX = 780;
-  const leftLabelX = 16;
-  const rightLabelX = 984;
-
-  const yForIndex = (idx: number) => padY + idx * row + row / 2;
-
-  const charY = new Map<string, number>();
-  for (let i = 0; i < chars.length; i += 1) {
-    charY.set(chars[i]?.name ?? "", yForIndex(i));
-  }
-  const motifY = new Map<string, number>();
-  for (let i = 0; i < motifs.length; i += 1) {
-    motifY.set(motifs[i]?.name ?? "", yForIndex(i));
-  }
-
   return (
-    <div className="space-y-3">
-      <div className="overflow-auto rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)]">
-        <svg
-          viewBox={`0 0 ${viewW} ${viewH}`}
-          className="min-w-[680px] text-[var(--muted2)]"
-          role="img"
-          aria-label="Character to motif relationship map"
-        >
-          <defs>
-            <linearGradient id="acEdge" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="rgba(109,94,252,0.55)" />
-              <stop offset="100%" stopColor="rgba(255,62,165,0.45)" />
-            </linearGradient>
-          </defs>
-
-          {edges.map((edge) => {
-            const y1 = charY.get(edge.character);
-            const y2 = motifY.get(edge.motif);
-            if (!y1 || !y2) return null;
-            const w = Math.min(6, 1 + edge.weight * 1.2);
-            const op = Math.min(0.85, 0.22 + edge.weight * 0.18);
-            return (
-              <line
-                key={`${edge.character}::${edge.motif}`}
-                x1={leftX}
-                y1={y1}
-                x2={rightX}
-                y2={y2}
-                stroke="url(#acEdge)"
-                strokeWidth={w}
-                opacity={op}
-                vectorEffect="non-scaling-stroke"
-              >
-                <title>
-                  {edge.character} ↔ {edge.motif} (tracks: {edge.trackNumbers.join(", ")})
-                </title>
-              </line>
-            );
-          })}
-
-          {chars.map((c, idx) => {
-            const y = yForIndex(idx);
-            return (
-              <g key={`c-${c.name}`}>
-                <circle cx={leftX} cy={y} r={6} fill="rgba(255,255,255,0.55)" />
-                <text
-                  x={leftLabelX}
-                  y={y + 4}
-                  fontSize={14}
-                  fill="rgba(255,255,255,0.86)"
-                  textAnchor="start"
-                >
-                  {c.name}
-                </text>
-              </g>
-            );
-          })}
-
-          {motifs.map((m, idx) => {
-            const y = yForIndex(idx);
-            return (
-              <g key={`m-${m.name}`}>
-                <circle cx={rightX} cy={y} r={6} fill="rgba(255,255,255,0.45)" />
-                <text
-                  x={rightLabelX}
-                  y={y + 4}
-                  fontSize={14}
-                  fill="rgba(255,255,255,0.86)"
-                  textAnchor="end"
-                >
-                  {m.name}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-
-      {graph.edges.length ? (
-        <div className="space-y-2">
-          {graph.edges.slice(0, 10).map((edge) => (
-            <div
-              key={`edge-${edge.character}-${edge.motif}`}
-              className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-2"
-            >
-              <div className="text-xs font-semibold text-[var(--text)]">
-                {edge.character} <span className="text-[var(--muted2)]">↔</span> {edge.motif}
+    <div className="flex flex-col gap-4">
+      <ol className="divide-y divide-line border-y border-line">
+        {written.map((track) => {
+          const tags = [...track.themes.slice(0, 6), ...track.motifs.slice(0, 4), ...track.characters.slice(0, 4)];
+          const sections = track.sections
+            .slice(0, 6)
+            .map((section) =>
+              [
+                section.sectionType,
+                section.narrativeFunction ? `function: ${section.narrativeFunction}` : null,
+                section.emotionalArc ? `arc: ${section.emotionalArc}` : null,
+              ]
+                .filter(Boolean)
+                .join(", "),
+            )
+            .join(" · ");
+          return (
+            <li key={track.trackNumber} className="flex gap-4 py-4">
+              <span className="type-figure flex h-11 w-8 shrink-0 items-center text-xl font-semibold text-ink-3">
+                {pad(track.trackNumber)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-4">
+                  <h3 className="min-w-0 break-words text-sm font-semibold text-ink">
+                    {track.title}
+                    {typeof track.chronologicalOrder === "number" ? (
+                      <span className="type-figure ml-2 text-xs font-normal text-ink-3">
+                        story order {track.chronologicalOrder}
+                      </span>
+                    ) : null}
+                  </h3>
+                  <Link
+                    href={storyHref(track)}
+                    className="inline-flex min-h-11 items-center gap-1 text-sm text-ink-2 hover:text-ink"
+                  >
+                    Edit story note
+                    <span className="sr-only">{` for ${track.title}`}</span>
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </div>
+                <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">{track.narrativeSummary}</p>
+                {tags.length ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {tags.map((tag, index) => (
+                      <Chip key={`${track.trackNumber}-${tag}-${index}`}>{tag}</Chip>
+                    ))}
+                  </div>
+                ) : null}
+                {sections ? <p className="mt-2 max-w-[65ch] text-xs text-ink-3">{sections}</p> : null}
               </div>
-              <div className="mt-1 text-[10px] text-[var(--muted2)]">
-                Tracks {edge.trackNumbers.join(", ")}
-              </div>
-            </div>
-          ))}
+            </li>
+          );
+        })}
+      </ol>
+      {blank.length ? (
+        <div className="flex flex-wrap items-center gap-x-1 text-sm text-ink-2">
+          <span id="story-beats-blank" className="mr-1">
+            Still without a story note:
+          </span>
+          <ul aria-labelledby="story-beats-blank" className="flex flex-wrap items-center">
+            {blank.map((track, index) => (
+              <li key={track.trackNumber} className="flex items-center">
+                {index > 0 ? (
+                  <span aria-hidden="true" className="px-0.5 text-ink-3">
+                    ·
+                  </span>
+                ) : null}
+                <Link
+                  href={storyHref(track)}
+                  className="type-figure inline-flex min-h-11 min-w-11 items-center justify-center font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
+                >
+                  {pad(track.trackNumber)}
+                  <span className="sr-only">{` · ${track.title}: write its story note`}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </div>
   );
 }
 
-type AlbumBiblePageProps = { params: Promise<{ albumId: string }> };
+/**
+ * Themes × tracks, and what the spine beside it can't show: for each theme, where it first
+ * appears, where it last does and the tracks it drops out on in between.
+ */
+function ThemeMatrix({ albumId, bible }: { albumId: string; bible: AlbumBible }) {
+  const { tracks, rows } = bible.themeGrid;
+  if (!tracks.length) {
+    return (
+      <EmptyState
+        title="No tracks yet"
+        action={<ButtonLink href={`/app/albums/${albumId}/studio`}>Open the Studio</ButtonLink>}
+      >
+        Add tracks in the Studio, then tag the themes each one carries.
+      </EmptyState>
+    );
+  }
+  if (!rows.length) {
+    return (
+      <EmptyState
+        title="No themes to map yet"
+        action={
+          <ButtonLink href={coherenceFixHref(albumId, { focus: "album" })}>Add album themes</ButtonLink>
+        }
+      >
+        Name the album&apos;s 3 to 6 central themes, then tag each track with the ones it carries. The
+        map fills in as you go.
+      </EmptyState>
+    );
+  }
 
-async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
+  // The theme column sticks while the track columns scroll under it, at a width set against the
+  // scroller (`cqw`, from the @container wrapper) so it can never outgrow it at 200% text: at
+  // most 12rem or 40% of the scroller. The scroller's scroll padding is the same width, so a
+  // track link reached by Tab scrolls clear of the sticky column instead of under it, and the
+  // start fade begins after it (TableScroller measures it), so the names never fade out.
+  // Below 28rem (rem, so enlarged text reaches it sooner: a phone, or 200% text) the column
+  // stays sticky but slims to 5rem: each name in catalog caps on up to two lines, broken at a
+  // space or at a syllable of a long word, never inside a short one (`themeHeadLines`), over
+  // its count; below 14rem (a phone at 200% text) to 3.5rem, the spine's name slot, so a
+  // focused track head still fits clear of the fades beside it. The arc sentence moves under
+  // the table there, which also names every theme in full, so a name the slim column
+  // truncates is still read whole.
+  const themeColumn =
+    "w-[min(12rem,40cqw)] min-w-[min(12rem,40cqw)] max-w-[45cqw] bg-ground pr-4 text-left sticky left-0 z-10 @min-[14rem]:@max-[28rem]:w-[5rem] @min-[14rem]:@max-[28rem]:min-w-[5rem] @min-[14rem]:@max-[28rem]:max-w-[5rem] @max-[28rem]:pr-2 @max-[14rem]:w-[3.5rem] @max-[14rem]:min-w-[3.5rem] @max-[14rem]:max-w-[3.5rem]";
+  const sequence = tracks.map((track) => track.trackNumber);
+  const arcs = rows.map((row) => (row.trackNumbers.length ? themeArc(row.trackNumbers, sequence) : ""));
+  return (
+    <div className="@container min-w-0 border-y border-line">
+      <TableScroller
+        label="Theme map table"
+        className="scroll-ps-[min(12rem,40%)] @min-[14rem]:@max-[28rem]:scroll-ps-[5rem] @max-[14rem]:scroll-ps-[3.5rem]"
+      >
+        {/* Auto layout: larger text widens the table (it scrolls inside this region) instead
+            of starving the theme names. */}
+        <table className="w-full border-collapse text-sm">
+          <caption className="sr-only">
+            Themes by track. Each row is a theme and says which tracks carry it; select a track
+            number to edit that track&apos;s themes.
+          </caption>
+          <thead>
+            <tr className="border-b border-line">
+              <th scope="col" className={cn(themeColumn, "py-2 text-xs font-semibold text-ink-3")}>
+                Theme
+              </th>
+              {tracks.map((track) => (
+                <th key={track.trackNumber} scope="col" className="w-12 min-w-12 p-0 font-normal">
+                  <Link
+                    href={coherenceFixHref(albumId, { focus: "song-themes", trackNumber: track.trackNumber })}
+                    title={`${track.title}: edit its themes`}
+                    // Inset ring: the link sits flush with the scroller's edge, which clips an outset one.
+                    className="type-figure mx-auto grid h-11 w-11 place-items-center rounded-sm text-sm font-semibold text-ink-3 hover:bg-hover hover:text-ink focus-visible:-outline-offset-2"
+                  >
+                    {pad(track.trackNumber)}
+                    <span className="sr-only">{` ${track.title}: edit its themes`}</span>
+                  </Link>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={row.label} className="border-b border-line last:border-b-0">
+                <th scope="row" className={cn(themeColumn, "py-2.5 font-normal")}>
+                  <span className="block font-semibold text-ink break-words hyphens-auto @max-[28rem]:sr-only">
+                    {row.label}
+                  </span>
+                  {/* The slim column's name: visual only, the full name above is what's read. */}
+                  {SLIM_THEME_COLUMNS.map(({ nameRem, className }) => (
+                    <span
+                      key={nameRem}
+                      aria-hidden="true"
+                      title={row.label}
+                      className={cn("type-catalog hidden text-xs font-semibold leading-tight text-ink", className)}
+                    >
+                      {themeHeadLines(row.label, nameRem).lines.map((line, index) => (
+                        <span key={index} className="block truncate">
+                          {line}
+                        </span>
+                      ))}
+                    </span>
+                  ))}
+                  <span className="type-figure mt-0.5 block max-w-[40ch] text-xs text-ink-3">
+                    {row.trackNumbers.length ? (
+                      <>
+                        {`${row.trackNumbers.length} of ${tracks.length}`}
+                        <span className="@max-[28rem]:sr-only">{`\u00a0· ${arcs[rowIndex]}`}</span>
+                        {/* One phrase per row instead of a "yes"/"no" for every cell. */}
+                        <span className="sr-only">{`, ${themeTracksPhrase(row.trackNumbers, tracks.length)}`}</span>
+                      </>
+                    ) : (
+                      "On no track yet"
+                    )}
+                  </span>
+                </th>
+                {row.presence.map((present, index) => (
+                  <td key={`${row.label}-${tracks[index]?.trackNumber ?? index}`} className="p-0 text-center">
+                    <ThemeMark carries={present} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroller>
+      {/* Below 28rem: each theme's arc, which the slim column has no room for, named in full.
+          Hidden from screen readers, which hear the same words in the row headers above. */}
+      <ul aria-hidden="true" className="hidden border-t border-line py-3 @max-[28rem]:block">
+        {rows.map((row, rowIndex) => (
+          <li key={row.label} className="max-w-[65ch] break-words py-0.5 text-xs leading-relaxed text-ink-3">
+            <span className="font-semibold text-ink">{row.label}</span>
+            {`: ${arcs[rowIndex] || "on no track yet"}`}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Characters on the left, motifs on the right, a line wherever a track carries both. */
+function RelationshipMap({ graph }: { graph: MotifCharacterGraph }) {
+  if (!graph.characters.length || !graph.motifs.length) {
+    return (
+      <p className="text-sm text-ink-2">
+        Tag characters and motifs on the same tracks to see who carries which motif.
+      </p>
+    );
+  }
+
+  const chars = graph.characters;
+  const motifs = graph.motifs;
+  const edges = graph.edges.slice(0, 120);
+  // Labels are HTML in rem-tall rows, so they grow with the reader's text size and never overlap;
+  // the SVG between the two columns only draws the lines, in row units stretched to the rows'
+  // real height. Chromium doesn't force SVG colours in forced-colors mode, so the lines and the
+  // markers name system colours there themselves.
+  const rows = Math.max(chars.length, motifs.length);
+  const charIndex = new Map(chars.map((c, i) => [c.name, i] as const));
+  const motifIndex = new Map(motifs.map((m, i) => [m.name, i] as const));
+  const label = "line-clamp-2 min-w-0 break-words text-sm leading-tight text-ink";
+
+  return (
+    <div className="flex flex-col gap-4">
+      <TableScroller label="Character and motif map">
+        <div
+          role="img"
+          aria-label="Which characters appear on tracks with which motifs"
+          className="flex w-full min-w-[36rem] max-w-[55rem]"
+        >
+          <ul className="min-w-0 flex-1">
+            {chars.map((c) => (
+              <li key={`c-${c.name}`} className="flex h-11 items-center justify-end gap-3">
+                <span className={`${label} text-right`} title={c.name}>
+                  {c.name}
+                </span>
+                <span className="size-2.5 shrink-0 rounded-full bg-ink forced-colors:bg-[CanvasText]" />
+              </li>
+            ))}
+          </ul>
+          <div className="relative min-w-[10rem] flex-[1.6]">
+            <svg
+              viewBox={`0 0 100 ${rows}`}
+              preserveAspectRatio="none"
+              className="absolute inset-0 h-full w-full overflow-visible"
+            >
+              {edges.map((edge) => {
+                const from = charIndex.get(edge.character);
+                const to = motifIndex.get(edge.motif);
+                if (from === undefined || to === undefined) return null;
+                return (
+                  <line
+                    key={`${edge.character}::${edge.motif}`}
+                    x1={0}
+                    y1={from + 0.5}
+                    x2={100}
+                    y2={to + 0.5}
+                    className="stroke-ink-3 forced-colors:stroke-[CanvasText]"
+                    strokeWidth={Math.min(5, 1 + edge.weight)}
+                    // Ash Ink at 0.7 is the faintest line: 3.5:1 on the raised surface and 3.7:1
+                    // on the ground (non-text contrast, 3:1). Heavier links grow bolder and wider.
+                    strokeOpacity={Math.min(1, 0.55 + edge.weight * 0.15)}
+                    vectorEffect="non-scaling-stroke"
+                  >
+                    <title>
+                      {`${edge.character} and ${edge.motif}: tracks ${edge.trackNumbers.join(", ")}`}
+                    </title>
+                  </line>
+                );
+              })}
+            </svg>
+          </div>
+          <ul className="min-w-0 flex-1">
+            {motifs.map((m) => (
+              <li key={`m-${m.name}`} className="flex h-11 items-center gap-3">
+                <span className="size-2.5 shrink-0 bg-ink-2 forced-colors:bg-[CanvasText]" />
+                <span className={label} title={m.name}>
+                  {m.name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </TableScroller>
+      {graph.edges.length > CONNECTIONS_SHOWN ? (
+        <details>
+          <summary className={DISCLOSURE}>{`All ${graph.edges.length} connections`}</summary>
+          <div className="mt-3">
+            <ConnectionList edges={graph.edges} />
+          </div>
+        </details>
+      ) : graph.edges.length ? (
+        <ConnectionList edges={graph.edges} />
+      ) : null}
+    </div>
+  );
+}
+
+/** The map's text version: every character–motif pair and the tracks that carry both. */
+function ConnectionList({ edges }: { edges: MotifCharacterGraph["edges"] }) {
+  return (
+    <ul className="divide-y divide-line border-y border-line text-sm">
+      {edges.map((edge) => (
+        <li key={`edge-${edge.character}-${edge.motif}`} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2">
+          <span className="min-w-0 break-words text-ink">
+            {edge.character} <span className="text-ink-3">with</span> {edge.motif}
+          </span>
+          <span className="type-figure text-xs text-ink-3">
+            {edge.trackNumbers.length === 1 ? "Track" : "Tracks"} {edge.trackNumbers.join(", ")}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function IssueRow({ albumId, issue }: { albumId: string; issue: BibleIssue }) {
+  return (
+    <li className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:gap-6">
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="min-w-0 break-words text-sm font-semibold text-ink">{issue.title}</span>
+          {/* Work still to come, while the album is early: neutral, never a warning. */}
+          {issue.progress ? <Chip>To do</Chip> : null}
+        </p>
+        <p className="mt-0.5 max-w-[65ch] text-sm leading-relaxed text-ink-2">{issue.detail}</p>
+      </div>
+      {issue.fix ? (
+        <Link href={coherenceFixHref(albumId, issue.fix)} className={FLUSH_LINK}>
+          {issue.fix.focus === "style" ? "Open the Sound bible" : "Fix in Studio"}
+          <span className="sr-only">: {issue.title}</span>
+        </Link>
+      ) : null}
+    </li>
+  );
+}
+
+/**
+ * Every motif of the album: its own motifs and the motif tags on its tracks, from the same
+ * source the Coherence report reads (`@/lib/motifs`).
+ */
+function MotifList({ albumId, motifs }: { albumId: string; motifs: MotifEntry[] }) {
+  if (!motifs.length) {
+    return (
+      <p className="text-sm text-ink-2">
+        No motifs yet.{" "}
+        <Link
+          href={coherenceFixHref(albumId, { focus: "album-motifs" })}
+          className="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
+        >
+          Name the album&apos;s motifs in the Studio
+        </Link>
+      </p>
+    );
+  }
+  return (
+    <ul className="divide-y divide-line border-y border-line text-sm">
+      {motifs.map((motif) => (
+        <li key={motif.name} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2">
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <span className="min-w-0 break-words text-ink">{motif.name}</span>
+            {motif.albumLevel ? <span className="text-xs text-ink-3">Album motif</span> : null}
+          </span>
+          <span className="type-figure text-xs text-ink-3">
+            {motif.trackNumbers.length
+              ? `${motif.trackNumbers.length === 1 ? "Track" : "Tracks"} ${motif.trackNumbers.join(", ")}`
+              : "On no track yet"}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function IndexList({
+  entries,
+  empty,
+}: {
+  entries: Array<{ name: string; trackNumbers: number[] }>;
+  empty: ReactNode;
+}) {
+  if (!entries.length) return <p className="text-sm text-ink-2">{empty}</p>;
+  return (
+    <ul className="divide-y divide-line border-y border-line text-sm">
+      {entries.map((entry) => (
+        <li key={entry.name} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2">
+          <span className="min-w-0 break-words text-ink">{entry.name}</span>
+          <span className="type-figure text-xs text-ink-3">
+            {entry.trackNumbers.length === 1 ? "Track" : "Tracks"} {entry.trackNumbers.join(", ")}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default async function AlbumBiblePage({ params }: { params: Promise<{ albumId: string }> }) {
   const { albumId } = await params;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
@@ -171,376 +550,186 @@ async function renderAlbumBiblePage({ params }: AlbumBiblePageProps) {
   const bible = buildAlbumBible(album.data);
   const styleSummary = summarizeStyleBible(bible.styleBible);
   const graph = buildMotifCharacterGraph(bible, { maxCharacters: 10, maxMotifs: 10, minEdgeWeight: 1 });
-  const gridCols =
-    bible.themeGrid.tracks.length > 0
-      ? `240px repeat(${bible.themeGrid.tracks.length}, minmax(44px, 1fr))`
-      : "1fr";
-
-  const warnings = bible.issues.filter((i) => i.level === "warn");
-  const infos = bible.issues.filter((i) => i.level === "info");
+  const motifs = albumMotifIndex(album.data);
+  const trackNumbers = bible.timeline.tracks.map((track) => track.trackNumber);
+  const firstTrack = trackNumbers.length ? Math.min(...trackNumbers) : null;
+  // Track-by-track gaps are the Coherence report's job and Sound bible gaps show under
+  // "Sound bible"; this page checks only how the album's threads hang together.
+  const structure = bible.issues.filter((issue) => issue.scope === "structure");
+  const warnings = structure.filter((issue) => issue.level === "warn");
+  const notes = structure.filter((issue) => issue.level === "info");
+  const base = `/app/albums/${album.id}`;
+  const spine = getSpineRows(album.data);
+  const writtenTracks = spine.filter((row) => row.lyricSections > 0).length;
+  // While tracks are unwritten the section opens on what is written, and its threads are next
+  // steps ("Threads to pick up"); once every track is written, what doesn't hold is loose.
+  const early = writtenTracks < spine.length;
+  const soFar = early ? writtenSoFar(spine, bible.centralThemes) : null;
 
   return (
-    <div className="flex flex-col gap-5">
-      <AlbumPageViewTracker
-        albumId={album.id}
-        event="album_bible_viewed"
-        path={`/app/albums/${album.id}/bible`}
-      />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-[var(--muted2)]">Bible</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-            {bible.title}
-          </div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
-            {bible.artist ? `by ${bible.artist}` : "Artist not set"}
-            {bible.primaryGenre ? ` · ${bible.primaryGenre}` : ""}
-          </div>
-        </div>
+    <div className="flex flex-col gap-10">
+      <AlbumPageViewTracker albumId={album.id} event="album_bible_viewed" path={`${base}/bible`} />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/app/albums/${album.id}`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Back
+      {/* The page names itself (the tab says "Story bible") and points to its twin: this is
+          what the album is about; the Sound bible is how it sounds. */}
+      <Section
+        id="bible-concept"
+        title="Story bible — what this album is about"
+        actions={
+          <Link href={`${base}/style`} className={FLUSH_LINK}>
+            How it sounds
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">:</span> Sound bible
           </Link>
-          <Link
-            href={`/app/albums/${album.id}/studio`}
-            className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90"
-          >
-            Studio
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/references`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            References
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/style`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Style
-          </Link>
-          <BibleActions albumId={album.id} />
-        </div>
-      </div>
+        }
+      >
+        <h3 className="mb-2 text-sm font-semibold text-ink">Concept</h3>
+        {bible.conceptSummary ? (
+          <p className="max-w-[65ch] text-base leading-relaxed text-ink-2">{bible.conceptSummary}</p>
+        ) : (
+          <p className="text-sm text-ink-2">
+            No concept summary yet.{" "}
+            <Link
+              href={coherenceFixHref(album.id, { focus: "album" })}
+              className="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
+            >
+              Write the concept summary in the Studio
+            </Link>
+          </p>
+        )}
+        {/* Tagging shows its suggestions for review right here, under the buttons. */}
+        <BibleActions albumId={album.id} className="mt-4" />
+      </Section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
-        <section className="space-y-4">
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Logline</div>
-            <div className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
-              {bible.conceptSummary || "Add a concept summary in Studio to anchor this bible."}
-            </div>
-          </div>
+      <Section
+        id="bible-themes"
+        title="Theme map"
+        description={`Where each of the album's themes enters, leaves and drops out across the ${
+          bible.timeline.mode === "chronological" ? "story order" : "sequence"
+        }. Select a track number to edit its themes.`}
+      >
+        <ThemeMatrix albumId={album.id} bible={bible} />
+      </Section>
 
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-xs text-[var(--muted2)]">Voice / style bible</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-                  {styleSummary.score}/100 coverage
-                </div>
-              </div>
-              <Link
-                href={`/app/albums/${album.id}/style`}
-                className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-              >
-                Open workspace
-              </Link>
-            </div>
-
-            <div className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
-              {bible.styleBible.lead_voice || "No lead voice brief set yet."}
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted2)]">
-                  Sonic palette
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {bible.styleBible.sonic_palette.length ? (
-                    bible.styleBible.sonic_palette.map((item) => (
-                      <Tag key={`palette-${item}`}>{item}</Tag>
-                    ))
-                  ) : (
-                    <div className="text-xs text-[var(--muted)]">No palette anchors set.</div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted2)]">
-                  Mix priorities
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {bible.styleBible.mix_priorities.length ? (
-                    bible.styleBible.mix_priorities.map((item) => (
-                      <Tag key={`mix-${item}`}>{item}</Tag>
-                    ))
-                  ) : (
-                    <div className="text-xs text-[var(--muted)]">No mix priorities set.</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-xs text-[var(--muted2)]">Arc visualizer</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-                  Theme coverage ({bible.timeline.mode === "chronological" ? "chronological" : "track"}{" "}
-                  order)
-                </div>
-              </div>
-              <div className="text-xs text-[var(--muted2)]">{bible.themeGrid.tracks.length} tracks</div>
-            </div>
-
-            {bible.themeGrid.tracks.length ? (
-              <div className="mt-4 overflow-auto rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)]">
-                <div className="min-w-[760px]" style={{ display: "grid", gridTemplateColumns: gridCols }}>
-                  <div className="sticky left-0 z-10 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.24)] px-4 py-3 text-xs font-semibold text-[var(--muted2)]">
-                    Theme
-                  </div>
-                  {bible.themeGrid.tracks.map((track) => (
-                    <div
-                      key={track.trackNumber}
-                      className="border-b border-[rgba(255,255,255,0.06)] px-2 py-3 text-center text-[10px] font-semibold text-[var(--muted2)]"
-                      title={track.title}
-                    >
-                      {String(track.trackNumber).padStart(2, "0")}
-                    </div>
-                  ))}
-
-                  {bible.themeGrid.rows.map((row) => (
-                    <Fragment key={row.label}>
-                      <div
-                        key={`${row.label}-label`}
-                        className="sticky left-0 z-10 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.18)] px-4 py-3 text-xs font-semibold text-[var(--text)]"
-                      >
-                        <div className="truncate">{row.label}</div>
-                        <div className="mt-1 text-[10px] text-[var(--muted2)]">
-                          {row.trackNumbers.length ? `Tracks ${row.trackNumbers.join(", ")}` : "No tracks"}
-                        </div>
-                      </div>
-                      {row.presence.map((present, idx) => (
-                        <div
-                          key={`${row.label}-${bible.themeGrid.tracks[idx]?.trackNumber ?? idx}`}
-                          className="border-b border-[rgba(255,255,255,0.06)] px-2 py-3"
-                        >
-                          <div
-                            className={[
-                              "mx-auto h-4 w-4 rounded-full",
-                              present
-                                ? "bg-[linear-gradient(180deg,rgba(109,94,252,0.95),rgba(255,62,165,0.7))] shadow-[0_8px_18px_rgba(109,94,252,0.18)]"
-                                : "bg-[rgba(255,255,255,0.06)]",
-                            ].join(" ")}
-                          />
-                        </div>
-                      ))}
-                    </Fragment>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-[var(--muted)]">No tracks found.</div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Timeline</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">Story beats</div>
-
-            <div className="mt-4 space-y-3">
-              {bible.timeline.tracks.map((track) => (
-                <div
-                  key={track.trackNumber}
-                  className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-xs text-[var(--muted2)]">
-                        Track {track.trackNumber}
-                        {typeof track.chronologicalOrder === "number"
-                          ? ` · Chrono ${track.chronologicalOrder}`
-                          : ""}
-                      </div>
-                      <div className="mt-1 truncate text-sm font-semibold text-[var(--text)]">
-                        {track.title}
-                      </div>
-                    </div>
-                    <Link
-                      href={`/app/albums/${album.id}/studio?song=${track.trackNumber}`}
-                      className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-[10px] font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-                    >
-                      Open
-                    </Link>
-                  </div>
-
-                  <div className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
-                    {track.narrativeSummary || "Add a narrative summary for this track."}
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {track.themes.slice(0, 6).map((t) => (
-                      <Tag key={`theme-${track.trackNumber}-${t}`}>{t}</Tag>
-                    ))}
-                    {track.motifs.slice(0, 4).map((m) => (
-                      <Tag key={`motif-${track.trackNumber}-${m}`}>{m}</Tag>
-                    ))}
-                    {track.characters.slice(0, 4).map((c) => (
-                      <Tag key={`char-${track.trackNumber}-${c}`}>{c}</Tag>
-                    ))}
-                  </div>
-
-                  {track.sections.length ? (
-                    <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
-                      {track.sections.slice(0, 6).map((section) => (
-                        <div
-                          key={`${track.trackNumber}-${section.order}-${section.sectionType}`}
-                          className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-3 py-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-xs font-semibold text-[var(--text)]">
-                              {section.sectionType} #{section.order + 1}
-                            </div>
-                            <div className="text-[10px] text-[var(--muted2)]">
-                              {section.chordCount ? `${section.chordCount} chords` : "no chords"}
-                            </div>
-                          </div>
-                          {section.emotionalArc || section.narrativeFunction ? (
-                            <div className="mt-1 text-[10px] text-[var(--muted2)]">
-                              {section.narrativeFunction ? `Role: ${section.narrativeFunction}` : ""}
-                              {section.narrativeFunction && section.emotionalArc ? " · " : ""}
-                              {section.emotionalArc ? `Arc: ${section.emotionalArc}` : ""}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-4 text-xs text-[var(--muted2)]">No sections yet.</div>
-                  )}
-                </div>
+      <Section
+        id="bible-issues"
+        title={early ? "Threads to pick up" : "Loose threads"}
+        description={`${soFar ? `${soFar} ` : ""}${looseThreadsSummary({
+          warnings: warnings.length,
+          writtenTracks,
+          totalTracks: spine.length,
+        })}`}
+      >
+        {/* The way on to the Coherence report sits flush left with the finding rows below,
+            not as a padded button in the heading's corner. */}
+        <p className="max-w-[65ch] text-sm leading-relaxed text-ink-2">
+          Lyrics, chords, story notes and tags on each track are checked in the Coherence report.
+        </p>
+        <Link href={`${base}/coherence`} className={cn(FLUSH_LINK, "mb-2")}>
+          Open the Coherence report
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+        {warnings.length ? (
+          <ul className="divide-y divide-line border-y border-line">
+            {warnings.map((issue) => (
+              <IssueRow key={`warn-${issue.title}`} albumId={album.id} issue={issue} />
+            ))}
+          </ul>
+        ) : null}
+        {notes.length ? (
+          <details className="mt-4">
+            <summary className={DISCLOSURE}>
+              {notes.length === 1 ? "1 smaller note" : `${notes.length} smaller notes`}
+            </summary>
+            <ul className="mt-3 divide-y divide-line border-y border-line">
+              {notes.map((issue) => (
+                <IssueRow key={`note-${issue.title}`} albumId={album.id} issue={issue} />
               ))}
+            </ul>
+          </details>
+        ) : null}
+      </Section>
+
+      <Section
+        id="bible-story"
+        title="Story beats"
+        description={
+          bible.timeline.mode === "chronological"
+            ? "Tracks in story order, which differs from the sequence."
+            : "Tracks in the order of the sequence."
+        }
+      >
+        <StoryBeats albumId={album.id} tracks={bible.timeline.tracks} />
+      </Section>
+
+      <Section
+        id="bible-cast"
+        title="Characters and motifs"
+        description="Who carries which motif, and where each one comes back. Motifs are the album's own plus the motif tags on its tracks."
+      >
+        <div className="flex flex-col gap-8">
+          <RelationshipMap graph={graph} />
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <div className="min-w-0">
+              <h3 className="mb-2 text-sm font-semibold text-ink">Characters</h3>
+              <IndexList
+                entries={bible.characterIndex}
+                empty={
+                  // Like Motifs, the empty list says where to fill it: the first track's
+                  // Characters, in the Studio's "Themes and motifs".
+                  <>
+                    No characters tagged yet.
+                    {firstTrack !== null ? (
+                      <>
+                        {" "}
+                        <Link
+                          href={`${base}/studio?song=${firstTrack}&focus=characters`}
+                          className="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink-3"
+                        >
+                          Tag who appears in each track in the Studio
+                        </Link>
+                      </>
+                    ) : null}
+                  </>
+                }
+              />
+            </div>
+            <div className="min-w-0">
+              <h3 className="mb-2 text-sm font-semibold text-ink">Motifs</h3>
+              <MotifList albumId={album.id} motifs={motifs} />
             </div>
           </div>
-        </section>
+        </div>
+      </Section>
 
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Issues</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-              {warnings.length ? `${warnings.length} warnings` : "No warnings"}
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {warnings.length ? (
-                warnings.slice(0, 8).map((issue) => (
-                  <div
-                    key={`${issue.level}-${issue.title}`}
-                    className="rounded-2xl border border-[rgba(255,62,165,0.22)] bg-[rgba(255,62,165,0.10)] px-4 py-3"
-                  >
-                    <div className="text-xs font-semibold text-[var(--text)]">{issue.title}</div>
-                    <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                      {issue.detail}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-[var(--muted)]">
-                  No warnings detected. This bible will get more powerful as you add themes and
-                  narrative notes.
-                </div>
-              )}
-            </div>
-
-            {infos.length ? (
-              <div className="mt-5">
-                <div className="text-xs font-semibold text-[var(--text)]">Info</div>
-                <div className="mt-2 space-y-2">
-                  {infos.slice(0, 8).map((issue) => (
-                    <div
-                      key={`${issue.level}-${issue.title}`}
-                      className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-3"
-                    >
-                      <div className="text-xs font-semibold text-[var(--text)]">{issue.title}</div>
-                      <div className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
-                        {issue.detail}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Relationship map</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-              Characters × motifs
-            </div>
-            <div className="mt-3">
-              <RelationshipMap graph={graph} />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Characters</div>
-            <div className="mt-2 space-y-2">
-              {bible.characterIndex.length ? (
-                bible.characterIndex.slice(0, 14).map((entry) => (
-                  <div
-                    key={entry.name}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-2"
-                  >
-                    <div className="truncate text-xs font-semibold text-[var(--text)]">
-                      {entry.name}
-                    </div>
-                    <div className="text-[10px] text-[var(--muted2)]">
-                      {entry.trackNumbers.join(", ")}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-[var(--muted)]">No characters tagged yet.</div>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Motifs</div>
-            <div className="mt-2 space-y-2">
-              {bible.motifIndex.length ? (
-                bible.motifIndex.slice(0, 14).map((entry) => (
-                  <div
-                    key={entry.name}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-4 py-2"
-                  >
-                    <div className="truncate text-xs font-semibold text-[var(--text)]">
-                      {entry.name}
-                    </div>
-                    <div className="text-[10px] text-[var(--muted2)]">
-                      {entry.trackNumbers.join(", ")}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-[var(--muted)]">No motifs tagged yet.</div>
-              )}
-            </div>
-          </div>
-        </aside>
-      </div>
+      <Section
+        id="bible-style"
+        title="Sound bible"
+        description={`${soundBibleFieldsSet(styleSummary.filledCount, styleSummary.totalCount)}. It lives under the Sound tab.`}
+        actions={
+          <Link href={`${base}/style`} className={FLUSH_LINK}>
+            Open the Sound bible
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        }
+      >
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-[10rem_minmax(0,1fr)]">
+          <dt className="text-sm font-semibold text-ink">Lead voice</dt>
+          <dd className="max-w-[65ch] text-sm leading-relaxed text-ink-2">{bible.styleBible.lead_voice || "Not set yet."}</dd>
+          <dt className="text-sm font-semibold text-ink">Sonic palette</dt>
+          <dd className="flex flex-wrap gap-1.5 text-sm text-ink-2">
+            {bible.styleBible.sonic_palette.length
+              ? bible.styleBible.sonic_palette.map((item) => <Chip key={`palette-${item}`}>{item}</Chip>)
+              : "Not set yet."}
+          </dd>
+          <dt className="text-sm font-semibold text-ink">Mix priorities</dt>
+          <dd className="flex flex-wrap gap-1.5 text-sm text-ink-2">
+            {bible.styleBible.mix_priorities.length
+              ? bible.styleBible.mix_priorities.map((item) => <Chip key={`mix-${item}`}>{item}</Chip>)
+              : "Not set yet."}
+          </dd>
+        </dl>
+      </Section>
     </div>
   );
-}
-
-export default async function AlbumBiblePage(props: AlbumBiblePageProps) {
-  return renderAlbumBiblePage(props);
 }

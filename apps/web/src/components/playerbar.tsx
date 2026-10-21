@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Pause, Play, Repeat2, SkipBack, SkipForward, Square, Volume2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ChevronDown, Loader2, Pause, Play, Repeat2, Square, Volume2, X } from "lucide-react";
 
-import { usePlayer, type PreviewInstrument } from "@/components/player/player-provider";
+import { INSTRUMENT_LABELS, usePlayer, type PreviewInstrument } from "@/components/player/player-provider";
+import { IconButton, LiveStatus, buttonClass, selectClass } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 function formatClock(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "0:00";
@@ -13,59 +15,43 @@ function formatClock(totalSeconds: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function Playerbar() {
-  const player = usePlayer();
-  const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const waveformRafRef = useRef<number | null>(null);
-  const getWaveform = player.getWaveform;
-
-  const loaded = player.status !== "idle";
-  const playing = player.status === "playing";
-  const canPlay =
-    loaded && player.status !== "loading" && player.status !== "error" && !player.instrumentLoading;
-  const title = player.nowPlaying?.title ?? "No preview loaded";
-  const subtitle =
-    player.status === "loading"
-      ? "Loading preview…"
-      : player.status === "error"
-        ? player.error ?? "Preview failed."
-        : player.instrumentLoading
-          ? "Loading instrument…"
-        : player.nowPlaying?.subtitle ?? "Load a section preview from Studio.";
-
-  const ratio = player.duration ? Math.min(1, Math.max(0, player.position / player.duration)) : 0;
+/**
+ * The live signal of the preview, drawn in the muted ink colour. Decorative for readers.
+ * It animates only while the preview plays; otherwise, and when the reader prefers reduced
+ * motion, it draws one still frame.
+ */
+function Waveform({ getWaveform, playing }: { getWaveform: () => Uint8Array | null; playing: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    const canvas = waveformCanvasRef.current;
-    if (!canvas) return;
-    const canvasEl: HTMLCanvasElement = canvas;
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return;
     const ctx = canvasEl.getContext("2d");
     if (!ctx) return;
+    // The canvas carries `text-ink-3`, so the stroke follows the palette token. Read once.
+    const stroke = getComputedStyle(canvasEl).color;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let raf = 0;
 
-    function resize() {
+    const draw = () => {
       const dpr = window.devicePixelRatio || 1;
       const width = Math.max(1, Math.floor(canvasEl.clientWidth * dpr));
       const height = Math.max(1, Math.floor(canvasEl.clientHeight * dpr));
-      if (canvasEl.width === width && canvasEl.height === height) return;
-      canvasEl.width = width;
-      canvasEl.height = height;
-    }
-
-    const draw = () => {
-      resize();
-
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvasEl.width / dpr;
-      const h = canvasEl.height / dpr;
+      if (canvasEl.width !== width || canvasEl.height !== height) {
+        canvasEl.width = width;
+        canvasEl.height = height;
+      }
+      const w = width / dpr;
+      const h = height / dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = stroke;
+      ctx.beginPath();
 
-      const data = getWaveform();
+      const data = playing ? getWaveform() : null;
       if (data && data.length) {
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = "rgba(255,255,255,0.28)";
-        ctx.beginPath();
-        const stride = Math.max(1, Math.floor(data.length / 220));
+        const stride = Math.max(1, Math.floor(data.length / 160));
         for (let i = 0; i < data.length; i += stride) {
           const x = (i / Math.max(1, data.length - 1)) * w;
           const v = (data[i] - 128) / 128;
@@ -73,159 +59,311 @@ export function Playerbar() {
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         }
-        ctx.stroke();
+      } else {
+        // At rest: a flat line through the middle.
+        ctx.moveTo(0, h / 2);
+        ctx.lineTo(w, h / 2);
       }
+      ctx.stroke();
 
-      waveformRafRef.current = requestAnimationFrame(draw);
+      if (playing && !still) raf = requestAnimationFrame(draw);
     };
 
-    waveformRafRef.current = requestAnimationFrame(draw);
-    return () => {
-      if (waveformRafRef.current) cancelAnimationFrame(waveformRafRef.current);
-      waveformRafRef.current = null;
-    };
-  }, [getWaveform]);
+    draw();
+    return () => cancelAnimationFrame(raf);
+  }, [getWaveform, playing]);
 
-  if (!loaded) return null;
+  return <canvas ref={canvasRef} aria-hidden="true" className="hidden h-8 w-24 flex-none text-ink-3 sm:block" />;
+}
 
+function InstrumentSelect({ id }: { id: string }) {
+  const player = usePlayer();
   return (
-    <div className="pointer-events-auto fixed bottom-4 left-1/2 z-50 w-[min(1120px,calc(100vw-32px))] -translate-x-1/2 rounded-2xl border border-[var(--border)] bg-[rgba(15,16,21,0.78)] px-4 py-3 shadow-[0_30px_80px_rgba(0,0,0,0.6)] backdrop-blur">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="h-10 w-10 flex-none rounded-xl bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.25),rgba(255,255,255,0.06))]" />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-[var(--text)]">{title}</div>
-            <div className="truncate text-xs text-[var(--muted2)]">{subtitle}</div>
-          </div>
-        </div>
-
-        <div className="flex flex-1 flex-col items-center gap-2">
-          <div className="flex items-center gap-2 text-[var(--muted)]">
-            <button
-              type="button"
-              disabled
-              className="grid h-9 w-9 place-items-center rounded-full opacity-40"
-              aria-label="Previous (coming soon)"
-              title="Previous (coming soon)"
-            >
-              <SkipBack className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!canPlay) return;
-                if (playing) player.pause();
-                else void player.play();
-              }}
-              disabled={!canPlay}
-              className="grid h-10 w-10 place-items-center rounded-full bg-white text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label={playing ? "Pause" : "Play"}
-              title={playing ? "Pause" : "Play"}
-            >
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!loaded) return;
-                player.stop();
-              }}
-              disabled={!loaded || player.status === "loading"}
-              className="grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Stop"
-              title="Stop"
-            >
-              <Square className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              disabled
-              className="grid h-9 w-9 place-items-center rounded-full opacity-40"
-              aria-label="Next (coming soon)"
-              title="Next (coming soon)"
-            >
-              <SkipForward className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => player.toggleLoop()}
-              disabled={!loaded || player.status === "loading"}
-              className={[
-                "grid h-9 w-9 place-items-center rounded-full hover:bg-[rgba(255,255,255,0.06)] disabled:cursor-not-allowed disabled:opacity-40",
-                player.loop ? "bg-[rgba(109,94,252,0.20)] text-[var(--text)]" : "",
-              ].join(" ")}
-              aria-label={player.loop ? "Disable repeat" : "Enable repeat"}
-              title={player.loop ? "Disable repeat" : "Enable repeat"}
-            >
-              <Repeat2 className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="flex w-full max-w-[520px] items-center gap-3">
-            <div className="text-[11px] tabular-nums text-[var(--muted2)]">
-              {formatClock(player.position)}
-            </div>
-            <button
-              type="button"
-              onPointerDown={(event) => {
-                if (!player.duration) return;
-                const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                const x = event.clientX - rect.left;
-                const next = clamp((x / rect.width) * player.duration, 0, player.duration);
-                player.seek(next);
-              }}
-              className="relative h-2 flex-1 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]"
-              aria-label="Seek"
-              title="Seek"
-            >
-              <canvas
-                ref={waveformCanvasRef}
-                className="absolute inset-0 h-full w-full opacity-60"
-              />
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,var(--accent2),var(--accent))]"
-                style={{ width: `${Math.round(ratio * 100)}%` }}
-              />
-            </button>
-            <div className="text-[11px] tabular-nums text-[var(--muted2)]">
-              {formatClock(player.duration)}
-            </div>
-          </div>
-        </div>
-
-        <div className="hidden items-center gap-2 md:flex">
-          <label className="hidden lg:flex items-center gap-2 text-xs text-[var(--muted2)]">
-            <span>Instrument</span>
-            <select
-              value={player.instrument}
-              onChange={(e) => void player.setInstrument(e.target.value as PreviewInstrument)}
-              className="rounded-xl border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] px-3 py-2 text-xs text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[rgba(109,94,252,0.25)]"
-              aria-label="Instrument"
-              disabled={player.status === "loading"}
-            >
-              <option value="piano">Piano (SoundFont)</option>
-              <option value="epiano">E-Piano</option>
-              <option value="strings">Strings</option>
-              <option value="pad">Pad</option>
-            </select>
-          </label>
-          <Volume2 className="h-4 w-4 text-[var(--muted2)]" />
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={player.volume}
-            onChange={(e) => player.setVolume(Number(e.target.value))}
-            className="w-28 accent-[var(--accent)]"
-            aria-label="Volume"
-          />
-        </div>
-      </div>
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <label htmlFor={id} className="text-xs text-ink-2">
+        Instrument
+      </label>
+      <select
+        id={id}
+        value={player.instrument}
+        onChange={(e) => void player.setInstrument(e.target.value as PreviewInstrument)}
+        className={cn(selectClass, "w-auto")}
+        disabled={player.status === "loading"}
+      >
+        {(Object.keys(INSTRUMENT_LABELS) as PreviewInstrument[]).map((value) => (
+          <option key={value} value={value}>
+            {INSTRUMENT_LABELS[value]}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
+function VolumeSlider({ id }: { id: string }) {
+  const player = usePlayer();
+  return (
+    <div className="flex min-h-11 min-w-0 flex-wrap items-center gap-2">
+      <Volume2 className="h-4 w-4 text-ink-2" aria-hidden="true" />
+      <label htmlFor={id} className="text-xs text-ink-2">
+        Volume
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={player.volume}
+        onChange={(e) => player.setVolume(Number(e.target.value))}
+        aria-valuetext={`${Math.round(player.volume * 100)}%`}
+        className="min-h-11 w-24 accent-ink-2"
+      />
+    </div>
+  );
+}
+
+/**
+ * The player collapses to one row on short screens: a phone on its side, and any window under
+ * 640px tall, where the full player would cover much of what's being written.
+ */
+const SHORT_SCREEN = "(max-height: 639.98px)";
+/** The docked player never takes more than this share of the viewport's height. */
+const MAX_SHARE = 0.4;
+
+function useMediaQuery(query: string) {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const list = window.matchMedia(query);
+      list.addEventListener("change", onChange);
+      return () => list.removeEventListener("change", onChange);
+    },
+    [query],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
+
+function PlayPauseButton() {
+  const player = usePlayer();
+  const playing = player.status === "playing";
+  const loading = player.status === "loading" || player.instrumentLoading;
+  const canPlay = !loading && (player.status === "ready" || player.status === "paused" || playing);
+  return (
+    <IconButton
+      label={playing ? "Pause" : "Play"}
+      onClick={() => {
+        if (!canPlay) return;
+        if (playing) player.pause();
+        else void player.play();
+      }}
+      disabled={!canPlay}
+      className="border border-line-strong text-ink"
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+      ) : playing ? (
+        <Pause className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <Play className="h-4 w-4" aria-hidden="true" />
+      )}
+    </IconButton>
+  );
+}
+
+/**
+ * The preview player, docked to the bottom of the viewport once a preview has loaded. It opens
+ * only for a preview that loaded (a failed one is explained where it was asked for, with
+ * Retry), never takes more than 40% of the viewport's height (scrolling inside itself past
+ * that), folds to one row (title, Play, Close) on screens under 640px tall or whenever the full
+ * player wouldn't fit, and Close stops playback and removes it. Close sits at the end of the
+ * transport row, so on a phone it wraps with Play, Stop and Repeat instead of alone.
+ */
+export function Playerbar() {
+  const player = usePlayer();
+  const barRef = useRef<HTMLElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [barHeight, setBarHeight] = useState(0);
+  const [tooTall, setTooTall] = useState(false);
+  const shortScreen = useMediaQuery(SHORT_SCREEN);
+
+  // Docked once a preview is ready; it stays docked while the next one loads, and leaves on
+  // Close or a failed load.
+  const settled = player.status === "ready" || player.status === "playing" || player.status === "paused";
+  const [docked, setDocked] = useState(false);
+  if (settled && !docked) setDocked(true);
+  if ((player.status === "idle" || player.status === "error") && docked) setDocked(false);
+
+  const compact = shortScreen || tooTall;
+  const playing = player.status === "playing";
+  const loading = player.status === "loading" || player.instrumentLoading;
+  const title = player.nowPlaying?.title ?? "Preview";
+  const subtitle =
+    player.status === "loading"
+      ? "Loading preview…"
+      : player.instrumentLoading
+        ? "Loading instrument…"
+        : (player.nowPlaying?.subtitle ?? "");
+
+  // While the bar is docked, the page's bottom scroll padding matches it, so a control that
+  // receives focus near the bottom of the viewport scrolls clear of the bar, not under it.
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => {
+      const height = Math.ceil(el.getBoundingClientRect().height);
+      setBarHeight(height);
+      root.style.scrollPaddingBottom = `${height + 16}px`;
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("scroll-padding-bottom");
+    };
+  }, [docked]);
+
+  // The full player folds to one row when it would need more than its share of the viewport
+  // (enlarged text, a small window). A resize gives the full player another try.
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!docked || compact || !content) return;
+    const observer = new ResizeObserver(() => {
+      if (content.getBoundingClientRect().height > window.innerHeight * MAX_SHARE) setTooTall(true);
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [docked, compact]);
+
+  useEffect(() => {
+    if (!docked) return;
+    const retry = () => setTooTall(false);
+    window.addEventListener("resize", retry);
+    return () => window.removeEventListener("resize", retry);
+  }, [docked]);
+
+  function close() {
+    const returnTo = player.close();
+    const target = returnTo ? document.getElementById(returnTo) : null;
+    if (target) target.focus();
+  }
+
+  // The player's one live region, mounted with the page (empty) rather than with the bar, so a
+  // message put into it is announced. It carries what the player itself changes: a notice (an
+  // instrument switch) and instrument loading. A preview's loading and result belong to the
+  // Studio's Preview button and its status line, so they aren't announced twice.
+  const announcement = player.notice ?? (player.instrumentLoading ? "Loading instrument…" : null);
+  const liveStatus = <LiveStatus message={announcement} className="sr-only" />;
+
+  // Same first child in both returns, so the region stays mounted when the bar docks or leaves.
+  if (!docked) return <>{liveStatus}</>;
+
+  const closeButton = (
+    <IconButton label="Close preview player" onClick={close}>
+      <X className="h-4 w-4" aria-hidden="true" />
+    </IconButton>
+  );
+
+  const status = player.notice ?? subtitle;
+
+  return (
+    <>
+      {liveStatus}
+      {/* Keeps the end of the page reachable above the docked bar, whatever its height. */}
+      <div aria-hidden="true" style={{ height: barHeight }} />
+      <section
+        ref={barRef}
+        id="preview-player"
+        aria-label="Preview player"
+        className="fixed inset-x-0 bottom-0 z-40 max-h-[40dvh] overflow-y-auto border-t border-line-strong bg-raised md:left-[var(--sidebar-w,min(16rem,33vw))]"
+      >
+        {compact ? (
+          <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 md:px-8">
+            <p className="min-w-0 flex-1 truncate text-sm text-ink" title={subtitle ? `${title} · ${subtitle}` : title}>
+              <span className="font-semibold">{title}</span>
+              {status ? <span className="text-ink-2"> · {status}</span> : null}
+            </p>
+            <PlayPauseButton />
+            {closeButton}
+          </div>
+        ) : (
+          <div ref={contentRef} className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-2 md:px-8">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="min-w-0 flex-1 basis-40">
+                <p className="truncate text-sm font-semibold text-ink">{title}</p>
+                <p className={cn("text-xs", player.notice ? "text-warn" : "truncate text-ink-2")}>
+                  {status}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <PlayPauseButton />
+                <IconButton label="Stop" onClick={() => player.stop()} disabled={loading}>
+                  <Square className="h-4 w-4" aria-hidden="true" />
+                </IconButton>
+                <IconButton
+                  label="Repeat"
+                  aria-pressed={player.loop}
+                  onClick={() => player.toggleLoop()}
+                  disabled={loading}
+                  className={player.loop ? "bg-selected text-ink" : undefined}
+                >
+                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                </IconButton>
+                {/* Below 768px Close ends the transport group, so the two wrap as one row. */}
+                <span className="contents md:hidden">{closeButton}</span>
+              </div>
+
+              <div className="hidden flex-wrap items-center gap-x-4 gap-y-1 md:flex">
+                <InstrumentSelect id="player-instrument" />
+                <VolumeSlider id="player-volume" />
+              </div>
+
+              <span className="hidden md:contents">{closeButton}</span>
+            </div>
+
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="type-figure min-w-10 text-xs text-ink-2">{formatClock(player.position)}</span>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(player.duration, 0.01)}
+                step={0.1}
+                value={Math.min(player.position, player.duration || 0)}
+                disabled={!player.duration}
+                onChange={(e) => player.seek(Number(e.target.value))}
+                aria-label="Position"
+                aria-valuetext={`${formatClock(player.position)} of ${formatClock(player.duration)}`}
+                className="min-h-11 min-w-0 flex-1 accent-ink"
+              />
+              <span className="type-figure min-w-10 text-right text-xs text-ink-2">
+                {formatClock(player.duration)}
+              </span>
+              <Waveform getWaveform={player.getWaveform} playing={playing} />
+            </div>
+
+            {/* On small screens the sound settings live in a disclosure, still one tap away. */}
+            <details className="group w-full md:hidden">
+              <summary
+                className={cn(
+                  buttonClass("ghost"),
+                  "-ml-2 cursor-pointer list-none justify-start px-2 [&::-webkit-details-marker]:hidden",
+                )}
+              >
+                <ChevronDown className="h-4 w-4 transition-transform motion-reduce:transition-none group-open:rotate-180" aria-hidden="true" />
+                Sound options
+              </summary>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-1">
+                <InstrumentSelect id="player-instrument-mobile" />
+                <VolumeSlider id="player-volume-mobile" />
+              </div>
+            </details>
+          </div>
+        )}
+      </section>
+    </>
+  );
 }

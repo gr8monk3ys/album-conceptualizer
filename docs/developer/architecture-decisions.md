@@ -29,7 +29,6 @@ The Python engine provides supporting capabilities:
 - export
 - theory and experience endpoints
 - optional AI and RAG features
-- the legacy Gradio surface
 
 ### Consequences
 

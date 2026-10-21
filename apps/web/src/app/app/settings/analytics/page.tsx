@@ -1,20 +1,26 @@
 import Link from "next/link";
 
+import { RelativeTime } from "@/components/relative-time";
 import { WorkspaceFunnelCard } from "@/components/workspace-funnel-card";
+import { PageHeader, Section } from "@/components/ui";
 import { getWorkspaceFunnelSummary } from "@/server/analytics";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Album progress",
+  description: "How albums in this workspace move from created to exported and published.",
+};
 
 const EVENT_LABELS: Record<string, string> = {
-  user_signed_up: "User signed up",
+  user_signed_up: "Joined",
   album_created: "Album created",
-  album_bible_viewed: "Bible reviewed",
+  album_bible_viewed: "Story bible reviewed",
   album_studio_viewed: "Studio opened",
-  album_coherence_viewed: "Coherence reviewed",
-  album_style_bible_viewed: "Style bible opened",
-  album_style_bible_saved: "Style bible saved",
+  album_coherence_viewed: "Coherence report read",
+  album_style_bible_viewed: "Sound bible opened",
+  album_style_bible_saved: "Sound bible saved",
   album_rough_demos_viewed: "Rough demos opened",
   album_demo_added: "Rough demo added",
   album_demo_updated: "Rough demo updated",
@@ -23,11 +29,18 @@ const EVENT_LABELS: Record<string, string> = {
   album_reference_updated: "Reference updated",
   album_reference_deleted: "Reference deleted",
   album_handoff_downloaded: "Handoff pack downloaded",
+  album_backup_downloaded: "Backup downloaded",
   album_saved: "Studio saved",
   album_export_requested: "Export completed",
   album_published: "Published to Discover",
-  billing_checkout_started: "Billing checkout started",
+  billing_checkout_started: "Started a plan upgrade",
 };
+
+function eventLabel(event: string) {
+  if (EVENT_LABELS[event]) return EVENT_LABELS[event];
+  const words = event.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 export default async function AnalyticsPage() {
   const { userId } = await requireUser();
@@ -35,77 +48,52 @@ export default async function AnalyticsPage() {
   const summary = await getWorkspaceFunnelSummary(workspace.id);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <div className="text-xs text-[var(--muted2)]">Analytics</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-          Workspace funnel
-        </div>
-        <div className="mt-2 max-w-[72ch] text-sm text-[var(--muted)]">
-          Track whether projects move from creation into activation, export, and publishing.
-          Current window starts {summary.since.toLocaleDateString()}.
-        </div>
-      </div>
+    <div className="flex flex-col gap-10">
+      <PageHeader
+        size="page"
+        title="Album progress"
+        description="How your albums move from first draft to export and publishing. Each album counts once per stage."
+      />
 
-      <WorkspaceFunnelCard summary={summary} href="/app/settings/analytics" />
+      <WorkspaceFunnelCard summary={summary} />
 
-      <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-xs text-[var(--muted2)]">Recent events</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-              What users did most recently
-            </div>
-          </div>
-          <Link
-            href="/app/create"
-            className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            New project
-          </Link>
-        </div>
-
-        <div className="mt-4 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.08)]">
-          {summary.recentEvents.length ? (
-            <div className="divide-y divide-[rgba(255,255,255,0.06)]">
-              {summary.recentEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className="flex flex-col gap-2 px-4 py-3 text-sm md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="font-semibold text-[var(--text)]">
-                      {EVENT_LABELS[event.event] ?? event.event}
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--muted2)]">
-                      {event.album ? (
-                        <Link
-                          href={`/app/albums/${event.album.id}`}
-                          className="hover:text-[var(--text)]"
-                        >
-                          {event.album.title}
-                        </Link>
-                      ) : (
-                        "Workspace event"
-                      )}
-                      {" · "}
-                      {event.user?.name || event.user?.email || "Unknown user"}
-                      {event.path ? ` · ${event.path}` : ""}
-                    </div>
-                  </div>
-                  <div className="text-xs text-[var(--muted2)]">
-                    {event.createdAt.toLocaleString()}
-                  </div>
+      <Section id="events" title="Recent activity" description="The latest 20 things that happened in this workspace.">
+        {summary.recentEvents.length ? (
+          <ol className="border-t border-line">
+            {summary.recentEvents.map((event) => (
+              <li
+                key={event.id}
+                className="flex flex-col gap-1 border-b border-line py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-ink">{eventLabel(event.event)}</p>
+                  <p className="mt-0.5 break-words text-ink-2">
+                    {event.album ? (
+                      <Link
+                        href={`/app/albums/${event.album.id}`}
+                        className="inline-block py-3 underline underline-offset-4 hover:text-ink"
+                      >
+                        {event.album.title}
+                      </Link>
+                    ) : (
+                      "Workspace"
+                    )}
+                    <span aria-hidden="true"> · </span>
+                    {event.user?.name || event.user?.email || "Someone"}
+                  </p>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="px-4 py-8 text-sm text-[var(--muted)]">
-              No events yet. Create an album to start filling the funnel.
-            </div>
-          )}
-        </div>
-      </div>
+                <p className="text-xs text-ink-3">
+                  <RelativeTime date={event.createdAt.toISOString()} />
+                </p>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="max-w-[65ch] text-sm text-ink-2">
+            Nothing yet. Activity appears here once someone creates, writes or exports an album.
+          </p>
+        )}
+      </Section>
     </div>
   );
 }

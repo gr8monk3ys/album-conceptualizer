@@ -4,14 +4,10 @@ test.describe("Production smoke", () => {
   test("sign-in page renders marketing shell", async ({ page }) => {
     await page.goto("/sign-in");
     await expect(page).toHaveTitle(/Sign In/i);
-    await expect(page.getByText("Album Conceptualizer")).toBeVisible();
+    // The site header names the product; the page heading names the page.
+    await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Terms" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Privacy Policy" })).toBeVisible();
-  });
-
-  test("unauthenticated app route redirects to sign-in", async ({ page }) => {
-    await page.goto("/app");
-    await expect(page).toHaveURL(/sign-in/);
   });
 
   test("public trust pages render", async ({ page }) => {
@@ -26,6 +22,11 @@ test.describe("Production smoke", () => {
     await page.goto("/support");
     await expect(page).toHaveTitle(/Support/i);
     await expect(page.getByRole("heading", { name: /Get help with access, billing, and exports/i })).toBeVisible();
+  });
+
+  test("unauthenticated app route redirects to sign-in", async ({ page }) => {
+    await page.goto("/app");
+    await expect(page).toHaveURL(/sign-in/);
   });
 
   test("core unauthenticated APIs respond", async ({ request }) => {

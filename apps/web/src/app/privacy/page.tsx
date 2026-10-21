@@ -16,12 +16,12 @@ export default function PrivacyPage() {
       aside={
         <div className="space-y-4">
           <div>
-            <div className="text-xs text-[var(--muted2)]">At a glance</div>
-            <div className="mt-1 text-lg font-semibold text-[var(--text)]">
+            <div className="text-xs text-ink-3">At a glance</div>
+            <div className="mt-1 text-lg font-semibold text-ink">
               What we collect
             </div>
           </div>
-          <div className="space-y-2 text-sm text-[var(--muted)]">
+          <div className="space-y-2 text-sm text-ink-2">
             <div>Account details needed to authenticate and route workspaces.</div>
             <div>Album, song, export, version, comment, and analytics data needed to operate the app.</div>
             <div>Billing identifiers from Stripe when subscriptions are enabled.</div>
@@ -88,7 +88,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           If you want account or project data removed, use{" "}
-          <a href="/support" className="text-[var(--text)] underline underline-offset-4">
+          <a href="/support" className="text-ink underline underline-offset-4">
             /support
           </a>{" "}
           to contact the team for the current deployment.

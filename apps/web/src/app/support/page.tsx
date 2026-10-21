@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { buttonClass } from "@/components/ui";
+
 import {
   PublicTrustShell,
   REPO_DOCS_URL,
@@ -28,18 +30,18 @@ export default function SupportPage() {
       aside={
         <div className="space-y-4">
           <div>
-            <div className="text-xs text-[var(--muted2)]">Primary route</div>
-            <div className="mt-1 text-lg font-semibold text-[var(--text)]">
+            <div className="text-xs text-ink-3">Primary route</div>
+            <div className="mt-1 text-lg font-semibold text-ink">
               {hasSupportEmail ? "Email support" : "GitHub issue tracker"}
             </div>
           </div>
           <a
             href={hasSupportEmail ? `mailto:${supportEmail}` : REPO_ISSUES_URL}
-            className="inline-flex rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-white/90"
+            className={buttonClass("primary")}
           >
             {hasSupportEmail ? supportEmail : "Open GitHub issues"}
           </a>
-          <div className="text-sm leading-relaxed text-[var(--muted)]">
+          <div className="text-sm leading-relaxed text-ink-2">
             {hasSupportEmail
               ? "Use this for account access, privacy requests, billing questions, or export failures."
               : "No public support email is configured for this deployment yet. For self-hosting or repo-level issues, use GitHub issues."}
@@ -64,11 +66,11 @@ export default function SupportPage() {
           issue tracker:
         </p>
         <p>
-          <a href={REPO_DOCS_URL} className="text-[var(--text)] underline underline-offset-4">
+          <a href={REPO_DOCS_URL} className="text-ink underline underline-offset-4">
             Repository documentation
           </a>
           {" · "}
-          <a href={REPO_ISSUES_URL} className="text-[var(--text)] underline underline-offset-4">
+          <a href={REPO_ISSUES_URL} className="text-ink underline underline-offset-4">
             GitHub issues
           </a>
         </p>

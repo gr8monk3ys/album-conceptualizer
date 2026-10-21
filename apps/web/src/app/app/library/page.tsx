@@ -1,4 +1,7 @@
-import { AlbumCard, type AlbumListItem } from "@/components/album-card";
+import { AlbumList, toAlbumListItem } from "@/components/album-card";
+import { ButtonLink, EmptyState, PageHeader } from "@/components/ui";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { albumProgressById } from "@/server/album-progress";
 import { listAlbums } from "@/server/albums";
 import { requireUser } from "@/server/identity";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
@@ -6,39 +9,47 @@ import { getActiveWorkspaceForUser } from "@/server/workspaces";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Library",
-  description: "Browse your concept album projects and recent activity.",
+  description: "Every album in your workspace, most recently edited first.",
 };
 
 export default async function LibraryPage() {
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
-  const albums = await listAlbums(workspace.id);
-
-  const items: AlbumListItem[] = albums.map((album) => ({
-    id: album.id,
-    title: album.title,
-    subtitle: `${album.primaryGenre || "Concept"} | ${album.trackCount} tracks`,
-    tag: album.status === "draft" ? "draft" : undefined,
-    cover: album.coverUrl ?? undefined,
-  }));
+  const listed = await listAlbums(workspace.id);
+  // Each row shows how far its album has come, the way Home shows the album it continues.
+  const progress = await albumProgressById(
+    workspace.id,
+    listed.map((album) => album.id),
+  );
+  const albums = listed.map((album) => ({ ...toAlbumListItem(album), progress: progress.get(album.id) }));
+  const count = `${albums.length} ${albums.length === 1 ? "album" : "albums"}`;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <div className="text-xs text-[var(--muted2)]">Library</div>
-        <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-          All projects
-        </div>
-        <div className="mt-2 max-w-[70ch] text-sm text-[var(--muted)]">
-          Everything you&apos;ve saved in this workspace.
-        </div>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        size="page"
+        title="Library"
+        catalog={albums.length ? <span className="type-figure">{count}</span> : undefined}
+        description="Every album in this workspace, most recently edited first."
+      />
 
-      <div className="grid grid-cols-1 gap-3">
-        {items.map((album) => (
-          <AlbumCard key={album.id} album={album} href={`/app/albums/${album.id}`} />
-        ))}
-      </div>
+      {albums.length ? (
+        <AlbumList label="Albums" albums={albums} hrefFor={(album) => `/app/albums/${album.id}`} />
+      ) : (
+        <EmptyState
+          title="Your library is empty"
+          action={
+            // Secondary: the header's "New album" is this page's primary action.
+            <ButtonLink tone="secondary" href="/app/create">
+              Start your first album
+            </ButtonLink>
+          }
+        >
+          An album starts as a one-paragraph concept. The guided setup turns it into a sequence
+          and a narrative arc you can rewrite track by track, then export to your DAW. Creating an
+          album uses {CREDIT_COSTS.albumCreate} credits.
+        </EmptyState>
+      )}
     </div>
   );
 }

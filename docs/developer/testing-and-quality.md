@@ -170,14 +170,6 @@ STRIPE_PRICE_ID=... \
 python scripts/stripe-billing-smoke.py --plan pro --simulate-webhook
 ```
 
-## Legacy UI Smoke
-
-If you still touch the Gradio surface:
-
-```bash
-make ui-e2e
-```
-
 ## Recommended Pre-Merge Checklist
 
 ### If You Changed Python Only
@@ -227,7 +219,7 @@ GitHub Actions currently enforces:
 - Python type-check
 - security audit
 - optional stack smoke
-- Playwright CLI UI E2E
+- web E2E (Playwright)
 - web Lighthouse
 
 The web Lighthouse workflow now provisions Postgres, applies Prisma migrations, and runs both:

@@ -1,6 +1,6 @@
 [project]
 name = "album-conceptualizer"
-version = "0.1.0"
+version = "0.3.0"
 description = "A RAG-powered concept album ideation system with multi-agent orchestration"
 readme = "README.md"
 license = { text = "GPL-3.0" }
@@ -29,20 +29,15 @@ dependencies = [
     "tenacity>=9.1.3",
     "rich>=14.3.2",
     # FastAPI for REST API
-    # The upper bound is load-bearing, not caution. From fastapi 0.137.0,
-    # nested include_router silently drops routes: a router included into a
-    # router included into the app contributes NOTHING, with no error raised.
-    # This API is built from exactly that shape, so an unbounded install
-    # yields a server that boots, answers /health, and serves none of its 104
-    # /api/v1 routes -- indistinguishable from a healthy deploy until a
-    # request 404s.
-    #
-    # Bisected on 2026-08-29, identical on Python 3.13 and 3.14:
-    #   fastapi 0.129.0, 0.133.0, 0.136.0 -> route registered
-    #   fastapi 0.137.0, 0.137.2, 0.138.x, 0.139.2, 0.141.1 -> route LOST
-    # Not starlette: 0.139.2 pinned back to starlette 0.52.1 is still broken.
-    # Re-test with tests/test_nested_router_registration.py before raising.
-    "fastapi>=0.128.2,<0.137",
+    # No upper bound needed. fastapi <0.137 was pinned 2026-08-29..2026-09-20
+    # after fastapi 0.137.0 (fastapi/fastapi#15745) stopped flattening
+    # include_router into copied APIRoutes and started keeping a tree of
+    # included routers: iterating app.routes for `.path` then finds nothing
+    # under /api/v1, which read as "every route dropped". Requests were served
+    # the whole time -- the real app exposes the identical 104 operations under
+    # 0.136.3 and 0.141.1. tests/test_nested_router_registration.py now checks
+    # the OpenAPI schema and real requests, never app.routes; keep it that way.
+    "fastapi>=0.128.2",
     "uvicorn[standard]>=0.37.0",
     "stripe>=12.0.0",
 ]
@@ -77,12 +72,9 @@ data = [
     "numpy>=2.4.2",
 ]
 
-# UI
-ui = ["gradio>=6.5.1"]
-
 # Full installation (all optional deps)
 full = [
-    "album-conceptualizer[ai,rag,music,data,ui]",
+    "album-conceptualizer[ai,rag,music,data]",
     "weaviate-client>=4.17.0",
     "python-osc>=1.9.3",
     "musicbrainzngs>=0.7.1",
@@ -225,8 +217,6 @@ branch = true
 omit = [
     "*/tests/*",
     "*/__pycache__/*",
-    # Legacy Gradio UI — requires optional 'ui' extra, not exercised in CI
-    "album_conceptualizer/ui/app.py",
     # CLI entry point — tested via integration, not unit coverage
     "album_conceptualizer/cli.py",
     # Optional RAG modules — require 'rag' extra (ChromaDB, sentence-transformers)

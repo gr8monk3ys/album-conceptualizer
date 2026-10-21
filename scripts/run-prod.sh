@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Minimal production run: API + UI containers
+# Minimal production run: API container
 # Requires Docker and a configured .env for API keys.
 
 echo "Starting Album Conceptualizer (prod)..."
-docker compose up -d api app
+docker compose up -d api
 
 echo "API: http://localhost:8000"
-echo "UI:  http://localhost:7860"

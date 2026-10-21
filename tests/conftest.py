@@ -70,8 +70,6 @@ def _is_unit_focus_file(path: str) -> bool:
         (
             "/tests/test_models.py",
             "/tests/test_models_extended.py",
-            "/tests/test_ui_helpers.py",
-            "/tests/test_ui_helpers_extended.py",
         )
     )
 

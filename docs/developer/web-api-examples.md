@@ -51,8 +51,8 @@ Typical response:
 ```json
 {
   "ok": true,
+  "status": "ok",
   "service": "album-conceptualizer-web",
-  "mode": "default",
   "checks": {
     "api": true,
     "config": true,
@@ -62,7 +62,7 @@ Typical response:
 }
 ```
 
-If strict production config is invalid, this returns `503` and includes `errors.config`.
+If strict production config is invalid, or the database or engine can't be reached, this returns `503` with `"status": "degraded"` and the failing check set to `false`. The route is public, so the reasons are only logged server-side (`health_degraded`).
 
 ## 2. Create Album
 

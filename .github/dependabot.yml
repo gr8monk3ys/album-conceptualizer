@@ -1,71 +1,55 @@
-# Dependabot configuration
-# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
-
+# Dependabot retune 2026-09-10: this repo is deployed, so version updates stay on,
+# but monthly with a small PR cap. Security updates are a repo setting and unaffected.
 version: 2
 updates:
-  # Python dependencies
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/Los_Angeles"
-    open-pull-requests-limit: 2
-    reviewers:
-      - "gr8monk3ys"
-    labels:
-      - "dependencies"
-      - "python"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-    groups:
-      # Group minor and patch updates together
-      python-minor:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-      # Keep major updates separate for review
-      python-major:
-        patterns:
-          - "*"
-        update-types:
-          - "major"
-
-  # GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 2
-    reviewers:
-      - "gr8monk3ys"
-    labels:
-      - "dependencies"
-      - "ci"
-    commit-message:
-      prefix: "ci(deps)"
-
-  # Docker
-    ignore:
-      # Same-owner reusable workflows live in the PRIVATE gr8monk3ys/github
-      # repo; Dependabot cannot reach it (git_dependencies_not_reachable)
-      # and fails every weekly run. They are pinned manually, not versioned.
-      - dependency-name: "gr8monk3ys/*"
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 1
-    reviewers:
-      - "gr8monk3ys"
-    labels:
-      - "dependencies"
-      - "docker"
-    commit-message:
-      prefix: "docker(deps)"
+- package-ecosystem: pip
+  directory: /
+  schedule:
+    interval: monthly
+  open-pull-requests-limit: 3
+  reviewers:
+  - gr8monk3ys
+  labels:
+  - dependencies
+  - python
+  commit-message:
+    prefix: deps
+    include: scope
+  groups:
+    python-minor:
+      patterns:
+      - '*'
+      update-types:
+      - minor
+      - patch
+    python-major:
+      patterns:
+      - '*'
+      update-types:
+      - major
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: monthly
+  open-pull-requests-limit: 3
+  reviewers:
+  - gr8monk3ys
+  labels:
+  - dependencies
+  - ci
+  commit-message:
+    prefix: ci(deps)
+  ignore:
+  - dependency-name: gr8monk3ys/*
+- package-ecosystem: docker
+  directory: /
+  schedule:
+    interval: monthly
+  open-pull-requests-limit: 3
+  reviewers:
+  - gr8monk3ys
+  labels:
+  - dependencies
+  - docker
+  commit-message:
+    prefix: docker(deps)

@@ -2,98 +2,154 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 
-import { getDailyChallenge, getUtcDay, isKnownChallenge } from "@/server/challenges";
-import { getAuthSession } from "@/server/auth";
+import { findAlbumSongByTrackNumber } from "@/server/album-songs";
+import { ApiError, apiHandler, parseJsonBody, requireAlbum, requireWorkspace } from "@/server/api";
+import {
+  challengeWritingReason,
+  checkChallengeWriting,
+  findLyricsBaseline,
+  recordLyricsBaseline,
+  startOfUtcDay,
+} from "@/server/challenge-verification";
+import { challengeClaimReason, getDailyChallenge, getUtcDay, isKnownChallenge } from "@/server/challenges";
+import { getCredits, grantCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
-import { planCreditsTotal } from "@/server/credits";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
 
 export const runtime = "nodejs";
 
 const BodySchema = z.object({
   challengeKey: z.string().trim().min(1).max(64),
   notes: z.string().trim().min(10).max(800).optional(),
+  // What the entry was written for: an album in this workspace, and optionally one of its
+  // tracks. Required, because the credits are paid for writing the album shows.
+  albumId: z.string().max(64).optional(),
+  trackNumber: z.number().int().min(1).max(999).optional(),
+  // Where the claim was made, for the wording of "no credits yet": the Studio's challenge band
+  // (the writing is on screen) or the Challenges page. Only a claim without a note uses it.
+  from: z.enum(["studio", "page"]).optional(),
 });
 
-export async function POST(request: Request) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+/**
+ * Saves today's challenge entry (from the Studio's challenge band, or the Challenges page for
+ * writing already done; a note is optional). Credits are granted only when the linked track (or album)
+ * has written lyrics that are new today (UTC, `checkChallengeWriting`: measured against the
+ * album's lyrics baseline for the day, recorded here when it is missing); otherwise the note is
+ * saved with 0 credits and the response says why, and the artist can send it again once they
+ * have written, which grants the credits then. An entry that has earned its credits is final.
+ */
+export const POST = apiHandler(async (request: Request) => {
+  const { workspaceId, plan } = await requireWorkspace();
+  const payload = await parseJsonBody(request, BodySchema);
 
-  const payload = BodySchema.safeParse(await request.json().catch(() => null));
-  if (!payload.success) {
-    return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
-  }
-
-  const today = getUtcDay();
+  const now = new Date();
+  const today = getUtcDay(now);
   const { challenge } = getDailyChallenge(today);
-
-  if (!isKnownChallenge(payload.data.challengeKey)) {
-    return NextResponse.json({ error: "Unknown challenge." }, { status: 400 });
+  if (!isKnownChallenge(payload.challengeKey)) throw new ApiError(400, "Unknown challenge.");
+  // Only today's challenge (UTC day boundary) can be completed.
+  if (payload.challengeKey !== challenge.key) {
+    throw new ApiError(409, "That challenge is not active today.");
   }
-
-  // Only allow completing today's challenge (UTC day boundary) to keep this simple.
-  if (payload.data.challengeKey !== challenge.key) {
-    return NextResponse.json({ error: "That challenge is not active today." }, { status: 409 });
+  if (!payload.albumId) {
+    throw new ApiError(400, "Choose the album you wrote in: the credits are for writing it shows.");
+  }
+  // 404s unless the album is in the caller's workspace.
+  const album = await requireAlbum(workspaceId, payload.albumId, {
+    id: true,
+    title: true,
+    data: true,
+    createdAt: true,
+    updatedAt: true,
+  });
+  const trackNumber = payload.trackNumber ?? null;
+  if (trackNumber !== null && !findAlbumSongByTrackNumber(album.data, trackNumber)) {
+    throw new ApiError(400, "That track isn't on the album any more. Choose another.");
   }
 
   const prisma = getPrisma();
-  const workspace = await getActiveWorkspaceForUser(userId);
-  const plan = workspace.subscription?.plan ?? "free";
-  const baseline = planCreditsTotal(plan);
+  const dayStart = startOfUtcDay(now);
+  const [dayBaseline, versionBeforeToday, firstVersion, existing] = await Promise.all([
+    findLyricsBaseline(prisma, album.id, now),
+    prisma.albumVersion.findFirst({
+      where: { albumId: album.id, createdAt: { lt: dayStart } },
+      orderBy: { createdAt: "desc" },
+      select: { data: true },
+    }),
+    prisma.albumVersion.findFirst({
+      where: { albumId: album.id },
+      orderBy: { createdAt: "asc" },
+      select: { data: true },
+    }),
+    prisma.challengeCompletion.findFirst({
+      where: { workspaceId, challengeKey: challenge.key, challengeDay: today },
+      select: { id: true, creditsEarned: true },
+    }),
+  ]);
+  if (existing && existing.creditsEarned > 0) throw new ApiError(409, "Already completed today.");
+
+  const check = checkChallengeWriting({
+    now,
+    album,
+    trackNumber,
+    dayBaseline,
+    versionBeforeToday,
+    firstVersion,
+  });
+  const earned = check.verified ? challenge.credits : 0;
+  // A claim without a note (the Studio's band, the Challenges page) keeps any note saved earlier.
+  const entry = {
+    ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+    albumId: album.id,
+    trackNumber,
+    creditsEarned: earned,
+  };
 
   try {
     const balance = await prisma.$transaction(async (tx) => {
-      // Ensure a balance row exists (and stays at least baseline on upgrades).
-      const existing = await tx.creditBalance.upsert({
-        where: { workspaceId: workspace.id },
-        create: { workspaceId: workspace.id, balance: baseline },
-        update: {},
-        select: { balance: true },
-      });
-      if (existing.balance < baseline) {
-        await tx.creditBalance.update({
-          where: { workspaceId: workspace.id },
-          data: { balance: baseline },
-          select: { balance: true },
+      if (existing) {
+        // Only an entry still at 0 credits is updated, so two sends can't both be paid.
+        const updated = await tx.challengeCompletion.updateMany({
+          where: { id: existing.id, creditsEarned: 0 },
+          data: entry,
+        });
+        if (!updated.count) throw new ApiError(409, "Already completed today.");
+      } else {
+        await tx.challengeCompletion.create({
+          data: { workspaceId, challengeKey: challenge.key, challengeDay: today, ...entry },
+          select: { id: true },
         });
       }
-
-      await tx.challengeCompletion.create({
-        data: {
-          workspaceId: workspace.id,
-          challengeKey: challenge.key,
-          challengeDay: today,
-          notes: payload.data.notes ?? null,
-          creditsEarned: challenge.credits,
-        },
-        select: { id: true },
+      if (!earned && !dayBaseline && album.createdAt < dayStart) {
+        // No baseline yet: what the album shows now is what later writing is measured against
+        // (when it hasn't been saved today, that is exactly the album as it stood before today).
+        await recordLyricsBaseline(tx, album.id, album.data, now);
+      }
+      if (!earned) return null;
+      return grantCredits(tx, {
+        workspaceId,
+        plan,
+        amount: earned,
+        reason: `challenge:${challenge.key}`,
+        metadata: { day: today, key: challenge.key, albumId: album.id, trackNumber },
       });
-
-      await tx.creditLedgerEntry.create({
-        data: {
-          workspaceId: workspace.id,
-          delta: challenge.credits,
-          reason: `challenge:${challenge.key}`,
-          metadata: { day: today, key: challenge.key },
-        },
-        select: { id: true },
-      });
-
-      const updated = await tx.creditBalance.update({
-        where: { workspaceId: workspace.id },
-        data: { balance: { increment: challenge.credits } },
-        select: { balance: true },
-      });
-
-      return updated.balance;
     });
 
-    return NextResponse.json({ ok: true, balance });
+    if (check.verified) {
+      return NextResponse.json({ ok: true, credited: true, creditsEarned: earned, balance });
+    }
+    const { remaining } = await getCredits({ workspaceId, plan });
+    return NextResponse.json({
+      ok: true,
+      credited: false,
+      creditsEarned: 0,
+      balance: remaining,
+      reason: payload.notes
+        ? challengeWritingReason(check.reason, { albumTitle: album.title, trackNumber })
+        : challengeClaimReason(check.reason, { albumTitle: album.title, trackNumber }, payload.from ?? "page"),
+    });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      return NextResponse.json({ error: "Already completed today." }, { status: 409 });
+      throw new ApiError(409, "Already completed today.");
     }
-    return NextResponse.json({ error: "Could not record completion." }, { status: 500 });
+    throw err;
   }
-}
+});

@@ -84,6 +84,7 @@ model Workspace {
   subscription Subscription?
   creditBalance CreditBalance?
   creditLedger CreditLedgerEntry[]
+  agentJobCharges AgentJobCharge[]
   challengeCompletions ChallengeCompletion[]
   notifications Notification[]
   analyticsEvents AnalyticsEvent[]
@@ -133,6 +134,8 @@ model Album {
   tasks     AlbumTask[]
   notifications Notification[]
   analyticsEvents AnalyticsEvent[]
+  challengeCompletions ChallengeCompletion[]
+  lyricsBaselines AlbumLyricsBaseline[]
   @@schema("album_conceptualizer")
 }
 
@@ -240,6 +243,22 @@ model CreditLedgerEntry {
   @@schema("album_conceptualizer")
 }
 
+/// The credits charged for one engine agent job, so a job that fails after it was accepted
+/// is refunded exactly once (the refund claims the row by setting refundedAt).
+model AgentJobCharge {
+  jobId       String    @id
+  workspaceId String
+  amount      Int
+  reason      String
+  createdAt   DateTime  @default(now())
+  refundedAt  DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@schema("album_conceptualizer")
+}
+
 model ChallengeCompletion {
   id           String   @id @default(cuid())
   workspaceId  String
@@ -247,13 +266,34 @@ model ChallengeCompletion {
   // UTC day string (YYYY-MM-DD) to avoid timezone ambiguity.
   challengeDay String
   notes        String?
+  /// The album (and optionally the track) the entry was written for, if the artist said.
+  albumId      String?
+  trackNumber  Int?
   creditsEarned Int @default(0)
   createdAt    DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  album     Album?    @relation(fields: [albumId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, challengeKey, challengeDay])
   @@index([workspaceId, challengeDay])
+  @@schema("album_conceptualizer")
+}
+
+/// An album's written lyrics as they stood on a UTC day before it was written in that day
+/// (hashes of the normalised texts), so a challenge entry is paid only for writing done since.
+/// Recorded when the day's challenge is opened or sent (`server/challenge-verification.ts`).
+model AlbumLyricsBaseline {
+  albumId   String
+  // UTC day string (YYYY-MM-DD), as ChallengeCompletion.challengeDay.
+  day       String
+  lyricHashes Json
+  createdAt DateTime @default(now())
+
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@id([albumId, day])
+  @@index([day])
   @@schema("album_conceptualizer")
 }
 

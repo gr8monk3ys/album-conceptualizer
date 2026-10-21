@@ -29,30 +29,6 @@ services:
       retries: 3
       start_period: 10s
 
-  # Gradio UI service
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: ui
-    container_name: album-conceptualizer-ui
-    ports:
-      - "7860:7860"
-    volumes:
-      - ./data:/app/data
-      - ./output:/app/output
-    environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import album_conceptualizer"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
   # Development service with hot reload
   dev:
     build:
@@ -61,7 +37,7 @@ services:
       target: development
     container_name: album-conceptualizer-dev
     ports:
-      - "7860:7860"
+      - "8002:8000"
     volumes:
       - .:/app
       - /app/__pycache__
@@ -70,7 +46,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - LOG_LEVEL=DEBUG
-    command: python -m album_conceptualizer.cli ui --host 0.0.0.0 --debug
+    command: uvicorn album_conceptualizer.api.app:app --host 0.0.0.0 --port 8000 --reload
     profiles:
       - dev
 

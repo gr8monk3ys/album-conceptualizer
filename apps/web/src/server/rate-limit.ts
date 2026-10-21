@@ -3,13 +3,17 @@ import { Redis } from "@upstash/redis";
 
 import { hasWebRateLimitingConfigured, isStrictProductionRuntime } from "@/server/production";
 
-type LimiterName =
-  | "albums_create"
-  | "export_zip"
-  | "preview_midi"
-  | "preview_audio"
-  | "stripe"
-  | "agents_start";
+// Requests allowed per user per minute, by bucket.
+const LIMITS = {
+  albums_create: 10,
+  export_zip: 30,
+  preview_midi: 60,
+  preview_audio: 20,
+  stripe: 5,
+  agents_start: 10,
+} as const;
+
+export type LimiterName = keyof typeof LIMITS;
 
 type RateLimitResult = {
   ok: boolean;
@@ -32,56 +36,19 @@ try {
   redis = null;
 }
 
-const limiters: Record<LimiterName, Ratelimit | null> = {
-  albums_create: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(10, "1 m"),
-        prefix: "ac:ratelimit:albums_create",
-        analytics: true,
-      })
-    : null,
-  export_zip: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(30, "1 m"),
-        prefix: "ac:ratelimit:export_zip",
-        analytics: true,
-      })
-    : null,
-  preview_midi: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(60, "1 m"),
-        prefix: "ac:ratelimit:preview_midi",
-        analytics: true,
-      })
-    : null,
-  preview_audio: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(20, "1 m"),
-        prefix: "ac:ratelimit:preview_audio",
-        analytics: true,
-      })
-    : null,
-  stripe: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(5, "1 m"),
-        prefix: "ac:ratelimit:stripe",
-        analytics: true,
-      })
-    : null,
-  agents_start: redis
-    ? new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(10, "1 m"),
-        prefix: "ac:ratelimit:agents_start",
-        analytics: true,
-      })
-    : null,
-};
+const limiters = Object.fromEntries(
+  (Object.keys(LIMITS) as LimiterName[]).map((name) => [
+    name,
+    redis
+      ? new Ratelimit({
+          redis,
+          limiter: Ratelimit.slidingWindow(LIMITS[name], "1 m"),
+          prefix: `ac:ratelimit:${name}`,
+          analytics: true,
+        })
+      : null,
+  ]),
+) as Record<LimiterName, Ratelimit | null>;
 
 const STRICT_PRODUCTION_RATE_LIMIT_MESSAGE =
   "Rate limiting is not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.";
@@ -105,25 +72,6 @@ export function getRateLimitHeaders(result: RateLimitResult) {
 
 export function getRateLimitInitializationIssue() {
   return rateLimitInitializationIssue;
-}
-
-export function getRateLimitFailure(rate: RateLimitResult, fallbackMessage: string) {
-  if (rate.error) {
-    return {
-      body: { error: rate.error },
-      status: rate.status ?? 503,
-    };
-  }
-
-  if (!rate.ok) {
-    return {
-      body: { error: fallbackMessage },
-      headers: getRateLimitHeaders(rate),
-      status: 429,
-    };
-  }
-
-  return null;
 }
 
 export async function checkRateLimit(name: LimiterName, key: string): Promise<RateLimitResult> {

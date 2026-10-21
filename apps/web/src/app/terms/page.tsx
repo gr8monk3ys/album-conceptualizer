@@ -16,12 +16,12 @@ export default function TermsPage() {
       aside={
         <div className="space-y-4">
           <div>
-            <div className="text-xs text-[var(--muted2)]">What this covers</div>
-            <div className="mt-1 text-lg font-semibold text-[var(--text)]">
+            <div className="text-xs text-ink-3">What this covers</div>
+            <div className="mt-1 text-lg font-semibold text-ink">
               Workspace, exports, billing
             </div>
           </div>
-          <div className="space-y-2 text-sm text-[var(--muted)]">
+          <div className="space-y-2 text-sm text-ink-2">
             <div>Use the service lawfully and do not upload material you do not have rights to use.</div>
             <div>Your album data stays yours; we only need a limited license to host and process it.</div>
             <div>Paid subscriptions, if enabled, are billed through Stripe and can change with notice.</div>
@@ -124,7 +124,7 @@ export default function TermsPage() {
       <TrustSection title="9. Contact">
         <p>
           For support, billing, or account questions, use the public support page at{" "}
-          <a href="/support" className="text-[var(--text)] underline underline-offset-4">
+          <a href="/support" className="text-ink underline underline-offset-4">
             /support
           </a>
           .

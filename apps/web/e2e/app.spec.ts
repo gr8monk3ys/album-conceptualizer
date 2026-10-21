@@ -13,7 +13,7 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await page.getByRole("button", { name: "Continue (dev)" }).click();
 
   await page.waitForURL("**/app");
-  await expect(page.getByText("Recent projects")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
 
   await page.goto("/app/create");
   await page.getByLabel("Album title").fill(albumTitle);
@@ -24,44 +24,70 @@ test("e2e: create -> studio -> export -> publish -> discover remix", async ({ pa
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
 
+  // Saving spends credits, so it asks once: the trigger, then the confirm.
+
   await page.getByRole("button", { name: "Save and continue" }).click();
+
+  await page.getByRole("button", { name: "Save and continue", exact: true }).click();
   await page.waitForURL("**/app/albums/**");
 
-  await page.getByRole("main").getByRole("link", { name: "Studio", exact: true }).click();
-  await page.waitForURL("**/studio");
+  await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Studio", exact: true }).click();
+  await page.waitForURL(/\/studio(\?|$)/);
 
   await page.getByLabel("Lyrics draft").fill("This is an E2E lyrics draft.\nSecond line.");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save now", exact: true }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
 
-  await page.getByRole("main").getByRole("link", { name: "Export", exact: true }).click();
+  await page.getByRole("navigation", { name: "Album" }).getByRole("link", { name: "Export", exact: true }).click();
   await page.waitForURL("**/export");
 
+  // The zip spends credits, so it asks once: open the confirm, then download.
+  await page.getByRole("button", { name: "Download zip · 2 credits" }).click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "Download zip" }).click(),
+    page.getByRole("button", { name: "Download zip", exact: true }).click(),
   ]);
 
   const filename = download.suggestedFilename();
   expect(filename).toMatch(/_export\.zip$/);
   const path = await download.path();
   expect(path).not.toBeNull();
+  // The export ends on what to do next, and focus comes back to the trigger, not the page body.
+  await expect(page.getByText(/Zip downloaded — /)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download zip · 2 credits" })).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
 
   // Publish and verify Discover.
   await page.goto("/app");
   await page.getByRole("link", { name: albumTitle }).first().click();
   await page.getByRole("button", { name: "Publish" }).click();
+  // The album isn't finished, so Publish asks once before it goes out.
+  await page.getByRole("button", { name: "Publish anyway" }).click();
   await expect(page.getByText("Published to Discover.")).toBeVisible();
+  // The confirm closed and the route refreshed; focus is back on the Publish control.
+  await expect(page.getByRole("button", { name: "Unpublish" })).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
 
   await page.goto("/app/discover");
-  await expect(page.getByText("Community projects")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
 
   const albumCard = page
     .locator('[data-testid="discover-album-card"]', { hasText: albumTitle })
     .first();
-  await albumCard.getByRole("button", { name: "Like", exact: true }).click();
-  await expect(albumCard.getByRole("button", { name: "Liked", exact: true })).toBeVisible();
+  // Like controls are named after their album, so each row's toggle is distinct.
+  await albumCard.getByRole("button", { name: `Like ${albumTitle}`, exact: true }).click();
+  // The name stays put; aria-pressed says it's liked.
+  await expect(albumCard.getByRole("button", { name: `Like ${albumTitle}`, exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 
-  await albumCard.getByRole("button", { name: "Remix" }).click();
-  await page.waitForURL("**/app/albums/**/studio");
+  // A card opens the album's Discover page; Remix lives there. Your own published album opens
+  // in the Studio from it: no remix, no credits spent.
+  await expect(albumCard.getByRole("button", { name: /Remix/ })).toHaveCount(0);
+  await albumCard.getByRole("link", { name: albumTitle, exact: true }).click();
+  await page.waitForURL("**/app/discover/**");
+  await expect(page.getByRole("button", { name: /Remix/ })).toHaveCount(0);
+  await page.getByRole("link", { name: /Open in Studio/ }).click();
+  await page.waitForURL(/\/app\/albums\/[^/]+\/studio(\?|$)/);
 });

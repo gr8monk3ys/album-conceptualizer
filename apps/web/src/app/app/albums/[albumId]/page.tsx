@@ -1,45 +1,119 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { AlbumDangerZone } from "@/components/album-danger-zone";
+import { ArrivalStatus } from "@/components/arrival-status";
+import { FocusOnArrival } from "@/components/focus-on-arrival";
 import { FirstProjectChecklist } from "@/components/first-project-checklist";
 import { PublishAlbumButton } from "@/components/publish-album-button";
 import { ShareAlbumButton } from "@/components/share-album-button";
+import { ButtonLink, Section, buttonClass } from "@/components/ui";
+import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbum } from "@/server/albums";
-import { analyzeAlbumCoherence } from "@/server/coherence";
+import { analyzeAlbumCoherence, weakestDimension } from "@/server/coherence";
+import { openNoteCounts } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
 import { listAlbumReferences } from "@/server/references";
 import { requireUser } from "@/server/identity";
 import { getAlbumOnboardingSummary } from "@/server/onboarding";
+import { workspaceAlbumTitle } from "@/server/page-titles";
+import { getAlbumReadiness } from "@/server/readiness";
 import { analyzeAlbumRoughDemos, summarizeRoughDemoReviews } from "@/server/rough-demo-review";
 import { listAlbumRoughDemos, summarizeRoughDemos } from "@/server/rough-demos";
 import { getAlbumStyleBible, summarizeStyleBible } from "@/server/style-bible";
 import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { scoreStory } from "@/lib/score-story";
+import { soundBibleFieldsSet } from "@/lib/sound-bible-progress";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Album Details",
-  description: "Review album details, songs, sharing, and next steps.",
-};
-
-function getSongsFromAlbumData(data: unknown): Array<{ track_number: number; title: string }> {
-  if (!data || typeof data !== "object") return [];
-  const songs = (data as { songs?: unknown }).songs;
-  if (!Array.isArray(songs)) return [];
-
-  return songs
-    .map((song) => {
-      if (!song || typeof song !== "object") return null;
-      const track_number = (song as { track_number?: unknown }).track_number;
-      const title = (song as { title?: unknown }).title;
-      if (typeof track_number !== "number" || typeof title !== "string") return null;
-      return { track_number, title };
-    })
-    .filter((song): song is { track_number: number; title: string } => Boolean(song))
-    .sort((a, b) => a.track_number - b.track_number);
+/** The album's own title in the browser tab and history: the Overview is the album's home. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ albumId: string }>;
+}): Promise<Metadata> {
+  const { albumId } = await params;
+  const albumTitle = await workspaceAlbumTitle(albumId);
+  // A missing album renders the not-found screen, so its tab says so too (WCAG 2.4.2).
+  if (!albumTitle) return { title: "Page not found" };
+  return {
+    title: albumTitle,
+    description: "What the album needs next, how it holds together, its sound and how it's released.",
+  };
 }
 
-export default async function AlbumDetailPage({
+function plural(count: number, one: string, many = `${one}s`) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+function humanize(value: string) {
+  const text = value.replace(/[-_]+/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * One row that opens a screen: a name, a figure and the latest detail. The row reads its own
+ * width (a container query, in rem so enlarged text needs more room): with room, the label,
+ * the text and the trailing words sit side by side; in a narrow row (a phone at 200% text)
+ * the trailing words drop below the text instead of squeezing it.
+ */
+function StatusRow({
+  href,
+  label,
+  figure,
+  detail,
+  trailing,
+}: {
+  href: string;
+  label: string;
+  figure: ReactNode;
+  detail: string;
+  /** Visible words before the arrow, when the row needs to say where it goes. */
+  trailing?: string;
+}) {
+  const arrow = (
+    <ArrowRight
+      className="h-4 w-4 shrink-0 text-ink-3 transition-colors group-hover:text-ink motion-safe:transition-[color,transform] motion-safe:group-hover:translate-x-0.5"
+      aria-hidden="true"
+    />
+  );
+  return (
+    <li className="@container">
+      <Link
+        href={href}
+        className={cn(
+          "group flex min-h-11 gap-x-4 gap-y-1 py-3 pr-1 transition-colors hover:bg-hover",
+          // Only trailing words can squeeze the text; a bare arrow stays at the end of the row.
+          trailing ? "flex-col @[30rem]:flex-row @[30rem]:items-start" : "items-start",
+        )}
+      >
+        <span className="min-w-0 flex-1 @[40rem]:flex @[40rem]:gap-4">
+          <span className="block text-sm font-semibold text-ink @[40rem]:min-w-0 @[40rem]:shrink @[40rem]:basis-48">
+            {label}
+          </span>
+          <span className="mt-1 block min-w-0 flex-1 @[40rem]:mt-0">
+            <span className="type-figure block text-sm text-ink">{figure}</span>
+            <span className="mt-0.5 block max-w-[65ch] break-words text-xs leading-relaxed text-ink-3">{detail}</span>
+          </span>
+        </span>
+        {trailing ? (
+          <span className="flex min-w-0 items-center gap-1 text-sm text-ink-2 group-hover:text-ink @[30rem]:mt-0.5">
+            <span className="min-w-0 font-semibold">{trailing}</span>
+            {arrow}
+          </span>
+        ) : (
+          <span className="mt-0.5 flex shrink-0 items-center">{arrow}</span>
+        )}
+      </Link>
+    </li>
+  );
+}
+
+export default async function AlbumOverviewPage({
   params,
   searchParams,
 }: {
@@ -47,14 +121,14 @@ export default async function AlbumDetailPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { albumId } = await params;
-  const query = await searchParams;
+  const { welcome } = await searchParams;
   const { userId } = await requireUser();
   const workspace = await getActiveWorkspaceForUser(userId);
   const album = await getAlbum(workspace.id, albumId);
   if (!album) notFound();
 
   const prisma = getPrisma();
-  const [shareLink, onboarding, references, roughDemos] = await Promise.all([
+  const [shareLink, onboarding, references, openNotes] = await Promise.all([
     prisma.albumShareLink.findUnique({
       where: { albumId: album.id },
       select: { token: true, revokedAt: true },
@@ -66,297 +140,187 @@ export default async function AlbumDetailPage({
       isPublic: album.isPublic,
     }),
     listAlbumReferences(workspace.id, album.id),
-    Promise.resolve(listAlbumRoughDemos(album.data)),
+    // Each note counted once: a comment that became a task counts as the task (server/comment-tasks.ts).
+    openNoteCounts(prisma, album.id),
   ]);
+  const { comments: openComments, tasks: openTasks } = openNotes;
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const initialShareLink =
     shareLink && !shareLink.revokedAt ? `${appUrl}/share/${shareLink.token}` : null;
 
-  const songs = getSongsFromAlbumData(album.data);
+  const base = `/app/albums/${album.id}`;
+  const step = nextAlbumStep(album.id, album.data);
   const coherence = analyzeAlbumCoherence(album.data);
+  const coherenceStory = scoreStory(coherence);
+  // By each dimension's own value, so the weak spot shows even while the cap holds them level.
+  const weakest = weakestDimension(coherence);
   const styleBible = getAlbumStyleBible(album.data);
   const styleSummary = summarizeStyleBible(styleBible, references);
+  const roughDemos = listAlbumRoughDemos(album.data);
   const demoSummary = summarizeRoughDemos(roughDemos);
   const demoReviewSummary = summarizeRoughDemoReviews(analyzeAlbumRoughDemos(album.data));
-  const showOnboarding =
-    onboarding.completeCount < onboarding.totalCount || query.welcome === "1";
+  const firstReference = references[0];
+  const readiness = getAlbumReadiness(album.id, album.data);
+  const emptyTracks = coherence.stats.songCount - coherence.stats.songsWithLyrics;
+  const findings = plural(coherence.issues.length, "finding");
+  const welcoming = welcome === "1";
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-xs text-[var(--muted2)]">Project</div>
-          <div className="text-2xl font-semibold tracking-tight text-[var(--text)]">
-            {album.title}
+    <div className="flex flex-col gap-10">
+      {/* Arriving from a restore: one line says what happened ("Restored “First pass” · …"),
+          left by Version history for this page (`@/lib/arrival-handoff`), and takes focus. */}
+      <ArrivalStatus className="max-w-[65ch]" handoff takeFocus />
+      {welcoming ? (
+        // Arriving from the create wizard, focus lands on the line (its button is gone), so the
+        // first thing heard is that the album is saved and what comes next. A landing, not a
+        // control: no ring on it (`data-focus-landing`), and the next Tab reaches the step.
+        <div
+          id="album-welcome"
+          role="group"
+          aria-label="Album saved"
+          className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded border border-line bg-raised px-4 py-3"
+        >
+          <FocusOnArrival targetId="album-welcome-line" />
+          <p
+            id="album-welcome-line"
+            tabIndex={-1}
+            data-focus-landing=""
+            className="min-w-0 max-w-[65ch] break-words text-sm text-ink"
+          >
+            <span className="font-semibold">{album.title}</span> is saved. Next:{" "}
+            {step.action.charAt(0).toLowerCase() + step.action.slice(1)}.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* The one primary on first arrival: the release header leaves its copy of this
+                step out while the banner carries it. */}
+            <ButtonLink tone="primary" href={step.href}>
+              {step.action}
+            </ButtonLink>
+            <Link href={base} className={buttonClass("ghost")}>
+              Dismiss
+            </Link>
           </div>
-          <div className="mt-1 text-sm text-[var(--muted)]">
-            {album.artist ? `by ${album.artist}` : "Artist not set"} · {album.trackCount} tracks
-          </div>
-          {album.conceptSummary ? (
-            <div className="mt-3 max-w-[80ch] text-sm leading-relaxed text-[var(--muted)]">
-              {album.conceptSummary}
-            </div>
-          ) : null}
         </div>
+      ) : null}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/app/albums/${album.id}/export`}
-            className="rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90"
-          >
-            Export
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/studio`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Studio
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/bible`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Bible
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/inbox`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Inbox
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/references`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            References
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/style`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Style
-          </Link>
-          <Link
-            href={`/app/albums/${album.id}/demos`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            Demos
-          </Link>
-          <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} />
-          <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
-          <Link
-            href={`/app/albums/${album.id}/versions`}
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            History
-          </Link>
-          <Link
-            href="/app/create"
-            className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[rgba(255,255,255,0.06)]"
-          >
-            New
-          </Link>
-        </div>
-      </div>
+      {/* One next step, the one the header's button (or the welcome banner) takes, and the
+          whole path behind a disclosure. */}
+      <Section id="album-next" title="What's next">
+        <FirstProjectChecklist summary={onboarding} step={welcoming ? null : step} />
+      </Section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
-        <section className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs text-[var(--muted2)]">Tracklist</div>
-              <div className="text-sm font-semibold text-[var(--text)]">Songs</div>
-            </div>
-            <div className="text-xs text-[var(--muted)]">{songs.length} items</div>
-          </div>
+      <Section id="album-status" title="Where it stands">
+        <ul className="divide-y divide-line border-y border-line">
+          <StatusRow
+            href={`${base}/coherence`}
+            label="Coherence"
+            // The One Score Story (lib/score-story): the progress headline, then the written
+            // tracks' score and the whole album's in that order, as the report tells it.
+            figure={
+              <>
+                <span className="block">{coherenceStory.headline}</span>
+                {coherenceStory.scoreLine ? (
+                  <span className="block text-ink-2">{coherenceStory.scoreLine}</span>
+                ) : null}
+              </>
+            }
+            // Which tracks are written is the spine's to show; this row says what the spine can't.
+            detail={
+              coherence.insufficient
+                ? coherence.summary
+                : emptyTracks > 0
+                  ? `Weakest on the written tracks: ${weakest.label}. ${findings} in all.`
+                  : coherence.issues.length
+                    ? `Weakest area: ${weakest.label}. ${findings} to work through.`
+                    : "No open findings. The tracks hold together on this draft."
+            }
+            trailing="View report"
+          />
+          <StatusRow
+            href={`${base}/style`}
+            label="Sound bible"
+            figure={soundBibleFieldsSet(styleSummary.filledCount, styleSummary.totalCount)}
+            detail={styleBible.lead_voice || "Define the vocal identity, palette and mix limits before export."}
+          />
+          <StatusRow
+            href={`${base}/references`}
+            label="References"
+            figure={plural(references.length, "saved", "saved")}
+            detail={
+              firstReference
+                ? // The first saved, then how many more, so one title never reads as the whole list.
+                  `${firstReference.title}${firstReference.artist ? ` · ${firstReference.artist}` : ""}${
+                    references.length > 1 ? ` + ${references.length - 1} more` : ""
+                  }`
+                : "Pin down the opener, closer, vocal and mix references before exporting."
+            }
+          />
+          <StatusRow
+            href={`${base}/demos`}
+            label="Rough demos"
+            figure={`${demoSummary.count} captured · ${demoReviewSummary.readyCount} ready`}
+            detail={
+              demoReviewSummary.topHeadline ??
+              (demoSummary.latestTitle
+                ? demoSummary.latestTitle
+                : demoSummary.sourceKinds.length
+                  ? demoSummary.sourceKinds.map(humanize).join(", ")
+                  : "Capture the memo, rehearsal or riff sketch before it disappears.")
+            }
+          />
+          <StatusRow
+            href={`${base}/inbox`}
+            label="Comments and tasks"
+            // Only what is waiting, in the order the page lists it: "1 open task".
+            figure={
+              [openComments ? plural(openComments, "open comment") : null, openTasks ? plural(openTasks, "open task") : null]
+                .filter(Boolean)
+                .join(" · ") || "Nothing open"
+            }
+            detail={
+              openComments || openTasks
+                ? "Resolve notes left on sections and close the tasks that are done."
+                : "Nothing waiting. Comments left on sections and tasks show up here."
+            }
+          />
+        </ul>
+      </Section>
 
-          <div className="mt-3 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.08)]">
-            <div className="max-h-[520px] overflow-auto">
-              {songs.length ? (
-                <ul className="divide-y divide-[rgba(255,255,255,0.06)]">
-                  {songs.map((song) => (
-                    <li key={`${song.track_number}-${song.title}`} className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 text-xs tabular-nums text-[var(--muted2)]">
-                          {String(song.track_number).padStart(2, "0")}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold text-[var(--text)]">
-                            {song.title}
-                          </div>
-                          <div className="truncate text-xs text-[var(--muted2)]">
-                            Draft section + chords will appear here.
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="px-4 py-10 text-center text-sm text-[var(--muted)]">
-                  No songs found in this project.
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <aside className="space-y-3">
-          {showOnboarding ? <FirstProjectChecklist summary={onboarding} title={album.title} /> : null}
-
-          <Link
-            href={`/app/albums/${album.id}/coherence`}
-            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs text-[var(--muted2)]">Coherence</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-                  {coherence.score}/100
-                </div>
-              </div>
-              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
-                View report
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {coherence.breakdown.map((item) => (
-                <div
-                  key={item.key}
-                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
-                >
-                  {item.label} {item.score}
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 text-xs text-[var(--muted2)]">
-              {coherence.nextActions[0]?.title ??
-                coherence.issues[0]?.title ??
-                "No issues detected."}
-            </div>
-          </Link>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Status</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--text)]">{album.status}</div>
-            <div className="mt-2 text-xs text-[var(--muted2)]">
-              Updated {album.updatedAt.toLocaleString()}
-            </div>
-          </div>
-
-          <Link
-            href={`/app/albums/${album.id}/references`}
-            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs text-[var(--muted2)]">Reference tracks</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-                  {references.length} saved
-                </div>
-              </div>
-              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
-                Open workspace
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {references.slice(0, 3).map((reference) => (
-                <div
-                  key={reference.id}
-                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
-                >
-                  {reference.targetRole
-                    ? reference.targetRole.replace(/-/g, " ")
-                    : reference.songTitle
-                      ? `track ${reference.songTrackNumber}`
-                      : "album wide"}
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 text-xs text-[var(--muted2)]">
-              {references[0]
-                ? `${references[0].title}${references[0].artist ? ` · ${references[0].artist}` : ""}`
-                : "Capture opener, closer, vocal, and mix references before exporting."}
-            </div>
-          </Link>
-
-          <Link
-            href={`/app/albums/${album.id}/style`}
-            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs text-[var(--muted2)]">Voice / style bible</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-                  {styleSummary.score}/100
-                </div>
-              </div>
-              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
-                Open workspace
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {styleSummary.highlightTags.slice(0, 3).map((item) => (
-                <div
-                  key={item}
-                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 text-xs text-[var(--muted2)]">
-              {styleBible.lead_voice
-                ? styleBible.lead_voice
-                : "Define the vocal identity, palette, and mix constraints before export."}
-            </div>
-          </Link>
-
-          <Link
-            href={`/app/albums/${album.id}/demos`}
-            className="block rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4 hover:bg-[rgba(255,255,255,0.05)]"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs text-[var(--muted2)]">Rough demos</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--text)]">
-                  {demoSummary.count} captured · {demoReviewSummary.readyCount} ready
-                </div>
-              </div>
-              <div className="rounded-full bg-[rgba(255,255,255,0.08)] px-3 py-1 text-xs text-[var(--muted)]">
-                Open workspace
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {demoSummary.sourceKinds.map((item) => (
-                <div
-                  key={item}
-                  className="rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted2)]"
-                >
-                  {item.replace(/-/g, " ")}
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 text-xs text-[var(--muted2)]">
-              {demoReviewSummary.topHeadline
-                ? demoReviewSummary.topHeadline
-                : demoSummary.latestTitle
-                  ? demoSummary.latestTitle
-                : "Capture the memo, rehearsal, or riff sketch before it disappears."}
-            </div>
-          </Link>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="text-xs text-[var(--muted2)]">Next steps</div>
-            <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
-              <div>1. Flesh out lyrics per section.</div>
-              <div>2. Add chord loops and tempo.</div>
-              <div>3. Export a DAW handoff bundle.</div>
-            </div>
-          </div>
-
-          <AlbumDangerZone albumId={album.id} albumTitle={album.title} />
-        </aside>
-      </div>
+      {/* Manage is quiet and last, below the work: releasing it, its versions and deleting it
+          share one section of plain rows with no primary. Delete sits at the very end, away
+          from the writing path, and asks for the title first. Publish asks once when the album
+          isn't finished. */}
+      <Section
+        id="album-manage"
+        title="Manage"
+        description="Publish to Discover or send a private link, keep versions, or delete the album."
+      >
+        <ul className="divide-y divide-line border-y border-line">
+          <li className="py-3">
+            <PublishAlbumButton albumId={album.id} initialPublic={album.isPublic} readiness={readiness} />
+          </li>
+          <li className="py-3">
+            <ShareAlbumButton albumId={album.id} initialLink={initialShareLink} />
+          </li>
+          <li>
+            <Link
+              href={`${base}/versions`}
+              className="group flex min-h-11 items-center justify-between gap-4 py-3 pr-1 transition-colors hover:bg-hover"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink">Version history</span>
+                <span className="mt-0.5 block max-w-[65ch] text-xs leading-relaxed text-ink-3">
+                  Save a version before a big rewrite, or restore one.
+                </span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink" aria-hidden="true" />
+            </Link>
+          </li>
+          <li className="py-3">
+            <AlbumDangerZone albumId={album.id} albumTitle={album.title} />
+          </li>
+        </ul>
+      </Section>
     </div>
   );
 }

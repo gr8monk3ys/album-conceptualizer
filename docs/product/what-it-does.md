@@ -42,15 +42,6 @@ The Python API powers:
 - AI agent workflows (ideation, song development, coherence review) via CrewAI crews, accessible from the web app
 - optional RAG features when installed with `[rag]` extra
 
-### 3. Legacy Gradio UI
-
-The Gradio app still matters for:
-
-- local smoke coverage
-- parity checks
-- lightweight demos
-- workflows that use the Python package directly
-
 ## Core User Flows
 
 ### Create

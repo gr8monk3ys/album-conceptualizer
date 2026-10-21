@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAuthSession } from "@/server/auth";
+import { ApiError, apiHandler, parseJsonBody, requireWorkspace } from "@/server/api";
+import { lockComment, syncCommentWithTask } from "@/server/comment-tasks";
 import { getPrisma } from "@/server/db";
-import { getActiveWorkspaceForUser } from "@/server/workspaces";
+import { albumItemUrl, notifyWorkspaceMembers } from "@/server/notify";
 
 export const runtime = "nodejs";
+
+type Context = { params: Promise<{ albumId: string; taskId: string }> };
 
 const PatchBodySchema = z
   .object({
@@ -18,136 +21,125 @@ const PatchBodySchema = z
   })
   .refine((obj) => Object.keys(obj).length > 0, "No changes provided.");
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ albumId: string; taskId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
-  const payload = PatchBodySchema.safeParse(await request.json().catch(() => null));
-  if (!payload.success) {
-    return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
-  }
-
+export const PATCH = apiHandler(async (request: Request, { params }: Context) => {
+  const { userId, workspaceId } = await requireWorkspace();
+  const payload = await parseJsonBody(request, PatchBodySchema, "Invalid payload.");
   const { albumId, taskId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
   const prisma = getPrisma();
 
   const existing = await prisma.albumTask.findFirst({
     where: {
       id: taskId,
       deletedAt: null,
-      album: { id: albumId, workspaceId: workspace.id },
+      album: { id: albumId, workspaceId },
     },
     select: {
       id: true,
       albumId: true,
-      title: true,
-      body: true,
-      status: true,
       assignedToUserId: true,
+      status: true,
+      sourceCommentId: true,
       sectionId: true,
       songTrackNumber: true,
       album: { select: { title: true } },
     },
   });
-  if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  if (!existing) throw new ApiError(404, "Not found.");
 
   const assignedToUserId =
-    payload.data.assignedToUserId === undefined
-      ? undefined
-      : payload.data.assignedToUserId?.trim() || null;
+    payload.assignedToUserId === undefined ? undefined : payload.assignedToUserId?.trim() || null;
 
   if (assignedToUserId) {
     const member = await prisma.workspaceMember.findFirst({
-      where: { workspaceId: workspace.id, userId: assignedToUserId },
+      where: { workspaceId, userId: assignedToUserId },
       select: { id: true },
     });
-    if (!member) return NextResponse.json({ error: "Invalid assignee." }, { status: 400 });
+    if (!member) throw new ApiError(400, "Invalid assignee.");
   }
 
-  const updated = await prisma.albumTask.update({
-    where: { id: existing.id },
-    data: {
-      title: payload.data.title,
-      body: payload.data.body === undefined ? undefined : payload.data.body,
-      status: payload.data.status,
-      priority: payload.data.priority,
-      dueAt: payload.data.dueAt === undefined ? undefined : payload.data.dueAt ? new Date(payload.data.dueAt) : null,
-      assignedToUserId,
-    },
-    select: {
-      id: true,
-      title: true,
-      body: true,
-      status: true,
-      priority: true,
-      dueAt: true,
-      sectionId: true,
-      songTrackNumber: true,
-      sectionType: true,
-      sectionOrder: true,
-      createdAt: true,
-      updatedAt: true,
-      createdBy: { select: { id: true, name: true, email: true, image: true } },
-      assignedTo: { select: { id: true, name: true, email: true, image: true } },
-    },
+  // One note, two views (server/comment-tasks.ts): marking a task made from a comment done
+  // resolves the comment, and reopening it reopens the comment, in the same transaction.
+  const updated = await prisma.$transaction(async (tx) => {
+    // The comment's row first, then the task's: the order every write to a note takes, so a
+    // Mark done and a Resolve of the same note queue instead of deadlocking.
+    if (payload.status && existing.sourceCommentId) {
+      await lockComment(tx, existing.albumId, existing.sourceCommentId);
+    }
+    const task = await tx.albumTask.update({
+      where: { id: existing.id },
+      data: {
+        title: payload.title,
+        body: payload.body,
+        status: payload.status,
+        priority: payload.priority,
+        dueAt: payload.dueAt === undefined ? undefined : payload.dueAt ? new Date(payload.dueAt) : null,
+        assignedToUserId,
+      },
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        status: true,
+        priority: true,
+        dueAt: true,
+        sectionId: true,
+        songTrackNumber: true,
+        sectionType: true,
+        sectionOrder: true,
+        createdAt: true,
+        updatedAt: true,
+        createdBy: { select: { id: true, name: true, email: true, image: true } },
+        assignedTo: { select: { id: true, name: true, email: true, image: true } },
+      },
+    });
+    if (payload.status) {
+      await syncCommentWithTask(
+        tx,
+        { albumId: existing.albumId, sourceCommentId: existing.sourceCommentId, status: payload.status },
+        userId,
+      );
+    }
+    return task;
   });
 
-  // Notify newly assigned user.
-  if (assignedToUserId && assignedToUserId !== existing.assignedToUserId && assignedToUserId !== userId) {
-    const baseUrl = `/app/albums/${existing.albumId}`;
-    const url =
-      existing.sectionId && existing.songTrackNumber
-        ? `${baseUrl}/studio?song=${existing.songTrackNumber}&sid=${encodeURIComponent(existing.sectionId)}`
-        : `${baseUrl}/inbox`;
-
-    const excerpt = (updated.body ?? "").trim().slice(0, 240) || undefined;
-    await prisma.notification.create({
-      data: {
-        workspaceId: workspace.id,
-        userId: assignedToUserId,
-        actorUserId: userId,
-        type: "task",
-        title: `Task assigned · ${existing.album.title}`,
-        body: excerpt,
-        url,
-        albumId: existing.albumId,
-        taskId: existing.id,
-      },
-      select: { id: true },
+  if (assignedToUserId && assignedToUserId !== existing.assignedToUserId) {
+    await notifyWorkspaceMembers(prisma, {
+      workspaceId,
+      albumId: existing.albumId,
+      actorUserId: userId,
+      url: albumItemUrl(existing.albumId, existing),
+      body: updated.body,
+      taskId: existing.id,
+      audiences: [
+        { to: [assignedToUserId], type: "task", title: `Task assigned · ${existing.album.title}` },
+      ],
     });
   }
 
   return NextResponse.json({ task: updated });
-}
+});
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ albumId: string; taskId: string }> },
-) {
-  const session = await getAuthSession();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-
+export const DELETE = apiHandler(async (_request: Request, { params }: Context) => {
+  const { userId, workspaceId } = await requireWorkspace();
   const { albumId, taskId } = await params;
-  const workspace = await getActiveWorkspaceForUser(userId);
   const prisma = getPrisma();
 
   const existing = await prisma.albumTask.findFirst({
     where: {
       id: taskId,
       deletedAt: null,
-      album: { id: albumId, workspaceId: workspace.id },
+      album: { id: albumId, workspaceId },
     },
-    select: { id: true, createdByUserId: true },
+    select: {
+      id: true,
+      createdByUserId: true,
+      album: { select: { workspace: { select: { ownerId: true } } } },
+    },
   });
-  if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  if (!existing) throw new ApiError(404, "Not found.");
 
-  if (existing.createdByUserId !== userId && workspace.ownerId !== userId) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (existing.createdByUserId !== userId && existing.album.workspace.ownerId !== userId) {
+    throw new ApiError(403, "Forbidden.");
   }
 
   await prisma.albumTask.update({
@@ -157,5 +149,4 @@ export async function DELETE(
   });
 
   return NextResponse.json({ ok: true });
-}
-
+});

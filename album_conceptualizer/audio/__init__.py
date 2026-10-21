@@ -14,6 +14,7 @@ from album_conceptualizer.audio.prompt import (
 from album_conceptualizer.audio.providers import (
     GenerationRequest,
     GenerationResult,
+    HuggingFaceProvider,
     MusicProvider,
     ProviderNotConfiguredError,
     ProviderRequestError,
@@ -25,6 +26,7 @@ __all__ = [
     "GenerationBrief",
     "GenerationRequest",
     "GenerationResult",
+    "HuggingFaceProvider",
     "MusicProvider",
     "ProviderNotConfiguredError",
     "ProviderRequestError",

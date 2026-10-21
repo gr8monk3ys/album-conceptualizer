@@ -14,8 +14,8 @@
 - `make format` applies `ruff format`.
 - `make test` runs pytest in `tests/`.
 - `make test-cov` adds coverage (`--cov=album_conceptualizer`).
-- `make api-dev` starts the FastAPI server with reload; `make ui` launches the Gradio UI.
-- Docker flows: `docker compose up -d app` or `make docker-up`.
+- `make api-dev` starts the FastAPI server with reload.
+- Docker flows: `docker compose up -d api` or `make docker-up`.
 
 ## Coding Style & Naming Conventions
 - Python 3.11 target, 4-space indentation, line length 100.

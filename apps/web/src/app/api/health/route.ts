@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getPrisma } from "@/server/db";
-import { engineFetch } from "@/server/engine";
+import { checkEngineHealth, isEngineConfigured } from "@/server/engine";
 import { getProductionConfigIssues, isStrictProductionRuntime } from "@/server/production";
 import { getRateLimitInitializationIssue } from "@/server/rate-limit";
 
@@ -13,6 +13,12 @@ function serializeError(err: unknown) {
   return String(err);
 }
 
+/**
+ * Public health check for uptime monitors and the smoke scripts: whether the app, its
+ * configuration, the database and the engine are up, as booleans and "ok"/"degraded". It is
+ * unauthenticated, so what went wrong (database errors, missing configuration) is logged for
+ * operators, never answered.
+ */
 export async function GET() {
   const checks: Record<string, boolean> = {
     api: true,
@@ -44,31 +50,24 @@ export async function GET() {
     errors.db = serializeError(err);
   }
 
-  const engineConfigured = Boolean(process.env.ENGINE_API_URL);
-  if (!engineConfigured) {
+  if (!isEngineConfigured()) {
     // Optional dependency (useful for local development).
     checks.engine = true;
   } else {
-    try {
-      const res = await engineFetch("/health");
-      checks.engine = res.ok;
-      if (!res.ok) {
-        errors.engine = (await res.text().catch(() => "")) || `Engine returned ${res.status}.`;
-      }
-    } catch (err) {
-      errors.engine = serializeError(err);
-    }
+    const engine = await checkEngineHealth();
+    checks.engine = engine.ok;
+    if (!engine.ok) errors.engine = engine.detail;
   }
 
   const ok = Object.values(checks).every(Boolean);
+  if (Object.keys(errors).length) console.error("health_degraded", { checks, errors });
   return NextResponse.json(
     {
       ok,
+      status: ok ? "ok" : "degraded",
       service: "album-conceptualizer-web",
-      mode: isStrictProductionRuntime() ? "strict" : "default",
       checks,
-      errors: Object.keys(errors).length ? errors : undefined,
     },
-    { status: ok ? 200 : 503 },
+    { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } },
   );
 }
