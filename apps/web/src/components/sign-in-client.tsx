@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 
 import { SiteHeader } from "@/components/site-header";
@@ -216,6 +217,22 @@ export function SignInClient({
                 </p>
               </div>
             ) : null}
+
+            <p className="border-t border-line pt-4 text-sm leading-relaxed text-ink-2">
+              By continuing you agree to the{" "}
+              <Link href="/terms" className="text-ink underline underline-offset-4">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="text-ink underline underline-offset-4">
+                Privacy Policy
+              </Link>
+              . Subscriptions are handled by Stripe. Need help? See{" "}
+              <Link href="/support" className="text-ink underline underline-offset-4">
+                Support
+              </Link>
+              .
+            </p>
           </div>
         </main>
       </div>

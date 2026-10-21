@@ -33,6 +33,9 @@ const FOOTER_LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "/sign-in", label: "Sign in" },
   { href: "/app", label: "Open your workspace" },
+  { href: "/terms", label: "Terms" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/support", label: "Support" },
 ];
 
 export default function HomePage() {

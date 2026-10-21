@@ -156,6 +156,7 @@ High level:
 2. Configure auth:
    - GitHub OAuth: `GITHUB_ID`, `GITHUB_SECRET`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET` (or `AUTH_SECRET`), or
    - Email magic links: `EMAIL_SERVER` + `EMAIL_FROM` (or `RESEND_API_KEY` + `RESEND_FROM`), plus `NEXTAUTH_SECRET` (or `AUTH_SECRET`).
+   - Optional support contact shown on `/support`: `SUPPORT_EMAIL` (or `NEXT_PUBLIC_SUPPORT_EMAIL`)
 3. Configure Stripe and set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and price ids.
 4. Configure Upstash Redis and set `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN`.
 5. Deploy the Python engine somewhere reachable from Vercel and set:

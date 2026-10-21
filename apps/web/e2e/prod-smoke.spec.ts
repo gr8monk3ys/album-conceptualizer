@@ -6,6 +6,22 @@ test.describe("Production smoke", () => {
     await expect(page).toHaveTitle(/Sign In/i);
     // The site header names the product; the page heading names the page.
     await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Terms" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Privacy Policy" })).toBeVisible();
+  });
+
+  test("public trust pages render", async ({ page }) => {
+    await page.goto("/terms");
+    await expect(page).toHaveTitle(/Terms of Service/i);
+    await expect(page.getByRole("heading", { name: /Terms for using Album Conceptualizer/i })).toBeVisible();
+
+    await page.goto("/privacy");
+    await expect(page).toHaveTitle(/Privacy Policy/i);
+    await expect(page.getByRole("heading", { name: /How Album Conceptualizer handles your data/i })).toBeVisible();
+
+    await page.goto("/support");
+    await expect(page).toHaveTitle(/Support/i);
+    await expect(page.getByRole("heading", { name: /Get help with access, billing, and exports/i })).toBeVisible();
   });
 
   test("unauthenticated app route redirects to sign-in", async ({ page }) => {
