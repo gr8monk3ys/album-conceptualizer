@@ -14,8 +14,10 @@ export const metadata: Metadata = {
   description: "Support and contact paths for Album Conceptualizer users and self-hosters.",
 };
 
+// This page is public, so the browser-safe alias wins. SUPPORT_EMAIL may be a
+// private mailbox for backend workflows; it is only the fallback here.
 function getSupportEmail() {
-  return process.env.SUPPORT_EMAIL?.trim() || process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "";
+  return process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || process.env.SUPPORT_EMAIL?.trim() || "";
 }
 
 export default function SupportPage() {
