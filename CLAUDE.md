@@ -44,6 +44,10 @@ npx prisma migrate dev      # apply migrations (dev)
 npx prisma migrate deploy   # apply migrations (production)
 ```
 
+## Checks
+
+Run `make verify` before opening a PR: the Python lint, mypy, pytest (85% coverage gate), pip-audit and optional-stack smoke, then the web app's lint, typecheck, unit tests and build. `make verify-e2e` is the Playwright stage (needs Postgres + the engine on :8000, as in the `web-e2e` job). CI calls these same targets. Get the evidence lines with `python3 scripts/verify_summary.py <stage> <report>` for `python reports/python.xml`, `optional reports/optional.xml`, `web-unit reports/web-unit.json` and `e2e reports/e2e.json`, and paste the `VERIFY stage=...` lines into the PR body under "Evidence". CI writes the same lines to its job summaries and uploads Playwright screenshots + traces as the `ui-evidence` artifact.
+
 ## Architecture
 
 ### Monorepo layout

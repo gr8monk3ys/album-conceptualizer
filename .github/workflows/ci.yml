@@ -36,11 +36,8 @@ jobs:
       - name: Install dependencies
         run: uv pip install ruff
 
-      - name: Run Ruff linter
-        run: ruff check album_conceptualizer/ tests/
-
-      - name: Run Ruff formatter check
-        run: ruff format --check album_conceptualizer/ tests/
+      - name: Ruff lint + format check
+        run: make verify-lint PY=
 
   test:
     name: Test (Python ${{ matrix.python-version }})
@@ -66,9 +63,12 @@ jobs:
         run: |
           uv pip install -e ".[dev]"
 
-      - name: Run tests
-        run: |
-          pytest tests/ -v --tb=short --cov=album_conceptualizer --cov-report=xml --cov-fail-under=85
+      - name: Run tests (coverage gate 85%)
+        run: make verify-test PY=
+
+      - name: Test-count evidence
+        if: ${{ !cancelled() }}
+        run: python3 scripts/verify_summary.py python-${{ matrix.python-version }} reports/python.xml
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
@@ -99,7 +99,7 @@ jobs:
           uv pip install -e ".[dev]"
 
       - name: Run mypy
-        run: mypy album_conceptualizer/ --ignore-missing-imports
+        run: make verify-typecheck PY=
 
   security:
     name: Security Audit
@@ -123,7 +123,7 @@ jobs:
           uv pip install pip-audit
 
       - name: Run pip-audit
-        run: pip-audit
+        run: make verify-audit PY=
 
   optional-stack:
     name: Optional Stack Smoke
@@ -146,12 +146,11 @@ jobs:
           uv pip install -e ".[dev,music,rag]"
 
       - name: Run optional dependency smoke tests
-        run: |
-          pytest \
-            tests/test_export.py::TestMidiExport \
-            tests/test_export_integration.py \
-            tests/test_rag.py::TestEmbeddings \
-            -v --tb=short
+        run: make verify-optional PY_OPT=
+
+      - name: Test-count evidence
+        if: ${{ !cancelled() }}
+        run: python3 scripts/verify_summary.py optional reports/optional.xml
 
 
   web-lighthouse:
@@ -320,23 +319,36 @@ jobs:
         working-directory: apps/web
         run: npm run prisma:migrate:deploy
 
-      - name: Lint and typecheck the web app
-        working-directory: apps/web
-        run: |
-          npm run lint
-          npm run typecheck
+      - name: Lint, typecheck, unit-test and build the web app
+        run: make verify-web
 
-      - name: Run web unit tests
-        working-directory: apps/web
-        run: npm test
-
-      - name: Build Next.js app
-        working-directory: apps/web
-        run: npm run build
+      - name: Test-count evidence (web unit)
+        if: ${{ !cancelled() }}
+        run: python3 scripts/verify_summary.py web-unit reports/web-unit.json
 
       - name: Run Playwright E2E tests
-        working-directory: apps/web
-        run: npm run test:e2e
+        run: make verify-e2e
+
+      - name: Test-count evidence (e2e)
+        if: ${{ !cancelled() }}
+        run: python3 scripts/verify_summary.py e2e reports/e2e.json
+
+      - name: Upload UI evidence (screenshots + traces)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ui-evidence
+          path: apps/web/test-results/
+          if-no-files-found: error
+
+      - name: List UI evidence in the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "### ui-evidence artifact"
+            echo
+            find apps/web/test-results -type f \( -name '*.png' -o -name 'trace.zip' \) | sort | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Playwright report
         if: always()
