@@ -122,3 +122,4 @@ output/
 .playwright-cli/
 .vercel
 apps/web/.lighthouseci/
+reports/

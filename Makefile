@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down api docs billing-smoke billing-lifecycle-smoke staging-e2e email-smoke backup-data restore-backup web-db-backup web-db-restore web-lighthouse-public web-lighthouse-auth web-e2e-backstop
+.PHONY: help install install-dev lint format test test-cov test-cov-integration test-cov-unit test-cov-mock clean build docker docker-up docker-down api docs billing-smoke billing-lifecycle-smoke staging-e2e email-smoke backup-data restore-backup web-db-backup web-db-restore web-lighthouse-public web-lighthouse-auth web-e2e-backstop verify verify-lint verify-typecheck verify-test verify-audit verify-optional verify-web verify-e2e
 
 PY_DEV = uv run --python 3.11 --with '.[dev,music]'
 
@@ -10,6 +10,10 @@ help:
 	@echo "  make install       Install production dependencies"
 	@echo "  make install-dev   Install development dependencies"
 	@echo "  make install-full  Install all dependencies"
+	@echo ""
+	@echo "Checks (what CI runs):"
+	@echo "  make verify        lint, typecheck, tests, audit, optional stack, web checks + build"
+	@echo "  make verify-e2e    Playwright E2E (needs Postgres + the engine on :8000)"
 	@echo ""
 	@echo "Development:"
 	@echo "  make lint          Run linter (ruff check)"
@@ -145,6 +149,42 @@ pre-commit:
 pre-commit-install:
 	pre-commit install
 	pre-commit install --hook-type commit-msg
+
+# =============================================================================
+# Verify: the commands CI runs, one target per CI job. CI sets PY= and
+# PY_OPT= to use the runner's prepared venv; locally uv provides the env.
+# =============================================================================
+
+PY ?= uv run --python 3.11 --with '.[dev]' --with pip-audit
+PY_OPT ?= uv run --python 3.11 --with '.[dev,music,rag]'
+
+verify: verify-lint verify-typecheck verify-test verify-audit verify-optional verify-web
+
+verify-lint:
+	$(PY) ruff check album_conceptualizer/ tests/
+	$(PY) ruff format --check album_conceptualizer/ tests/
+
+verify-typecheck:
+	$(PY) mypy album_conceptualizer/ --ignore-missing-imports
+
+verify-test:
+	mkdir -p reports
+	$(PY) pytest tests/ -v --tb=short --cov=album_conceptualizer --cov-report=xml --cov-fail-under=85 --junitxml=reports/python.xml
+
+verify-audit:
+	$(PY) pip-audit
+
+verify-optional:
+	mkdir -p reports
+	$(PY_OPT) pytest tests/test_export.py::TestMidiExport tests/test_export_integration.py tests/test_rag.py::TestEmbeddings -v --tb=short --junitxml=reports/optional.xml
+
+verify-web:
+	cd apps/web && npm run lint && npm run typecheck
+	cd apps/web && npm test -- --reporter=default --reporter=json --outputFile.json=$(CURDIR)/reports/web-unit.json
+	cd apps/web && npm run build
+
+verify-e2e:
+	cd apps/web && npm run test:e2e
 
 # =============================================================================
 # Application

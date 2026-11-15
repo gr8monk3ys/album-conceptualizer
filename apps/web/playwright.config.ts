@@ -29,12 +29,19 @@ export default defineConfig({
     timeout: 15_000,
   },
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
+  // The json report feeds scripts/verify_summary.py (the VERIFY evidence line).
+  reporter: [
+    ...(process.env.CI
+      ? ([["github"], ["html", { open: "never" }]] as const)
+      : ([["list"]] as const)),
+    ["json", { outputFile: "../../reports/e2e.json" }],
+  ],
   use: {
     baseURL,
     headless: true,
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
+    // CI keeps a trace and a screenshot of every test as the ui-evidence artifact.
+    trace: process.env.CI ? "on" : "retain-on-failure",
+    screenshot: process.env.CI ? "on" : "only-on-failure",
     video: "retain-on-failure",
     // Sandboxes that ship a preinstalled Chromium older than this Playwright's pin can
     // point at it instead of downloading one.
