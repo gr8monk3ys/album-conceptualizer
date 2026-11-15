@@ -155,7 +155,9 @@ jobs:
 
   web-lighthouse:
     name: Web Lighthouse
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is now 26.04, where this repo's Playwright cannot
+    # install Chromium. Back to ubuntu-latest after a Playwright upgrade.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -230,7 +232,9 @@ jobs:
 
   web-e2e:
     name: Web E2E (Playwright)
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is now 26.04, where this repo's Playwright cannot
+    # install Chromium. Back to ubuntu-latest after a Playwright upgrade.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
