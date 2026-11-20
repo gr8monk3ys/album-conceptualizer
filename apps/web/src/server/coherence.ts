@@ -671,7 +671,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
         !hasChords && song.sections.some((section) => !isEmptyProgression(section.chord_progression));
       const hasNarrativeSummary = Boolean(song.narrative_summary?.trim());
       // A chorus counts once its lyrics are written: every track starts with an empty one, and
-      // placeholders never count as done (CONTEXT.md, "Written").
+      // placeholders never count as done (GLOSSARY.md, "Written").
       const hasChorus = song.sections.some(
         (section) =>
           section.section_type.trim().toLowerCase() === "chorus" && isWrittenLyrics(section.lyrics),

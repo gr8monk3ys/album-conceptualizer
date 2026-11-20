@@ -1,6 +1,6 @@
 # Product
 
-> Written without a live interview: the maintainer asked for the session to proceed on recommended answers. Facts come from the repo (`README.md`, `CONTEXT.md`, `docs/product/`, `.claude/product-marketing-context.md`, the shipped UI). Lines marked _(inferred)_ are hypotheses to confirm.
+> Written without a live interview: the maintainer asked for the session to proceed on recommended answers. Facts come from the repo (`README.md`, `GLOSSARY.md`, `docs/product/`, `.claude/product-marketing-context.md`, the shipped UI). Lines marked _(inferred)_ are hypotheses to confirm.
 
 ## Platform
 
