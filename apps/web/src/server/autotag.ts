@@ -90,10 +90,11 @@ function termStems(term: string): string[] {
  */
 function mentions(lyricStems: string[], term: string): boolean {
   const needed = termStems(term);
-  if (!needed.length) return false;
-  if (needed.length === 1) return lyricStems.includes(needed[0]);
-  for (let start = 0; start < lyricStems.length; start += 1) {
-    if (!needed.includes(lyricStems[start])) continue;
+  const [only] = needed;
+  if (only === undefined) return false;
+  if (needed.length === 1) return lyricStems.includes(only);
+  for (const [start, lyricStem] of lyricStems.entries()) {
+    if (!needed.includes(lyricStem)) continue;
     const window = new Set(lyricStems.slice(start, start + PHRASE_WINDOW));
     if (needed.every((part) => window.has(part))) return true;
   }
@@ -110,9 +111,9 @@ function countByStem(tokens: string[]) {
     entry.forms.set(token, (entry.forms.get(token) ?? 0) + 1);
     map.set(key, entry);
   }
-  return Array.from(map.entries()).map(([key, entry]) => {
-    const form = Array.from(entry.forms.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
-    return { key, form, count: entry.count };
+  return Array.from(map.entries()).flatMap(([key, entry]) => {
+    const [best] = Array.from(entry.forms.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    return best ? [{ key, form: best[0], count: entry.count }] : [];
   });
 }
 
@@ -138,6 +139,7 @@ function repeatedPhrases(clauses: string[][]) {
       position += 1;
       const a = clause[i];
       const b = clause[i + 1];
+      if (a === undefined || b === undefined) continue;
       if (!isContentWord(a) || !isContentWord(b) || stem(a) === stem(b)) continue;
       const key = [stem(a), stem(b)].sort().join(" ");
       const entry = map.get(key) ?? { count: 0, forms: new Map<string, { count: number; first: number }>() };
@@ -149,11 +151,11 @@ function repeatedPhrases(clauses: string[][]) {
       map.set(key, entry);
     }
   }
-  return Array.from(map.entries()).map(([key, entry]) => {
-    const form = Array.from(entry.forms.entries()).sort(
+  return Array.from(map.entries()).flatMap(([key, entry]) => {
+    const [best] = Array.from(entry.forms.entries()).sort(
       (x, y) => y[1].count - x[1].count || x[1].first - y[1].first,
-    )[0][0];
-    return { key, form, count: entry.count };
+    );
+    return best ? [{ key, form: best[0], count: entry.count }] : [];
   });
 }
 

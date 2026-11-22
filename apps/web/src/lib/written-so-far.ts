@@ -40,8 +40,8 @@ export function writtenSoFar(rows: readonly WrittenRow[], albumThemes: readonly 
   if (!written.length) return null;
   const themes = carried(written, albumThemes);
 
-  if (written.length === 1) {
-    const [row] = written;
+  const [row] = written;
+  if (row && written.length === 1) {
     const title = ownTitle(row);
     const name = title ? `Track ${trackCode(row.trackNumber)}, ${title},` : `Track ${trackCode(row.trackNumber)}`;
     const extras = [row.writtenHarmony ? "chords of its own" : null, row.hasNarrative ? "a story note" : null].filter(

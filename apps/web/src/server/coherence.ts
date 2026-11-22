@@ -61,14 +61,15 @@ export function formatTrackList(trackNumbers: number[]) {
  */
 export function formatTrackRuns(trackNumbers: number[]) {
   const sorted = Array.from(new Set(trackNumbers)).sort((left, right) => left - right);
-  const runs: string[] = [];
-  for (let index = 0; index < sorted.length; ) {
-    let end = index;
-    while (end + 1 < sorted.length && sorted[end + 1] === sorted[end] + 1) end += 1;
-    if (end - index >= 2) runs.push(`${sorted[index]}–${sorted[end]}`);
-    else for (let at = index; at <= end; at += 1) runs.push(String(sorted[at]));
-    index = end + 1;
+  const consecutive: number[][] = [];
+  for (const number of sorted) {
+    const run = consecutive.at(-1);
+    if (run?.at(-1) === number - 1) run.push(number);
+    else consecutive.push([number]);
   }
+  const runs = consecutive.flatMap((run) =>
+    run.length >= 3 ? [`${Math.min(...run)}–${Math.max(...run)}`] : run.map(String),
+  );
   if (runs.length <= 1) return runs.join("");
   return `${runs.slice(0, -1).join(", ")} and ${runs[runs.length - 1]}`;
 }
@@ -206,7 +207,7 @@ export type CoherenceReport = {
     uniqueThemes: number;
     uniqueMotifs: number;
   };
-  breakdown: CoherenceBreakdownItem[];
+  breakdown: [CoherenceBreakdownItem, ...CoherenceBreakdownItem[]];
   issues: CoherenceIssue[];
   nextActions: CoherenceNextAction[];
 };
@@ -361,22 +362,30 @@ function buildBreakdownItem(
 
 const DIMENSION_ORDER: CoherenceDimension[] = ["narrative", "lyrics", "harmony", "sequence", "motifs"];
 
+const DIMENSION_WEIGHT: Record<CoherenceDimension, number> = {
+  narrative: 0.28,
+  lyrics: 0.2,
+  harmony: 0.18,
+  sequence: 0.18,
+  motifs: 0.16,
+};
+
 /**
  * The dimensions weakest first, by their own (uncapped) score, so the weak spot reads first
  * even while the cap holds every score at the same number. Ties keep the report's order.
  */
 export function dimensionsWeakestFirst(breakdown: CoherenceBreakdownItem[]) {
-  return breakdown
-    .slice()
-    .sort(
-      (left, right) =>
-        left.uncapped - right.uncapped || DIMENSION_ORDER.indexOf(left.key) - DIMENSION_ORDER.indexOf(right.key),
-    );
+  return breakdown.slice().sort(weakerFirst);
+}
+
+function weakerFirst(left: CoherenceBreakdownItem, right: CoherenceBreakdownItem) {
+  return left.uncapped - right.uncapped || DIMENSION_ORDER.indexOf(left.key) - DIMENSION_ORDER.indexOf(right.key);
 }
 
 /** The weakest dimension by its own score (see `dimensionsWeakestFirst`). */
 export function weakestDimension(report: Pick<CoherenceReport, "breakdown">) {
-  return dimensionsWeakestFirst(report.breakdown)[0];
+  const [first, ...rest] = report.breakdown;
+  return rest.reduce((weakest, item) => (weakerFirst(item, weakest) < 0 ? item : weakest), first);
 }
 
 /** Track-level counts a dimension score is measured on: every track, or only the written ones. */
@@ -567,7 +576,7 @@ function getInvalidAlbumReport(detail: string): CoherenceReport {
     },
   ];
 
-  const breakdown = [
+  const breakdown: CoherenceReport["breakdown"] = [
     buildBreakdownItem("narrative", 0, "The album could not be read."),
     buildBreakdownItem("lyrics", 0, "Lyrics can't be checked until the album can be read."),
     buildBreakdownItem("harmony", 0, "Harmony can't be checked until the album can be read."),
@@ -1182,7 +1191,7 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     });
   };
 
-  const breakdown = [
+  const breakdown: CoherenceReport["breakdown"] = [
     capped(
       "narrative",
       !album.concept_summary?.trim()
@@ -1234,22 +1243,13 @@ export function analyzeAlbumCoherence(raw: unknown): CoherenceReport {
     ),
   ];
 
-  const weightedScore =
-    breakdown[0].score * 0.28 +
-    breakdown[1].score * 0.2 +
-    breakdown[2].score * 0.18 +
-    breakdown[3].score * 0.18 +
-    breakdown[4].score * 0.16;
+  const weightedScore = breakdown.reduce((sum, item) => sum + item.score * DIMENSION_WEIGHT[item.key], 0);
   const score = clampScore(weightedScore);
   // What the written tracks score on their own, by the same weights, while some are unwritten.
   const writtenScore =
     !insufficient && partlyWritten
       ? clampScore(
-          breakdown[0].uncapped * 0.28 +
-            breakdown[1].uncapped * 0.2 +
-            breakdown[2].uncapped * 0.18 +
-            breakdown[3].uncapped * 0.18 +
-            breakdown[4].uncapped * 0.16,
+          breakdown.reduce((sum, item) => sum + item.uncapped * DIMENSION_WEIGHT[item.key], 0),
         )
       : null;
   const weakest = weakestDimension({ breakdown });

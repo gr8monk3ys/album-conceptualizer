@@ -10,6 +10,7 @@ import {
   isWrittenLyrics,
   type CoherenceReport,
 } from "@/server/coherence";
+import { nth } from "@/test-support/nth";
 
 const PROGRESSIONS = [
   { key: "C", chords: ["C", "G", "Am", "F"] },
@@ -30,7 +31,7 @@ type SongOverrides = {
 
 /** The same shape the Create wizard writes: placeholder lyrics, one loop on both sections. */
 function scaffoldSong(index: number, overrides: SongOverrides = {}) {
-  const progression = PROGRESSIONS[index % PROGRESSIONS.length];
+  const progression = nth(PROGRESSIONS, index % PROGRESSIONS.length);
   return {
     title: `Track ${index + 1}`,
     track_number: index + 1,
@@ -128,7 +129,7 @@ describe("analyzeAlbumCoherence on a template scaffold", () => {
       label: "Lyrics on 2 more tracks (0 of 2 written)",
       fix: { focus: "lyrics", trackNumber: 1 },
     });
-    expect(report.missing[1].fix).toEqual({ focus: "song-themes", trackNumber: 1 });
+    expect(nth(report.missing, 1).fix).toEqual({ focus: "song-themes", trackNumber: 1 });
   });
 
   it("keeps the existing report shape for other callers", () => {
@@ -193,7 +194,7 @@ describe("analyzeAlbumCoherence with written material", () => {
   it("asks a one-track album for that one track only", () => {
     const pending = analyzeAlbumCoherence(album([scaffoldSong(0)]));
     expect(pending.insufficient).toBe(true);
-    expect(pending.missing[0].label).toBe("Lyrics on one more track (0 of 1 written)");
+    expect(nth(pending.missing, 0).label).toBe("Lyrics on one more track (0 of 1 written)");
 
     const written = analyzeAlbumCoherence(album([scaffoldSong(0, { verse: "Words" })]));
     expect(written.insufficient).toBe(false);
@@ -415,8 +416,8 @@ describe("honest signals on a half-written album", () => {
       title: "4 of 7 tracks still need lyrics",
       relatedTracks: [4, 5, 6, 7],
     });
-    expect(report.issues[0].id).toBe("missing_lyrics");
-    expect(report.nextActions[0].id).toBe("action-missing_lyrics");
+    expect(nth(report.issues, 0).id).toBe("missing_lyrics");
+    expect(nth(report.nextActions, 0).id).toBe("action-missing_lyrics");
   });
 
   it("caps every dimension at the share of written tracks", () => {

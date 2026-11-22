@@ -70,7 +70,7 @@ async function lockAlbum(tx: Tx, albumId: string): Promise<Prisma.JsonValue | nu
   const rows = await tx.$queryRaw<Array<{ data: Prisma.JsonValue | null }>>`
     SELECT "data" FROM "album_conceptualizer"."Album" WHERE "id" = ${albumId} FOR UPDATE`;
   if (!rows.length) throw new ApiError(404, "Not found.");
-  return rows[0].data;
+  return rows[0]?.data ?? null;
 }
 
 async function replaceSnapshot(

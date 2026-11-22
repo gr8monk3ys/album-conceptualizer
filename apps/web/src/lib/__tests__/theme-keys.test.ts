@@ -15,6 +15,7 @@ import {
   wideThemeHeadsCss,
   wideThemeSlotRem,
 } from "@/lib/theme-keys";
+import { nth } from "@/test-support/nth";
 
 describe("themeAbbreviations", () => {
   it("uses one letter when every theme starts differently", () => {
@@ -193,7 +194,7 @@ describe("wide theme heads: whole names where the sheet has room", () => {
 
   it("starts where the columns fit beside the other columns and an 8rem title", () => {
     const layouts = wideThemeHeads(ALBUM);
-    const last = layouts[layouts.length - 1];
+    const last = nth(layouts, -1);
     const total = last.slotRem.reduce((sum, slot) => sum + slot, 0);
     expect(last.fromRem).toBeGreaterThanOrEqual(SPINE_OTHER_COLUMNS_REM + total);
     expect(last.fromRem).toBeLessThan(SPINE_OTHER_COLUMNS_REM + total + 0.05);
@@ -209,15 +210,15 @@ describe("wide theme heads: whole names where the sheet has room", () => {
     const from = layouts.map((layout) => layout.fromRem);
     expect([...from].sort((a, b) => a - b)).toEqual(from);
     // At 4rem, "WEATHER" is already whole; "ESTRANGEMENT" still has to hyphenate or truncate.
-    expect(layouts[0].slotRem[2]).toBe(wideThemeSlotRem("weather"));
+    expect(nth(layouts, 0).slotRem[2]).toBe(wideThemeSlotRem("weather"));
   });
 
   it("takes another matrix's own columns and named slot", () => {
     // A Studio-like list: 3.5rem named slots beside 14rem of other columns.
     const layouts = wideThemeHeads(["isolation", "memory"], { otherColumnsRem: 14, minSlotRem: 3.5 });
-    const last = layouts[layouts.length - 1];
+    const last = nth(layouts, -1);
     expect(last.slotRem[1]).toBe(3.5);
-    expect(last.fromRem).toBeCloseTo(14 + last.slotRem[0] + 3.5, 5);
+    expect(last.fromRem).toBeCloseTo(14 + nth(last.slotRem, 0) + 3.5, 5);
     expect(wideThemeHeads(["memory"], { minSlotRem: 3.5 })).toEqual([]);
   });
 
@@ -231,9 +232,9 @@ describe("wide theme heads: whole names where the sheet has room", () => {
     const css = wideThemeHeadsCss("album-spine-theme-keys", layouts);
     const at = '[data-theme-heads="album-spine-theme-keys"]';
     expect(css.startsWith(`${at} .theme-head-w0,${at} .theme-head-w1{display:none}`)).toBe(true);
-    expect(css).toContain(`@container (min-width:${layouts[0].fromRem}rem){${at} .theme-head-narrow{display:none}`);
-    expect(css).toContain(`@container (min-width:${layouts[1].fromRem}rem){${at} .theme-head-w0{display:none}`);
-    expect(css).toContain(`${at} .theme-slot-0{width:${layouts[1].slotRem[0]}rem}`);
+    expect(css).toContain(`@container (min-width:${nth(layouts, 0).fromRem}rem){${at} .theme-head-narrow{display:none}`);
+    expect(css).toContain(`@container (min-width:${nth(layouts, 1).fromRem}rem){${at} .theme-head-w0{display:none}`);
+    expect(css).toContain(`${at} .theme-slot-0{width:${nth(layouts, 1).slotRem[0]}rem}`);
     expect(css).toContain(`${at} .theme-legend{display:none}`);
     expect(wideThemeHeadsCss("x", [])).toBe("");
   });
@@ -241,7 +242,7 @@ describe("wide theme heads: whole names where the sheet has room", () => {
   it("keeps the legend when a name truncates even at 7rem, and strips anything but an id from the scope", () => {
     const long = "internationalisations";
     const layouts = wideThemeHeads([long]);
-    const last = layouts[layouts.length - 1];
+    const last = nth(layouts, -1);
     expect(last.slotRem).toEqual([WIDE_THEME_SLOT_MAX_REM]);
     const css = wideThemeHeadsCss('a"]{}b', layouts);
     expect(css).toContain('[data-theme-heads="ab"]');
@@ -251,8 +252,7 @@ describe("wide theme heads: whole names where the sheet has room", () => {
 
 describe("wide theme heads never start before the named heads", () => {
   it("waits for the keys to give way, even for one short name", () => {
-    const [first] = wideThemeHeads(["Memory"]);
-    expect(first).toBeDefined();
+    const first = nth(wideThemeHeads(["Memory"]), 0);
     expect(first.fromRem).toBeGreaterThanOrEqual(themeNamesFromRem(1));
   });
 });

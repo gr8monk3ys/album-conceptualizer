@@ -126,7 +126,7 @@ function splitThemes(text: string) {
 function titleFrom(text: string): string | null {
   const body = plain(text.replace(LIST_ITEM, ""));
   const quoted = body.match(/["“]([^"“”]{1,80})["”]/);
-  const raw = quoted ? quoted[1] : (body.split(/\s[-–—]\s|:\s|\s\(/)[0] ?? "");
+  const raw = quoted?.[1] ?? body.split(/\s[-–—]\s|:\s|\s\(/)[0] ?? "";
   const title = raw.replace(/^["“*_\s]+|["”*_\s.,;]+$/g, "").trim();
   if (!title || title.length > 80) return null;
   return title;
@@ -134,8 +134,7 @@ function titleFrom(text: string): string | null {
 
 function paragraphAfter(lines: string[], start: number) {
   const parts: string[] = [];
-  for (let i = start; i < lines.length; i += 1) {
-    const line = lines[i];
+  for (const line of lines.slice(start)) {
     if (!line.trim()) {
       if (parts.length) break;
       continue;
@@ -154,13 +153,14 @@ function indentOf(line: string) {
 function itemsAfter(lines: string[], start: number) {
   const items: string[] = [];
   let indent = -1;
-  for (let i = start; i < lines.length; i += 1) {
-    const line = lines[i];
+  for (const [i, line] of lines.entries()) {
+    if (i < start) continue;
     if (!line.trim()) {
-      if (items.length) {
+      const firstItem = items[0];
+      if (firstItem !== undefined) {
         // A blank line ends the list unless the next line carries on with another item.
         const next = lines.slice(i + 1).find((candidate) => candidate.trim());
-        if (!next || !isListItem(next) || markerKind(next) !== markerKind(items[0])) break;
+        if (!next || !isListItem(next) || markerKind(next) !== markerKind(firstItem)) break;
       }
       continue;
     }
@@ -189,8 +189,7 @@ export function parseBrainstorm(output: string): ParsedBrainstorm {
   let themes: string[] = [];
   let trackTitles: string[] = [];
 
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
+  for (const [i, line] of lines.entries()) {
     if (!line.trim()) continue;
 
     if (concept === null) {

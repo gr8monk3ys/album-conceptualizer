@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { AlbumJsonSchema, type AlbumJson } from "@/server/album-json";
 import { buildAlbumMutationData, writeAlbumSnapshot } from "@/server/album-sync";
 import { getPrisma } from "@/server/db";
+import { nth } from "@/test-support/nth";
 
 // Writes to one Album snapshot from several places at once: two Studio saves, a Studio save
 // racing a Sound bible or demo save, two demo saves. The routes run with the caller's
@@ -122,7 +123,7 @@ describe.skipIf(!hasDatabase)("album snapshot writes (database)", () => {
     const results = await Promise.allSettled([first, second]);
     expect(results.map((result) => result.status)).toEqual(["fulfilled", "fulfilled"]);
     expect(await storedLyrics()).toEqual(["newer", "newer", "newer"]);
-    expect((await storedAlbum()).songs[0].sections[0].lyrics).toBe("newer");
+    expect(nth(nth((await storedAlbum()).songs, 0).sections, 0).lyrics).toBe("newer");
   });
 
   it("answers 200 to two Studio saves sent at once", async () => {
@@ -173,7 +174,7 @@ describe.skipIf(!hasDatabase)("album snapshot writes (database)", () => {
 
   it("edits and deletes a demo against the album as stored at that moment", async () => {
     const added = (await (await addDemo("Memo A")).json()) as { demos: Array<{ id: string }> };
-    const demoId = added.demos[0].id;
+    const demoId = nth(added.demos, 0).id;
     await addDemo("Memo B");
     const route = await import("@/app/api/albums/[albumId]/rough-demos/[demoId]/route");
     const demoContext = { params: Promise.resolve({ albumId, demoId }) };
@@ -212,7 +213,7 @@ describe.skipIf(!hasDatabase)("album snapshot writes (database)", () => {
 
     const responses = await Promise.all([accept("tide"), accept("salt")]);
     expect(responses.map((response) => response.status)).toEqual([200, 200]);
-    expect((await storedAlbum()).songs[0].themes.sort()).toEqual(["salt", "tide"]);
+    expect(nth((await storedAlbum()).songs, 0).themes.sort()).toEqual(["salt", "tide"]);
 
     const before = await prisma.album.findUniqueOrThrow({ where: { id: albumId }, select: { updatedAt: true } });
     const updatedAt = (await storedAlbum()).updated_at;
@@ -229,7 +230,7 @@ describe.skipIf(!hasDatabase)("album snapshot writes (database)", () => {
       context(albumId),
     );
     expect(removed.status).toBe(200);
-    expect((await storedAlbum()).songs[0].themes).toEqual(["salt"]);
+    expect(nth((await storedAlbum()).songs, 0).themes).toEqual(["salt"]);
   });
 
   it("refuses a Sound bible list over the limit, naming the field, and changes nothing", async () => {

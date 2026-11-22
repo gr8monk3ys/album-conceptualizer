@@ -141,7 +141,10 @@ export function lyricExcerptsByTrack(data: unknown, maxLines = 2): Map<number, s
 export type DiscoverSort = "newest" | "written" | "liked";
 export type DiscoverShow = "all" | "finished";
 
-export const DISCOVER_SORTS: ReadonlyArray<{ value: DiscoverSort; label: string }> = [
+export const DISCOVER_SORTS: readonly [
+  { value: DiscoverSort; label: string },
+  ...{ value: DiscoverSort; label: string }[],
+] = [
   { value: "newest", label: "Newest" },
   { value: "written", label: "Most written" },
   { value: "liked", label: "Most liked" },

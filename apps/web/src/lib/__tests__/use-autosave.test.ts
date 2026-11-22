@@ -10,6 +10,7 @@ import {
   type DraftStorage,
   type LinkClick,
 } from "@/lib/use-autosave";
+import { nth } from "@/test-support/nth";
 
 type Deferred = { resolve: () => void; reject: (error: Error) => void; value: string };
 
@@ -59,9 +60,9 @@ describe("AutosaveController", () => {
     vi.advanceTimersByTime(1);
     await settle();
     expect(save).toHaveBeenCalledTimes(1);
-    expect(calls[0].value).toBe("abc");
+    expect(nth(calls, 0).value).toBe("abc");
     expect(controller.getState().status).toBe("saving");
-    calls[0].resolve();
+    nth(calls, 0).resolve();
     await settle();
     expect(controller.getState()).toEqual({ status: "saved", lastSavedAt: 42, error: null });
   });
@@ -90,12 +91,12 @@ describe("AutosaveController", () => {
     expect(save).toHaveBeenCalledTimes(1);
     expect(second).toBe(third);
 
-    calls[0].resolve();
+    nth(calls, 0).resolve();
     await expect(first).resolves.toBe(true);
     await settle();
     expect(save).toHaveBeenCalledTimes(2);
-    expect(calls[1].value).toBe("d");
-    calls[1].resolve();
+    expect(nth(calls, 1).value).toBe("d");
+    nth(calls, 1).resolve();
     await expect(second).resolves.toBe(true);
     expect(controller.getState().status).toBe("saved");
   });
@@ -107,12 +108,12 @@ describe("AutosaveController", () => {
     void controller.saveNow();
     await settle();
     controller.update("c");
-    calls[0].resolve();
+    nth(calls, 0).resolve();
     await settle();
     expect(controller.getState().status).toBe("dirty");
     vi.advanceTimersByTime(2000);
     await settle();
-    expect(calls[1].value).toBe("c");
+    expect(nth(calls, 1).value).toBe("c");
   });
 
   it("reports a failure with its message and saves again on retry", async () => {
@@ -121,14 +122,14 @@ describe("AutosaveController", () => {
     controller.update("b");
     const attempt = controller.saveNow();
     await settle();
-    calls[0].reject(new Error("The server is busy."));
+    nth(calls, 0).reject(new Error("The server is busy."));
     await expect(attempt).resolves.toBe(false);
     expect(controller.getState()).toMatchObject({ status: "error", error: "The server is busy." });
     expect(controller.hasUnsavedChanges()).toBe(true);
 
     const retry = controller.retry();
     await settle();
-    calls[1].resolve();
+    nth(calls, 1).resolve();
     await expect(retry).resolves.toBe(true);
     expect(controller.getState()).toMatchObject({ status: "saved", error: null });
     expect(controller.hasUnsavedChanges()).toBe(false);

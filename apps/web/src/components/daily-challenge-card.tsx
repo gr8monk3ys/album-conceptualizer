@@ -24,8 +24,9 @@ function pad(n: number) {
 
 /** Where a new challenge is best written: the first track with no lyrics yet, else the first. */
 export function suggestedTrack(album: ChallengeAlbumOption | null | undefined): number | null {
-  if (!album?.tracks.length) return null;
-  return (album.tracks.find((track) => !track.written) ?? album.tracks[0]).number;
+  const first = album?.tracks[0];
+  if (!album || !first) return null;
+  return (album.tracks.find((track) => !track.written) ?? first).number;
 }
 
 /** Where a completed challenge was written: the album (and track) it links back to. */

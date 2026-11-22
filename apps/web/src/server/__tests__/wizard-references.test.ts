@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { AlbumJsonSchema } from "@/server/album-json";
 import { MAX_WIZARD_REFERENCES, wizardReferenceRows } from "@/server/wizard-references";
+import { nth } from "@/test-support/nth";
 
 describe("wizardReferenceRows", () => {
   it("turns each wizard reference into a whole-album reference, in the order typed", () => {
@@ -62,6 +63,6 @@ describe("wizardReferenceRows", () => {
     const many = Array.from({ length: 40 }, (_, index) => `Record ${index + 1}`);
     const rows = wizardReferenceRows("a", many);
     expect(rows).toHaveLength(MAX_WIZARD_REFERENCES);
-    expect(rows[0].title).toBe("Record 1");
+    expect(nth(rows, 0).title).toBe("Record 1");
   });
 });

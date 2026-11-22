@@ -18,7 +18,7 @@ export function taskDetail(title: string, body: string | null | undefined): stri
   if (!shown || flatBody === shown) return shown ? null : fullBody;
   if (!flatBody.startsWith(shown)) return fullBody;
   // A whole title must end where a word of the body ends ("Tempo" is not the start of "Tempos").
-  if (!cut && flatBody.length > shown.length && !/\s/.test(flatBody[shown.length])) return fullBody;
+  if (!cut && flatBody.length > shown.length && !/\s/.test(flatBody.charAt(shown.length))) return fullBody;
 
   // The body starts with the title: keep only what follows it, from the body itself so its
   // line breaks survive. Walk the body until as many non-space characters as the title holds
@@ -27,14 +27,14 @@ export function taskDetail(title: string, body: string | null | undefined): stri
   let seen = 0;
   let index = 0;
   while (index < fullBody.length && seen < needed) {
-    if (!/\s/.test(fullBody[index])) seen += 1;
+    if (!/\s/.test(fullBody.charAt(index))) seen += 1;
     index += 1;
   }
   if (!fullBody.slice(index).trim()) return null;
   // A title cut inside a word ("…the lamp and t…") continues from the start of that word, so
   // the detail never opens on a fragment ("…the water", not "…he water").
   if (cut) {
-    const inWord = (i: number) => i >= 0 && i < fullBody.length && !/\s/.test(fullBody[i]);
+    const inWord = (i: number) => i >= 0 && i < fullBody.length && !/\s/.test(fullBody.charAt(i));
     while (index > 0 && inWord(index - 1) && inWord(index)) index -= 1;
   }
   const rest = fullBody.slice(index).trim();

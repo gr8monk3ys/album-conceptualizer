@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getPrisma } from "@/server/db";
+import { nth } from "@/test-support/nth";
 
 // The Stripe checkout and webhook routes with a mocked Stripe client and the caller's
 // workspace stubbed; the Subscription rows run against the Postgres in DATABASE_URL.
@@ -171,7 +172,7 @@ describe.skipIf(!hasDatabase)("Stripe billing routes (database, mocked Stripe)",
       const result = await checkout("team");
 
       expect(result.body.url).toBe("https://checkout.test/cs_new");
-      const params = stripe.checkout.sessions.create.mock.calls[0][0];
+      const params = nth(nth(stripe.checkout.sessions.create.mock.calls, 0), 0);
       expect(params.customer).toBe("cus_old");
       expect(params).not.toHaveProperty("customer_email");
       expect(params.line_items).toEqual([{ price: PRICE.team, quantity: 1 }]);
@@ -181,7 +182,7 @@ describe.skipIf(!hasDatabase)("Stripe billing routes (database, mocked Stripe)",
       const result = await checkout("pro");
 
       expect(result.body.url).toBe("https://checkout.test/cs_new");
-      const params = stripe.checkout.sessions.create.mock.calls[0][0];
+      const params = nth(nth(stripe.checkout.sessions.create.mock.calls, 0), 0);
       expect(params.customer_email).toBe("payer@test.local");
       expect(params).not.toHaveProperty("customer");
     });
