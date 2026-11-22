@@ -70,6 +70,7 @@
     "lodash": ">=4.17.23",
     "minimatch": ">=10.2.1",
     "mysql2": ">=3.23.1",
-    "nodemailer": "$nodemailer"
+    "nodemailer": "$nodemailer",
+    "effect": "^3.22.1"
   }
 }
