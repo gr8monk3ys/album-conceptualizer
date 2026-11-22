@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { fromPartial } from "@total-typescript/shoehorn";
 
 import { sameAlbumDetailsProps } from "@/components/studio/album-details";
 import { sameSongStoryProps } from "@/components/studio/song-story-editor";
@@ -73,7 +74,7 @@ describe("sameSongStoryProps and sameAlbumDetailsProps", () => {
     expect(sameSongStoryProps(story, { ...story, song: { ...song, motifs: ["bell"] } })).toBe(false);
     expect(sameSongStoryProps(story, { ...story, open: true })).toBe(false);
 
-    const album = { title: "Lighthouse", songs: [song] } as unknown as StudioAlbum;
+    const album = fromPartial<StudioAlbum>({ title: "Lighthouse", songs: [song] });
     const details = { album, onChange: noop, open: false, onOpenChange: noop };
     expect(sameAlbumDetailsProps(details, { ...details, album: { ...album, songs: [withLyrics(song, "Words")] } })).toBe(true);
     expect(sameAlbumDetailsProps(details, { ...details, album: { ...album, title: "Lighthouse II" } })).toBe(false);

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { rejection } from "@/server/__tests__/rejection";
 import { z } from "zod";
 
 vi.mock("@/server/auth", () => ({ getAuthSession: vi.fn(async () => null) }));
@@ -57,13 +58,11 @@ describe("parseJsonBody", () => {
   });
 
   it("400s with per-field details on invalid data", async () => {
-    const error = await parseJsonBody(request('{"title":"","tracks":1.5}'), schema, "Bad album.").catch(
-      (err) => err,
-    );
+    const error = await rejection(parseJsonBody(request('{"title":"","tracks":1.5}'), schema, "Bad album."));
     expect(error).toBeInstanceOf(ApiError);
     expect(error.status).toBe(400);
     expect(error.message).toBe("Bad album.");
-    expect(error.details.join(" ")).toMatch(/title/);
-    expect(error.details.join(" ")).toMatch(/tracks/);
+    expect(error.details?.join(" ")).toMatch(/title/);
+    expect(error.details?.join(" ")).toMatch(/tracks/);
   });
 });

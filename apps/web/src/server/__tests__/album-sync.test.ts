@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { AlbumJsonSchema } from "@/server/album-json";
 import { buildAlbumMutationData, keepFieldsTheStudioDoesNotEdit } from "@/server/album-sync";
+import { nth } from "@/test-support/nth";
 
 describe("buildAlbumMutationData", () => {
   it("keeps the snapshot verbatim but skips duplicates in the relational projection", () => {
@@ -25,7 +26,7 @@ describe("buildAlbumMutationData", () => {
     const mutation = buildAlbumMutationData(album);
     const songs = mutation.songs?.create ?? [];
     expect(songs.map((s) => s.trackNumber)).toEqual([1, 2]);
-    expect(songs[0].sections?.create.map((s) => s.sectionType)).toEqual(["verse", "chorus"]);
+    expect(nth(songs, 0).sections?.create.map((s) => s.sectionType)).toEqual(["verse", "chorus"]);
     expect(mutation.trackCount).toBe(3);
     expect((mutation.data as { songs: unknown[] }).songs).toHaveLength(3);
   });

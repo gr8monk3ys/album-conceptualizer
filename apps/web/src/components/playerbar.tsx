@@ -54,7 +54,7 @@ function Waveform({ getWaveform, playing }: { getWaveform: () => Uint8Array | nu
         const stride = Math.max(1, Math.floor(data.length / 160));
         for (let i = 0; i < data.length; i += stride) {
           const x = (i / Math.max(1, data.length - 1)) * w;
-          const v = (data[i] - 128) / 128;
+          const v = ((data[i] ?? 128) - 128) / 128;
           const y = h / 2 + v * (h / 2) * 0.92;
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);

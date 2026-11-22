@@ -1,0 +1,19 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/lib/section-place.ts",
+    "to": "src/components/studio/studio-model.ts",
+    "unresolvedTo": "@/components/studio/studio-model",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "server-and-lib-not-from-ui"
+    }
+  }
+]

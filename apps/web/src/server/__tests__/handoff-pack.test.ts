@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildAlbumBible } from "@/server/bible";
 import { buildBibleMarkdown } from "@/server/bible-markdown";
 import { buildHandoffPackMarkdown, STYLE_BIBLE_EMPTY_LINE } from "@/server/handoff-pack";
+import { nth } from "@/test-support/nth";
 
 /** What the setup writes: placeholder lyrics, the starter loop, no Sound bible. */
 function freshAlbum(count = 3, extra: Record<string, unknown> = {}) {
@@ -88,7 +89,7 @@ describe("handoff packs", () => {
 
   it("says what is actually written and marks the starter loop", () => {
     const album = freshAlbum(3);
-    album.songs[0].sections[0].lyrics = "Streetlights hum the same four notes";
+    nth(nth(album.songs, 0).sections, 0).lyrics = "Streetlights hum the same four notes";
     const pack = buildHandoffPackMarkdown({ albumData: album, references: [], target: "daw" });
     expect(pack).toContain("- **Lyrics written:** 1 of 3 tracks");
     expect(pack).toContain("- **Chords of their own:** 0 of 3 tracks (the rest are the starter loop or empty)");
@@ -99,7 +100,7 @@ describe("handoff packs", () => {
 
   it("uses Story note and Role for a track's narrative fields", () => {
     const album = freshAlbum(1);
-    Object.assign(album.songs[0], { narrative_summary: "She leaves.", narrative_position: "Inciting incident" });
+    Object.assign(nth(album.songs, 0), { narrative_summary: "She leaves.", narrative_position: "Inciting incident" });
     const pack = buildHandoffPackMarkdown({ albumData: album, references: [], target: "suno" });
     expect(pack).toContain("- **Story note:** She leaves.");
     expect(pack).toContain("- **Role:** Inciting incident");
@@ -108,7 +109,7 @@ describe("handoff packs", () => {
 
   it("keeps artist names out of the prompt line and lists references apart (critique run 5)", () => {
     const album = freshAlbum(1, { central_themes: ["the sea", "duty"] });
-    Object.assign(album.songs[0], {
+    Object.assign(nth(album.songs, 0), {
       narrative_summary: "The first warning comes over the radio; she decides to keep counting.",
       themes: ["the sea", "duty"],
     });
@@ -130,7 +131,7 @@ describe("handoff packs", () => {
 
   it("doesn't add a second full stop after a question", () => {
     const album = freshAlbum(1);
-    Object.assign(album.songs[0], { narrative_summary: "Will she stay?", themes: ["duty"] });
+    Object.assign(nth(album.songs, 0), { narrative_summary: "Will she stay?", themes: ["duty"] });
     const pack = buildHandoffPackMarkdown({ albumData: album, references: [], target: "suno" });
     expect(pack).toContain("Will she stay? themes: duty.");
     expect(pack).not.toContain("#### References (for you, not the prompt)");
@@ -168,7 +169,7 @@ describe("the Bible as Markdown", () => {
 
   it("lists album motifs and track motif tags together", () => {
     const album = freshAlbum(2, { recurring_motifs: ["static"] });
-    album.songs[1].motifs = ["the phone" as never];
+    nth(album.songs, 1).motifs = ["the phone" as never];
     const md = buildBibleMarkdown(buildAlbumBible(album));
     expect(md).toContain("- **static** (album motif): on no track yet");
     expect(md).toContain("- **the phone**: track 2");

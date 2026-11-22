@@ -47,7 +47,7 @@ type DraftAlbumIds = {
   sectionIds: Record<number, [string, string]>;
 };
 
-const WIZARD_STEPS: WizardStep[] = [
+const WIZARD_STEPS: [WizardStep, ...WizardStep[]] = [
   {
     key: "foundation",
     title: "Foundation",

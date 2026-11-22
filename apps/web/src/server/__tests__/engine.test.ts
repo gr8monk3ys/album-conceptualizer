@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { rejection } from "@/server/__tests__/rejection";
 import { checkEngineHealth, exportAlbumZip, getAgentJob, startAgentJob } from "@/server/engine";
 
 afterEach(() => {
@@ -49,19 +50,17 @@ describe("engine client", () => {
         { status: 422 },
       ),
     );
-    const invalid = await exportAlbumZip({ album: null, formats: ["json"], includeProductionNotes: false }).catch(
-      (err) => err,
-    );
+    const invalid = await rejection(exportAlbumZip({ album: null, formats: ["json"], includeProductionNotes: false }));
     expect(invalid.status).toBe(422);
     expect(invalid.message).toMatch(/^Export failed\. /);
     expect(invalid.message).not.toMatch(/[{}[\]]|missing|Field required/);
 
     stubFetch(Response.json({ detail: { code: "bad" } }, { status: 400 }));
-    const object = await getAgentJob("j", "u").catch((err) => err);
+    const object = await rejection(getAgentJob("j", "u"));
     expect(object.message).not.toContain("code");
 
     stubFetch(new Response("<html><body>Bad Request</body></html>", { status: 400 }));
-    const html = await getAgentJob("j", "u").catch((err) => err);
+    const html = await rejection(getAgentJob("j", "u"));
     expect(html.message).not.toContain("<html>");
   });
 
@@ -69,7 +68,7 @@ describe("engine client", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     for (const status of [401, 403]) {
       stubFetch(Response.json({ detail: "Invalid API key" }, { status }));
-      const denied = await getAgentJob("j", "u").catch((err) => err);
+      const denied = await rejection(getAgentJob("j", "u"));
       expect(denied.status).toBe(502);
       expect(denied.message).not.toContain("API key");
     }
@@ -89,7 +88,7 @@ describe("engine client", () => {
     await expect(getAgentJob("j", "u")).rejects.toMatchObject({ status: 502 });
 
     stubFetch(Response.json({ detail: "ANTHROPIC_API_KEY is not configured." }, { status: 503 }));
-    const unavailable = await getAgentJob("j", "u").catch((err) => err);
+    const unavailable = await rejection(getAgentJob("j", "u"));
     expect(unavailable.status).toBe(502);
     expect(unavailable.message).not.toContain("ANTHROPIC_API_KEY");
     expect(unavailable.message).toContain("isn't available");

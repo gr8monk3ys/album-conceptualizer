@@ -49,7 +49,8 @@ describe("theme columns", () => {
 
   it("give the Sequence room for its named slots at every theme count", () => {
     // 14rem for number, title and lyrics, plus each theme's slot (@5xl), and 8rem more for Role (@7xl).
-    const rem = (cls: string, at: string) => Number(new RegExp(`${at}:grid-cols-\\[([\\d.]+)rem`).exec(cls)?.[1]);
+    const rem = (cls: string | undefined, at: string) =>
+      Number(new RegExp(`${at}:grid-cols-\\[([\\d.]+)rem`).exec(cls ?? "")?.[1]);
     for (let count = 1; count <= 4; count += 1) {
       expect(rem(STUDIO_GRID_COLUMNS[count], "@5xl")).toBe(14 + 3.5 * count);
     }

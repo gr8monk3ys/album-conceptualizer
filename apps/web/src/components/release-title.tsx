@@ -14,7 +14,7 @@ const ALBUM_PAGES = new Set(["", "studio", "bible", "coherence", "sound", "style
 export function ReleaseTitle({ albumId, className, children }: { albumId: string; className?: string; children: ReactNode }) {
   const pathname = usePathname() ?? "";
   const base = `/app/albums/${albumId}`;
-  const segment = pathname.startsWith(`${base}/`) ? pathname.slice(base.length + 1).split("/")[0] : "";
+  const segment = pathname.startsWith(`${base}/`) ? pathname.slice(base.length + 1).split("/")[0] ?? "" : "";
   const Tag = ALBUM_PAGES.has(decodeURIComponent(segment)) ? "h1" : "p";
   return <Tag className={className}>{children}</Tag>;
 }

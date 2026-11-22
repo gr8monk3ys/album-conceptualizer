@@ -77,10 +77,10 @@ async function readError(response: Response, fallback: string) {
 
 function filenameFrom(disposition: string | null) {
   if (!disposition) return null;
-  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
-  if (encoded) {
+  const encodedName = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  if (encodedName !== undefined) {
     try {
-      return decodeURIComponent(encoded[1]);
+      return decodeURIComponent(encodedName);
     } catch {
       // Fall through to the plain filename.
     }

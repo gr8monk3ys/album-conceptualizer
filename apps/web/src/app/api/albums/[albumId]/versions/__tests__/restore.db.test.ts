@@ -4,6 +4,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { AlbumJsonSchema, type AlbumJson } from "@/server/album-json";
 import { buildAlbumMutationData } from "@/server/album-sync";
 import { getPrisma } from "@/server/db";
+import { nth } from "@/test-support/nth";
 
 // Restoring a version keeps the album it replaces as a "Before restoring …" version. That
 // backup must be the album as stored when the restore takes the row lock, not as read a moment
@@ -95,12 +96,12 @@ describe.skipIf(!hasDatabase)("restoring a version (database)", () => {
       where: { albumId, message: "Before restoring First pass" },
       select: { data: true },
     });
-    return AlbumJsonSchema.parse(backup.data).songs[0].sections[0].lyrics;
+    return nth(nth(AlbumJsonSchema.parse(backup.data).songs, 0).sections, 0).lyrics;
   }
 
   async function storedLyrics() {
     const row = await prisma.album.findUniqueOrThrow({ where: { id: albumId }, select: { data: true } });
-    return AlbumJsonSchema.parse(row.data).songs[0].sections[0].lyrics;
+    return nth(nth(AlbumJsonSchema.parse(row.data).songs, 0).sections, 0).lyrics;
   }
 
   it("restores the version and keeps the draft it replaced", async () => {

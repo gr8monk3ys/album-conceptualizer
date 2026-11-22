@@ -8,7 +8,8 @@
 // wording stays true either way, which a "written" tick on untouched scaffolding would not.
 
 /** The loops the setup writes, one per starting key. */
-export const STARTER_PROGRESSIONS: ReadonlyArray<{ key: string; chords: readonly string[] }> = [
+type StarterProgression = { key: string; chords: readonly string[] };
+export const STARTER_PROGRESSIONS: readonly [StarterProgression, ...StarterProgression[]] = [
   { key: "C major", chords: ["C", "G", "Am", "F"] },
   { key: "A minor", chords: ["Am", "F", "C", "G"] },
   { key: "G major", chords: ["G", "D", "Em", "C"] },

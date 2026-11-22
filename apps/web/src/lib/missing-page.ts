@@ -6,11 +6,13 @@
 export function missingAlbumPage(pathname: string): { albumId: string; page: string } | null {
   const match = pathname.match(/^\/app\/albums\/([^/?#]+)\/([^?#]+?)\/?(?:[?#].*)?$/);
   if (!match) return null;
-  let page = match[2];
+  const [, albumId, rawPage] = match;
+  if (albumId === undefined || rawPage === undefined) return null;
+  let page = rawPage;
   try {
-    page = decodeURIComponent(page);
+    page = decodeURIComponent(rawPage);
   } catch {
     // A malformed escape: show the address as typed.
   }
-  return { albumId: match[1], page: page.length > 60 ? `${page.slice(0, 59)}…` : page };
+  return { albumId, page: page.length > 60 ? `${page.slice(0, 59)}…` : page };
 }

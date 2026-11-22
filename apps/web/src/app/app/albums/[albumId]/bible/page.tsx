@@ -89,7 +89,8 @@ function trackName(track: BeatTrack) {
  * links, each opening that track's Story note in the Studio.
  */
 function StoryBeats({ albumId, tracks }: { albumId: string; tracks: BeatTrack[] }) {
-  if (!tracks.length) {
+  const first = tracks[0];
+  if (!first) {
     return (
       <EmptyState
         title="No tracks yet"
@@ -106,7 +107,6 @@ function StoryBeats({ albumId, tracks }: { albumId: string; tracks: BeatTrack[] 
     coherenceFixHref(albumId, { focus: "story", trackNumber: track.trackNumber });
 
   if (!written.length) {
-    const first = tracks[0];
     return (
       <EmptyState
         title={`0 of ${tracks.length} ${tracks.length === 1 ? "track has" : "tracks have"} a story note`}

@@ -154,6 +154,7 @@ function Finding({
   const dimension = report.breakdown.find((item) => item.key === issue.category)?.label;
   const tracks = (issue.relatedTracks ?? []).slice().sort((left, right) => left - right);
   const suggested = (issue.suggestedTracks ?? []).slice().sort((left, right) => left - right);
+  const [onlyTrack] = tracks;
   return (
     <li className={cn("flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-6", lead ? "py-5" : "py-4")}>
       <div className="min-w-0 flex-1">
@@ -174,8 +175,8 @@ function Finding({
             <span className="mr-2 text-xs text-ink-3">On tracks</span>
             <TrackLinks albumId={albumId} issue={issue} tracks={tracks} />
           </p>
-        ) : tracks.length === 1 ? (
-          <p className="type-figure mt-1 text-xs text-ink-3">On track {trackCode(tracks[0])}</p>
+        ) : onlyTrack !== undefined ? (
+          <p className="type-figure mt-1 text-xs text-ink-3">On track {trackCode(onlyTrack)}</p>
         ) : null}
         {suggested.length ? (
           <p className="mt-2 flex flex-wrap items-center gap-y-1">
@@ -230,7 +231,8 @@ function HowScored({ report }: { report: CoherenceReport }) {
       ? `with ${songsWithLyrics} of ${songCount} tracks written, as now, no dimension can score above ${report.scoreCap}`
       : "with 3 of 7 tracks written, no dimension can score above 43";
   const bands = COHERENCE_BANDS.map((band, index) => {
-    const upper = index === 0 ? null : COHERENCE_BANDS[index - 1].min - 1;
+    const above = COHERENCE_BANDS[index - 1];
+    const upper = above ? above.min - 1 : null;
     return `${band.label} ${upper === null ? `${band.min} and up` : band.min === 0 ? `below ${upper + 1}` : `${band.min} to ${upper}`}`;
   });
   return (

@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
+import { rejection } from "@/server/__tests__/rejection";
 import { ApiError } from "@/server/api-error";
 import { chargeCredits, getCredits, grantCredits, withCredits } from "@/server/credits";
 import { getPrisma } from "@/server/db";
@@ -45,7 +46,7 @@ describe.skipIf(!hasDatabase)("credits (database)", () => {
   });
 
   it("refuses a charge the balance can't cover, with a 402", async () => {
-    const error = await charge(planMonthlyCredits("free") + 1).catch((err) => err);
+    const error = await rejection(charge(planMonthlyCredits("free") + 1));
     expect(error).toBeInstanceOf(ApiError);
     expect(error.status).toBe(402);
   });

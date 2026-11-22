@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { forkAlbumJson, remixTitle } from "@/server/album-fork";
 import { AlbumJsonSchema } from "@/server/album-json";
+import { nth } from "@/test-support/nth";
 
 const source = AlbumJsonSchema.parse({
   title: "Tide Tables",
@@ -54,8 +55,8 @@ describe("forkAlbumJson", () => {
   it("gives the copy fresh ids", () => {
     const remix = forkAlbumJson(source);
     expect(remix.id).not.toBe(source.id);
-    expect(remix.songs[0].id).not.toBe(source.songs[0].id);
-    expect(remix.songs[0].sections[0].id).not.toBe(source.songs[0].sections[0].id);
+    expect(nth(remix.songs, 0).id).not.toBe(nth(source.songs, 0).id);
+    expect(nth(nth(remix.songs, 0).sections, 0).id).not.toBe(nth(nth(source.songs, 0).sections, 0).id);
   });
 
   it("leaves the owner's private working material behind", () => {

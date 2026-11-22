@@ -93,7 +93,6 @@ export function SpineSheet({
   caption: string;
   legendId: string;
 }) {
-  const themeKeys = themes.map((theme) => theme.toLowerCase());
   const abbreviations = themeAbbreviations(themes);
   const showLegend = rows.length > 0 && themes.length > 0;
   const heads = spineHeads(themes.length);
@@ -151,7 +150,7 @@ export function SpineSheet({
                           <ThemeHeadName
                             key={step}
                             theme={theme}
-                            widthRem={layout.slotRem[index] - THEME_NAME_PADDING_REM}
+                            widthRem={(layout.slotRem[index] ?? THEME_NAME_SLOT_REM) - THEME_NAME_PADDING_REM}
                             className={cn(wideThemeHeadClass(step), "px-0.5")}
                           />
                         ))}
@@ -169,7 +168,7 @@ export function SpineSheet({
             {rows.map((row) => {
               const lyrics = lyricFraction(row.lyricSections, row.sections);
               const complete = row.sections > 0 && row.lyricSections === row.sections;
-              const carried = themes.filter((_, index) => row.themeKeys.includes(themeKeys[index]));
+              const carried = themes.filter((theme) => row.themeKeys.includes(theme.toLowerCase()));
               const href = rowHref(row.trackNumber);
               return (
                 <tr
@@ -218,7 +217,7 @@ export function SpineSheet({
                       <span aria-hidden="true" className="flex justify-center">
                         {themes.map((theme, index) => (
                           <span key={theme} className={cn("grid w-4 shrink-0 place-items-center", slotClass(index))}>
-                            <ThemeMark carries={row.themeKeys.includes(themeKeys[index])} />
+                            <ThemeMark carries={row.themeKeys.includes(theme.toLowerCase())} />
                           </span>
                         ))}
                       </span>

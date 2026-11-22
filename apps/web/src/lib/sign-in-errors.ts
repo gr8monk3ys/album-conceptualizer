@@ -80,5 +80,6 @@ export function signInErrorMessage(
   const value = Array.isArray(code) ? code[0] : code;
   if (typeof value !== "string" || !value.trim()) return null;
   const key = value.trim();
-  return Object.prototype.hasOwnProperty.call(MESSAGES, key) ? MESSAGES[key] : DEFAULT_MESSAGE;
+  const known = Object.prototype.hasOwnProperty.call(MESSAGES, key) ? MESSAGES[key] : undefined;
+  return known ?? DEFAULT_MESSAGE;
 }

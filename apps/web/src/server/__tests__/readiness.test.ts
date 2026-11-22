@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { albumMotifIndex } from "@/lib/motifs";
 import { nextAlbumStep } from "@/server/album-songs";
 import { getAlbumReadiness } from "@/server/readiness";
+import { nth } from "@/test-support/nth";
 
 function song(trackNumber: number, { lyrics, chords }: { lyrics?: string; chords?: string[] } = {}) {
   return {
@@ -44,12 +45,12 @@ describe("getAlbumReadiness", () => {
       style_bible: { lead_voice: "Alto", sonic_palette: ["tape"], mix_priorities: ["vocal forward"] },
     });
     expect(readiness.ready).toBe(true);
-    expect(readiness.items[0].label).toBe("1 of 1 track written");
+    expect(nth(readiness.items, 0).label).toBe("1 of 1 track written");
   });
 
   it("names tracks with no chords at all apart from the starter loop", () => {
     const readiness = getAlbumReadiness("a1", { songs: [song(1, { chords: [] }), song(2)] });
-    expect(readiness.items[1].label).toBe("No chords of their own on 2 tracks");
+    expect(nth(readiness.items, 1).label).toBe("No chords of their own on 2 tracks");
   });
 });
 

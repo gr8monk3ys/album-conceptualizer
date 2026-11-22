@@ -104,23 +104,26 @@ const ARC_LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" 
 export function themeArc(carrying: number[], sequence: number[]): string {
   const carried = new Set(carrying);
   const positions = sequence.flatMap((trackNumber, index) => (carried.has(trackNumber) ? [index] : []));
-  if (!positions.length) return "";
-  if (positions.length === 1) return `only on ${padTrack(sequence[positions[0]])}`;
-  if (positions.length === sequence.length) return "on every track";
   const first = positions[0];
-  const last = positions[positions.length - 1];
+  const last = positions.at(-1);
+  if (first === undefined || last === undefined) return "";
+  const firstTrack = sequence[first];
+  const lastTrack = sequence[last];
+  if (firstTrack === undefined || lastTrack === undefined) return "";
+  if (positions.length === 1) return `only on ${padTrack(firstTrack)}`;
+  if (positions.length === sequence.length) return "on every track";
   const gaps: string[] = [];
-  for (let index = first + 1; index < last; ) {
-    if (carried.has(sequence[index])) {
-      index += 1;
-      continue;
-    }
-    let end = index;
-    while (end + 1 < last && !carried.has(sequence[end + 1])) end += 1;
-    gaps.push(index === end ? padTrack(sequence[index]) : `${padTrack(sequence[index])}–${padTrack(sequence[end])}`);
-    index = end + 1;
+  let gap: { from: number; to: number } | null = null;
+  const closeGap = () => {
+    if (gap) gaps.push(gap.from === gap.to ? padTrack(gap.from) : `${padTrack(gap.from)}–${padTrack(gap.to)}`);
+    gap = null;
+  };
+  for (const trackNumber of sequence.slice(first + 1, last)) {
+    if (carried.has(trackNumber)) closeGap();
+    else gap = gap ? { from: gap.from, to: trackNumber } : { from: trackNumber, to: trackNumber };
   }
-  const span = `first on ${padTrack(sequence[first])}, last on ${padTrack(sequence[last])}`;
+  closeGap();
+  const span = `first on ${padTrack(firstTrack)}, last on ${padTrack(lastTrack)}`;
   return gaps.length ? `${span}, missing from ${ARC_LIST.format(gaps)}` : `${span}, unbroken`;
 }
 
@@ -356,6 +359,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
   for (const theme of centralThemes) {
     const entry = themeIndex.find((row) => normKey(row.name) === normKey(theme));
     const appears = entry?.trackNumbers ?? [];
+    const [onlyTrack] = appears;
     if (!appears.length) {
       issues.push(
         early
@@ -375,7 +379,7 @@ export function buildAlbumBible(data: unknown): AlbumBible {
               fix: { focus: "album" },
             },
       );
-    } else if (appears.length === 1) {
+    } else if (onlyTrack !== undefined && appears.length === 1) {
       issues.push(
         early
           ? {
@@ -383,15 +387,15 @@ export function buildAlbumBible(data: unknown): AlbumBible {
               scope: "structure",
               progress: true,
               title: `Bring “${theme}” into another track`,
-              detail: `It's on track ${padTrack(appears[0])} so far. Carry it into another track as you write, so it reads as intentional.`,
-              fix: { focus: "song-themes", trackNumber: appears[0] },
+              detail: `It's on track ${padTrack(onlyTrack)} so far. Carry it into another track as you write, so it reads as intentional.`,
+              fix: { focus: "song-themes", trackNumber: onlyTrack },
             }
           : {
               level: "warn",
               scope: "structure",
-              title: `Theme “${theme}” only appears on track ${padTrack(appears[0])}`,
+              title: `Theme “${theme}” only appears on track ${padTrack(onlyTrack)}`,
               detail: "Weave it into at least one more track so it feels intentional.",
-              fix: { focus: "song-themes", trackNumber: appears[0] },
+              fix: { focus: "song-themes", trackNumber: onlyTrack },
             },
       );
     }
@@ -410,7 +414,8 @@ export function buildAlbumBible(data: unknown): AlbumBible {
   }
 
   for (const character of characterIndex) {
-    if (character.trackNumbers.length === 1) {
+    const [onlyTrack] = character.trackNumbers;
+    if (onlyTrack !== undefined && character.trackNumbers.length === 1) {
       issues.push(
         early
           ? {
@@ -418,15 +423,15 @@ export function buildAlbumBible(data: unknown): AlbumBible {
               scope: "structure",
               progress: true,
               title: `Bring “${character.name}” back on another track`,
-              detail: `On track ${padTrack(character.trackNumbers[0])} so far. Bring them back as you write, or leave them out, so the thread doesn't dangle.`,
-              fix: { focus: "story", trackNumber: character.trackNumbers[0] },
+              detail: `On track ${padTrack(onlyTrack)} so far. Bring them back as you write, or leave them out, so the thread doesn't dangle.`,
+              fix: { focus: "story", trackNumber: onlyTrack },
             }
           : {
               level: "warn",
               scope: "structure",
               title: `Character “${character.name}” only appears once`,
-              detail: `Tagged only on track ${padTrack(character.trackNumbers[0])}. Bring them back or remove them, so the thread doesn't dangle.`,
-              fix: { focus: "story", trackNumber: character.trackNumbers[0] },
+              detail: `Tagged only on track ${padTrack(onlyTrack)}. Bring them back or remove them, so the thread doesn't dangle.`,
+              fix: { focus: "story", trackNumber: onlyTrack },
             },
       );
     }

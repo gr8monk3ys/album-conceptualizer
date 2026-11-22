@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applyAcceptedTags, proposeTagsFromLyrics, removeAddedTags, stem } from "@/server/autotag";
+import { nth } from "@/test-support/nth";
 
 function song(trackNumber: number, lyrics: string, extra: Record<string, unknown> = {}) {
   return {
@@ -178,8 +179,8 @@ describe("applyAcceptedTags", () => {
       { trackNumber: 1, themes: ["tide", "Memory"], motifs: [], characters: [] },
       { trackNumber: 2, themes: [], motifs: ["static"], characters: [] },
     ]);
-    expect(result?.album.songs[0].themes).toEqual(["memory", "tide"]);
-    expect(result?.album.songs[1].motifs).toEqual(["static"]);
+    expect(nth(result?.album.songs ?? [], 0).themes).toEqual(["memory", "tide"]);
+    expect(nth(result?.album.songs ?? [], 1).motifs).toEqual(["static"]);
     expect(result?.added).toEqual([
       { trackNumber: 1, themes: ["tide"], motifs: [], characters: [] },
       { trackNumber: 2, themes: [], motifs: ["static"], characters: [] },
@@ -192,7 +193,7 @@ describe("applyAcceptedTags", () => {
       { trackNumber: 1, themes: ["MEMORY"], motifs: [], characters: [] },
     ]);
     expect(result?.added).toEqual([]);
-    expect(result?.album.songs[0].themes).toEqual(["memory"]);
+    expect(nth(result?.album.songs ?? [], 0).themes).toEqual(["memory"]);
   });
 });
 
@@ -243,9 +244,9 @@ describe("removeAddedTags", () => {
       { trackNumber: 1, themes: ["Tide"], motifs: [], characters: [] },
       { trackNumber: 2, themes: [], motifs: ["static"], characters: [] },
     ]);
-    expect(result?.album.songs[0].themes).toEqual(["memory"]);
-    expect(result?.album.songs[0].motifs).toEqual(["static"]);
-    expect(result?.album.songs[1].motifs).toEqual([]);
+    expect(nth(result?.album.songs ?? [], 0).themes).toEqual(["memory"]);
+    expect(nth(result?.album.songs ?? [], 0).motifs).toEqual(["static"]);
+    expect(nth(result?.album.songs ?? [], 1).motifs).toEqual([]);
     expect(result?.removed).toEqual([
       { trackNumber: 1, themes: ["tide"], motifs: [], characters: [] },
       { trackNumber: 2, themes: [], motifs: ["Static"], characters: [] },

@@ -32,7 +32,7 @@ const TABS = [
 function useAlbumSegment(albumId: string) {
   const pathname = usePathname() ?? "";
   const base = `/app/albums/${albumId}`;
-  return pathname.startsWith(`${base}/`) ? pathname.slice(base.length + 1).split("/")[0] : "";
+  return pathname.startsWith(`${base}/`) ? pathname.slice(base.length + 1).split("/")[0] ?? "" : "";
 }
 
 /**

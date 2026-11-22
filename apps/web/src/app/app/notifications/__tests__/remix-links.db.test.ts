@@ -4,6 +4,7 @@ import { forkIntoWorkspace } from "@/server/album-fork";
 import { getPrisma } from "@/server/db";
 
 import { publishedRemixes } from "../remix-links";
+import { nth } from "@/test-support/nth";
 
 // A remix notification leads to the remix on Discover once it is published, against the
 // Postgres in DATABASE_URL.
@@ -74,7 +75,9 @@ describe.skipIf(!hasDatabase)("remix notification links (database)", () => {
     const first = await remix();
     const second = await remix();
     await prisma.album.updateMany({ where: { id: { in: [first, second] } }, data: { isPublic: true } });
-    const [firstNote, secondNote] = await remixNotes();
+    const notes = await remixNotes();
+    const firstNote = nth(notes, 0);
+    const secondNote = nth(notes, 1);
     const found = await publishedRemixes([firstNote, secondNote]);
     expect(found.get(firstNote.id)).toBe(first);
     expect(found.get(secondNote.id)).toBe(second);
@@ -84,7 +87,9 @@ describe.skipIf(!hasDatabase)("remix notification links (database)", () => {
     const shown = await remix();
     const hidden = await remix();
     await prisma.album.update({ where: { id: shown }, data: { isPublic: true } });
-    const [firstNote, secondNote] = await remixNotes();
+    const notes = await remixNotes();
+    const firstNote = nth(notes, 0);
+    const secondNote = nth(notes, 1);
     const found = await publishedRemixes([
       { ...firstNote, actorUserId: null, metadata: { remixAlbumId: shown } },
       { ...secondNote, actorUserId: null, metadata: { remixAlbumId: hidden } },
@@ -100,7 +105,7 @@ describe.skipIf(!hasDatabase)("remix notification links (database)", () => {
   it("uses the remix id a notification records", async () => {
     const id = await remix();
     await prisma.album.update({ where: { id }, data: { isPublic: true } });
-    const [note] = await remixNotes();
+    const note = nth(await remixNotes(), 0);
     const found = await publishedRemixes([{ ...note, actorUserId: null, metadata: { remixAlbumId: id } }]);
     expect(found.get(note.id)).toBe(id);
   });

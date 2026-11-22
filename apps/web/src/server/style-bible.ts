@@ -92,7 +92,7 @@ export function assertStyleBibleListsFit(value: AlbumStyleBible) {
 
   const [first] = over;
   const message =
-    over.length === 1
+    first && over.length === 1
       ? `${first.label} can hold up to ${STYLE_BIBLE_LIST_LIMIT} items (this has ${first.count}). Remove ${first.count - STYLE_BIBLE_LIST_LIMIT} to save.`
       : `${over.map((entry) => entry.label).join(", ")} can hold up to ${STYLE_BIBLE_LIST_LIMIT} items each. Shorten them to save.`;
   throw new ApiError(

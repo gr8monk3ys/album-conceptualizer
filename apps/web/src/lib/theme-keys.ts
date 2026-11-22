@@ -54,14 +54,14 @@ export function themeNamesFromRem(count: number): number {
 export type ThemeHeadClasses = { keys: string; names: string; slot: string; legend: string };
 
 // Literal class names, so Tailwind generates them; each is `@min-[<themeNamesFromRem>rem]`.
-const THEME_HEADS: Record<number, ThemeHeadClasses> = {
-  1: { keys: "@min-[18rem]:hidden", names: "hidden @min-[18rem]:block", slot: "@min-[18rem]:w-12", legend: "@min-[18rem]:hidden" },
-  2: { keys: "@min-[21rem]:hidden", names: "hidden @min-[21rem]:block", slot: "@min-[21rem]:w-12", legend: "@min-[21rem]:hidden" },
-  3: { keys: "@min-[24rem]:hidden", names: "hidden @min-[24rem]:block", slot: "@min-[24rem]:w-12", legend: "@min-[24rem]:hidden" },
-  4: { keys: "@min-[27rem]:hidden", names: "hidden @min-[27rem]:block", slot: "@min-[27rem]:w-12", legend: "@min-[27rem]:hidden" },
-  5: { keys: "@min-[30rem]:hidden", names: "hidden @min-[30rem]:block", slot: "@min-[30rem]:w-12", legend: "@min-[30rem]:hidden" },
-  6: { keys: "@min-[33rem]:hidden", names: "hidden @min-[33rem]:block", slot: "@min-[33rem]:w-12", legend: "@min-[33rem]:hidden" },
-};
+const THEME_HEADS: readonly [ThemeHeadClasses, ...ThemeHeadClasses[]] = [
+  { keys: "@min-[18rem]:hidden", names: "hidden @min-[18rem]:block", slot: "@min-[18rem]:w-12", legend: "@min-[18rem]:hidden" },
+  { keys: "@min-[21rem]:hidden", names: "hidden @min-[21rem]:block", slot: "@min-[21rem]:w-12", legend: "@min-[21rem]:hidden" },
+  { keys: "@min-[24rem]:hidden", names: "hidden @min-[24rem]:block", slot: "@min-[24rem]:w-12", legend: "@min-[24rem]:hidden" },
+  { keys: "@min-[27rem]:hidden", names: "hidden @min-[27rem]:block", slot: "@min-[27rem]:w-12", legend: "@min-[27rem]:hidden" },
+  { keys: "@min-[30rem]:hidden", names: "hidden @min-[30rem]:block", slot: "@min-[30rem]:w-12", legend: "@min-[30rem]:hidden" },
+  { keys: "@min-[33rem]:hidden", names: "hidden @min-[33rem]:block", slot: "@min-[33rem]:w-12", legend: "@min-[33rem]:hidden" },
+];
 
 /**
  * The classes that switch a theme matrix's heads between names and keys by the room its
@@ -70,7 +70,7 @@ const THEME_HEADS: Record<number, ThemeHeadClasses> = {
  * legend, which is shown only while the keys are.
  */
 export function themeHeadClasses(count: number): ThemeHeadClasses {
-  return THEME_HEADS[Math.max(1, Math.min(6, count))];
+  return THEME_HEADS[Math.max(1, Math.min(6, count)) - 1] ?? THEME_HEADS[0];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -216,7 +216,7 @@ export function themeHeadLines(theme: string, widthRem: number): ThemeHead {
   };
   for (let i = 1; i < name.length; i += 1) {
     if (name[i] === " ") consider(name.slice(0, i).trimEnd(), name.slice(i + 1).trimStart(), 0);
-    if (/[-‐–—/]/.test(name[i - 1]) && name[i] !== " ") consider(name.slice(0, i), name.slice(i), 0);
+    if (/[-‐–—/]/.test(name.charAt(i - 1)) && name[i] !== " ") consider(name.slice(0, i), name.slice(i), 0);
   }
   for (const i of hyphenationPoints(name)) {
     if (wordLettersAt(name, i) < MIN_HYPHENATED_WORD_LETTERS) continue;
@@ -260,7 +260,7 @@ export function wideThemeSlotRem(theme: string, minSlotRem: number = THEME_NAME_
   let text = catalogWidthRem(name);
   for (let i = 1; i < name.length; i += 1) {
     const atSpace = name[i] === " ";
-    const afterHyphen = /[-‐–—/]/.test(name[i - 1]) && name[i] !== " ";
+    const afterHyphen = /[-‐–—/]/.test(name.charAt(i - 1)) && name[i] !== " ";
     if (!atSpace && !afterHyphen) continue;
     const first = atSpace ? name.slice(0, i).trimEnd() : name.slice(0, i);
     const second = atSpace ? name.slice(i + 1).trimStart() : name.slice(i);
@@ -324,7 +324,7 @@ export function wideThemeHeads(
         ceilTo(Math.max(otherColumnsRem + total, themeNamesFromRem(themes.length)), 0.05).toFixed(2),
       ),
       truncated: themes.some(
-        (theme, index) => themeHeadLines(theme, slotRem[index] - THEME_NAME_PADDING_REM).truncated,
+        (theme, index) => themeHeadLines(theme, (slotRem[index] ?? minSlotRem) - THEME_NAME_PADDING_REM).truncated,
       ),
     });
     previous = slotRem;

@@ -18,6 +18,7 @@ import {
   lyricStripPhrase,
   writtenSummaryItems,
 } from "@/lib/discover";
+import { nth } from "@/test-support/nth";
 
 const album = {
   songs: [
@@ -59,8 +60,8 @@ describe("lyricStripPhrase", () => {
 
 describe("lyricExcerpt", () => {
   it("takes the first written lines in section order, without placeholders", () => {
-    expect(lyricExcerpt(album.songs[0].sections)).toEqual(["first line", "second verse line"]);
-    expect(lyricExcerpt(album.songs[0].sections, 3)).toEqual([
+    expect(lyricExcerpt(nth(album.songs, 0).sections)).toEqual(["first line", "second verse line"]);
+    expect(lyricExcerpt(nth(album.songs, 0).sections, 3)).toEqual([
       "first line",
       "second verse line",
       "another",
@@ -68,12 +69,12 @@ describe("lyricExcerpt", () => {
   });
 
   it("is empty when nothing is written", () => {
-    expect(lyricExcerpt(album.songs[1].sections)).toEqual([]);
+    expect(lyricExcerpt(nth(album.songs, 1).sections)).toEqual([]);
     expect(lyricExcerpt(undefined)).toEqual([]);
   });
 
   it("clips very long lines", () => {
-    const [line] = lyricExcerpt([{ order: 0, lyrics: "word ".repeat(40) }]);
+    const line = nth(lyricExcerpt([{ order: 0, lyrics: "word ".repeat(40) }]), 0);
     expect(line.endsWith("…")).toBe(true);
     expect(line.length).toBeLessThanOrEqual(91);
   });
