@@ -4,6 +4,7 @@ import path from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { fromPartial } from "@total-typescript/shoehorn";
 
 import { lyricFraction } from "@/components/album-spine";
 import { ConfirmSpend } from "@/components/confirm-spend";
@@ -18,9 +19,7 @@ describe("ConfirmSpend trigger", () => {
       createElement(
         ConfirmSpend,
         // children arrive as createElement's third argument, so the props object omits them.
-        { cost: 5, remaining: 40, actionLabel: "Remix", onConfirm: () => {}, ...props } as Parameters<
-          typeof ConfirmSpend
-        >[0],
+        fromPartial<Parameters<typeof ConfirmSpend>[0]>({ cost: 5, remaining: 40, actionLabel: "Remix", onConfirm: () => {}, ...props }),
         "Remix · 5 credits",
       ),
     );

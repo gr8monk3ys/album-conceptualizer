@@ -179,7 +179,7 @@ verify-optional:
 	$(PY_OPT) pytest tests/test_export.py::TestMidiExport tests/test_export_integration.py tests/test_rag.py::TestEmbeddings -v --tb=short --junitxml=reports/optional.xml
 
 verify-web:
-	cd apps/web && npm run lint && npm run typecheck
+	cd apps/web && npm run lint && npm run typecheck && npm run depcruise
 	cd apps/web && npm test -- --reporter=default --reporter=json --outputFile.json=$(CURDIR)/reports/web-unit.json
 	cd apps/web && npm run build
 

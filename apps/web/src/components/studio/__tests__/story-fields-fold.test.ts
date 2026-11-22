@@ -1,6 +1,7 @@
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { fromPartial } from "@total-typescript/shoehorn";
 
 import {
   STORY_FIELDS_BODY_ID,
@@ -13,7 +14,7 @@ import type { StudioSong } from "@/components/studio/studio-model";
 import { TrackThemeToggles } from "@/components/studio/track-list";
 
 const song = (patch: Partial<StudioSong> = {}): StudioSong =>
-  ({ track_number: 1, title: "Low Tide", sections: [], ...patch }) as StudioSong;
+  fromPartial<StudioSong>({ track_number: 1, title: "Low Tide", sections: [], ...patch });
 
 describe("storyNoteExcerpt", () => {
   it("keeps a short note whole", () => {

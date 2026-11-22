@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { fromPartial } from "@total-typescript/shoehorn";
 
 import { ConfirmSpend, SpendConfirm, spendPrompt } from "@/components/confirm-spend";
 
@@ -68,9 +69,7 @@ describe("ConfirmSpend trigger, described", () => {
     const html = renderToStaticMarkup(
       createElement(
         ConfirmSpend,
-        { cost: 5, remaining: 1, actionLabel: "Remix", onConfirm: () => {}, disabled: true, describedBy: "why" } as Parameters<
-          typeof ConfirmSpend
-        >[0],
+        fromPartial<Parameters<typeof ConfirmSpend>[0]>({ cost: 5, remaining: 1, actionLabel: "Remix", onConfirm: () => {}, disabled: true, describedBy: "why" }),
         "Remix",
       ),
     );
