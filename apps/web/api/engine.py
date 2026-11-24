@@ -27,6 +27,7 @@ from pathlib import Path
 def _ensure_engine_importable() -> None:
     try:
         import album_conceptualizer  # noqa: F401
+
         return
     except ModuleNotFoundError:
         pass
@@ -53,6 +54,7 @@ if os.environ.get("VERCEL"):
 
 from album_conceptualizer.api.app import app as _engine  # noqa: E402
 
+
 PREFIX = "/engine"
 
 
@@ -68,10 +70,10 @@ class _StripPrefix:
             path = scope.get("path", "")
             if path == self.prefix or path.startswith(self.prefix + "/"):
                 scope = dict(scope)
-                scope["path"] = path[len(self.prefix):] or "/"
+                scope["path"] = path[len(self.prefix) :] or "/"
                 raw = scope.get("raw_path")
                 if raw:
-                    scope["raw_path"] = raw[len(self.prefix):] or b"/"
+                    scope["raw_path"] = raw[len(self.prefix) :] or b"/"
                 scope["root_path"] = scope.get("root_path", "") + self.prefix
         await self.inner(scope, receive, send)
 
