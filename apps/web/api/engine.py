@@ -10,10 +10,10 @@ The request arrives with its original path, so `_StripPrefix` removes `/engine`
 before FastAPI routes it: the engine's routes stay exactly as they are.
 
 The engine's source lives at the repo root, outside the Root Directory, and a
-function can't bundle files from outside it. So `api/requirements.txt` installs
-the repo-root package (`../..`) into the function's environment like any other
-dependency. Run from a checkout without that install (local tests), the import
-falls back to finding the source by walking up from here.
+function can only ship files inside it. On Vercel, scripts/vendor-engine.mjs
+copies the package into apps/web before the build, so it lands next to this
+file's directory in the bundle; api/requirements.txt installs its dependencies.
+Locally, the package is found by walking up from here.
 
 Writable paths default to /tmp because a function's file system is read-only
 everywhere else. Env vars set on the project still win.
@@ -36,7 +36,7 @@ def _ensure_engine_importable() -> None:
             sys.path.insert(0, str(parent))
             return
     raise ModuleNotFoundError(
-        "album_conceptualizer is not installed; apps/web/api/requirements.txt installs it"
+        "album_conceptualizer not found; on Vercel, scripts/vendor-engine.mjs copies it in"
     )
 
 
