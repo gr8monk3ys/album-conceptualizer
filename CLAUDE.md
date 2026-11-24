@@ -131,9 +131,9 @@ Server modules to use instead of re-implementing (`apps/web/src/server/`):
 ## Engine on the web project
 
 The web project (Root Directory `apps/web`) also serves the engine under `/engine` on its own
-origin: `apps/web/api/engine.py` is a Python function, `apps/web/vercel.json` ships the
-repo-root `album_conceptualizer/` with it, and `next.config.ts` rewrites `/engine/*` to it.
-`apps/web/api/requirements.txt` must mirror pyproject's base `dependencies`. It replaces the
+origin: `apps/web/api/engine.py` is a Python function, `apps/web/api/requirements.txt`
+installs the repo-root package into it (`../..`, so pyproject's base `dependencies` come
+along), and `next.config.ts` rewrites `/engine/*` to it. It replaces the
 separate `album-conceptualizer-engine` project once ENGINE_API_URL points at
 `https://<host>/engine/api/v1` and the engine's env vars are on the web project.
 

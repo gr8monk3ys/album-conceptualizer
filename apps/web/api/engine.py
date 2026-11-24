@@ -9,10 +9,11 @@ function, so the engine answers on the web app's own origin, e.g.
 The request arrives with its original path, so `_StripPrefix` removes `/engine`
 before FastAPI routes it: the engine's routes stay exactly as they are.
 
-The engine's source lives at the repo root, outside the Root Directory.
-`vercel.json` ships it with `includeFiles`; this file finds it by walking up
-from here and puts that directory on `sys.path` (nothing pip-installs the
-package itself, same as the standalone engine's `api/index.py`).
+The engine's source lives at the repo root, outside the Root Directory, and a
+function can't bundle files from outside it. So `api/requirements.txt` installs
+the repo-root package (`../..`) into the function's environment like any other
+dependency. Run from a checkout without that install (local tests), the import
+falls back to finding the source by walking up from here.
 
 Writable paths default to /tmp because a function's file system is read-only
 everywhere else. Env vars set on the project still win.
@@ -23,20 +24,23 @@ import sys
 from pathlib import Path
 
 
-def _engine_root() -> Path:
+def _ensure_engine_importable() -> None:
+    try:
+        import album_conceptualizer  # noqa: F401
+        return
+    except ModuleNotFoundError:
+        pass
     here = Path(__file__).resolve()
-    for parent in [here.parent, *here.parents, Path("/var/task")]:
+    for parent in here.parents:
         if (parent / "album_conceptualizer" / "__init__.py").is_file():
-            return parent
+            sys.path.insert(0, str(parent))
+            return
     raise ModuleNotFoundError(
-        "album_conceptualizer was not bundled with apps/web/api/engine.py; "
-        "check includeFiles in apps/web/vercel.json"
+        "album_conceptualizer is not installed; apps/web/api/requirements.txt installs it"
     )
 
 
-_ROOT = _engine_root()
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
+_ensure_engine_importable()
 
 if os.environ.get("VERCEL"):
     _TMP = Path("/tmp/album-conceptualizer")
