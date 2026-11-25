@@ -20,10 +20,25 @@ function hasExplicitEmailSender() {
   );
 }
 
+/**
+ * Upstash REST credentials for rate limiting. Accepts the UPSTASH_REDIS_REST_* names and the
+ * KV_REST_API_* names that the Vercel Upstash integration sets when a database is connected.
+ */
+export function getUpstashRestCredentials(): { url: string; token: string } | null {
+  const pairs: Array<[string | undefined, string | undefined]> = [
+    [process.env.UPSTASH_REDIS_REST_URL, process.env.UPSTASH_REDIS_REST_TOKEN],
+    [process.env.KV_REST_API_URL, process.env.KV_REST_API_TOKEN],
+  ];
+  for (const [url, token] of pairs) {
+    if (hasValue(url) && hasValue(token)) {
+      return { url: url!.trim(), token: token!.trim() };
+    }
+  }
+  return null;
+}
+
 export function hasWebRateLimitingConfigured() {
-  return (
-    hasValue(process.env.UPSTASH_REDIS_REST_URL) && hasValue(process.env.UPSTASH_REDIS_REST_TOKEN)
-  );
+  return getUpstashRestCredentials() !== null;
 }
 
 function stripeBillingTouched() {
@@ -90,7 +105,9 @@ export function getProductionConfigIssues() {
   }
 
   if (!hasWebRateLimitingConfigured()) {
-    issues.push("Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN for production rate limiting.");
+    issues.push(
+      "Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or connect an Upstash database, which sets KV_REST_API_URL and KV_REST_API_TOKEN) for production rate limiting.",
+    );
   }
 
   if (!hasValue(process.env.ENGINE_API_URL)) {
