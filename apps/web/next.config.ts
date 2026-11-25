@@ -58,6 +58,10 @@ const nextConfig: NextConfig = {
     // Avoid picking up lockfiles outside this app when the repo is used as a workspace.
     root: currentDir,
   },
+  // ws (the Neon driver's WebSocket in src/server/db.ts) must load from node_modules, not the
+  // webpack bundle: bundled, its optional `bufferutil` require resolves to an empty module and
+  // every frame of 48+ bytes throws "b.mask is not a function", dropping the DB connection.
+  serverExternalPackages: ["ws"],
   webpack(config, { dev, isServer }) {
     if (!dev && !isServer) config.plugins.push(new CompileHintsPlugin());
     return config;
