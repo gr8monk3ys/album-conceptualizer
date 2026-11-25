@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Fast gate that Claude Code runs before a session can finish: `make verify`
+# minus pip-audit, the optional music/RAG stack, the Next.js build and the
+# Postgres-backed *.db.test.ts files. The full check before a PR is still
+# `make verify` (plus `make verify-e2e` for UI), the targets CI calls.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+make verify-lint verify-typecheck verify-test
+
+cd apps/web
+npm ci
+npm run lint
+npm run typecheck
+npm run depcruise
+# Without DATABASE_URL the *.db.test.ts suites skip themselves.
+env -u DATABASE_URL npm test
