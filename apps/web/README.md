@@ -158,7 +158,7 @@ High level:
    - Email magic links: `EMAIL_SERVER` + `EMAIL_FROM` (or `RESEND_API_KEY` + `RESEND_FROM`), plus `NEXTAUTH_SECRET` (or `AUTH_SECRET`).
    - Optional support contact shown on `/support`: `SUPPORT_EMAIL` (or `NEXT_PUBLIC_SUPPORT_EMAIL`)
 3. Configure Stripe and set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and price ids.
-4. Configure Upstash Redis and set `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN`.
+4. Configure Upstash Redis and set `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN`, or connect an Upstash database to the Vercel project, which sets `KV_REST_API_URL` and `KV_REST_API_TOKEN`.
 5. Deploy the Python engine somewhere reachable from Vercel and set:
    - `ENGINE_API_URL=https://<engine-host>/api/v1`
    - `ENGINE_API_KEY=<shared-api-key>` (recommended)

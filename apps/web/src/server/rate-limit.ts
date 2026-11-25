@@ -1,7 +1,11 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-import { hasWebRateLimitingConfigured, isStrictProductionRuntime } from "@/server/production";
+import {
+  getUpstashRestCredentials,
+  hasWebRateLimitingConfigured,
+  isStrictProductionRuntime,
+} from "@/server/production";
 
 // Requests allowed per user per minute, by bucket.
 const LIMITS = {
@@ -27,8 +31,9 @@ type RateLimitResult = {
 let redis: Redis | null = null;
 let rateLimitInitializationIssue: string | null = null;
 try {
-  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    redis = Redis.fromEnv();
+  const credentials = getUpstashRestCredentials();
+  if (credentials) {
+    redis = new Redis(credentials);
   }
 } catch (err) {
   rateLimitInitializationIssue =
@@ -51,7 +56,7 @@ const limiters = Object.fromEntries(
 ) as Record<LimiterName, Ratelimit | null>;
 
 const STRICT_PRODUCTION_RATE_LIMIT_MESSAGE =
-  "Rate limiting is not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.";
+  "Rate limiting is not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN, or KV_REST_API_URL and KV_REST_API_TOKEN.";
 const STRICT_PRODUCTION_RATE_LIMIT_INIT_MESSAGE =
   "Rate limiting is misconfigured. Upstash Redis could not be initialized.";
 
