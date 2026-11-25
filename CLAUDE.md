@@ -128,6 +128,17 @@ Server modules to use instead of re-implementing (`apps/web/src/server/`):
 | `ANTHROPIC_API_KEY` | — | Required for AI agent workflows |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | — | Required when subscription gating is on |
 
+## Engine on the web project
+
+The web project (Root Directory `apps/web`) also serves the engine under `/engine` on its own
+origin: `apps/web/api/engine.py` is a Python function, `apps/web/scripts/vendor-engine.mjs`
+copies the repo-root `album_conceptualizer/` into apps/web on Vercel builds (a function
+can't ship files outside its Root Directory), `apps/web/api/requirements.txt` lists
+pyproject's base `dependencies` (tests/test_web_engine_requirements.py keeps them equal),
+and `next.config.ts` rewrites `/engine/*` to it. It replaces the
+separate `album-conceptualizer-engine` project once ENGINE_API_URL points at
+`https://<host>/engine/api/v1` and the engine's env vars are on the web project.
+
 ## Agent skills
 
 ### Issue tracker

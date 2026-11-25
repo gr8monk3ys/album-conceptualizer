@@ -62,6 +62,20 @@ const nextConfig: NextConfig = {
     if (!dev && !isServer) config.plugins.push(new CompileHintsPlugin());
     return config;
   },
+  // The Python engine is served from this same Vercel project as the function
+  // api/engine.py, under /engine on this origin (ENGINE_API_URL can then be
+  // https://<host>/engine/api/v1). In local dev the same path is proxied to uvicorn
+  // on :8000. beforeFiles: checked before pages, so no page can shadow it.
+  async rewrites() {
+    const dev = process.env.NODE_ENV === "development";
+    const devOrigin = process.env.ENGINE_DEV_ORIGIN ?? "http://127.0.0.1:8000";
+    return {
+      beforeFiles: [
+        { source: "/engine", destination: dev ? `${devOrigin}/` : "/api/engine" },
+        { source: "/engine/:path*", destination: dev ? `${devOrigin}/:path*` : "/api/engine" },
+      ],
+    };
+  },
   async headers() {
     return [
       {

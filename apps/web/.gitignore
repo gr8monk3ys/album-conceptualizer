@@ -42,3 +42,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Engine package copied in by scripts/vendor-engine.mjs on Vercel builds
+/album_conceptualizer/
